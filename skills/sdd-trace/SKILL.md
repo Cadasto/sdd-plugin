@@ -18,7 +18,7 @@ Assemble in one shot so no whole-tree grep is needed:
 3. The **canonical spec excerpt** — the actual normative §, fetched from the `canonical` link.
 4. Any **open `STRAND`s** touching this REQ (if `use_strands`).
 
-Present it compactly and name the next action (e.g. "no plan yet → `superpowers:writing-plans`, landing it in `docs/plans/` with the SDD citing header").
+Present it compactly and name the next action (e.g. "no plan yet → superpowers planning per `references/sdd-with-superpowers.md`").
 
 ## Mode B — drift scan (the spec-check analogue)
 
@@ -31,12 +31,12 @@ With no REQ, walk the map against the tree and report each orphan class:
 - a `REQ` in the index but not the map (or vice-versa);
 - a `done` plan left in the active list, or an active plan whose REQ is already `shipped`.
 
-If the repo defines the `spec_check_target` build target, run it (`<build_entrypoint> <spec_check_target>`) to corroborate — this checks *traceability* drift, **not** the tests/build/lint gate (that is `superpowers:verification-before-completion`). Then report the human-readable breakdown, grouped by class with the offending id/path; **recommend** fixes, do not apply them.
+If the repo defines the `spec_check_target` build target, run it (`<build_entrypoint> <spec_check_target>`) to corroborate traceability drift. Then report the human-readable breakdown, grouped by class with the offending id/path; **recommend** fixes, do not apply them.
 
 ## Guardrails
 
 - **Strictly read-only.** Diagnose; the owning skill fixes (`sdd-specify` for spec/index, the build workflow for code/tests, `sdd-archive` for plan state). Never edit here.
-- **Scope is traceability, not test results** — "are the tests green?" is `superpowers:verification-before-completion`; this skill answers "does the spec↔code↔test map hold?".
+- **Scope is traceability, not test results** — tests/build/lint pass is superpowers' gate; see `references/sdd-with-superpowers.md`.
 - For a heavy, context-isolated whole-repo audit, dispatch the **`sdd-traceability-auditor`** agent — same scan, isolated context, returns a report.
 
 ## Reference

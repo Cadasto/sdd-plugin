@@ -7,12 +7,11 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 # Archive — the SDD close-out (the outer loop)
 
-Consolidate a finished feature's delta into the living project memory and keep the active list a true picture of in-flight work. This is the **document/spec** close-out; the **git** close-out (merge / PR / worktree cleanup) is `superpowers:finishing-a-development-branch`, run alongside. Read `docs/.sdd.yaml` for `paths.plans` / `paths.plans_archive`.
+Consolidate a finished feature's delta into the living project memory and keep the active list a true picture of in-flight work. Document/spec close-out only — git close-out is superpowers' job (`references/sdd-with-superpowers.md`). Read `docs/.sdd.yaml` for `paths.plans` / `paths.plans_archive`.
 
 ## Preconditions
 
-- Tests/build pass — confirmed via `superpowers:verification-before-completion`.
-- Traceability is intact — confirmed via `sdd-trace` (drift scan clean).
+- Tests/build pass and traceability is intact — per `references/sdd-with-superpowers.md` (`verification-before-completion` + `sdd-trace` drift scan clean).
 
 Do not archive unverified work; archiving asserts the feature is truly done.
 
@@ -23,7 +22,7 @@ Do not archive unverified work; archiving asserts the feature is truly done.
 3. **Traceability** — confirm `traceability.yaml` reflects the landed packages/tests/probes.
 4. **Plan** — flip its frontmatter `status: active` → `done`, then `git mv docs/plans/YYYY-MM-DD-<slug>.md docs/plans/archive/` (use `git mv` so history follows). Update the plans index. For explicitly deferred work, use a `postponed/` folder with restore criteria instead.
 5. **AGENTS.md** — update its tables if anything user-facing shipped (a capability list, a new command).
-6. **Report** what moved and confirm the active list now shows only in-flight work. Then hand off to `superpowers:finishing-a-development-branch` for the merge/PR.
+6. **Report** what moved and confirm the active list now shows only in-flight work. Hand off git close-out per `references/sdd-with-superpowers.md`.
 
 ## Guardrails
 
@@ -31,7 +30,7 @@ Do not archive unverified work; archiving asserts the feature is truly done.
 - **Use `git mv`** — preserve history; don't delete-and-recreate.
 - **Keep the active list honest** — no `done` plan left active; no `shipped` `REQ` left `in_progress`.
 - **Consolidate, don't duplicate.** The spec already holds the normative delta (updated during the build); archiving moves the *plan*, it does not re-document behaviour.
-- **Stay on the doc side.** Branch merging, PRs, and worktree cleanup are `superpowers:finishing-a-development-branch` — don't reimplement them here.
+- **Stay on the doc side.** Branch merging, PRs, and worktree cleanup are superpowers' job — see `references/sdd-with-superpowers.md`.
 
 ## Reference
 

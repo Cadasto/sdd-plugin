@@ -9,7 +9,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep
 
 Turn intent (often a design doc from `superpowers:brainstorming`) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
 
-If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour hasn't been explored yet, route to `superpowers:brainstorming` first, then return here to record the outcome.
+If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour hasn't been explored yet, route to superpowers `brainstorming` first (see `references/sdd-with-superpowers.md`).
 
 ## A · Requirement (`REQ-*`) — capture the capability
 
@@ -35,14 +35,14 @@ If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`
 
 ## Working from a brainstorming design doc
 
-A `superpowers:brainstorming` design doc (`docs/superpowers/specs/*-design.md`) is **input narrative, not the source of truth.** Extract its normative statements into the canonical `docs/specifications/` spec (§B) with RFC-2119 force and IDs, and capture the capability as a `REQ` (§A). See `references/sdd-with-superpowers.md` for the redirect.
+A `docs/superpowers/specs/*-design.md` is **input narrative, not the source of truth.** Extract normative statements into the canonical spec (§B) and capture the capability as a `REQ` (§A). Redirect rules: `references/sdd-with-superpowers.md`.
 
 ## Guardrails
 
 - Keep the kinds separate even though one skill authors all three: a requirement has no normative prose, a spec has no tasks, an ADR holds one decision.
 - Don't settle an open question silently — record it as an ADR (§C) or a `STRAND`, or return to brainstorming.
 - For a missing **upstream** capability (consuming a sibling SDD repo), see `references/cross-repo-gap.md`.
-- After specifying, hand off: `superpowers:writing-plans` to decompose (plan lands in `docs/plans/` with the SDD citing header — see the integration reference).
+- After specifying, hand off to superpowers planning per `references/sdd-with-superpowers.md` (plan lands in `docs/plans/` with the SDD citing header).
 
 ## Reference
 

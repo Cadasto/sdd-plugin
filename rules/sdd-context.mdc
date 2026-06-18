@@ -6,27 +6,10 @@ alwaysApply: false
 
 # Spec-Driven Development
 
-This Cursor rule mirrors the `spec-driven-development` router skill — apply it when working in an SDD repo's `docs/` tree or `AGENTS.md`.
+Apply when working in this repo's `docs/` tree or `AGENTS.md`. Read `docs/.sdd.yaml` first.
 
-**The specification — not the code, not the prompt — is the source of truth.** Code is measured against it; when they disagree the spec wins (unless a section is explicitly *implementation-aligned*). This repo's conventions (identifier style, paths, build tool, ground-truth source) live in `docs/.sdd.yaml` — read it first.
+**The specification — not the code, not the prompt — is the source of truth.** SDD owns the spec/document/traceability layer; exploring, planning, TDD, execution, generic verification, code review, and branch-finishing belong to **superpowers**.
 
-SDD owns the **spec / document / traceability layer**; the generic engineering loop (exploring, planning, TDD, execution, generic verification, code review, branch-finishing) belongs to the **superpowers** plugin. The combined flow:
+**SDD commands:** `/sdd-scaffold` · `/sdd-specify` · `/sdd-trace` · `/sdd-archive`. For the full combined flow, superpowers handoffs, and the `docs/superpowers/*` → canonical-tree redirect, use the `spec-driven-development` skill or — in a scaffolded repo — [docs/ai-workflow.md](docs/ai-workflow.md).
 
-```
-superpowers:brainstorming → SDD:sdd-specify → superpowers:writing-plans → executing/TDD
-   → SDD:sdd-trace + superpowers:verification-before-completion → SDD:sdd-archive + superpowers:finishing-a-development-branch
-```
-
-| Intent | Route to |
-|---|---|
-| Explore / design an idea | superpowers `brainstorming` |
-| Set up / extend the SDD structure | `/sdd-scaffold` |
-| Capture a capability, write a spec, or record a decision (REQ/SPEC/ADR) | `/sdd-specify` |
-| Decompose into tasks / write the plan | superpowers `writing-plans` (land it in `docs/plans/` with the SDD citing header) |
-| Build / TDD / execute | superpowers `executing-plans` / `test-driven-development` |
-| Tests/build pass? | superpowers `verification-before-completion` |
-| Traceability / drift / spec-check / a REQ's context | `/sdd-trace` |
-| Merge / PR / branch cleanup | superpowers `finishing-a-development-branch` |
-| Close out the spec, index, and plan | `/sdd-archive` |
-
-Load-bearing rules: **one canonical home** per requirement (the index links, the spec owns the prose — never duplicate normative text); **identifiers are immutable** once published; **don't mix document kinds** (no tasks in a spec, no file paths in a requirement, one decision per ADR); **don't settle open questions silently** (raise a STRAND, draft an ADR, or ask); **look domain facts up** in the named ground-truth source, never guess. Don't jump to code when no `REQ`/spec exists — explore (brainstorming) and specify (`/sdd-specify`) first. Treat superpowers' `docs/superpowers/*` design docs and plans as working artefacts: route their normative content into `docs/specifications/` via `/sdd-specify` and land plans in `docs/plans/`.
+**Load-bearing rules:** one canonical home per requirement (index links, spec owns the prose); identifiers immutable once published; don't mix document kinds; don't settle open questions silently (STRAND, ADR, or ask); look domain facts up in the named ground-truth source. No code-first without a `REQ`/spec — `/sdd-specify` first. Route normative content from `docs/superpowers/*` into `docs/specifications/` and land plans in `docs/plans/`.

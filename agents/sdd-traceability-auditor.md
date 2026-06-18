@@ -51,11 +51,13 @@ Before a release, during a periodic health check, when a `spec-check` CI job fai
 
 ## Drift classes to report
 
+(Self-contained — an isolated agent cannot load the `sdd-trace` skill; keep this list complete here.)
+
 - **Orphan REQ** — index/map entry with no plan or no canonical spec.
 - **Orphan plan** — plan citing a REQ that doesn't exist, or with no code landed.
 - **Orphan code/test** — map lists a path that doesn't exist; or `landed`/`shipped` REQ with no packages/tests.
 - **Orphan probe** — `PROBE` id with no test.
-- **Duplicated normative prose** — the same MUST/SHALL statement in two files (two sources of truth).
+- **Duplicated normative prose** — the same MUST/SHALL statement in two files (two sources of truth); flagged by audit step 3.
 - **Index/map disagreement** — a REQ present in one but not the other; status axes inconsistent.
 - **Stale active list** — `done` plan left active; `shipped` REQ left `in_progress`.
 

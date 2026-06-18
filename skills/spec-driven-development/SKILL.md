@@ -13,33 +13,29 @@ The **specification — not the code, not the prompt — is the source of truth.
 
 ## Division of labour with superpowers
 
-This plugin owns the **spec / document / traceability layer**. The generic engineering loop — exploration, planning, TDD, execution, generic verification, code review, branch-finishing — belongs to **superpowers**. The combined flow:
+This plugin owns the **spec / document / traceability layer**. The generic engineering loop belongs to **superpowers**. Combined flow:
 
 ```
 superpowers:brainstorming → SDD:sdd-specify → superpowers:writing-plans → executing-plans/TDD
    → SDD:sdd-trace + superpowers:verification-before-completion → SDD:sdd-archive + superpowers:finishing-a-development-branch
 ```
 
+### Route to SDD
+
 | Intent | Route to |
 |---|---|
-| Explore an idea / weigh approaches / design | **superpowers** `brainstorming` |
 | Set up / extend the SDD docs structure | `sdd-scaffold` |
 | Capture a capability, write normative behaviour, or record a decision (REQ/SPEC/ADR) | `sdd-specify` |
-| Decompose into tasks / write the plan | **superpowers** `writing-plans` *(land the plan in `docs/plans/` with the SDD citing header)* |
-| Build the code / work the plan / TDD | **superpowers** `executing-plans` / `test-driven-development` |
-| "Do the tests/build pass?" | **superpowers** `verification-before-completion` |
 | Traceability / drift / spec-check / a REQ's context | `sdd-trace` |
 | Review *SDD documents* for boundary violations | `sdd-doc-reviewer` agent |
-| Review the *code* | **superpowers** `requesting-code-review` |
-| Merge / PR / branch cleanup | **superpowers** `finishing-a-development-branch` |
 | Close out the spec, index, and plan | `sdd-archive` |
 
-Full seam, including the `docs/superpowers/*` → canonical-tree path redirect: `references/sdd-with-superpowers.md`.
+Explore, plan, build, verify tests/build, review code, merge/PR → **superpowers** (`brainstorming`, `writing-plans`, `executing-plans` / `test-driven-development`, `verification-before-completion`, `requesting-code-review`, `finishing-a-development-branch`). Full seam, handoffs, and the `docs/superpowers/*` → canonical-tree path redirect: `references/sdd-with-superpowers.md`.
 
 ## Guardrails this layer enforces
 
 - **No code-first.** If asked to implement behaviour for which **no `REQ` and no spec exist**, do not jump to code. Redirect: explore with `superpowers:brainstorming` if needed, record with `sdd-specify`, then plan/build with superpowers. The exception is *implementation-aligned* work on shipped code — the spec is updated in the **same** change.
-- **One source of truth.** A `superpowers:brainstorming` design doc and `docs/superpowers/plans/*` are narrative/working artefacts — the canonical spec (`docs/specifications/`) and plans (`docs/plans/`) win. Route design output through `sdd-specify`; land plans in `docs/plans/`.
+- **One source of truth.** `docs/superpowers/*` artefacts are narrative/working output — canonical spec (`docs/specifications/`) and plans (`docs/plans/`) win. Route design output through `sdd-specify`; land plans in `docs/plans/`.
 - **Don't settle open questions silently** — a genuine fork goes to an ADR (`sdd-specify`) or a `STRAND`, or back to brainstorming.
 - **Check the descriptor.** Repo conventions live in `docs/.sdd.yaml`; if it is missing, the repo isn't scaffolded (route to `sdd-scaffold`).
 
