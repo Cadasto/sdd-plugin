@@ -7,6 +7,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
+## [Unreleased]
+
+### Fixed
+- Skills: the bundled `references/` lives at the plugin root, but the five skills cited it as a bare `references/…` that a reader resolves relative to the *skill* directory — so the first Read failed on every load (and risked the agent improvising rules rather than grounding in the methodology). Each skill now carries a one-line note that `references/` is plugin-root-relative, with host-agnostic resolution (`${CLAUDE_PLUGIN_ROOT}/references/…`, `../../references/…`, or Glob). `sdd-doc-reviewer` clarified likewise and made self-contained. No change to the single-copy (DRY) design.
+
 ## [0.2.0] - 2026-06-18
 
 Consolidated the skill surface and aligned the plugin to **complement the superpowers plugin** — SDD owns the spec / document / traceability layer; the engineering loop (planning, TDD, execution, generic verification, code review, branch-finishing) is deferred to superpowers.

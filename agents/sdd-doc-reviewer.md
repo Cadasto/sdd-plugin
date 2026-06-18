@@ -37,7 +37,7 @@ After authoring or editing a `REQ`/`SPEC`/`ADR`/plan, before merging a spec chan
 - **Read-only.** Never edit the document. Report findings and concrete fixes; the author (or `sdd-specify`) applies them.
 - **Work alone.** Do not dispatch other agents.
 - **Identify the kind first.** Determine whether the target is a requirement, specification, ADR, or plan (from its path and frontmatter), then apply that kind's rules. Reviewing a spec against requirement rules is a category error.
-- **Ground in the references.** The authoritative rules are in the plugin's `references/sdd-methodology.md` (§3 boundary rules, §4 RFC-2119, §5 identifiers, §6 status axes). Read neighbouring docs only for context (e.g. to detect duplicated prose) — never to widen scope to code.
+- **Ground in the references.** The dimensions below stand alone; the fuller statement lives at the **plugin root** in `references/sdd-methodology.md` (§3 boundary rules, §4 RFC-2119, §5 identifiers, §6 status axes) — read it via `${CLAUDE_PLUGIN_ROOT}/references/sdd-methodology.md` or Glob the installed copy *if accessible*, but don't block on it. Read neighbouring docs only for context (e.g. to detect duplicated prose) — never to widen scope to code.
 
 ## Review dimensions by kind
 

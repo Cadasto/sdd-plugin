@@ -5,6 +5,8 @@ description: This skill should be used when the user mentions spec-driven develo
 
 # Spec-Driven Development — awareness, routing & integration
 
+> **Bundled `references/` is at the plugin root** (beside `skills/`, two levels above this file) — *not* under this skill. Read any `references/…` path as `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or `../../references/…` from this skill's directory, or Glob for the installed `references/…` (host-agnostic).
+
 The always-on layer for SDD. It does no artefact work itself; it explains the methodology, routes to the skill that does the work, and **coordinates with the superpowers plugin** so the two are complementary, not overlapping. Ground every answer in `references/sdd-methodology.md` — do not improvise rules.
 
 ## Core idea (state this when explaining SDD)
