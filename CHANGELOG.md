@@ -7,14 +7,14 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
-## [Unreleased]
+## [0.2.0] - 2026-06-18
 
 Consolidated the skill surface and aligned the plugin to **complement the superpowers plugin** — SDD owns the spec / document / traceability layer; the engineering loop (planning, TDD, execution, generic verification, code review, branch-finishing) is deferred to superpowers.
 
 ### Changed
 - Skills: consolidated **11 → 5**. Merged `sdd-requirement` + `sdd-spec` + `sdd-adr` into `sdd-specify` (the definition layer); refocused `sdd-trace` to own the traceability/drift gate; refocused `sdd-archive` to own the document-side Definition of Done; rewrote `spec-driven-development` as the SDD↔superpowers integration map. Cuts always-on description cost ~33% (~2,385 → ~1,600 tokens) and the `/sdd-*` command surface from 10 to 4.
 - Skills / agents / rules / hooks: cross-host hardening — `sdd-scaffold` resolves bundled templates host-agnostically (`${CLAUDE_PLUGIN_ROOT}` with a Glob fallback for Cursor/other installs); `cursor-hooks.json` adds `"version": 1`; thinned `sdd-context.mdc` and the `spec-driven-development` routing table; deduplicated superpowers handoffs in worker skills (one-liners + `references/sdd-with-superpowers.md`).
-- Agents: trimmed `sdd-traceability-auditor` and `sdd-doc-reviewer` descriptions to 2 examples; scoped `sdd-doc-reviewer` explicitly to SDD documents (code review is superpowers' `requesting-code-review`).
+- Agents: trimmed `sdd-traceability-auditor` and `sdd-doc-reviewer` descriptions to ~1 example (≤~1,000 chars) and moved triggering detail into a `When to invoke` body section; scoped `sdd-doc-reviewer` explicitly to SDD documents (code review is superpowers' `requesting-code-review`).
 - Hooks / Cursor rule / docs / scaffold templates: updated `session-start.sh`, `spec-edit-reminder.sh`, `rules/sdd-context.mdc`, `references/templates/*`, and the contributor docs to the new surface and the superpowers handoffs.
 
 ### Added
