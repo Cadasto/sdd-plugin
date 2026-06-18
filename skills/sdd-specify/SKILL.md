@@ -7,6 +7,8 @@ allowed-tools: Read, Write, Edit, Glob, Grep
 
 # Specify — the SDD definition layer
 
+> **Bundled `references/` is at the plugin root** (beside `skills/`, two levels above this file) — *not* under this skill. Read any `references/…` path as `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or `../../references/…` from this skill's directory, or Glob for the installed `references/…` (host-agnostic).
+
 Turn intent (often a design doc from `superpowers:brainstorming`) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
 
 If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour hasn't been explored yet, route to superpowers `brainstorming` first (see `references/sdd-with-superpowers.md`).

@@ -7,6 +7,8 @@ allowed-tools: Read, Glob, Grep, Bash
 
 # Trace — the SDD traceability gate
 
+> **Bundled `references/` is at the plugin root** (beside `skills/`, two levels above this file) — *not* under this skill. Read any `references/…` path as `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or `../../references/…` from this skill's directory, or Glob for the installed `references/…` (host-agnostic).
+
 Owns the *spec-side* check: does the traceability map still match the tree, and what is the full context for a requirement. Read `docs/.sdd.yaml` for paths, the traceability map, and `spec_check_target`. (The generic tests/build/lint gate is superpowers' — see Guardrails.)
 
 ## Mode A — context bundle for a REQ
