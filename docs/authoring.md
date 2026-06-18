@@ -4,7 +4,7 @@ The detailed companion to [AGENTS.md](../AGENTS.md) (which is authoritative); th
 
 ## Naming & layout
 
-- **Components are kebab-case** and namespaced `<plugin>:<component>` (e.g. `sdd:sdd-spec`). A component's frontmatter `name` MUST equal its directory (skills) or filename stem (agents); `scripts/validate.py` enforces this.
+- **Components are kebab-case** and namespaced `<plugin>:<component>` (e.g. `sdd:sdd-specify`). A component's frontmatter `name` MUST equal its directory (skills) or filename stem (agents); `scripts/validate.py` enforces this.
 - `skills/<name>/SKILL.md` (includes user-invoked slash commands) · `agents/<name>.md` · `rules/<name>.mdc`. Shared reference material (the methodology, the schemas, the scaffold templates) lives in top-level `references/`. The legacy `commands/<name>.md` layout is not used.
 - Skill/command prefix is `sdd-`; the awareness skill is `spec-driven-development` (kept distinct from the plugin name `sdd` to avoid a `sdd:sdd` collision).
 
@@ -17,14 +17,14 @@ The detailed companion to [AGENTS.md](../AGENTS.md) (which is authoritative); th
 
 ## The `description` (the trigger)
 
-For skills the `description` is always-on metadata: keep it lean, third person — *what + scope*, 3–5 representative triggers ("This skill should be used when…"), and a short "Not for …" anti-trigger that disambiguates it from the neighbouring `sdd-*` skills (e.g. `sdd-spec` vs `sdd-requirement` vs `sdd-plan`).
+For skills the `description` is always-on metadata: keep it lean, third person — *what + scope*, 3–5 representative triggers ("This skill should be used when…"), and a short "Not for …" anti-trigger that disambiguates it from the neighbouring skills (e.g. `sdd-specify` vs `sdd-trace`) **and from superpowers** (e.g. defer planning/TDD/verification to superpowers, not a competing `sdd-*` skill).
 
 **YAML gotcha:** a `description` value with an unquoted `: ` (colon-space) makes a real YAML parser read it as a nested mapping, so the component loads with *empty* metadata (every field silently dropped). `claude plugin validate` catches this, and `scripts/validate.py` guards against it too. Reword or quote the value.
 
 ## Body
 
 - **Cite the methodology; don't re-derive it.** The single source of truth for the rules is `references/sdd-methodology.md` (and `references/traceability-schema.md` for the machine-readable formats). A skill body states *its* procedure and points at the canonical reference for the *why* — this keeps skills lean and the rules in one place.
-- **Operate on Markdown, not source code.** Every skill except `sdd-implement` reads/writes docs, the requirements index, the traceability map, and `AGENTS.md`. They are language-agnostic by construction and **read `docs/.sdd.yaml` first** rather than hard-coding paths or identifier styles.
+- **Operate on Markdown, not source code.** The skills read/write docs, the requirements index, the traceability map, and `AGENTS.md` — none of them writes source code (building is superpowers' job). They are language-agnostic by construction and **read `docs/.sdd.yaml` first** rather than hard-coding paths or identifier styles.
 - **Enforce boundaries; don't invent rules.** A skill keeps document kinds separate, identifiers stable, and the chain intact. It never adds a normative rule that isn't already in a spec.
 - **Verification is part of the skill.** A skill that lands an artefact runs (or instructs the agent to run) the relevant gate before claiming done.
 

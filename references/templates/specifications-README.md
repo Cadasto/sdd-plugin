@@ -3,7 +3,7 @@
 The **how must it behave** layer. Topic specs carry RFC-2119 normative prose with stable section numbers;
 each requirement's normative statements live in exactly **one** canonical section here.
 
-Write and extend specs with `/sdd-spec`.
+Write and extend specs with `/sdd-specify`.
 
 ## Conventions
 

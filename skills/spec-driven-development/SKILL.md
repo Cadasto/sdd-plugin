@@ -1,43 +1,50 @@
 ---
 name: spec-driven-development
-description: This skill should be used when the user mentions spec-driven development concepts outside a specific artefact action — "what is SDD", "explain spec-driven development", "how does this repo's spec workflow work", "should I write a spec or a requirement", or vocabulary like normative, RFC-2119, traceability, drift, ADR, requirement-vs-spec. Provides SDD awareness, explains the methodology, and routes intent to the right sdd-* skill. Not for performing an artefact action (use the specific sdd-* skill) — this is the awareness and routing layer.
+description: This skill should be used when the user mentions spec-driven development concepts outside a specific artefact action — "what is SDD", "explain spec-driven development", "how does this repo's spec workflow work", "where does the spec fit with planning/building", or vocabulary like normative, RFC-2119, traceability, drift, ADR, requirement-vs-spec. Provides SDD awareness, explains the methodology, routes intent to the right skill, and maps how SDD complements the superpowers engineering loop. Not for performing an artefact action — use the specific sdd-* skill.
 ---
 
-# Spec-Driven Development — awareness & router
+# Spec-Driven Development — awareness, routing & integration
 
-The always-on layer for Spec-Driven Development. It does no artefact work itself; it explains the methodology and routes the request to the skill that does the work. Ground every answer in the bundled `references/sdd-methodology.md` — do not improvise rules.
+The always-on layer for SDD. It does no artefact work itself; it explains the methodology, routes to the skill that does the work, and **coordinates with the superpowers plugin** so the two are complementary, not overlapping. Ground every answer in `references/sdd-methodology.md` — do not improvise rules.
 
 ## Core idea (state this when explaining SDD)
 
-The **specification — not the code, not the prompt — is the source of truth.** Code is derived from it and measured against it; when they disagree the spec wins (unless a section is explicitly *implementation-aligned*). This plugin targets the **spec-anchored** rung: specs are living, versioned, governing contracts, backed by stable identifiers, a machine-checked traceability map, and CI that fails on drift. Full detail: `references/sdd-methodology.md`.
+The **specification — not the code, not the prompt — is the source of truth.** Code is derived from it and measured against it; when they disagree the spec wins (unless a section is explicitly *implementation-aligned*). This plugin targets the **spec-anchored** rung, backed by stable identifiers, a machine-checked traceability map, and CI that fails on drift. Full detail: `references/sdd-methodology.md`.
 
-The loop: `Specify → (Clarify) → Plan → Tasks → Implement → Verify → Archive`, under a constitution of document-kind boundaries.
+## Division of labour with superpowers
 
-## Routing table
+This plugin owns the **spec / document / traceability layer**. The generic engineering loop — exploration, planning, TDD, execution, generic verification, code review, branch-finishing — belongs to **superpowers**. The combined flow:
 
-Recognise the intent and hand off to the matching skill:
+```
+superpowers:brainstorming → SDD:sdd-specify → superpowers:writing-plans → executing-plans/TDD
+   → SDD:sdd-trace + superpowers:verification-before-completion → SDD:sdd-archive + superpowers:finishing-a-development-branch
+```
 
-| The user wants to… | Route to |
+| Intent | Route to |
 |---|---|
-| Set up / initialise SDD structure in a repo | `sdd-scaffold` |
-| Capture a capability / "what we must build" | `sdd-requirement` |
-| Write normative behaviour / make something RFC-2119 | `sdd-spec` |
-| Record an irreversible decision / resolve an open question | `sdd-adr` |
-| Break a requirement into tasks | `sdd-plan` |
-| Build the code / work the plan | `sdd-implement` |
-| Check "is this done?" / run the gate | `sdd-verify` |
-| See traceability / find drift / get a REQ's context | `sdd-trace` |
-| Close out a finished feature | `sdd-archive` |
-| Flag a missing upstream capability | `sdd-gap` |
+| Explore an idea / weigh approaches / design | **superpowers** `brainstorming` |
+| Set up / extend the SDD docs structure | `sdd-scaffold` |
+| Capture a capability, write normative behaviour, or record a decision (REQ/SPEC/ADR) | `sdd-specify` |
+| Decompose into tasks / write the plan | **superpowers** `writing-plans` *(land the plan in `docs/plans/` with the SDD citing header)* |
+| Build the code / work the plan / TDD | **superpowers** `executing-plans` / `test-driven-development` |
+| "Do the tests/build pass?" | **superpowers** `verification-before-completion` |
+| Traceability / drift / spec-check / a REQ's context | `sdd-trace` |
+| Review *SDD documents* for boundary violations | `sdd-doc-reviewer` agent |
+| Review the *code* | **superpowers** `requesting-code-review` |
+| Merge / PR / branch cleanup | **superpowers** `finishing-a-development-branch` |
+| Close out the spec, index, and plan | `sdd-archive` |
+
+Full seam, including the `docs/superpowers/*` → canonical-tree path redirect: `references/sdd-with-superpowers.md`.
 
 ## Guardrails this layer enforces
 
-- **No code-first.** If asked to implement behaviour for which **no `REQ` and no spec exist**, do not jump to code. Redirect: capture it with `sdd-requirement`, make it normative with `sdd-spec`, then plan and implement. The exception is *implementation-aligned* work on already-shipped code — there, the spec is updated in the **same** change (`sdd-implement` handles the reconcile).
-- **Don't decide open questions silently.** Genuine architectural forks go to `sdd-adr` (or a `STRAND`), never into prose or code by default.
-- **One canonical home.** Never let normative prose be duplicated; the requirements index links, the spec owns the text.
-- **Check the descriptor.** Repo conventions (identifier style, paths, build tool, ground-truth source) live in `docs/.sdd.yaml` — read it before acting, and if it is missing, the repo has not been scaffolded yet (route to `sdd-scaffold`).
+- **No code-first.** If asked to implement behaviour for which **no `REQ` and no spec exist**, do not jump to code. Redirect: explore with `superpowers:brainstorming` if needed, record with `sdd-specify`, then plan/build with superpowers. The exception is *implementation-aligned* work on shipped code — the spec is updated in the **same** change.
+- **One source of truth.** A `superpowers:brainstorming` design doc and `docs/superpowers/plans/*` are narrative/working artefacts — the canonical spec (`docs/specifications/`) and plans (`docs/plans/`) win. Route design output through `sdd-specify`; land plans in `docs/plans/`.
+- **Don't settle open questions silently** — a genuine fork goes to an ADR (`sdd-specify`) or a `STRAND`, or back to brainstorming.
+- **Check the descriptor.** Repo conventions live in `docs/.sdd.yaml`; if it is missing, the repo isn't scaffolded (route to `sdd-scaffold`).
 
 ## Reference
 
-- `references/sdd-methodology.md` — the rigour ladder, document kinds + boundary rules, RFC-2119 discipline, identifiers, the traceability chain, two source-of-truth modes, DoR/DoD, and anti-patterns. This is the authoritative grounding for every answer.
-- `references/traceability-schema.md` — the `traceability.yaml` record format and the `.sdd.yaml` descriptor schema.
+- `references/sdd-methodology.md` — the authoritative grounding (ladder, document kinds, RFC-2119, identifiers, traceability, two modes, DoR/DoD, anti-patterns).
+- `references/sdd-with-superpowers.md` — the SDD↔superpowers boundary and the path redirect.
+- `references/traceability-schema.md` — the `traceability.yaml` and `.sdd.yaml` schemas.

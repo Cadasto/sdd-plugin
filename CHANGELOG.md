@@ -7,6 +7,22 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
+## [Unreleased]
+
+Consolidated the skill surface and aligned the plugin to **complement the superpowers plugin** — SDD owns the spec / document / traceability layer; the engineering loop (planning, TDD, execution, generic verification, code review, branch-finishing) is deferred to superpowers.
+
+### Changed
+- Skills: consolidated **11 → 5**. Merged `sdd-requirement` + `sdd-spec` + `sdd-adr` into `sdd-specify` (the definition layer); refocused `sdd-trace` to own the traceability/drift gate; refocused `sdd-archive` to own the document-side Definition of Done; rewrote `spec-driven-development` as the SDD↔superpowers integration map. Cuts always-on description cost ~33% (~2,385 → ~1,600 tokens) and the `/sdd-*` command surface from 10 to 4.
+- Agents: trimmed `sdd-traceability-auditor` and `sdd-doc-reviewer` descriptions to 2 examples; scoped `sdd-doc-reviewer` explicitly to SDD documents (code review is superpowers' `requesting-code-review`).
+- Hooks / Cursor rule / docs / scaffold templates: updated `session-start.sh`, `spec-edit-reminder.sh`, `rules/sdd-context.mdc`, `references/templates/*`, and the contributor docs to the new surface and the superpowers handoffs.
+
+### Added
+- References: `references/sdd-with-superpowers.md` — the SDD↔superpowers boundary and the `docs/superpowers/*` → canonical-tree (`docs/specifications/`, `docs/plans/`) path redirect.
+- References: `references/cross-repo-gap.md` — the cross-repo gap-draft pattern (demoted from the former `sdd-gap` skill).
+
+### Removed
+- Skills: `sdd-requirement`, `sdd-spec`, `sdd-adr` (→ `sdd-specify`); `sdd-plan`, `sdd-implement` (→ superpowers' planning / execution / TDD); `sdd-verify` (→ `sdd-trace` + `sdd-archive` + superpowers' `verification-before-completion`); `sdd-gap` (→ `references/cross-repo-gap.md`).
+
 ## [0.1.0] - 2026-06-18
 
 First build — a dual-host (Claude Code + Cursor) Spec-Driven Development surface. Pure Markdown + JSON, language-agnostic and config-driven via a `docs/.sdd.yaml` descriptor; no MCP backend.

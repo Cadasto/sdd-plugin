@@ -1,4 +1,4 @@
-<!-- Template: a topic specification. Copied/extended by /sdd-spec.
+<!-- Template: a topic specification. Authored/extended by /sdd-specify.
      Normative prose ONLY: RFC-2119 keywords, stable § numbers. No task lists, no file paths, no PR summaries.
      Single canonical home: each requirement's normative prose lives in exactly one § here. -->
 ---

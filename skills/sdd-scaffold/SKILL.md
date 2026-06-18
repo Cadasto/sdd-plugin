@@ -1,6 +1,6 @@
 ---
 name: sdd-scaffold
-description: This skill should be used when the user asks to "set up SDD", "initialize spec-driven development", "scaffold the docs tree", "add SDD structure to this repo", or "create the requirements/specifications layout". Creates the SDD docs/ tree, document templates, the .sdd.yaml descriptor, AGENTS.md, and the process docs — idempotently. Not for adding a single requirement or spec to an already-scaffolded repo (use sdd-requirement / sdd-spec).
+description: This skill should be used when the user asks to "set up SDD", "initialize spec-driven development", "scaffold the docs tree", "add SDD structure to this repo", or "create the requirements/specifications layout". Creates the SDD docs/ tree, document templates, the .sdd.yaml descriptor, AGENTS.md, and the process docs — idempotently. Not for authoring a requirement, spec, or decision in an already-scaffolded repo (use sdd-specify).
 argument-hint: "[req-style: area-prefixed|flat-numeric] [build tool: make|task|just|npm]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
@@ -26,15 +26,16 @@ Lay down the spec-driven structure from the methodology — the `docs/` tree, te
      plans/          (README.md, archive/)
    ```
    Copy from `references/templates/`: `sdd.yaml`→`docs/.sdd.yaml`, `requirement.md`/`specification.md`/`adr.md`/`plan.md` into a `_template.md` in each kind's folder, `traceability.yaml` (starter), the two index READMEs, and `development-process.md`/`ai-workflow.md`/`ci.md`.
-4. **Write the governed entry point.** If no `AGENTS.md` exists, copy `references/templates/AGENTS.md` and fill the identity + tooling placeholders from the descriptor. If one exists, do **not** clobber it — instead report the SDD sections to merge in, and offer to add them.
+4. **Write the governed entry point.** If no `AGENTS.md` exists, copy `references/templates/AGENTS.md` and fill the identity + tooling placeholders from the descriptor. If one exists, do **not** clobber it — instead report the SDD sections to merge in, and offer to add them. Include the **superpowers path-redirect note** (see step 7) so every agent applies it.
 5. **Stub the build gate.** If the chosen `build_entrypoint` has no `spec_check_target`/`ci_target`, offer to add stub targets (a `spec-check` that runs `sdd-trace`-style checks, wired into `ci`). Don't silently rewrite an existing build file — propose the diff.
-6. **Report.** List created vs skipped paths and the next step (`sdd-requirement` to capture the first capability).
+6. **Report.** List created vs skipped paths and the next step (`sdd-specify` to capture the first capability, or `superpowers:brainstorming` first if the idea is still being explored).
+7. **Reconcile with superpowers (if used).** The superpowers plugin writes design docs to `docs/superpowers/specs/` and plans to `docs/superpowers/plans/`. Record in `AGENTS.md` that those are *working/narrative* artefacts: design docs feed `sdd-specify` (their normative content moves into `docs/specifications/`), and plans belong in `docs/plans/` with the SDD citing header. This is the documented taxonomy override — see `references/sdd-with-superpowers.md`.
 
 ## Guardrails
 
 - **Idempotent and non-destructive.** Never overwrite a file that already has content. Fill gaps; report skips.
 - **Adopt incrementally.** A small repo can start with just `requirements/`, `specifications/`, `plans/`, `adr/`, and `AGENTS.md`. Don't force the optional folders (`analysis/`, `operations/`).
-- **Respect the taxonomy.** Do not create scaffolding directories that fight the document kinds (e.g. a generic `docs/<tool-name>/` dump). Design specs and plans route into `docs/plans/`; if another tool wants a stray path, override it and note the override.
+- **Respect the taxonomy.** Do not create scaffolding directories that fight the document kinds. In particular, `superpowers` auto-creates a `docs/superpowers/` tree — treat it as working/narrative output and route the canonical artefacts into `docs/specifications/` and `docs/plans/` (override and document it, per step 7), rather than letting a parallel tree become a second source of truth.
 - **The descriptor is the contract.** Every other `sdd-*` skill reads `docs/.sdd.yaml`; get it right here.
 
 ## Reference
@@ -42,3 +43,4 @@ Lay down the spec-driven structure from the methodology — the `docs/` tree, te
 - `references/templates/` — every file this skill emits.
 - `references/traceability-schema.md` — the `.sdd.yaml` and `traceability.yaml` schemas.
 - `references/sdd-methodology.md` — §3 document kinds, §5 identifiers, the repo-structure blueprint.
+- `references/sdd-with-superpowers.md` — the superpowers path redirect to record in `AGENTS.md`.

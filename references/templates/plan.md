@@ -1,6 +1,7 @@
-<!-- Template: an implementation plan. Copied by /sdd-plan. Filename: docs/plans/YYYY-MM-DD-<slug>.md
+<!-- Template: an implementation plan. Produced by superpowers:writing-plans and landed here in
+     docs/plans/ with the SDD citing header below. Filename: docs/plans/YYYY-MM-DD-<slug>.md
      Plans are the ONLY place checkbox task lists live. A plan introduces NO new normative rules
-     (put those in a spec first). Cite the REQ/SPEC §/ADR it implements in the header. -->
+     (put those in a spec first, via /sdd-specify). Cite the REQ/SPEC §/ADR it implements in the header. -->
 ---
 plan: <YYYY-MM-DD-slug>
 status: active           # active | done | postponed

@@ -1,44 +1,46 @@
 # AI workflow — the agent loop
 
-What an AI agent does when working a change in this repo. Read [AGENTS.md](../../AGENTS.md) and
-[development-process.md](development-process.md) first.
+What an AI agent does when working a change in this repo. Read [AGENTS.md](../../AGENTS.md) and [development-process.md](development-process.md) first.
+
+This repo uses **Spec-Driven Development** for the specification/traceability layer and the **superpowers** plugin for the engineering loop. They are complementary — SDD keeps the spec the source of truth; superpowers plans, builds, tests, and finishes the branch.
 
 ## The loop
 
 ```
-0. Assemble context for the requirement in one shot — registry row + traceability block
-   + canonical spec excerpt + any open strands.  (in-session: /sdd-trace REQ-…)
-1. Locate the REQ → follow to its CANONICAL topic spec. Don't read normative prose out of the index.
-2. Inspect ground truth before editing — look facts up in the source named in .sdd.yaml (ground_truth);
-   never guess domain facts.
-3. Cite identifiers in code comments and tests; update traceability.yaml when landing code.
-4. Don't decide open questions in code — surface a STRAND or draft an ADR (/sdd-adr), or ask.
-5. Verify with the full gate (/sdd-verify → `<build_entrypoint> <ci_target>`, including spec-check);
-   for behaviour changes, check each PROBE's status.
+0. Explore (if the idea is new): superpowers:brainstorming → a design doc.
+1. Specify: /sdd-specify — record the capability as a REQ, the normative behaviour as a SPEC § (RFC-2119),
+   and any irreversible decision as an ADR. Assign IDs; wire traceability. (Don't read normative prose
+   out of the index — follow to the canonical spec.)
+2. Look up ground truth before editing — the source named in .sdd.yaml (ground_truth); never guess.
+3. Plan & build with superpowers: writing-plans → executing-plans / test-driven-development.
+   Land the plan in docs/plans/ with the SDD citing header (implements: [REQ-…, SPEC §]); cite REQ/PROBE
+   ids in code and tests; update traceability.yaml as code lands.
+4. Don't decide open questions in code — surface a STRAND or record an ADR (/sdd-specify), or ask.
+5. Verify: superpowers:verification-before-completion (tests/build/lint) AND /sdd-trace (traceability/drift).
+6. Close out: /sdd-archive (spec status, index, plan → archive) AND superpowers:finishing-a-development-branch.
 ```
 
 ## When stuck
 
-- **Open decision?** Draft an ADR (`/sdd-adr`) or ask — don't bake it into code.
+- **Open decision?** Record an ADR (`/sdd-specify`) or ask — don't bake it into code.
 - **Ambiguous spec?** Look it up in the named ground-truth source.
-- **Missing rule?** Add a `Draft` `REQ` (`/sdd-requirement`) *before* coding — never a rule that lives only in code.
+- **Missing rule?** Add a `Draft` `REQ` + spec (`/sdd-specify`) *before* coding — never a rule that lives only in code.
 
 ## Modes
 
-- **New behaviour** → spec-first: `/sdd-requirement` → `/sdd-spec` → `/sdd-plan` → `/sdd-implement`.
-- **Hardening shipped code** → implementation-aligned: change the code, then update the spec § + guide in the
-  **same** change set (`/sdd-implement` handles the reconcile step).
+- **New behaviour** → spec-first: `superpowers:brainstorming` → `/sdd-specify` → `superpowers:writing-plans` → build.
+- **Hardening shipped code** → implementation-aligned: change the code, then update the spec § + guide in the **same** change set — "code wins until the spec is updated, in the same PR."
 
 ## Tooling
 
-| Task | Skill |
+| Task | Owner |
 |---|---|
+| Explore / design | superpowers `brainstorming` |
 | Set up / extend the SDD structure | `/sdd-scaffold` |
-| Capture a capability | `/sdd-requirement` |
-| Write normative behaviour | `/sdd-spec` |
-| Record a decision | `/sdd-adr` |
-| Break work into tasks | `/sdd-plan` |
-| Work the plan | `/sdd-implement` |
-| Context bundle + drift report | `/sdd-trace` |
-| Definition of Done gate | `/sdd-verify` |
-| Close out a feature | `/sdd-archive` |
+| Capture a capability, write a spec, record a decision | `/sdd-specify` |
+| Decompose into tasks / write the plan | superpowers `writing-plans` (land in `docs/plans/`) |
+| Build / TDD / execute | superpowers `executing-plans` / `test-driven-development` |
+| Tests/build pass? | superpowers `verification-before-completion` |
+| Traceability / drift / a REQ's context | `/sdd-trace` |
+| Merge / PR / branch cleanup | superpowers `finishing-a-development-branch` |
+| Close out the spec, index, and plan | `/sdd-archive` |

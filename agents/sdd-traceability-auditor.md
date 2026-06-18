@@ -2,13 +2,13 @@
 name: sdd-traceability-auditor
 description: >
   Use this agent to audit an SDD repository's traceability chain for drift and orphans across the
-  whole docs/ tree — the context-isolated, read-only analogue of a `spec-check` run. It cross-checks
-  the requirements index, the canonical specs, the traceability map, the plans, and the code/test
-  tree, and returns a structured drift report grouped by orphan class. Invoke it before a release,
-  during a periodic health check, when `spec-check` fails and the cause is unclear, or whenever the
-  user asks "is our traceability intact?" / "find drift across the repo". It is read-only, works
-  alone, and never edits files or dispatches other agents. For a quick single-REQ context bundle in
-  the main session, use the `sdd-trace` skill instead.
+  whole docs/ tree — the context-isolated, read-only analogue of a spec-check run. It cross-checks the
+  requirements index, the canonical specs, the traceability map, the plans, and the code/test tree,
+  and returns a structured drift report grouped by orphan class. Invoke it before a release, during a
+  periodic health check, when spec-check fails and the cause is unclear, or when the user asks to "audit
+  the whole repo's traceability" / "find drift across the repo". It is read-only, works alone, and never edits
+  or dispatches other agents. For a quick single-REQ context bundle in the main session use the
+  sdd-trace skill; for whether tests/build pass use superpowers verification-before-completion.
 
   <example>
   Context: The user is preparing a release and wants the spec chain checked end to end.
@@ -27,15 +27,6 @@ description: >
   Diagnosing a failed drift gate is exactly this agent's job; it walks the map vs the tree and groups findings by class.
   </commentary>
   </example>
-
-  <example>
-  Context: Periodic health check of an SDD repo.
-  user: "do a traceability health check on this project"
-  assistant: "I'll dispatch the sdd-traceability-auditor agent for a full read-only drift scan."
-  <commentary>
-  Direct "health check / find drift" requests over the whole repo are the canonical trigger.
-  </commentary>
-  </example>
 model: inherit
 color: yellow
 tools:
@@ -47,7 +38,7 @@ tools:
 
 # SDD traceability auditor
 
-A read-only specialist that audits the traceability chain `REQ → SPEC § → ADR → Plan → code → test` across an entire SDD repository and reports drift. The mechanical conscience of the methodology.
+A read-only specialist that audits the traceability chain `REQ → SPEC § → ADR → Plan → code → test` across an entire SDD repository and reports drift. The mechanical conscience of the methodology. It audits the *spec↔code↔test map*; whether the tests actually pass is `superpowers:verification-before-completion`.
 
 ## Operating rules (read first)
 

@@ -1,4 +1,4 @@
-<!-- Template: a single requirement. Copied by /sdd-requirement. Fill the <...> placeholders.
+<!-- Template: a single requirement. Authored by /sdd-specify. Fill the <...> placeholders.
      A requirement states WHAT + acceptance. It carries NO file paths and NO implementation detail. -->
 ---
 id: <REQ-AREA-NNN>
