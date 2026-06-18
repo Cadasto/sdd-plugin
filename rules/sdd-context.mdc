@@ -1,0 +1,25 @@
+---
+description: Spec-Driven Development — the spec is the source of truth; keep document kinds separate, identifiers stable, and the traceability chain intact. Mirrors the spec-driven-development router skill for Cursor.
+globs: ["docs/**/*.md", "docs/**/*.yaml", "AGENTS.md"]
+alwaysApply: false
+---
+
+# Spec-Driven Development
+
+This Cursor rule mirrors the `spec-driven-development` router skill — apply it when working in an SDD repo's `docs/` tree or `AGENTS.md`.
+
+**The specification — not the code, not the prompt — is the source of truth.** Code is measured against it; when they disagree the spec wins (unless a section is explicitly *implementation-aligned*). This repo's conventions (identifier style, paths, build tool, ground-truth source) live in `docs/.sdd.yaml` — read it first.
+
+| Intent | Skill |
+|---|---|
+| Set up / extend the SDD structure | `/sdd-scaffold` |
+| Capture a capability (what + acceptance) | `/sdd-requirement` |
+| Write normative behaviour (RFC-2119) | `/sdd-spec` |
+| Record an irreversible decision | `/sdd-adr` |
+| Break work into tasks | `/sdd-plan` |
+| Work the plan (write code) | `/sdd-implement` |
+| Drift report / context bundle | `/sdd-trace` |
+| Definition-of-Done gate | `/sdd-verify` |
+| Close out a feature | `/sdd-archive` |
+
+Load-bearing rules: **one canonical home** per requirement (the index links, the spec owns the prose — never duplicate normative text); **identifiers are immutable** once published; **don't mix document kinds** (no tasks in a spec, no file paths in a requirement, one decision per ADR); **don't settle open questions silently** (raise a STRAND, draft an ADR, or ask); **look domain facts up** in the named ground-truth source, never guess; **verify with the full build gate** (includes `spec-check`) before claiming done. Don't jump to code when no `REQ`/spec exists — capture and specify first.

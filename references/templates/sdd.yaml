@@ -1,0 +1,26 @@
+# docs/.sdd.yaml — the project descriptor. Every /sdd-* skill reads this first.
+# Edit to match this repo's conventions, then never switch req_style (it would renumber IDs).
+# Full field reference: references/traceability-schema.md.
+sdd:
+  req_style: area-prefixed          # area-prefixed | flat-numeric
+  req_areas: [FOUND]                # required iff req_style == area-prefixed; add areas deliberately
+  req_gap: 10                       # decadal gap for flat-numeric (REQ-010, REQ-020, …)
+
+  paths:
+    requirements: docs/requirements
+    specifications: docs/specifications
+    adr: docs/adr
+    plans: docs/plans
+    plans_archive: docs/plans/archive
+
+  traceability: docs/specifications/traceability.yaml
+
+  build_entrypoint: make            # make | task | just | npm
+  ci_target: ci                     # the full PR gate
+  spec_check_target: spec-check     # the traceability drift gate
+
+  use_probes: false                 # set true to enable PROBE-NNN conformance probes
+  use_strands: false                # set true to enable STRAND-NN open research questions
+  upstream: ""                      # repo this one consumes via /sdd-gap (blank if none)
+
+  ground_truth: "<the authoritative source for this repo's domain facts — agents MUST look up, never guess>"

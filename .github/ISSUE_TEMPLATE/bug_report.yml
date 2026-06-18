@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a reproducible problem to help us improve
+labels: ["bug", "needs-triage"]
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report! Please provide as much detail as possible.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-checks
+      options:
+        - label: I have searched existing issues to ensure this hasn't been reported already.
+          required: true
+        - label: I have read the README, AGENTS.md, and relevant docs.
+          required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of the plugin is affected?
+      options:
+        - Router skill (spec-driven-development)
+        - Loop/lifecycle skill (sdd-scaffold, sdd-spec, sdd-plan, …)
+        - Agent (sdd-traceability-auditor / sdd-doc-reviewer)
+        - Hooks (SessionStart / spec-edit reminder)
+        - References / templates (methodology, schemas, scaffold templates)
+        - Cursor rule (rules/*.mdc)
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: What version/commit are you using? (e.g., git SHA or tag)
+      placeholder: vX.Y.Z or commit SHA
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Any relevant environment details
+      placeholder: |
+        - AI assistant: Claude Code, Copilot, Cursor, etc.
+        - OS: macOS / Linux / Windows (WSL)
+        - Host repo build tool (if relevant): make / task / just / npm
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem description
+      description: Describe the bug and the expected vs actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Provide a minimal set of steps to reproduce the issue
+      placeholder: |
+        1. In a repo with ...
+        2. Run /sdd-... with ...
+        3. See ...
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and output
+      description: Paste relevant output, error messages, or validator output.
+      render: shell
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Any other context, links to related issues/PRs, screenshots

@@ -1,2 +1,121 @@
 # sdd-plugin
-Spec-driven development (SDD) plugin for AI coding assistants.
+
+**Spec-Driven Development (SDD) for AI coding assistants** — bring the *spec-anchored* workflow to any repository, in any language. The specification, not the code and not the prompt, is the source of truth; code is measured against it, and drift is caught mechanically.
+
+Distributed for both [Claude Code](https://docs.claude.com/en/docs/claude-code/plugins) and [Cursor](https://cursor.com/docs/plugins). Pure Markdown + JSON — no build step and **no MCP server** to wire up.
+
+## What it does
+
+SDD treats a structured, versioned specification as the authoritative description of a system. This plugin encodes the disciplined, *governed* form of SDD — the rung where specs are living, version-controlled contracts — and adds the machinery the industry openly admits it hasn't standardised: **stable identifiers, a machine-checked traceability map, and CI that fails on drift.**
+
+The plugin operates on **documentation** (`docs/*.md`, a requirements index, a traceability map, `AGENTS.md`), so it is **language-agnostic by construction** and **config-driven**: each repo declares its conventions in a small `docs/.sdd.yaml` descriptor, and the same skills serve a flat-numeric library or an area-prefixed service unchanged.
+
+### The loop
+
+```
+Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Archive
+```
+
+Each stage maps to a skill that keeps one document kind in its lane, assigns stable identifiers, and wires the traceability chain — `REQ → SPEC § → ADR → Plan → code → test`.
+
+## Components
+
+### Skills
+
+| Skill | Use it to… |
+|---|---|
+| `spec-driven-development` | Auto-invoked awareness/router — explains the methodology and routes intent to the right skill; blocks jumping to code when no requirement or spec exists yet |
+| `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor (idempotent — fills gaps, never clobbers) |
+| `/sdd-requirement` | Capture a capability as a `REQ-*` (acceptance criteria + out-of-scope; no implementation detail) |
+| `/sdd-spec` | Write RFC-2119 normative behaviour into the single canonical topic spec and wire the traceability entry |
+| `/sdd-adr` | Record one irreversible architectural decision (and resolve an open question / `STRAND`) |
+| `/sdd-plan` | Break a requirement into a dated, citing plan of small testable tasks (checks Definition of Ready) |
+| `/sdd-implement` | Work the plan task by task, citing identifiers; reconcile the spec in-PR for hardening work |
+| `/sdd-verify` | Run the Definition of Done — the full gate including the traceability `spec-check` |
+| `/sdd-trace` | Read-only: assemble the one-shot context bundle for a `REQ` and report drift / orphans |
+| `/sdd-archive` | Close out a finished feature — flip the plan to done, archive it, update the indexes |
+| `/sdd-gap` | Express a missing upstream capability as a spec draft in the dependency's own conventions |
+
+### Agents (read-only)
+
+| Agent | Purpose |
+|---|---|
+| `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans (the `spec-check` analogue) |
+| `sdd-doc-reviewer` | Reviews a requirement / spec / ADR / plan for boundary violations — mixed document kinds, duplicated normative prose, missing RFC-2119 force, missing or unstable identifiers |
+
+### Hooks
+
+- **SessionStart** — detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a short context line plus the available `/sdd-*` surface.
+- **PostToolUse** *(Claude Code)* — after an edit to a requirement, spec, ADR, plan, or the traceability map, reminds you to keep the traceability chain in sync and run `/sdd-trace`.
+
+### Cursor
+
+`rules/sdd-context.mdc` mirrors the router skill for Cursor; the `.cursor-plugin/plugin.json` manifest declares the shared `skills`/`agents`/`rules` paths and the Cursor hook config.
+
+## Install
+
+### Claude Code
+
+```
+/plugin marketplace add Cadasto/plugin-marketplace
+/plugin install sdd@cadasto
+```
+
+Or from a local working copy, for development:
+
+```bash
+claude plugin add /path/to/sdd-plugin
+```
+
+### Cursor
+
+Add this repository as a plugin (**Settings → Plugins**, via Git URL or local path). The repo root contains `.cursor-plugin/plugin.json` declaring the `skills`, `agents`, `rules`, and `hooks` paths.
+
+See [docs/install.md](docs/install.md) for details.
+
+## Quick start
+
+```
+/sdd-scaffold              # lay down the docs/ tree + .sdd.yaml in this repo
+/sdd-requirement add a capability for <X>
+/sdd-spec write the normative behaviour for REQ-...
+/sdd-plan REQ-...
+/sdd-implement the plan
+/sdd-verify                # run the Definition of Done before claiming done
+```
+
+## The project descriptor
+
+`/sdd-scaffold` writes `docs/.sdd.yaml`; every other skill reads it. It is what keeps the plugin repo-agnostic:
+
+```yaml
+sdd:
+  req_style: area-prefixed          # area-prefixed | flat-numeric
+  req_areas: [FOUND, EHR, CLIN, AUTH]   # only for area-prefixed
+  paths:
+    requirements: docs/requirements
+    specifications: docs/specifications
+    adr: docs/adr
+    plans: docs/plans
+  traceability: docs/specifications/traceability.yaml
+  build_entrypoint: make            # make | task | just | npm
+  ci_target: ci                     # `make ci`, `task ci`, `npm run ci`
+  spec_check_target: spec-check
+  ground_truth: "<the authoritative source for this repo's domain facts>"
+```
+
+## Documentation
+
+- [docs/install.md](docs/install.md) — install on both hosts
+- [docs/testing.md](docs/testing.md) — validate and dogfood
+- [docs/versioning.md](docs/versioning.md) — SemVer + release steps
+- [docs/authoring.md](docs/authoring.md) — skill / agent / rule authoring conventions
+- [references/sdd-methodology.md](references/sdd-methodology.md) — the methodology this plugin encodes
+
+## Prerequisites
+
+None to install the plugin. To get full value, the host repo should expose a single build entry point (`make` / `task` / `just` / `npm`) with a `spec-check` target — `/sdd-scaffold` can stub these for you.
+
+## License
+
+[MIT](LICENSE) © 2026 Cadasto B.V.

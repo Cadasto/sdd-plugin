@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "bash hooks/session-start.sh"
+      }
+    ],
+    "afterFileEdit": [
+      {
+        "command": "bash hooks/spec-edit-reminder.sh"
+      }
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+# Skill, Agent, and Rule Authoring Conventions
+
+The detailed companion to [AGENTS.md](../AGENTS.md) (which is authoritative); this expands on the *how*. The shipped components are the reference examples.
+
+## Naming & layout
+
+- **Components are kebab-case** and namespaced `<plugin>:<component>` (e.g. `sdd:sdd-spec`). A component's frontmatter `name` MUST equal its directory (skills) or filename stem (agents); `scripts/validate.py` enforces this.
+- `skills/<name>/SKILL.md` (includes user-invoked slash commands) · `agents/<name>.md` · `rules/<name>.mdc`. Shared reference material (the methodology, the schemas, the scaffold templates) lives in top-level `references/`. The legacy `commands/<name>.md` layout is not used.
+- Skill/command prefix is `sdd-`; the awareness skill is `spec-driven-development` (kept distinct from the plugin name `sdd` to avoid a `sdd:sdd` collision).
+
+## Skill vs agent vs rule
+
+- **Skill (auto-invoked router)** — `spec-driven-development`: always-on `description` only, routes intent. Keep its body lean.
+- **Skill (loop/lifecycle)** — `sdd-*`: each owns one stage or one artefact lifecycle. They carry `argument-hint` + `allowed-tools` so they are both auto-invoked on intent and user-invocable as `/sdd-*`. Bodies are imperative, checklist-driven, and cite `references/` rather than restating rules.
+- **Agent** — a context-isolated, **read-only** specialist (`sdd-traceability-auditor`, `sdd-doc-reviewer`). Use **`tools:`** (a YAML block list), **never** `allowed-tools:` — in an agent that key is silently ignored and the agent inherits *all* tools. Include `<example>` blocks in the `description` so triggering is unambiguous.
+- **Cursor rule** — a Cursor-only `.mdc` with `description` / `globs` / `alwaysApply` mirroring the router. See `rules/sdd-context.mdc`.
+
+## The `description` (the trigger)
+
+For skills the `description` is always-on metadata: keep it lean, third person — *what + scope*, 3–5 representative triggers ("This skill should be used when…"), and a short "Not for …" anti-trigger that disambiguates it from the neighbouring `sdd-*` skills (e.g. `sdd-spec` vs `sdd-requirement` vs `sdd-plan`).
+
+**YAML gotcha:** a `description` value with an unquoted `: ` (colon-space) makes a real YAML parser read it as a nested mapping, so the component loads with *empty* metadata (every field silently dropped). `claude plugin validate` catches this, and `scripts/validate.py` guards against it too. Reword or quote the value.
+
+## Body
+
+- **Cite the methodology; don't re-derive it.** The single source of truth for the rules is `references/sdd-methodology.md` (and `references/traceability-schema.md` for the machine-readable formats). A skill body states *its* procedure and points at the canonical reference for the *why* — this keeps skills lean and the rules in one place.
+- **Operate on Markdown, not source code.** Every skill except `sdd-implement` reads/writes docs, the requirements index, the traceability map, and `AGENTS.md`. They are language-agnostic by construction and **read `docs/.sdd.yaml` first** rather than hard-coding paths or identifier styles.
+- **Enforce boundaries; don't invent rules.** A skill keeps document kinds separate, identifiers stable, and the chain intact. It never adds a normative rule that isn't already in a spec.
+- **Verification is part of the skill.** A skill that lands an artefact runs (or instructs the agent to run) the relevant gate before claiming done.
+
+## Public-safety constraint
+
+This repo may be published. Author all content as **general-purpose, language-agnostic SDD tooling**. Do **not** name specific internal/consumer repositories, reproduce absolute filesystem paths, or embed organisation-private project details. Ground claims in the public methodology lineage (Spec Kit, Kiro, the Thoughtworks rigour ladder, RFC-2119) — see the Sources section of `references/sdd-methodology.md`.
+
+## Dual-host parity
+
+Skills, agents, and rules are shared by both hosts. The **Cursor** manifest (`.cursor-plugin/plugin.json`) declares each component path; **Claude** discovers the default folders automatically. Keep the two manifests' `name`/`version`/`description`/`author` identical (`scripts/validate.py` checks parity), and the Cursor hook commands **workspace-relative** (`bash hooks/session-start.sh`), never `${CLAUDE_PLUGIN_ROOT}` (a Claude-Code-only variable).
+
+## Before committing
+
+Run `./scripts/validate.sh` and `claude plugin validate .`, then test triggering locally — see [testing.md](testing.md). When adding or renaming a component, sync **AGENTS.md**, **README.md**, **CHANGELOG.md**, and the `/sdd-*` list in **`hooks/session-start.sh`** in lockstep.

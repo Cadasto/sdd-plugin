@@ -1,0 +1,16 @@
+# traceability.yaml — machine-readable REQ → spec → code → test map.
+# One record per requirement. This is an INDEX: it carries NO normative prose.
+# Validated against the tree by the `spec-check` target. Schema: references/traceability-schema.md.
+#
+# Example record (delete once you add real ones):
+# requirements:
+#   - id: REQ-FOUND-001
+#     title: <capability>
+#     canonical: docs/specifications/<topic>.md#<anchor>
+#     status: draft               # draft | stable | deprecated
+#     implementation: proposed    # proposed | in_progress | shipped | deferred
+#     packages: []
+#     tests: []
+#     probes: []
+#     plans: []
+requirements: []

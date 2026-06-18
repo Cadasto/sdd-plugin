@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project README (usage/help)
+    url: https://github.com/Cadasto/sdd-plugin/blob/main/README.md
+    about: Start here for setup and usage.
+  - name: SDD methodology reference
+    url: https://github.com/Cadasto/sdd-plugin/blob/main/references/sdd-methodology.md
+    about: The methodology this plugin encodes — document kinds, identifiers, traceability, drift CI.

@@ -1,0 +1,14 @@
+{
+  "name": "sdd",
+  "version": "0.1.0",
+  "description": "Spec-Driven Development workflow for AI assistants — requirements, RFC-2119 specs, ADRs, and plans with stable identifiers, machine-checked traceability, and drift CI.",
+  "author": {
+    "name": "Cadasto B.V.",
+    "url": "https://github.com/Cadasto"
+  },
+  "license": "MIT",
+  "skills": "skills",
+  "agents": "agents",
+  "rules": "rules",
+  "hooks": "hooks/cursor-hooks.json"
+}
