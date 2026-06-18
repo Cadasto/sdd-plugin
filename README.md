@@ -16,32 +16,28 @@ The plugin operates on **documentation** (`docs/*.md`, a requirements index, a t
 Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Archive
 ```
 
-Each stage maps to a skill that keeps one document kind in its lane, assigns stable identifiers, and wires the traceability chain — `REQ → SPEC § → ADR → Plan → code → test`.
+The plugin owns the **spec / document / traceability layer**; it deliberately leaves the generic engineering loop (exploring, planning, TDD, execution, code review, branch-finishing) to the [superpowers](#works-with-superpowers) plugin. SDD's job is to keep the specification the source of truth and the chain `REQ → SPEC § → ADR → Plan → code → test` intact.
 
 ## Components
 
 ### Skills
 
+A small, focused surface — four `/sdd-*` commands plus an always-on router.
+
 | Skill | Use it to… |
 |---|---|
-| `spec-driven-development` | Auto-invoked awareness/router — explains the methodology and routes intent to the right skill; blocks jumping to code when no requirement or spec exists yet |
+| `spec-driven-development` | Auto-invoked awareness/router — explains the methodology, routes intent, maps how SDD complements superpowers, and blocks jumping to code when no requirement or spec exists yet |
 | `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor (idempotent — fills gaps, never clobbers) |
-| `/sdd-requirement` | Capture a capability as a `REQ-*` (acceptance criteria + out-of-scope; no implementation detail) |
-| `/sdd-spec` | Write RFC-2119 normative behaviour into the single canonical topic spec and wire the traceability entry |
-| `/sdd-adr` | Record one irreversible architectural decision (and resolve an open question / `STRAND`) |
-| `/sdd-plan` | Break a requirement into a dated, citing plan of small testable tasks (checks Definition of Ready) |
-| `/sdd-implement` | Work the plan task by task, citing identifiers; reconcile the spec in-PR for hardening work |
-| `/sdd-verify` | Run the Definition of Done — the full gate including the traceability `spec-check` |
-| `/sdd-trace` | Read-only: assemble the one-shot context bundle for a `REQ` and report drift / orphans |
-| `/sdd-archive` | Close out a finished feature — flip the plan to done, archive it, update the indexes |
-| `/sdd-gap` | Express a missing upstream capability as a spec draft in the dependency's own conventions |
+| `/sdd-specify` | The definition layer — capture a capability (`REQ`), write RFC-2119 normative behaviour into the canonical spec (`SPEC §`), and record decisions (`ADR`); assigns identifiers and wires traceability |
+| `/sdd-trace` | The traceability gate — assemble the one-shot context bundle for a `REQ`, and report drift / orphans (the `spec-check` analogue). Read-only |
+| `/sdd-archive` | Close out a finished feature — confirm the document-side Definition of Done, flip the plan to done, archive it, update the indexes |
 
 ### Agents (read-only)
 
 | Agent | Purpose |
 |---|---|
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans (the `spec-check` analogue) |
-| `sdd-doc-reviewer` | Reviews a requirement / spec / ADR / plan for boundary violations — mixed document kinds, duplicated normative prose, missing RFC-2119 force, missing or unstable identifiers |
+| `sdd-doc-reviewer` | Reviews an SDD document (requirement / spec / ADR / plan header — **not** code) for boundary violations: mixed document kinds, duplicated normative prose, missing RFC-2119 force, unstable identifiers |
 
 ### Hooks
 
@@ -51,6 +47,17 @@ Each stage maps to a skill that keeps one document kind in its lane, assigns sta
 ### Cursor
 
 `rules/sdd-context.mdc` mirrors the router skill for Cursor; the `.cursor-plugin/plugin.json` manifest declares the shared `skills`/`agents`/`rules` paths and the Cursor hook config.
+
+## Works with superpowers
+
+SDD is **complementary** to the [superpowers](https://github.com/anthropics/claude-code) plugin, not a replacement. Superpowers owns the engineering loop; SDD owns the specification and its traceability:
+
+```
+superpowers:brainstorming → SDD:/sdd-specify → superpowers:writing-plans → executing-plans / TDD
+   → SDD:/sdd-trace + superpowers:verification-before-completion → SDD:/sdd-archive + superpowers:finishing-a-development-branch
+```
+
+So planning, TDD, execution, generic verification, code review, and branch-finishing stay with superpowers; SDD records the requirements/specs/decisions, keeps the traceability chain honest, and closes out the documents. One integration detail to know: superpowers writes design docs and plans under `docs/superpowers/` — treat those as working artefacts and route their canonical content into `docs/specifications/` (via `/sdd-specify`) and `docs/plans/`. Full seam: [references/sdd-with-superpowers.md](references/sdd-with-superpowers.md).
 
 ## Install
 
@@ -76,12 +83,11 @@ See [docs/install.md](docs/install.md) for details.
 ## Quick start
 
 ```
-/sdd-scaffold              # lay down the docs/ tree + .sdd.yaml in this repo
-/sdd-requirement add a capability for <X>
-/sdd-spec write the normative behaviour for REQ-...
-/sdd-plan REQ-...
-/sdd-implement the plan
-/sdd-verify                # run the Definition of Done before claiming done
+/sdd-scaffold                         # lay down the docs/ tree + .sdd.yaml in this repo
+/sdd-specify add a capability for <X>  # capture the REQ, write the normative SPEC, record any ADR
+# … plan & build with superpowers (writing-plans → executing-plans / TDD); land the plan in docs/plans/
+/sdd-trace REQ-...                     # check the traceability chain / drift before merge
+/sdd-archive REQ-...                   # close out the spec, index, and plan once verified
 ```
 
 ## The project descriptor

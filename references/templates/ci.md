@@ -22,5 +22,6 @@ mechanically. Two enabling policies:
 | **(scheduled) drift bot** | re-runs codegen / `spec-check` on a clean checkout; opens a tracking issue on drift between PRs |
 
 The non-negotiable SDD gate is **`spec-check`** (`<build_entrypoint> <spec_check_target>`): it turns
-"we have specs" into "our specs can't silently rot." `/sdd-verify` runs the full gate as the Definition of
-Done; `/sdd-trace` reports drift in-session without modifying anything.
+"we have specs" into "our specs can't silently rot." Before a done-claim, run the full build gate via
+`superpowers:verification-before-completion` (tests/build/lint) **and** `/sdd-trace` (traceability/drift);
+`/sdd-trace` reports drift in-session without modifying anything, and `/sdd-archive` performs the close-out.

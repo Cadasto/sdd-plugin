@@ -1,4 +1,4 @@
-<!-- Template: an Architecture Decision Record. Copied by /sdd-adr.
+<!-- Template: an Architecture Decision Record. Authored by /sdd-specify.
      ONE irreversible decision per ADR. Long flows and schema DDL belong in specs, not here. -->
 ---
 id: <ADR-NNNN>

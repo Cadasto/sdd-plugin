@@ -43,7 +43,7 @@ Add this repository as a plugin (Cursor **Settings → Plugins**, via Git URL or
 
 ## Host repository requirements
 
-Installing the plugin needs nothing. To get full value, the **repository you apply SDD to** should expose a single build entry point (`make` / `task` / `just` / `npm`) with a `spec-check` target and a full `ci` target — `/sdd-verify` and `/sdd-trace` invoke these. `/sdd-scaffold` can stub them for you and records the target names in `docs/.sdd.yaml`.
+Installing the plugin needs nothing. To get full value, the **repository you apply SDD to** should expose a single build entry point (`make` / `task` / `just` / `npm`) with a `spec-check` target and a full `ci` target — `/sdd-trace` (and superpowers' `verification-before-completion`) invoke these. `/sdd-scaffold` can stub them for you and records the target names in `docs/.sdd.yaml`.
 
 The `spec-check` target itself is repo-specific (it validates the traceability map against the tree). The plugin defines *what* it must check (see [references/traceability-schema.md](../references/traceability-schema.md)); the host repo implements it in whatever language/tooling it uses.
 

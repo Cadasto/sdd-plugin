@@ -17,7 +17,7 @@ Install from your working copy (see [install.md](install.md)), then exercise eac
 - **Session-start hook** — open a repo containing `docs/.sdd.yaml`; one SDD context line should print (and the scaffold pointer in a repo with `docs/` but no SDD structure).
 - **`spec-driven-development` router** — ask "what is SDD?" or "should I write a spec or a requirement?"; it should explain and route, not perform an artefact action.
 - **`/sdd-scaffold`** — in an empty repo, run it and confirm the `docs/` tree, templates, `docs/.sdd.yaml`, and `AGENTS.md` appear; run it again and confirm it is idempotent (fills gaps, doesn't clobber).
-- **The loop** — `/sdd-requirement` → `/sdd-spec` → `/sdd-plan` → `/sdd-implement` → `/sdd-verify`; confirm identifiers are assigned without collision, the traceability entry is written, and a doc-kind boundary violation (e.g. a file path in a requirement) is refused/flagged.
+- **`/sdd-specify`** — capture a REQ, write a SPEC §, record an ADR; confirm identifiers are assigned without collision, the traceability entry is written, and a doc-kind boundary violation (e.g. a file path in a requirement) is refused/flagged. (Planning and building are then handed to the superpowers loop — confirm the router points there and that a plan lands in `docs/plans/`, not `docs/superpowers/plans/`.)
 - **`/sdd-trace`** — with a deliberately broken `canonical` link, confirm the drift is reported (read-only, no edits).
 - **`/sdd-archive`** — confirm a finished plan moves to `plans/archive/` via `git mv` and the indexes update.
 - **Agents** — ask for a whole-repo audit (`sdd-traceability-auditor`) and a single-doc review (`sdd-doc-reviewer`); confirm both return ranked findings and neither edits files or spawns sub-agents.

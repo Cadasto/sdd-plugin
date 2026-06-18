@@ -1,25 +1,15 @@
 ---
-description: Spec-Driven Development — the spec is the source of truth; keep document kinds separate, identifiers stable, and the traceability chain intact. Mirrors the spec-driven-development router skill for Cursor.
+description: Spec-Driven Development — the spec is the source of truth; keep document kinds separate, identifiers stable, and the traceability chain intact. SDD owns the spec/document/traceability layer and complements the superpowers engineering loop. Mirrors the spec-driven-development router skill for Cursor.
 globs: ["docs/**/*.md", "docs/**/*.yaml", "AGENTS.md"]
 alwaysApply: false
 ---
 
 # Spec-Driven Development
 
-This Cursor rule mirrors the `spec-driven-development` router skill — apply it when working in an SDD repo's `docs/` tree or `AGENTS.md`.
+Apply when working in this repo's `docs/` tree or `AGENTS.md`. Read `docs/.sdd.yaml` first.
 
-**The specification — not the code, not the prompt — is the source of truth.** Code is measured against it; when they disagree the spec wins (unless a section is explicitly *implementation-aligned*). This repo's conventions (identifier style, paths, build tool, ground-truth source) live in `docs/.sdd.yaml` — read it first.
+**The specification — not the code, not the prompt — is the source of truth.** SDD owns the spec/document/traceability layer; exploring, planning, TDD, execution, generic verification, code review, and branch-finishing belong to **superpowers**.
 
-| Intent | Skill |
-|---|---|
-| Set up / extend the SDD structure | `/sdd-scaffold` |
-| Capture a capability (what + acceptance) | `/sdd-requirement` |
-| Write normative behaviour (RFC-2119) | `/sdd-spec` |
-| Record an irreversible decision | `/sdd-adr` |
-| Break work into tasks | `/sdd-plan` |
-| Work the plan (write code) | `/sdd-implement` |
-| Drift report / context bundle | `/sdd-trace` |
-| Definition-of-Done gate | `/sdd-verify` |
-| Close out a feature | `/sdd-archive` |
+**SDD commands:** `/sdd-scaffold` · `/sdd-specify` · `/sdd-trace` · `/sdd-archive`. For the full combined flow, superpowers handoffs, and the `docs/superpowers/*` → canonical-tree redirect, use the `spec-driven-development` skill or — in a scaffolded repo — [docs/ai-workflow.md](docs/ai-workflow.md).
 
-Load-bearing rules: **one canonical home** per requirement (the index links, the spec owns the prose — never duplicate normative text); **identifiers are immutable** once published; **don't mix document kinds** (no tasks in a spec, no file paths in a requirement, one decision per ADR); **don't settle open questions silently** (raise a STRAND, draft an ADR, or ask); **look domain facts up** in the named ground-truth source, never guess; **verify with the full build gate** (includes `spec-check`) before claiming done. Don't jump to code when no `REQ`/spec exists — capture and specify first.
+**Load-bearing rules:** one canonical home per requirement (index links, spec owns the prose); identifiers immutable once published; don't mix document kinds; don't settle open questions silently (STRAND, ADR, or ask); look domain facts up in the named ground-truth source. No code-first without a `REQ`/spec — `/sdd-specify` first. Route normative content from `docs/superpowers/*` into `docs/specifications/` and land plans in `docs/plans/`.

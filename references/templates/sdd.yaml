@@ -21,6 +21,6 @@ sdd:
 
   use_probes: false                 # set true to enable PROBE-NNN conformance probes
   use_strands: false                # set true to enable STRAND-NN open research questions
-  upstream: ""                      # repo this one consumes via /sdd-gap (blank if none)
+  upstream: ""                      # sibling SDD repo this one consumes (cross-repo gap drafts); blank if none
 
   ground_truth: "<the authoritative source for this repo's domain facts — agents MUST look up, never guess>"

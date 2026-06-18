@@ -1,39 +1,19 @@
 ---
 name: sdd-traceability-auditor
 description: >
-  Use this agent to audit an SDD repository's traceability chain for drift and orphans across the
-  whole docs/ tree — the context-isolated, read-only analogue of a `spec-check` run. It cross-checks
-  the requirements index, the canonical specs, the traceability map, the plans, and the code/test
-  tree, and returns a structured drift report grouped by orphan class. Invoke it before a release,
-  during a periodic health check, when `spec-check` fails and the cause is unclear, or whenever the
-  user asks "is our traceability intact?" / "find drift across the repo". It is read-only, works
-  alone, and never edits files or dispatches other agents. For a quick single-REQ context bundle in
-  the main session, use the `sdd-trace` skill instead.
+  Use this agent to audit an SDD repository's whole traceability chain for drift and orphans across
+  the docs/ tree — the context-isolated, read-only analogue of a spec-check run. It cross-checks the
+  requirements index, the canonical specs, the traceability map, the plans, and the code/test tree,
+  and returns a structured drift report grouped by orphan class. Read-only; works alone; never edits.
+  For a quick single-REQ context bundle in the main session use the sdd-trace skill; for whether the
+  tests/build pass use superpowers verification-before-completion.
 
   <example>
   Context: The user is preparing a release and wants the spec chain checked end to end.
   user: "before we tag, audit the whole repo for spec/traceability drift"
-  assistant: "I'll dispatch the sdd-traceability-auditor agent to scan the requirements index, specs, traceability map, plans, and tests, and report every orphan."
+  assistant: "I'll dispatch the sdd-traceability-auditor agent to scan the index, specs, traceability map, plans, and tests, and report every orphan."
   <commentary>
-  A whole-tree audit is context-heavy and read-only — isolating it in a subagent keeps the main session clean and returns a single structured report.
-  </commentary>
-  </example>
-
-  <example>
-  Context: The repo's spec-check CI job failed with a terse message.
-  user: "spec-check is red but I can't tell why — can you find what's out of sync?"
-  assistant: "I'll run the sdd-traceability-auditor agent to compare the traceability map against the tree and pinpoint the orphans."
-  <commentary>
-  Diagnosing a failed drift gate is exactly this agent's job; it walks the map vs the tree and groups findings by class.
-  </commentary>
-  </example>
-
-  <example>
-  Context: Periodic health check of an SDD repo.
-  user: "do a traceability health check on this project"
-  assistant: "I'll dispatch the sdd-traceability-auditor agent for a full read-only drift scan."
-  <commentary>
-  Direct "health check / find drift" requests over the whole repo are the canonical trigger.
+  A whole-tree audit is context-heavy and read-only — isolating it in a subagent keeps the main session clean and returns one structured report.
   </commentary>
   </example>
 model: inherit
@@ -47,7 +27,11 @@ tools:
 
 # SDD traceability auditor
 
-A read-only specialist that audits the traceability chain `REQ → SPEC § → ADR → Plan → code → test` across an entire SDD repository and reports drift. The mechanical conscience of the methodology.
+A read-only specialist that audits the traceability chain `REQ → SPEC § → ADR → Plan → code → test` across an entire SDD repository and reports drift. The mechanical conscience of the methodology. It audits the *spec↔code↔test map*; whether the tests actually pass is `superpowers:verification-before-completion`.
+
+## When to invoke
+
+Before a release, during a periodic health check, when a `spec-check` CI job fails and the cause is unclear, or on an explicit "audit the whole repo's traceability" / "find drift across the repo" request. Prefer the `sdd-trace` skill for a quick in-session, single-REQ check; reach for this agent when the scan is whole-tree and context isolation is worth it.
 
 ## Operating rules (read first)
 
@@ -67,11 +51,13 @@ A read-only specialist that audits the traceability chain `REQ → SPEC § → A
 
 ## Drift classes to report
 
+(Self-contained — an isolated agent cannot load the `sdd-trace` skill; keep this list complete here.)
+
 - **Orphan REQ** — index/map entry with no plan or no canonical spec.
 - **Orphan plan** — plan citing a REQ that doesn't exist, or with no code landed.
 - **Orphan code/test** — map lists a path that doesn't exist; or `landed`/`shipped` REQ with no packages/tests.
 - **Orphan probe** — `PROBE` id with no test.
-- **Duplicated normative prose** — the same MUST/SHALL statement in two files (two sources of truth).
+- **Duplicated normative prose** — the same MUST/SHALL statement in two files (two sources of truth); flagged by audit step 3.
 - **Index/map disagreement** — a REQ present in one but not the other; status axes inconsistent.
 - **Stale active list** — `done` plan left active; `shipped` REQ left `in_progress`.
 

@@ -1,16 +1,17 @@
 ---
 name: sdd-scaffold
-description: This skill should be used when the user asks to "set up SDD", "initialize spec-driven development", "scaffold the docs tree", "add SDD structure to this repo", or "create the requirements/specifications layout". Creates the SDD docs/ tree, document templates, the .sdd.yaml descriptor, AGENTS.md, and the process docs — idempotently. Not for adding a single requirement or spec to an already-scaffolded repo (use sdd-requirement / sdd-spec).
+description: This skill should be used when the user asks to "set up SDD", "initialize spec-driven development", "scaffold the docs tree", "add SDD structure to this repo", or "create the requirements/specifications layout". Creates the SDD docs/ tree, document templates, the .sdd.yaml descriptor, AGENTS.md, and the process docs — idempotently. Not for authoring a requirement, spec, or decision in an already-scaffolded repo (use sdd-specify).
 argument-hint: "[req-style: area-prefixed|flat-numeric] [build tool: make|task|just|npm]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 # Scaffold an SDD repository
 
-Lay down the spec-driven structure from the methodology — the `docs/` tree, templates, the project descriptor, the governed `AGENTS.md`, and the process docs. **Idempotent:** detect what already exists and fill gaps; never overwrite a populated file. Bundled templates live in `${CLAUDE_PLUGIN_ROOT}/references/templates/`.
+Lay down the spec-driven structure from the methodology — the `docs/` tree, templates, the project descriptor, the governed `AGENTS.md`, and the process docs. **Idempotent:** detect what already exists and fill gaps; never overwrite a populated file.
 
 ## Steps
 
+0. **Resolve bundled templates.** Plugin templates live at `<plugin-root>/references/templates/` — **not** in the consumer repo. Resolve `<plugin-root>` to the install location: on Claude Code use `${CLAUDE_PLUGIN_ROOT}` (and a Cursor plugin-root variable if your host exposes one); otherwise — the host-agnostic fallback — **Glob for the installed `references/templates/sdd.yaml`** outside the consumer workspace. All copy steps below read from this resolved directory.
 1. **Detect existing structure.** Glob for `docs/.sdd.yaml`, `docs/requirements/`, `docs/specifications/`, `AGENTS.md`. If a descriptor already exists, this is a top-up run — only create missing pieces and report what was skipped.
 2. **Establish conventions** (write them into `docs/.sdd.yaml`):
    - `req_style` — `area-prefixed` (`REQ-AUTH-001`, reads as a capability map) or `flat-numeric` (`REQ-050`, leaner). Ask if unspecified; recommend area-prefixed for products, flat-numeric for libraries.
@@ -25,20 +26,21 @@ Lay down the spec-driven structure from the methodology — the `docs/` tree, te
      adr/            (README.md)
      plans/          (README.md, archive/)
    ```
-   Copy from `references/templates/`: `sdd.yaml`→`docs/.sdd.yaml`, `requirement.md`/`specification.md`/`adr.md`/`plan.md` into a `_template.md` in each kind's folder, `traceability.yaml` (starter), the two index READMEs, and `development-process.md`/`ai-workflow.md`/`ci.md`.
-4. **Write the governed entry point.** If no `AGENTS.md` exists, copy `references/templates/AGENTS.md` and fill the identity + tooling placeholders from the descriptor. If one exists, do **not** clobber it — instead report the SDD sections to merge in, and offer to add them.
+   Copy from the resolved templates directory: `sdd.yaml`→`docs/.sdd.yaml`, `requirement.md`/`specification.md`/`adr.md`/`plan.md` into a `_template.md` in each kind's folder, `traceability.yaml` (starter), the two index READMEs, and `development-process.md`/`ai-workflow.md`/`ci.md`.
+4. **Write the governed entry point.** If no `AGENTS.md` exists, copy `AGENTS.md` from the templates directory and fill the identity + tooling placeholders from the descriptor. If one exists, do **not** clobber it — instead report the SDD sections to merge in, and offer to add them. Record the superpowers path redirect per `references/sdd-with-superpowers.md` § Path redirect.
 5. **Stub the build gate.** If the chosen `build_entrypoint` has no `spec_check_target`/`ci_target`, offer to add stub targets (a `spec-check` that runs `sdd-trace`-style checks, wired into `ci`). Don't silently rewrite an existing build file — propose the diff.
-6. **Report.** List created vs skipped paths and the next step (`sdd-requirement` to capture the first capability).
+6. **Report.** List created vs skipped paths and the next step (`sdd-specify` to capture the first capability, or superpowers `brainstorming` first if the idea is still being explored).
 
 ## Guardrails
 
 - **Idempotent and non-destructive.** Never overwrite a file that already has content. Fill gaps; report skips.
 - **Adopt incrementally.** A small repo can start with just `requirements/`, `specifications/`, `plans/`, `adr/`, and `AGENTS.md`. Don't force the optional folders (`analysis/`, `operations/`).
-- **Respect the taxonomy.** Do not create scaffolding directories that fight the document kinds (e.g. a generic `docs/<tool-name>/` dump). Design specs and plans route into `docs/plans/`; if another tool wants a stray path, override it and note the override.
+- **Respect the taxonomy.** Do not create scaffolding directories that fight the document kinds. Route `docs/superpowers/*` working output into `docs/specifications/` and `docs/plans/` — see `references/sdd-with-superpowers.md`.
 - **The descriptor is the contract.** Every other `sdd-*` skill reads `docs/.sdd.yaml`; get it right here.
 
 ## Reference
 
-- `references/templates/` — every file this skill emits.
+- `references/templates/` — every file this skill emits (resolve via step 0).
 - `references/traceability-schema.md` — the `.sdd.yaml` and `traceability.yaml` schemas.
 - `references/sdd-methodology.md` — §3 document kinds, §5 identifiers, the repo-structure blueprint.
+- `references/sdd-with-superpowers.md` — the superpowers path redirect to record in `AGENTS.md`.
