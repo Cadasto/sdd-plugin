@@ -1,6 +1,6 @@
 ---
 name: sdd-archive
-description: This skill should be used when the user asks to "close out the plan", "archive the plan", "mark the requirement shipped", "consolidate the spec delta", or "this feature is done — close it out". The SDD close-out — confirms the document-side Definition of Done (spec status, requirements index, traceability map), flips the plan to done and git mv's it to plans/archive/, and updates AGENTS.md tables if user-facing. Not for merging / opening a PR / cleaning up the branch (use superpowers finishing-a-development-branch), running tests (superpowers verification-before-completion), or the drift check (sdd-trace).
+description: This skill should be used when the user asks to "close out the plan", "archive the plan", "mark the requirement shipped", or "this feature is done — close it out". The SDD close-out — confirms the document-side Definition of Done (spec status, index, traceability), flips the plan to done and `git mv`s it to `plans/archive/`, and updates AGENTS.md tables if user-facing. Not for merging / PR / branch cleanup (superpowers finishing-a-development-branch); not for running tests (superpowers verification-before-completion) or the drift check (sdd-trace).
 argument-hint: "<plan file or REQ to close out>"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---

@@ -1,13 +1,13 @@
 ---
 name: sdd-trace
-description: This skill should be used when the user asks to "show traceability for REQ-X", "assemble context for REQ-X", "what implements/tests this requirement", "are there orphan requirements", or wants a quick in-session drift / spec-check scan. Owns the SDD traceability gate — assembles the one-shot context bundle for a REQ and reports drift/orphans in-session (the spec-check analogue). Not for generic "do the tests/build pass" verification (use superpowers verification-before-completion), authoring documents (sdd-specify), closing out a feature (sdd-archive), or a heavy whole-repo / pre-release audit (dispatch the sdd-traceability-auditor agent).
+description: This skill should be used when the user asks to "show traceability for REQ-X", "assemble context for REQ-X", "what implements/tests this requirement", "are there orphan requirements", or wants a quick in-session drift / spec-check scan. Read-only — assembles the one-shot context bundle for a REQ and reports drift/orphans in-session (the spec-check analogue). Not for generic tests/build verification (superpowers verification-before-completion); not for authoring (sdd-specify), close-out (sdd-archive), or a heavy whole-repo / pre-release audit (sdd-traceability-auditor agent).
 argument-hint: "[REQ-id, or blank for a whole-tree drift scan]"
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
 # Trace — the SDD traceability gate
 
-Owns the *spec-side* check: does the traceability map still match the tree, and what is the full context for a requirement. This is **not** the generic "tests/build/lint pass" gate — that is `superpowers:verification-before-completion`, which runs alongside this one before any done-claim. Read `docs/.sdd.yaml` for paths, the traceability map, and `spec_check_target`.
+Owns the *spec-side* check: does the traceability map still match the tree, and what is the full context for a requirement. Read `docs/.sdd.yaml` for paths, the traceability map, and `spec_check_target`. (The generic tests/build/lint gate is superpowers' — see Guardrails.)
 
 ## Mode A — context bundle for a REQ
 
@@ -36,7 +36,7 @@ If the repo defines the `spec_check_target` build target, run it (`<build_entryp
 ## Guardrails
 
 - **Strictly read-only.** Diagnose; the owning skill fixes (`sdd-specify` for spec/index, the build workflow for code/tests, `sdd-archive` for plan state). Never edit here.
-- **Scope is traceability, not test results.** "Are the tests green?" is `superpowers:verification-before-completion`; this skill answers "does the spec↔code↔test map hold?".
+- **Scope is traceability, not test results** — "are the tests green?" is `superpowers:verification-before-completion`; this skill answers "does the spec↔code↔test map hold?".
 - For a heavy, context-isolated whole-repo audit, dispatch the **`sdd-traceability-auditor`** agent — same scan, isolated context, returns a report.
 
 ## Reference

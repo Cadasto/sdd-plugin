@@ -1,6 +1,6 @@
 ---
 name: sdd-specify
-description: This skill should be used when the user asks to "add a requirement", "capture a capability", "write/extend a spec", "make this behaviour normative", "add an RFC-2119 requirement", "record an architectural decision / ADR", "resolve a STRAND", or "turn this design into specs". The SDD definition layer — authors the REQ (capability + acceptance), the canonical RFC-2119 SPEC, and the ADR, assigning stable identifiers and wiring traceability. Not for exploring ideas or design (use superpowers brainstorming first), planning/building (superpowers writing-plans / executing-plans), or the drift check (sdd-trace).
+description: This skill should be used when the user asks to "add a requirement / capability", "write or extend a spec", "make this behaviour normative (RFC-2119)", "record an ADR / architectural decision", or "resolve a STRAND". The SDD definition layer — authors the `REQ`, the canonical RFC-2119 `SPEC §`, and the `ADR`, assigning identifiers and wiring traceability. Not for exploring/design (superpowers brainstorming first); not for planning or building (superpowers writing-plans / executing-plans); a traceability audit (sdd-trace); or a one-line edit to an existing spec § (open the file directly).
 argument-hint: "<capability, behaviour, or decision to record> [REQ-id]"
 allowed-tools: Read, Write, Edit, Glob, Grep
 ---
