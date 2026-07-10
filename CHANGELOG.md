@@ -7,6 +7,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
+## [Unreleased]
+
+### Changed
+- Agents: modernized `sdd-doc-reviewer` and `sdd-traceability-auditor` descriptions to the prose-summary format (conditions + named trigger scenarios + a "See When to invoke" pointer), replacing the embedded `<example>` block; folded the worked scenario into each agent's `When to invoke` body as prose bullets.
+
 ## [0.2.1] - 2026-06-18
 
 ### Fixed
