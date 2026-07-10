@@ -22,7 +22,7 @@ The plugin owns the **spec / document / traceability layer**; it deliberately le
 
 ### Skills
 
-A small, focused surface — four `/sdd-*` commands plus an always-on router.
+A focused surface — five `/sdd-*` commands plus an always-on router.
 
 | Skill | Use it to… |
 |---|---|
@@ -30,7 +30,8 @@ A small, focused surface — four `/sdd-*` commands plus an always-on router.
 | `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor (idempotent — fills gaps, never clobbers) |
 | `/sdd-specify` | The definition layer — capture a capability (`REQ`), write RFC-2119 normative behaviour into the canonical spec (`SPEC §`), and record decisions (`ADR`); assigns identifiers and wires traceability |
 | `/sdd-trace` | The traceability gate — assemble the one-shot context bundle for a `REQ`, and report drift / orphans (the `spec-check` analogue). Read-only |
-| `/sdd-archive` | Close out a finished feature — confirm the document-side Definition of Done, flip the plan to done, archive it, update the indexes |
+| `/sdd-review` | *Opt-in* — orchestrate a spec-aware review (your installed generic reviewers + the SDD traceability auditor + spec-conformance reviewer), consolidate the findings, and optionally post them to the PR. Delegates generic review and posting; adds the SDD lenses |
+| `/sdd-archive` | Close out a finished feature — confirm the document-side Definition of Done, flip the plan to done and archive it **inside the implementing PR**, update the indexes |
 
 ### Agents (read-only)
 
@@ -38,6 +39,7 @@ A small, focused surface — four `/sdd-*` commands plus an always-on router.
 |---|---|
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans (the `spec-check` analogue) |
 | `sdd-doc-reviewer` | Reviews an SDD document (requirement / spec / ADR / plan header — **not** code) for boundary violations: mixed document kinds, duplicated normative prose, missing RFC-2119 force, unstable identifiers |
+| `sdd-spec-conformance-reviewer` | Judges whether implemented code satisfies the normative `SPEC §` / `REQ` acceptance criteria it cites, clause by clause — the conformance pass (not code quality, drift, or test-passing) |
 
 ### Hooks
 

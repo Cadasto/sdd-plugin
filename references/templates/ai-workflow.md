@@ -16,9 +16,15 @@ This repo uses **Spec-Driven Development** for the specification/traceability la
    Land the plan in docs/plans/ with the SDD citing header (implements: [REQ-…, SPEC §]); cite REQ/PROBE
    ids in code and tests; update traceability.yaml as code lands.
 4. Don't decide open questions in code — surface a STRAND or record an ADR (/sdd-specify), or ask.
-5. Verify: superpowers:verification-before-completion (tests/build/lint) AND /sdd-trace (traceability/drift).
-6. Close out: /sdd-archive (spec status, index, plan → archive) AND superpowers:finishing-a-development-branch.
+5. Verify & review: superpowers:verification-before-completion (tests/build/lint) AND /sdd-trace (traceability/drift).
+   Optionally /sdd-review — a spec-aware review (conformance + traceability) that can post findings to the PR.
+6. Close out IN THE SAME PR: /sdd-archive (spec status, index, plan flip + git mv to archive/) as the final
+   commit of the implementing branch, then superpowers:finishing-a-development-branch (merge / PR). The archive
+   rides in the PR that implements the plan — not a follow-up PR.
 ```
+
+> **Prose economy — one home per fact.** The commit body, PR body, changelog, and review comments each say
+> only what lives nowhere else; cite `REQ`/`SPEC §`/plan/SHA rather than restating. See development-process.md.
 
 ## When stuck
 
@@ -41,6 +47,9 @@ This repo uses **Spec-Driven Development** for the specification/traceability la
 | Decompose into tasks / write the plan | superpowers `writing-plans` (land in `docs/plans/`) |
 | Build / TDD / execute | superpowers `executing-plans` / `test-driven-development` |
 | Tests/build pass? | superpowers `verification-before-completion` |
+| Code review of the *code* | superpowers `requesting-code-review` (or your installed reviewer) |
+| Code satisfies the `SPEC §`/`REQ` it cites (conformance) | `sdd-spec-conformance-reviewer` agent |
 | Traceability / drift / a REQ's context | `/sdd-trace` |
+| Spec-aware review (conformance + traceability) posted to the PR | `/sdd-review` (opt-in) |
 | Merge / PR / branch cleanup | superpowers `finishing-a-development-branch` |
-| Close out the spec, index, and plan | `/sdd-archive` |
+| Close out the spec, index, and plan — in the implementing PR | `/sdd-archive` |

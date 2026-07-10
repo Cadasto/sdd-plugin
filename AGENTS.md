@@ -33,7 +33,7 @@ This repo supports **both Claude Code and Cursor**; shared assets (skills, agent
 - **Cursor manifest**: `.cursor-plugin/plugin.json` — same metadata **plus** explicit top-level path keys (`skills`, `agents`, `rules`, `hooks`). No `mcpServers` — this plugin has no MCP backend. Keep `name`/`version`/`description`/`author` identical to the Claude manifest.
 - **Skills**: `skills/<name>/SKILL.md` — shared by both hosts. The `sdd-*` skills carry `argument-hint` + `allowed-tools` so they are both auto-invoked on intent and user-invocable as `/sdd-*`; `spec-driven-development` is the always-on router. **Skills use `allowed-tools:` (the Claude Code skill/command key — Cursor reads it too); only agents use `tools:`.**
 - **Agents**: `agents/<name>.md` — read-only, context-isolated specialists (`tools:` not `allowed-tools:`).
-- **References**: `references/` — the canonical methodology, the schemas, and `references/templates/` (the files `sdd-scaffold` emits). Skills cite these instead of duplicating rules.
+- **References**: `references/` — the canonical methodology, the schemas, the artefact prose-economy rule (`artefact-prose.md`), and `references/templates/` (the files `sdd-scaffold` emits). Skills cite these instead of duplicating rules.
 - **Cursor rules**: `rules/*.mdc` — Cursor-only rule guidance (`description` / `globs` / `alwaysApply`), referenced by the Cursor manifest's `rules` path. Shipped: `rules/sdd-context.mdc`.
 - **Claude hooks**: `hooks/hooks.json` — object `{ "hooks": { "SessionStart": [...], "PostToolUse": [...] } }`; use `${CLAUDE_PLUGIN_ROOT}` in command paths.
 - **Cursor hooks**: `hooks/cursor-hooks.json` — object `{ "hooks": { "sessionStart": [...], "afterFileEdit": [...] } }`; the command runs from the plugin root (**workspace-relative**, **not** `${CLAUDE_PLUGIN_ROOT}`).
@@ -46,20 +46,22 @@ This repo supports **both Claude Code and Cursor**; shared assets (skills, agent
 
 Scope is the **spec / document / traceability layer**. The generic engineering loop (explore, plan, TDD, execute, generic verify, code review, branch-finish) is intentionally **not** reimplemented — it is delegated to the **superpowers** plugin (see "Works with superpowers" below). This keeps the surface small and non-colliding.
 
-### Skills (5)
+### Skills (6)
 | Skill | Purpose |
 |-------|---------|
 | `spec-driven-development` | Auto-invoked awareness/router — explains the methodology, routes intent, maps the SDD↔superpowers boundary, and blocks code-first work when no `REQ`/spec exists |
 | `sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor (idempotent); records the superpowers path-redirect |
 | `sdd-specify` | The definition layer — author the `REQ` (capability + acceptance), the canonical RFC-2119 `SPEC §`, and the `ADR`; assign identifiers; wire traceability |
 | `sdd-trace` | The traceability gate — one-shot context bundle for a `REQ` + whole-tree drift/orphan report (the `spec-check` analogue). Read-only; defers generic test/build verification to superpowers |
-| `sdd-archive` | The close-out — confirm the document-side Definition of Done, flip the plan to done and archive it, update the indexes; defers merge/PR to superpowers |
+| `sdd-review` | Opt-in orchestration — dispatches the installed generic reviewers + the SDD traceability auditor + spec-conformance reviewer, consolidates findings, and (optionally) posts them to the PR. *Delegates* generic review and posting; adds the SDD lenses |
+| `sdd-archive` | The close-out — confirm the document-side Definition of Done, flip the plan to done and archive it (inside the implementing PR), update the indexes; defers merge/PR to superpowers |
 
-### Agents (2, read-only)
+### Agents (3, read-only)
 | Agent | Purpose |
 |-------|---------|
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans (the `spec-check` analogue) |
 | `sdd-doc-reviewer` | Reviews a single SDD document (REQ/SPEC/ADR/plan header — **not** code; code review is superpowers) for boundary violations (mixed kinds, duplicated prose, missing RFC-2119 force, unstable identifiers) |
+| `sdd-spec-conformance-reviewer` | Judges whether implemented code satisfies the normative `SPEC §` / `REQ` acceptance criteria it cites, clause by clause (conformance — **not** code quality, drift, or test-passing) |
 
 ### Works with superpowers
 SDD is complementary to the **superpowers** plugin. Combined flow:

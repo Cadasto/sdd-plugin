@@ -12,7 +12,7 @@ The detailed companion to [AGENTS.md](../AGENTS.md) (which is authoritative); th
 
 - **Skill (auto-invoked router)** — `spec-driven-development`: always-on `description` only, routes intent. Keep its body lean.
 - **Skill (loop/lifecycle)** — `sdd-*`: each owns one stage or one artefact lifecycle. They carry `argument-hint` + `allowed-tools` so they are both auto-invoked on intent and user-invocable as `/sdd-*`. Bodies are imperative, checklist-driven, and cite `references/` rather than restating rules.
-- **Agent** — a context-isolated, **read-only** specialist (`sdd-traceability-auditor`, `sdd-doc-reviewer`). Use **`tools:`** (a YAML block list), **never** `allowed-tools:` — in an agent that key is silently ignored and the agent inherits *all* tools. Include `<example>` blocks in the `description` so triggering is unambiguous.
+- **Agent** — a context-isolated, **read-only** specialist (`sdd-traceability-auditor`, `sdd-doc-reviewer`, `sdd-spec-conformance-reviewer`). Use **`tools:`** (a YAML block list), **never** `allowed-tools:` — in an agent that key is silently ignored and the agent inherits *all* tools. Write the `description` in the **prose-summary** form — conditions + 2–4 named trigger scenarios + a "See *When to invoke* in the agent body" pointer — and put the worked scenarios in a `When to invoke` body section (not an `<example>` block in the frontmatter).
 - **Cursor rule** — a Cursor-only `.mdc` with `description` / `globs` / `alwaysApply` mirroring the router. See `rules/sdd-context.mdc`.
 
 ## The `description` (the trigger)

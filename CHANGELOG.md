@@ -9,8 +9,15 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+### Added
+- Skills: `sdd-review` — opt-in orchestration that dispatches the installed generic reviewers plus `sdd-traceability-auditor` and `sdd-spec-conformance-reviewer`, consolidates the findings, and optionally posts them to the PR (delegates generic review + posting; adds the SDD lenses).
+- Agents: `sdd-spec-conformance-reviewer` — read-only, judges whether implemented code satisfies the normative `SPEC §` / `REQ` acceptance criteria it cites, clause by clause.
+- References: `references/artefact-prose.md` — the artefact prose-economy rule (one home per fact for commit body / PR body / changelog / review comments; cite identifiers, don't restate).
+
 ### Changed
-- Agents: modernized `sdd-doc-reviewer` and `sdd-traceability-auditor` descriptions to the prose-summary format (conditions + named trigger scenarios + a "See When to invoke" pointer), replacing the embedded `<example>` block; folded the worked scenario into each agent's `When to invoke` body as prose bullets.
+- Skills: `sdd-archive` now archives **inside the implementing PR** (as the final commit of the branch, `implementation: shipped` set there) rather than in a follow-up PR; methodology §9 Definition of Done and the scaffold templates (`development-process.md`, `ai-workflow.md`, `AGENTS.md`) updated to match.
+- References: the prose-economy rule is cross-linked from `sdd-methodology.md` §11, the `spec-driven-development` router, `sdd-with-superpowers.md`, and the Cursor rule; scaffolded repos inherit the short form via the templates.
+- Agents: modernized `sdd-doc-reviewer` and `sdd-traceability-auditor` descriptions to the prose-summary format (conditions + named trigger scenarios + a "See When to invoke" pointer), replacing the embedded `<example>` block; folded the worked scenario into each agent's `When to invoke` body as prose bullets. `docs/authoring.md` updated to prescribe this form.
 
 ## [0.2.1] - 2026-06-18
 

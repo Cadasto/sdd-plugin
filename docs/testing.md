@@ -19,8 +19,9 @@ Install from your working copy (see [install.md](install.md)), then exercise eac
 - **`/sdd-scaffold`** — in an empty repo, run it and confirm the `docs/` tree, templates, `docs/.sdd.yaml`, and `AGENTS.md` appear; run it again and confirm it is idempotent (fills gaps, doesn't clobber).
 - **`/sdd-specify`** — capture a REQ, write a SPEC §, record an ADR; confirm identifiers are assigned without collision, the traceability entry is written, and a doc-kind boundary violation (e.g. a file path in a requirement) is refused/flagged. (Planning and building are then handed to the superpowers loop — confirm the router points there and that a plan lands in `docs/plans/`, not `docs/superpowers/plans/`.)
 - **`/sdd-trace`** — with a deliberately broken `canonical` link, confirm the drift is reported (read-only, no edits).
-- **`/sdd-archive`** — confirm a finished plan moves to `plans/archive/` via `git mv` and the indexes update.
-- **Agents** — ask for a whole-repo audit (`sdd-traceability-auditor`) and a single-doc review (`sdd-doc-reviewer`); confirm both return ranked findings and neither edits files or spawns sub-agents.
+- **`/sdd-review`** — on a branch that implements a REQ, confirm it dispatches the traceability auditor + spec-conformance reviewer (and the installed generic reviewer if present), consolidates findings, and — with `--post` — posts them to the PR; without `--post`, presents them in-session. It should *delegate* generic review, not hand-roll one.
+- **`/sdd-archive`** — confirm a finished plan moves to `plans/archive/` via `git mv` and the indexes update, and that it is done as the final commit of the implementing branch (same PR), not a follow-up.
+- **Agents** — ask for a whole-repo audit (`sdd-traceability-auditor`), a single-doc review (`sdd-doc-reviewer`), and a code-vs-spec conformance check (`sdd-spec-conformance-reviewer`); confirm each returns ranked findings and none edits files or spawns sub-agents.
 - **`spec-edit-reminder` hook** — edit a file under `docs/specifications/`; confirm the one-line reminder prints.
 - **Cursor rule** — in Cursor, open a file under `docs/` and confirm `sdd-context.mdc` attaches.
 
