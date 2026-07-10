@@ -36,8 +36,12 @@ REQ (capability + acceptance)            [gate: worth doing]
          └─ PLAN (tasks + verification)    [gate: Definition of Ready]
              └─ CODE + TESTS (cite IDs)    [gate: tests green]
                  └─ update SPEC status + traceability  [gate: same PR]
-                     └─ update REQ status; archive plan [gate: Definition of Done]
+                     └─ update REQ status; flip + archive plan (same PR) [gate: Definition of Done]
 ```
+
+The whole close-out — spec status, requirements index, traceability, and the plan flip + archive move —
+lands in the **same PR** that implements the plan. No follow-up PR: the one merge that ships the code also
+closes the plan.
 
 ## Two source-of-truth modes
 
@@ -50,8 +54,16 @@ REQ (capability + acceptance)            [gate: worth doing]
 
 See the plan template. A plan may not start until its `REQ` + acceptance exist, affected `SPEC §` are
 listed, any needed ADR is `Accepted`, out-of-scope is written, and verification commands are named. A
-feature is not done until code + tests merge, the spec/guide and requirements index are updated, the
-traceability map is updated, and the plan is archived.
+feature is not done until — **in the same PR** — code + tests are complete and verified, the spec/guide and
+requirements index are updated, the traceability map is updated, and the plan is flipped to `done` and
+`git mv`d to `docs/plans/archive/`.
+
+## Artefact prose — one home per fact
+
+The commit body, PR body, changelog, and review comments each carry only what lives nowhere else — cite
+identifiers (`REQ`/`SPEC §`/plan/SHA) instead of restating. The spec owns normative behaviour; the commit
+body owns the *why* of this change; the PR body owns the *review lens* (what to look at, how it was
+verified); the changelog owns the one-line, user-facing delta. Don't retell the same story across all four.
 
 ## Open questions
 
