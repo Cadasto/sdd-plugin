@@ -1,6 +1,6 @@
 ---
 name: sdd-archive
-description: This skill should be used when the user asks to "close out the plan", "archive the plan", "mark the requirement shipped", or "this feature is done — close it out". The SDD close-out — confirms the document-side Definition of Done (spec status, index, traceability), flips the plan to done and `git mv`s it to `plans/archive/`, and updates AGENTS.md tables if user-facing. Not for merging / PR / branch cleanup (superpowers finishing-a-development-branch); not for running tests (superpowers verification-before-completion) or the drift check (sdd-trace).
+description: This skill should be used when the user asks to "close out the plan", "archive the plan", "mark the requirement shipped", or "this feature is done — close it out". The SDD close-out — confirms the document-side Definition of Done (spec status, index, traceability), flips the plan to done and `git mv`s it to `plans/archive/` inside the implementing PR, and updates AGENTS.md tables if user-facing. Not for merging / PR / branch cleanup (superpowers finishing-a-development-branch); not for running tests (superpowers verification-before-completion) or the drift check (sdd-trace).
 argument-hint: "<plan file or REQ to close out>"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
@@ -13,9 +13,9 @@ Consolidate a finished feature's delta into the living project memory and keep t
 
 ## When to run it — default: inside the implementing PR
 
-Run this as the **final commit of the implementing branch**, before the PR is finalized, so the plan flip and archive move ride in the **same PR** that lands the code — no follow-up PR or commit. The `git mv` of the plan into `archive/` shows in the diff, which is a feature, not a cost: the PR becomes self-describing. Set `implementation: shipped` in that same commit — it is understood to take effect when the PR merges. (Keeping a separate `landed`-then-`shipped` split is available but usually more bookkeeping than it's worth.)
+Run this as the **final commit of the implementing branch**, before the PR is finalized, so the plan flip and archive move ride in the **same PR** that lands the code — no follow-up PR or commit. The `git mv` of the plan into `archive/` shows in the diff, which is a feature, not a cost: the PR becomes self-describing. Set the delivered `REQ`'s `implementation` status in that same commit **per methodology §6** — it takes effect when the PR merges.
 
-If a plan was missed and closed out after merge, run it the same way on a small follow-up — `sdd-trace` and the `sdd-traceability-auditor` flag the stale-active-list case so it doesn't get lost.
+Exception: if a plan slips through and is closed out after merge, run it the same way on a small follow-up — `sdd-trace` and the `sdd-traceability-auditor` flag the stale-active-list case so it doesn't get lost.
 
 ## Preconditions
 
@@ -26,7 +26,7 @@ Do not archive unverified work; archiving asserts the feature is truly done.
 ## Steps (the document-side Definition of Done)
 
 1. **Spec status** — promote each affected `SPEC §` status if appropriate; for *implementation-aligned* work, confirm the spec § was updated in the same change (not left lagging).
-2. **Requirements index** — set each delivered `REQ`'s `implementation` to `shipped` in this same commit (takes effect on merge; see "When to run it").
+2. **Requirements index** — set each delivered `REQ`'s `implementation` status in this same commit per methodology §6 (the axis `landed`/`shipped`, per how the repo uses them); takes effect on merge (see "When to run it").
 3. **Traceability** — confirm `traceability.yaml` reflects the landed packages/tests/probes.
 4. **Plan** — flip its frontmatter `status: active` → `done`, then `git mv docs/plans/YYYY-MM-DD-<slug>.md docs/plans/archive/` (use `git mv` so history follows). Update the plans index. For explicitly deferred work, use a `postponed/` folder with restore criteria instead.
 5. **AGENTS.md** — update its tables if anything user-facing shipped (a capability list, a new command).

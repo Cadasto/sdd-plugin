@@ -36,7 +36,7 @@ hardening shipped code is *implementation-aligned* (code may lead, spec updated 
 ## Load-bearing rules
 
 - One canonical home per requirement — the index links, the spec owns the prose. Never duplicate normative text.
-- One home per fact in process prose too — the commit body (the *why*), PR body (the *review lens*), changelog (one user-facing line), and review comments each carry only what lives nowhere else; cite identifiers rather than restating.
+- One home per fact in process prose too — cite identifiers rather than restating the same story across the commit body, PR body, changelog, and review comments. See [docs/development-process.md](docs/development-process.md) (*Artefact prose*).
 - Identifiers are immutable once published. Never renumber or reuse.
 - Don't mix document kinds (no tasks in a spec, no file paths in a requirement, one decision per ADR).
 - Don't settle an open question silently in code — raise a STRAND, draft an ADR, or ask.

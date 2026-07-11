@@ -19,7 +19,7 @@ This plugin owns the **spec / document / traceability layer**. The generic engin
 
 ```
 superpowers:brainstorming → SDD:sdd-specify → superpowers:writing-plans → executing-plans/TDD
-   → SDD:sdd-trace + superpowers:verification-before-completion → SDD:sdd-archive + superpowers:finishing-a-development-branch
+   → SDD:sdd-trace · SDD:sdd-review (opt-in) + superpowers:verification-before-completion → SDD:sdd-archive (in the implementing PR) + superpowers:finishing-a-development-branch
 ```
 
 ### Route to SDD

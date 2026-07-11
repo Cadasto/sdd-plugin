@@ -16,7 +16,7 @@ An **opt-in** convenience that runs at the end of an implementation slice. It do
 0. **Scope the change.** Resolve the `REQ`/`SPEC §`/plan under review (from the argument, the plan header, or the PR/commit citation) and the PR (`gh pr view`). The review scope is the branch diff against its base.
 1. **Generic review — delegate, don't reimplement.** Run whichever generic reviewer is installed: the built-in `/code-review --comment`, `superpowers:requesting-code-review`, or the `pr-review-toolkit` (`/review-pr`). This covers bugs, style, security, tests. If none is installed, say so and skip this step — do **not** hand-roll a generic reviewer here.
 2. **SDD lens — dispatch read-only agents (in parallel).**
-   - `sdd-traceability-auditor` — map-vs-tree drift and orphans across the touched chain.
+   - `sdd-traceability-auditor` — a whole-tree map-vs-tree drift/orphan scan (its native mode); surface anything the change broke anywhere in the chain.
    - `sdd-spec-conformance-reviewer` — does the code satisfy the `SPEC §` / `REQ` acceptance criteria it cites, clause by clause.
    Both are read-only and return severity-ranked findings; neither edits.
 3. **Consolidate.** Merge the findings; dedupe against the generic reviewer's; rank blockers first (unmet MUST, duplicated normative prose, broken `canonical` link) and drop nits. Keep the write-up economical per `references/artefact-prose.md`.

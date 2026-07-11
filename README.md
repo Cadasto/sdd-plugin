@@ -56,7 +56,7 @@ SDD is **complementary** to the [superpowers](https://github.com/anthropics/clau
 
 ```
 superpowers:brainstorming → SDD:/sdd-specify → superpowers:writing-plans → executing-plans / TDD
-   → SDD:/sdd-trace + superpowers:verification-before-completion → SDD:/sdd-archive + superpowers:finishing-a-development-branch
+   → SDD:/sdd-trace · SDD:/sdd-review (opt-in) + superpowers:verification-before-completion → SDD:/sdd-archive (in the implementing PR) + superpowers:finishing-a-development-branch
 ```
 
 So planning, TDD, execution, generic verification, code review, and branch-finishing stay with superpowers; SDD records the requirements/specs/decisions, keeps the traceability chain honest, and closes out the documents. One integration detail to know: superpowers writes design docs and plans under `docs/superpowers/` — treat those as working artefacts and route their canonical content into `docs/specifications/` (via `/sdd-specify`) and `docs/plans/`. Full seam: [references/sdd-with-superpowers.md](references/sdd-with-superpowers.md).
@@ -89,7 +89,8 @@ See [docs/install.md](docs/install.md) for details.
 /sdd-specify add a capability for <X>  # capture the REQ, write the normative SPEC, record any ADR
 # … plan & build with superpowers (writing-plans → executing-plans / TDD); land the plan in docs/plans/
 /sdd-trace REQ-...                     # check the traceability chain / drift before merge
-/sdd-archive REQ-...                   # close out the spec, index, and plan once verified
+/sdd-review --post                     # (opt-in) spec-aware review → post findings to the PR
+/sdd-archive REQ-...                   # close out spec, index, and plan — in the implementing PR
 ```
 
 ## The project descriptor

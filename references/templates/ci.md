@@ -24,4 +24,4 @@ mechanically. Two enabling policies:
 The non-negotiable SDD gate is **`spec-check`** (`<build_entrypoint> <spec_check_target>`): it turns
 "we have specs" into "our specs can't silently rot." Before a done-claim, run the full build gate via
 `superpowers:verification-before-completion` (tests/build/lint) **and** `/sdd-trace` (traceability/drift);
-`/sdd-trace` reports drift in-session without modifying anything, and `/sdd-archive` performs the close-out.
+`/sdd-trace` reports drift in-session without modifying anything, `/sdd-review` (opt-in) can post a spec-aware review to the PR, and `/sdd-archive` performs the close-out inside the implementing PR.

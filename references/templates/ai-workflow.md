@@ -23,8 +23,8 @@ This repo uses **Spec-Driven Development** for the specification/traceability la
    rides in the PR that implements the plan — not a follow-up PR.
 ```
 
-> **Prose economy — one home per fact.** The commit body, PR body, changelog, and review comments each say
-> only what lives nowhere else; cite `REQ`/`SPEC §`/plan/SHA rather than restating. See development-process.md.
+> **Prose economy — one home per fact.** Cite `REQ`/`SPEC §`/plan/SHA rather than restating the same story
+> across commit / PR / changelog / review — the rule lives in development-process.md (*Artefact prose*).
 
 ## When stuck
 

@@ -65,7 +65,7 @@ Scope is the **spec / document / traceability layer**. The generic engineering l
 
 ### Works with superpowers
 SDD is complementary to the **superpowers** plugin. Combined flow:
-`superpowers:brainstorming → sdd-specify → superpowers:writing-plans → executing-plans/TDD → sdd-trace + superpowers:verification-before-completion → sdd-archive + superpowers:finishing-a-development-branch`.
+`superpowers:brainstorming → sdd-specify → superpowers:writing-plans → executing-plans/TDD → sdd-trace · sdd-review (opt-in) + superpowers:verification-before-completion → sdd-archive (in the implementing PR) + superpowers:finishing-a-development-branch`.
 Superpowers owns planning/TDD/execution/verification/code-review/branch-finishing; SDD owns the documents and traceability. Superpowers writes design docs + plans under `docs/superpowers/` — treat them as working artefacts and route the canonical content into `docs/specifications/` (via `sdd-specify`) and `docs/plans/`. Full seam + the path redirect: [`references/sdd-with-superpowers.md`](references/sdd-with-superpowers.md).
 
 ### Hooks
@@ -112,7 +112,7 @@ Use feature branches and pull requests. Validation runs on every push/PR.
 
 ## Gotchas
 
-- **Agents use `tools:`, not `allowed-tools:`.** In an agent file `allowed-tools:` is ignored and the agent silently inherits *all* tools. Both shipped agents are read-only — keep them that way.
+- **Agents use `tools:`, not `allowed-tools:`.** In an agent file `allowed-tools:` is ignored and the agent silently inherits *all* tools. All three shipped agents are read-only — keep them that way.
 - **`author` in `plugin.json` must be an object** (`{name, url}`); `claude plugin validate` rejects a bare string.
 - **`${CLAUDE_PLUGIN_ROOT}` is Claude-Code-only.** Cursor hook commands stay workspace-relative (`bash hooks/session-start.sh`) — don't "fix" them to use it. For locating bundled templates, `sdd-scaffold` prefers `${CLAUDE_PLUGIN_ROOT}` (or a Cursor plugin-root variable, *if* the host exposes one — unconfirmed) and falls back to a Glob for the installed templates, which is the host-agnostic path. Keep both hook configs in step.
 - **One canonical home for the rules: `references/sdd-methodology.md`.** Skills keep only their procedure and cite the reference. When the methodology changes, update the reference — don't re-inline rule text into each skill.

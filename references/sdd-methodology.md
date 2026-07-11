@@ -145,6 +145,7 @@ Plans are the **only** place checkbox task lists live. Filename: `docs/plans/YYY
 - [ ] Code + tests complete and verified on the branch.
 - [ ] Spec and/or guide updated if behaviour changed.
 - [ ] Requirements index status updated.
+- [ ] Traceability map (`traceability.yaml`) updated to the landed packages/tests/probes.
 - [ ] Plan flipped to `done` and `git mv`d to `docs/plans/archive/`.
 - [ ] `AGENTS.md` (or its tables) updated if anything user-facing changed.
 
