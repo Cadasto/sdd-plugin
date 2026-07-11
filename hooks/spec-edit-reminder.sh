@@ -33,7 +33,7 @@ case "$f" in
   *docs/adr/*)
     echo "› Edited an ADR — one decision per record; cite the STRAND it resolves and the REQs it amends; it must be Accepted before code depends on it." ;;
   *docs/plans/*)
-    echo "› Edited a plan — it must cite the REQ/SPEC § it implements and add no new normative rules; close it with /sdd-archive once the feature lands and /sdd-trace is clean." ;;
+    echo "› Edited a plan — it must cite the REQ/SPEC § it implements and add no new normative rules; close it with /sdd-archive in the same PR once the feature lands and /sdd-trace is clean." ;;
   *) : ;;
 esac
 

@@ -29,13 +29,14 @@ The linked docs are **canonical** — defer to them rather than duplicating thei
 ## Workflow (short form)
 
 `REQ` (what + acceptance) → `SPEC §` (RFC-2119) → `ADR` (if an irreversible fork) → `PLAN` (tasks) →
-`CODE + TESTS` (cite IDs) → update spec status + traceability **in the same PR** → update `REQ` status +
-archive the plan. New behaviour is *spec-first*; hardening shipped code is *implementation-aligned* (code may
-lead, spec updated in the same PR).
+`CODE + TESTS` (cite IDs) → update spec status + traceability → update `REQ` status + flip and archive the
+plan — **all in the same PR that implements it** (no follow-up close-out PR). New behaviour is *spec-first*;
+hardening shipped code is *implementation-aligned* (code may lead, spec updated in the same PR).
 
 ## Load-bearing rules
 
 - One canonical home per requirement — the index links, the spec owns the prose. Never duplicate normative text.
+- One home per fact in process prose too — cite identifiers rather than restating the same story across the commit body, PR body, changelog, and review comments. See [docs/development-process.md](docs/development-process.md) (*Artefact prose*).
 - Identifiers are immutable once published. Never renumber or reuse.
 - Don't mix document kinds (no tasks in a spec, no file paths in a requirement, one decision per ADR).
 - Don't settle an open question silently in code — raise a STRAND, draft an ADR, or ask.

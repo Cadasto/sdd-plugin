@@ -23,8 +23,8 @@ body:
       description: Which part of the plugin is affected?
       options:
         - Router skill (spec-driven-development)
-        - Skill (sdd-specify, sdd-trace, sdd-archive, sdd-scaffold)
-        - Agent (sdd-traceability-auditor / sdd-doc-reviewer)
+        - Skill (sdd-specify, sdd-trace, sdd-review, sdd-archive, sdd-scaffold)
+        - Agent (sdd-traceability-auditor / sdd-doc-reviewer / sdd-spec-conformance-reviewer)
         - Hooks (SessionStart / spec-edit reminder)
         - References / templates (methodology, schemas, scaffold templates)
         - Cursor rule (rules/*.mdc)

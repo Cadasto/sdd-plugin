@@ -141,14 +141,15 @@ Plans are the **only** place checkbox task lists live. Filename: `docs/plans/YYY
 - [ ] No open ADR is needed, or the ADR is already `Accepted`.
 - [ ] Out-of-scope is written; verification commands are named.
 
-**Definition of Done** (a feature is not finished until):
-- [ ] Code + tests merged.
+**Definition of Done** (a feature is not finished until — all in the **same implementing PR**):
+- [ ] Code + tests complete and verified on the branch.
 - [ ] Spec and/or guide updated if behaviour changed.
 - [ ] Requirements index status updated.
-- [ ] Plan flipped to `done` and moved to `docs/plans/archive/`.
+- [ ] Traceability map (`traceability.yaml`) updated to the landed packages/tests/probes.
+- [ ] Plan flipped to `done` and `git mv`d to `docs/plans/archive/`.
 - [ ] `AGENTS.md` (or its tables) updated if anything user-facing changed.
 
-**Archive-on-completion is normative, not housekeeping:** leaving `done` plans in the active list rots the index. This is the industry's *outer/archive loop*.
+**Archive-on-completion is normative, not housekeeping:** leaving `done` plans in the active list rots the index. This is the industry's *outer/archive loop*. Land the close-out (plan flip + archive move + index/status updates) in the **same PR** that implements the plan — not a follow-up — so the one merge that ships the code also closes the plan.
 
 ## 10. Agent affordances
 
@@ -159,7 +160,7 @@ Plans are the **only** place checkbox task lists live. Filename: `docs/plans/YYY
 
 ## 11. Anti-patterns to design against
 
-- **Duplicated normative prose.** Index links; the canonical body lives once.
+- **Duplicated normative prose.** Index links; the canonical body lives once. The same anti-pattern in the *process* layer — one story restated across the commit body, PR body, and changelog — is governed by [artefact-prose.md](artefact-prose.md): each fact has one home, the rest cite the identifier.
 - **Rules that exist only in code.** A normative constraint with no `REQ`/spec is invisible to reviewers and agents. Add the `REQ` first.
 - **Mixing kinds.** Tasks in a spec, file paths in a requirement, multiple decisions in one ADR — each erodes the boundaries that make the system legible.
 - **Stale active lists.** `done` plans left active, or an index that lags reality, destroys trust. Archive on completion.

@@ -34,7 +34,9 @@ mode: spec-first         # spec-first | implementation-aligned
 
 ## Definition of Done
 
-- [ ] Code + tests merged
+All of the below land in the **same PR** that implements the plan (no follow-up close-out PR):
+
+- [ ] Code + tests complete and verified on the branch
 - [ ] Spec and/or guide updated if behaviour changed
 - [ ] Requirements index status updated
 - [ ] `traceability.yaml` updated (packages / tests / probes)

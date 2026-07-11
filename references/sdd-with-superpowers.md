@@ -22,14 +22,16 @@ superpowers:executing-plans /        build (with TDD); cite REQ/PROBE ids in cod
   subagent-driven-development
         │
         ▼
-SDD:sdd-trace        +  superpowers:verification-before-completion
-  (traceability /         (tests/build/lint pass — the generic gate)
-   drift / spec-check)
+SDD:sdd-trace  ·  SDD:sdd-review (opt-in)  +  superpowers:verification-before-completion
+  (traceability /   (spec-aware review:          (tests/build/lint pass — the generic gate)
+   drift /           conformance + traceability,
+   spec-check)       posted to the PR)
         │
         ▼
 SDD:sdd-archive      +  superpowers:finishing-a-development-branch
   (close out the           (merge / PR / worktree cleanup)
-   spec, index, plan)
+   spec, index, plan       the archive rides in the SAME PR as the code
+   — in the same PR)
 ```
 
 ## Who owns what (no overlap)
@@ -41,11 +43,13 @@ SDD:sdd-archive      +  superpowers:finishing-a-development-branch
 | Decompose into tasks; write the plan file | **superpowers** `writing-plans` |
 | Execute tasks, red-green-refactor, write code/tests | **superpowers** `executing-plans` / `test-driven-development` / `subagent-driven-development` |
 | Tests/build/lint actually pass (evidence before claims) | **superpowers** `verification-before-completion` |
-| Code review of the *code* | **superpowers** `requesting-code-review` |
+| Code review of the *code* (bugs, style, security, tests) | **superpowers** `requesting-code-review` |
+| Does the code satisfy the `SPEC §`/`REQ` acceptance criteria it cites (conformance, clause by clause) | **SDD** `sdd-spec-conformance-reviewer` agent |
 | Traceability map matches the tree; orphan/drift detection (`spec-check`) | **SDD** `sdd-trace` (+ `sdd-traceability-auditor` agent) |
 | Review of *SDD documents* (REQ/SPEC/ADR/plan headers) for boundary violations | **SDD** `sdd-doc-reviewer` agent |
+| Orchestrate a spec-aware review (generic + traceability + conformance) and post it to the PR | **SDD** `sdd-review` (opt-in — *delegates* generic review and the posting mechanic, adds the SDD lenses) |
 | Merge / PR / branch cleanup | **superpowers** `finishing-a-development-branch` |
-| Close out the spec status, requirements index, and plan (archive) | **SDD** `sdd-archive` |
+| Close out the spec status, requirements index, and plan — **in the implementing PR** (archive) | **SDD** `sdd-archive` |
 
 Rule of thumb: **superpowers acts on code and process; SDD acts on the specification and its traceability.** When both apply at a phase, run the superpowers skill for the engineering work and the SDD skill for the spec bookkeeping.
 
@@ -73,3 +77,4 @@ These are *not* separate skills — they are the SDD constraints the agent appli
 - `traceability.yaml` is updated as code lands (packages / tests / probes).
 - For hardening on shipped code (*implementation-aligned* mode), the spec § is updated in the **same** change — "code wins until the spec is updated, in the same PR."
 - A genuine open question is never settled in code — it goes to an ADR (`sdd-specify`) or a `STRAND`, or back to `brainstorming`.
+- Commit / PR / changelog / review prose follows **one home per fact** — cite identifiers (`REQ`/`SPEC §`/plan/SHA), don't restate what a cited artefact already says. See `references/artefact-prose.md`.

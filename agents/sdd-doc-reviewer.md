@@ -4,18 +4,12 @@ description: >
   Use this agent to review a single SDD document — a requirement, specification, ADR, or plan header
   (not code) — against the document-kind contract: mixed kinds, duplicated normative prose, missing or
   misused RFC-2119 force, unstable identifiers, conflated status axes, or an open question settled
-  silently in prose. Read-only; returns severity-ranked findings; never edits. Not for reviewing code
-  (use superpowers requesting-code-review) or a whole-tree traceability scan (use the
-  sdd-traceability-auditor agent).
-
-  <example>
-  Context: The user drafted a specification section and wants it checked before merge.
-  user: "review docs/specifications/wire.md — does it hold to the spec conventions?"
-  assistant: "I'll dispatch the sdd-doc-reviewer agent to check RFC-2119 force, single canonical home, and leaked tasks/file paths."
-  <commentary>
-  Document-boundary review is judgment against the document-kind contract — distinct from code review; the isolated reviewer returns ranked findings without editing.
-  </commentary>
-  </example>
+  silently in prose. Read-only; returns severity-ranked findings; never edits. Typical triggers include
+  a freshly written specification section checked before merge, a requirement that may have crept into
+  implementation detail, and a pre-merge ADR or plan-header check. Not for reviewing code (use
+  superpowers requesting-code-review), judging code against the spec it cites (use the
+  sdd-spec-conformance-reviewer agent), or a whole-tree traceability scan (use the
+  sdd-traceability-auditor agent). See "When to invoke" in the agent body for worked scenarios.
 model: inherit
 color: cyan
 tools:
@@ -30,7 +24,11 @@ A read-only specialist that reviews one **SDD document** (not code) against the 
 
 ## When to invoke
 
-After authoring or editing a `REQ`/`SPEC`/`ADR`/plan, before merging a spec change, or on an explicit "review this spec/requirement/ADR/plan" or "does this doc follow SDD rules?" request. Typical triggers: a freshly written spec section, a requirement that may have crept into implementation detail, or a pre-merge ADR check. Reviews **SDD documents only** — route code review to `superpowers:requesting-code-review` and whole-tree traceability audits to `sdd-traceability-auditor`.
+Invoke after authoring or editing a `REQ`/`SPEC`/`ADR`/plan, before merging a spec change, or on an explicit "review this spec/requirement/ADR/plan" or "does this doc follow SDD rules?" request. Reviews **SDD documents only** — route code review to `superpowers:requesting-code-review`, code-vs-spec conformance to `sdd-spec-conformance-reviewer`, and whole-tree traceability audits to `sdd-traceability-auditor`.
+
+- **Pre-merge spec check.** A freshly written specification section (e.g. "review docs/specifications/wire.md — does it hold to the spec conventions?") — check RFC-2119 force, single canonical home, and leaked tasks/file paths.
+- **Requirement creep.** A requirement that may have drifted into implementation/how-to detail, or conflated the stability vs implementation status axes.
+- **ADR / plan gate.** A pre-merge ADR (one decision, backlinks present) or a plan header (cites `implements:`, introduces no new normative rules).
 
 ## Operating rules (read first)
 

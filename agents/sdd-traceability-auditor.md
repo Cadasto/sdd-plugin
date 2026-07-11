@@ -5,17 +5,10 @@ description: >
   the docs/ tree — the context-isolated, read-only analogue of a spec-check run. It cross-checks the
   requirements index, the canonical specs, the traceability map, the plans, and the code/test tree,
   and returns a structured drift report grouped by orphan class. Read-only; works alone; never edits.
-  For a quick single-REQ context bundle in the main session use the sdd-trace skill; for whether the
-  tests/build pass use superpowers verification-before-completion.
-
-  <example>
-  Context: The user is preparing a release and wants the spec chain checked end to end.
-  user: "before we tag, audit the whole repo for spec/traceability drift"
-  assistant: "I'll dispatch the sdd-traceability-auditor agent to scan the index, specs, traceability map, plans, and tests, and report every orphan."
-  <commentary>
-  A whole-tree audit is context-heavy and read-only — isolating it in a subagent keeps the main session clean and returns one structured report.
-  </commentary>
-  </example>
+  Typical triggers include a pre-release end-to-end check of the spec chain, a periodic traceability
+  health check, and a spec-check CI failure whose cause is unclear. For a quick single-REQ context
+  bundle in the main session use the sdd-trace skill; for whether the tests/build pass use superpowers
+  verification-before-completion. See "When to invoke" in the agent body for worked scenarios.
 model: inherit
 color: yellow
 tools:
@@ -31,7 +24,11 @@ A read-only specialist that audits the traceability chain `REQ → SPEC § → A
 
 ## When to invoke
 
-Before a release, during a periodic health check, when a `spec-check` CI job fails and the cause is unclear, or on an explicit "audit the whole repo's traceability" / "find drift across the repo" request. Prefer the `sdd-trace` skill for a quick in-session, single-REQ check; reach for this agent when the scan is whole-tree and context isolation is worth it.
+Reach for this agent when the scan is whole-tree and context isolation is worth it; prefer the `sdd-trace` skill for a quick in-session, single-REQ check. Also fires on an explicit "audit the whole repo's traceability" / "find drift across the repo" request.
+
+- **Pre-release chain check.** Before tagging (e.g. "before we tag, audit the whole repo for spec/traceability drift") — scan the index, specs, traceability map, plans, and tests and report every orphan.
+- **Periodic health check.** A routine sweep for accumulated drift across the `docs/` tree.
+- **Unexplained `spec-check` failure.** When the CI `spec-check` job fails and the cause isn't obvious, to localise the offending id/path.
 
 ## Operating rules (read first)
 

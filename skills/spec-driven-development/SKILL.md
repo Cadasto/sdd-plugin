@@ -19,7 +19,7 @@ This plugin owns the **spec / document / traceability layer**. The generic engin
 
 ```
 superpowers:brainstorming → SDD:sdd-specify → superpowers:writing-plans → executing-plans/TDD
-   → SDD:sdd-trace + superpowers:verification-before-completion → SDD:sdd-archive + superpowers:finishing-a-development-branch
+   → SDD:sdd-trace · SDD:sdd-review (opt-in) + superpowers:verification-before-completion → SDD:sdd-archive (in the implementing PR) + superpowers:finishing-a-development-branch
 ```
 
 ### Route to SDD
@@ -29,8 +29,10 @@ superpowers:brainstorming → SDD:sdd-specify → superpowers:writing-plans → 
 | Set up / extend the SDD docs structure | `sdd-scaffold` |
 | Capture a capability, write normative behaviour, or record a decision (REQ/SPEC/ADR) | `sdd-specify` |
 | Traceability / drift / spec-check / a REQ's context | `sdd-trace` |
+| Spec-aware review of a change/PR (conformance + traceability), optionally posted to the PR | `sdd-review` |
+| Does the code satisfy the `SPEC §` it cites, clause by clause | `sdd-spec-conformance-reviewer` agent |
 | Review *SDD documents* for boundary violations | `sdd-doc-reviewer` agent |
-| Close out the spec, index, and plan | `sdd-archive` |
+| Close out the spec, index, and plan (inside the implementing PR) | `sdd-archive` |
 
 Explore, plan, build, verify tests/build, review code, merge/PR → **superpowers** (`brainstorming`, `writing-plans`, `executing-plans` / `test-driven-development`, `verification-before-completion`, `requesting-code-review`, `finishing-a-development-branch`). Full seam, handoffs, and the `docs/superpowers/*` → canonical-tree path redirect: `references/sdd-with-superpowers.md`.
 
@@ -38,6 +40,7 @@ Explore, plan, build, verify tests/build, review code, merge/PR → **superpower
 
 - **No code-first.** If asked to implement behaviour for which **no `REQ` and no spec exist**, do not jump to code. Redirect: explore with `superpowers:brainstorming` if needed, record with `sdd-specify`, then plan/build with superpowers. The exception is *implementation-aligned* work on shipped code — the spec is updated in the **same** change.
 - **One source of truth.** `docs/superpowers/*` artefacts are narrative/working output — canonical spec (`docs/specifications/`) and plans (`docs/plans/`) win. Route design output through `sdd-specify`; land plans in `docs/plans/`.
+- **One home per fact — in process prose too.** The commit body, PR body, changelog, and review comments each carry only what lives nowhere else; cite identifiers (`REQ`/`SPEC §`/plan/SHA) instead of restating. `references/artefact-prose.md`.
 - **Don't settle open questions silently** — a genuine fork goes to an ADR (`sdd-specify`) or a `STRAND`, or back to brainstorming.
 - **Check the descriptor.** Repo conventions live in `docs/.sdd.yaml`; if it is missing, the repo isn't scaffolded (route to `sdd-scaffold`).
 
@@ -46,3 +49,4 @@ Explore, plan, build, verify tests/build, review code, merge/PR → **superpower
 - `references/sdd-methodology.md` — the authoritative grounding (ladder, document kinds, RFC-2119, identifiers, traceability, two modes, DoR/DoD, anti-patterns).
 - `references/sdd-with-superpowers.md` — the SDD↔superpowers boundary and the path redirect.
 - `references/traceability-schema.md` — the `traceability.yaml` and `.sdd.yaml` schemas.
+- `references/artefact-prose.md` — one home per fact for commit / PR / changelog / review prose.
