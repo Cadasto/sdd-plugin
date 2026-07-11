@@ -7,7 +7,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
-## [Unreleased]
+## [0.3.0] - 2026-07-11
 
 ### Added
 - Skills: `sdd-review` — opt-in orchestration that dispatches the installed generic reviewers plus `sdd-traceability-auditor` and `sdd-spec-conformance-reviewer`, consolidates the findings, and optionally posts them to the PR (delegates generic review + posting; adds the SDD lenses).
