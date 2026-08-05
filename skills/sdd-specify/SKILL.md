@@ -1,13 +1,13 @@
 ---
 name: sdd-specify
-description: This skill should be used when the user asks to "add a requirement / capability", "write or extend a spec", "make this behaviour normative (RFC-2119)", "record an ADR / architectural decision", or "resolve a STRAND". The SDD definition layer — authors the `REQ`, the canonical RFC-2119 `SPEC §`, and the `ADR`, assigning identifiers and wiring traceability. Not for exploring/design (superpowers brainstorming first); not for planning or building (superpowers writing-plans / executing-plans); a traceability audit (sdd-trace); or a one-line edit to an existing spec § (open the file directly).
+description: This skill should be used when the user asks to "add a requirement / capability", "write or extend a spec", "make this behaviour normative (RFC-2119)", "record an ADR / architectural decision", or "resolve a STRAND". The SDD definition layer — authors the `REQ`, the canonical RFC-2119 `SPEC §`, and the `ADR`, assigning identifiers and wiring traceability. Not for exploring/design (superpowers brainstorming), planning/building (superpowers writing-plans / executing-plans), a traceability audit (sdd-trace), or a one-line spec edit (open the file directly).
 argument-hint: "<capability, behaviour, or decision to record> [REQ-id]"
 allowed-tools: Read, Write, Edit, Glob, Grep
 ---
 
 # Specify — the SDD definition layer
 
-> **Bundled `references/` is at the plugin root** (beside `skills/`, two levels above this file) — *not* under this skill. Read any `references/…` path as `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or `../../references/…` from this skill's directory, or Glob for the installed `references/…` (host-agnostic).
+> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
 
 Turn intent (often a design doc from `superpowers:brainstorming`) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
 

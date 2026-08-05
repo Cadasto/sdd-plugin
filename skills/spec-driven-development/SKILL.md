@@ -1,11 +1,11 @@
 ---
 name: spec-driven-development
-description: This skill should be used when the user mentions spec-driven development concepts outside a specific artefact action — "what is SDD", "explain spec-driven development", "how does this repo's spec workflow work", "where does the spec fit with planning/building", or vocabulary like normative, RFC-2119, traceability, drift, ADR, requirement-vs-spec. Provides SDD awareness, explains the methodology, routes intent to the right skill, and maps how SDD complements the superpowers engineering loop. Not for performing an artefact action — use the specific sdd-* skill.
+description: This skill should be used when the user mentions spec-driven development concepts outside a specific artefact action — "what is SDD", "explain spec-driven development", "how does this repo's spec workflow work", "where does the spec fit with planning/building", or vocabulary like normative, RFC-2119, traceability, drift, ADR, requirement-vs-spec. Explains the methodology, routes intent to the right sdd-* skill, and maps the SDD↔superpowers boundary. Not for performing an artefact action — use the specific sdd-* skill.
 ---
 
 # Spec-Driven Development — awareness, routing & integration
 
-> **Bundled `references/` is at the plugin root** (beside `skills/`, two levels above this file) — *not* under this skill. Read any `references/…` path as `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or `../../references/…` from this skill's directory, or Glob for the installed `references/…` (host-agnostic).
+> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
 
 The always-on layer for SDD. It does no artefact work itself; it explains the methodology, routes to the skill that does the work, and **coordinates with the superpowers plugin** so the two are complementary, not overlapping. Ground every answer in `references/sdd-methodology.md` — do not improvise rules.
 

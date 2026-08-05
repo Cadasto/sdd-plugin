@@ -1,13 +1,13 @@
 ---
 name: sdd-archive
-description: This skill should be used when the user asks to "close out the plan", "archive the plan", "mark the requirement shipped", or "this feature is done — close it out". The SDD close-out — confirms the document-side Definition of Done (spec status, index, traceability), flips the plan to done and `git mv`s it to `plans/archive/` inside the implementing PR, and updates AGENTS.md tables if user-facing. Not for merging / PR / branch cleanup (superpowers finishing-a-development-branch); not for running tests (superpowers verification-before-completion) or the drift check (sdd-trace).
+description: This skill should be used when the user asks to "close out the plan", "archive the plan", "mark the requirement shipped", or "this feature is done — close it out". The SDD close-out — confirms the document-side Definition of Done (spec status, index, traceability) and flips the plan to done and `git mv`s it to `plans/archive/` inside the implementing PR. Not for merging / PR / branch cleanup (superpowers finishing-a-development-branch), running tests (superpowers verification-before-completion), or the drift check (sdd-trace).
 argument-hint: "<plan file or REQ to close out>"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 # Archive — the SDD close-out (the outer loop)
 
-> **Bundled `references/` is at the plugin root** (beside `skills/`, two levels above this file) — *not* under this skill. Read any `references/…` path as `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or `../../references/…` from this skill's directory, or Glob for the installed `references/…` (host-agnostic).
+> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
 
 Consolidate a finished feature's delta into the living project memory and keep the active list a true picture of in-flight work. Document/spec close-out only — git close-out is superpowers' job (`references/sdd-with-superpowers.md`). Read `docs/.sdd.yaml` for `paths.plans` / `paths.plans_archive`.
 

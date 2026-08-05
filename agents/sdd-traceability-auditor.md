@@ -6,9 +6,9 @@ description: >
   requirements index, the canonical specs, the traceability map, the plans, and the code/test tree,
   and returns a structured drift report grouped by orphan class. Read-only; works alone; never edits.
   Typical triggers include a pre-release end-to-end check of the spec chain, a periodic traceability
-  health check, and a spec-check CI failure whose cause is unclear. For a quick single-REQ context
-  bundle in the main session use the sdd-trace skill; for whether the tests/build pass use superpowers
-  verification-before-completion. See "When to invoke" in the agent body for worked scenarios.
+  health check, and a spec-check CI failure whose cause is unclear. Not for a quick single-REQ bundle
+  (the sdd-trace skill) or tests/build passing (superpowers verification-before-completion). See
+  "When to invoke" in the agent body for worked scenarios.
 model: inherit
 color: yellow
 tools:

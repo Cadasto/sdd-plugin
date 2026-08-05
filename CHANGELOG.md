@@ -15,6 +15,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Skills: `sdd-specify` — the acceptance-criteria step authors the negative space alongside the happy paths; `sdd-scaffold` wording made imperative per the skill-authoring style.
 - Agents: `sdd-doc-reviewer` flags happy-path-only acceptance criteria and a DoR with no named negative space; `sdd-spec-conformance-reviewer` enumerates negative-space criteria as first-class clauses (an untested refusal path is a finding).
 - Agents: system prompts now open in second person ("You are…") per agent-authoring guidance; `docs/authoring.md` records the convention.
+- Skills, agents: trimmed the always-on frontmatter `description`s (~8% less always-loaded context) — compressed the "Not for" ceremony and dropped restated summaries; every quoted trigger phrase and disambiguation target kept. The per-skill `references/` resolution note shrank ~40% with all three resolution paths intact.
 
 ## [0.3.0] - 2026-07-11
 

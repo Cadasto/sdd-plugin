@@ -6,11 +6,10 @@ description: >
   Read-only; returns per-clause findings (satisfied / violated / untested) ranked by RFC-2119 force;
   never edits. Typical triggers include a pre-merge check that a diff meets the spec it cites, an
   implementation-aligned change that may have left its spec § lagging, and a "does this code actually
-  do what the spec says?" request. Not for generic code review of style/bugs (use superpowers
-  requesting-code-review), not for whether the tests pass (use superpowers
-  verification-before-completion), not for map/orphan drift (use the sdd-traceability-auditor agent),
-  and not for reviewing the spec document itself (use the sdd-doc-reviewer agent). See "When to invoke"
-  in the agent body for worked scenarios.
+  do what the spec says?" request. Not for generic code review of style/bugs (superpowers
+  requesting-code-review), test-passing (superpowers verification-before-completion), map/orphan
+  drift (sdd-traceability-auditor), or reviewing the spec document itself (sdd-doc-reviewer). See
+  "When to invoke" in the agent body for worked scenarios.
 model: inherit
 color: blue
 tools:

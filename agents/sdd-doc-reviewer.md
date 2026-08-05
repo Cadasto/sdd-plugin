@@ -6,10 +6,10 @@ description: >
   misused RFC-2119 force, unstable identifiers, conflated status axes, or an open question settled
   silently in prose. Read-only; returns severity-ranked findings; never edits. Typical triggers include
   a freshly written specification section checked before merge, a requirement that may have crept into
-  implementation detail, and a pre-merge ADR or plan-header check. Not for reviewing code (use
-  superpowers requesting-code-review), judging code against the spec it cites (use the
-  sdd-spec-conformance-reviewer agent), or a whole-tree traceability scan (use the
-  sdd-traceability-auditor agent). See "When to invoke" in the agent body for worked scenarios.
+  implementation detail, and a pre-merge ADR or plan-header check. Not for code review (superpowers
+  requesting-code-review), code-vs-spec conformance (sdd-spec-conformance-reviewer), or a whole-tree
+  traceability scan (sdd-traceability-auditor). See "When to invoke" in the agent body for worked
+  scenarios.
 model: inherit
 color: cyan
 tools:
