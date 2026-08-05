@@ -10,8 +10,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ## [Unreleased]
 
 ### Changed
-- References: `sdd-methodology.md` — DoR names the **negative space** (inputs/states the change must refuse or fail closed on, with intended failure behaviour); DoD exercises it (refusal paths tested, new runtime failure modes mapped to the documented error contract); §4 boundary rule: acceptance criteria cover the negative space, not only happy paths. Templates `plan.md` and `requirement.md` mirror.
-- Skills: `sdd-review` — note that the review lands best before the PR is opened (findings fold into the slice instead of becoming post-publication review rounds).
+- References: `sdd-methodology.md` — DoR names the **negative space** (inputs/states the change must refuse or fail closed on, with intended failure behaviour); DoD exercises it (refusal paths tested, new runtime failure modes mapped to the documented error contract); §4 boundary rule: acceptance criteria cover the negative space, not only happy paths. Templates `plan.md`, `requirement.md`, and `development-process.md` mirror.
+- Skills: `sdd-review` — note that the review lands best before the PR is opened (findings fold into the slice instead of becoming post-publication review rounds); the generic reviewer runs without posting until the post step, and scoping no longer assumes an open PR.
+- Skills: `sdd-specify` — the acceptance-criteria step authors the negative space alongside the happy paths; `sdd-scaffold` wording made imperative per the skill-authoring style.
+- Agents: `sdd-doc-reviewer` flags happy-path-only acceptance criteria and a DoR with no named negative space; `sdd-spec-conformance-reviewer` enumerates negative-space criteria as first-class clauses (an untested refusal path is a finding).
+- Agents: system prompts now open in second person ("You are…") per agent-authoring guidance; `docs/authoring.md` records the convention.
 
 ## [0.3.0] - 2026-07-11
 
