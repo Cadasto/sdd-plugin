@@ -5,7 +5,7 @@ argument-hint: "[REQ-id or plan file] [--post to comment on the PR]"
 allowed-tools: Task, Bash, Read, Grep, Glob
 ---
 
-# Review — orchestrate a spec-aware review and post it to the PR
+# Review — orchestrate a spec-aware review (optionally posted to the PR)
 
 > **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
 
@@ -14,7 +14,7 @@ An **opt-in** convenience that runs at the end of an implementation slice. It do
 ## Steps
 
 0. **Scope the change.** Resolve the `REQ`/`SPEC §`/plan under review (from the argument, the plan header, or the PR/commit citation) and the PR if one exists (`gh pr view`) — pre-PR review needs only the branch. The review scope is the branch diff against its base.
-1. **Generic review — delegate, don't reimplement.** Run whichever generic reviewer is installed: the built-in `/code-review`, `superpowers:requesting-code-review`, or the `pr-review-toolkit` (`/review-pr`). This covers bugs, style, security, tests. Run it **without** posting — findings are consolidated in step 3 and posted (or not) in step 4. If none is installed, say so and skip this step — do **not** hand-roll a generic reviewer here.
+1. **Generic review — delegate, don't reimplement.** Run whichever generic reviewer is installed: the built-in `/code-review`, `superpowers:requesting-code-review`, or the `pr-review-toolkit` (`/review-pr`). This covers bugs, style, security, tests. Run it **without** posting — use each tool's report-only mode (no `--comment`, no PR-posting option) so findings are consolidated in step 3 and posted (or not) in step 4. If none is installed, say so and skip this step — do **not** hand-roll a generic reviewer here.
 2. **SDD lens — dispatch read-only agents (in parallel).**
    - `sdd-traceability-auditor` — a whole-tree map-vs-tree drift/orphan scan (its native mode); surface anything the change broke anywhere in the chain.
    - `sdd-spec-conformance-reviewer` — does the code satisfy the `SPEC §` / `REQ` acceptance criteria it cites, clause by clause.

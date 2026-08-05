@@ -16,7 +16,7 @@ implementation: proposed # build status:    proposed | in_progress | shipped | d
 ## Acceptance criteria
 
 - [ ] <observable, testable condition that proves the capability is delivered>
-- [ ] <the negative space: an input or state the capability must refuse or fail closed on, and the expected failure behaviour>
+- [ ] <the negative space: an input or state the capability must refuse or fail closed on, with the intended failure behaviour as an observable outcome — the normative *how* lives in the `SPEC §`>
 - [ ] <…>
 
 ## Out of scope

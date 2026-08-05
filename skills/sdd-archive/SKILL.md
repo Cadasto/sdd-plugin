@@ -20,6 +20,7 @@ Exception: if a plan slips through and is closed out after merge, run it the sam
 ## Preconditions
 
 - Tests/build pass and traceability is intact **on this branch** — per `references/sdd-with-superpowers.md` (`verification-before-completion` + `sdd-trace` drift scan clean). Verification is on the branch, before the PR merges — not a post-merge step.
+- The plan's DoD boxes are genuinely met — including the **negative space exercised** (refusal/failure paths tested, new failure modes mapped to the error-contract `SPEC §`). An unchecked DoD box blocks the archive.
 
 Do not archive unverified work; archiving asserts the feature is truly done.
 

@@ -40,7 +40,7 @@ The single most important rule: **every document has exactly one job and one alt
 
 ### Boundary rules (enforced by review, partly by CI)
 
-- **Requirements** carry no file paths and no migration steps — only capability + acceptance + out-of-scope. Acceptance criteria cover the **negative space** too — what the capability must refuse or fail closed on — not only the happy paths.
+- **Requirements** carry no file paths and no migration steps — only capability + acceptance + out-of-scope. Acceptance criteria cover the **negative space** too — what the capability must refuse or fail closed on, with the intended failure behaviour — not only the happy paths.
 - **Specifications** carry RFC-2119 prose only — no checkbox task lists, no implementation file paths, no PR-style summaries, no duplicated requirement bodies.
 - **Plans** MUST cite the `REQ-*` / `SPEC-* §` (or ADR) they implement, in the header.
 - **ADRs** cover one decision each; long flows and schema DDL stay in the specs.
@@ -61,7 +61,7 @@ Specs mark normative force with [RFC-2119](https://www.rfc-editor.org/rfc/rfc211
 | **SHOULD / RECOMMENDED** | Strong recommendation — exceptions need a documented reason |
 | **MAY / OPTIONAL** | Truly optional — no conformance impact |
 
-Statements without a keyword are **informative**. The rule: *don't implement informative text as a requirement; don't relax normative text into a suggestion.*
+Statements without a keyword are **informative**. The rule: *don't implement informative text as a requirement; don't relax normative text into a suggestion.* Negative-space clauses — `MUST NOT`, refusals, fail-closed behaviour — carry the same force as their positive counterparts.
 
 ## 5. Identifier scheme
 
@@ -140,11 +140,11 @@ Plans are the **only** place checkbox task lists live. Filename: `docs/plans/YYY
 - [ ] Affected `SPEC-* §` are listed (or a new § is called out).
 - [ ] No open ADR is needed, or the ADR is already `Accepted`.
 - [ ] Out-of-scope is written; verification commands are named.
-- [ ] The **negative space** is named: the inputs and states the change must refuse or fail closed on, with the intended failure behaviour for each — not only the happy paths.
+- [ ] The **negative space** is named: the inputs and states the change must refuse or fail closed on, with the intended failure behaviour for each — **cited** from the `REQ` acceptance criteria and the `SPEC §` that owns the failure behaviour, not restated in the plan.
 
 **Definition of Done** (a feature is not finished until — all in the **same implementing PR**):
 - [ ] Code + tests complete and verified on the branch.
-- [ ] The DoR's negative space is exercised: refusal/failure paths have tests, and each **new runtime failure mode** the change introduces maps to the documented error contract (not left to a generic fall-through).
+- [ ] The DoR's negative space is exercised: refusal/failure paths have tests, and each **new runtime failure mode** the change introduces maps to the **error contract** — the RFC-2119 `SPEC §` that owns failure behaviour — not left to a generic fall-through.
 - [ ] Spec and/or guide updated if behaviour changed.
 - [ ] Requirements index status updated.
 - [ ] Traceability map (`traceability.yaml`) updated to the landed packages/tests/probes.
@@ -164,6 +164,7 @@ Plans are the **only** place checkbox task lists live. Filename: `docs/plans/YYY
 
 - **Duplicated normative prose.** Index links; the canonical body lives once. The same anti-pattern in the *process* layer — one story restated across the commit body, PR body, and changelog — is governed by [artefact-prose.md](artefact-prose.md): each fact has one home, the rest cite the identifier.
 - **Rules that exist only in code.** A normative constraint with no `REQ`/spec is invisible to reviewers and agents. Add the `REQ` first.
+- **Happy-path-only acceptance.** Acceptance criteria that never name what the capability must refuse or fail closed on — the negative space is part of the contract (§3, §9).
 - **Mixing kinds.** Tasks in a spec, file paths in a requirement, multiple decisions in one ADR — each erodes the boundaries that make the system legible.
 - **Stale active lists.** `done` plans left active, or an index that lags reality, destroys trust. Archive on completion.
 - **Settling open questions silently in a PR.** Surface them — a STRAND, an ADR, or a question to the user. Undocumented decisions compound.

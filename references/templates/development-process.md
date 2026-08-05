@@ -56,9 +56,9 @@ See the plan template. A plan may not start until its `REQ` + acceptance exist, 
 listed, any needed ADR is `Accepted`, out-of-scope is written, verification commands are named, and the
 **negative space** is named (what must refuse or fail closed, with the intended failure behaviour). A
 feature is not done until — **in the same PR** — code + tests are complete and verified, the negative space
-is exercised (refusal/failure paths tested, new runtime failure modes mapped to the documented error
-contract), the spec/guide and requirements index are updated, the traceability map is updated, and the plan
-is flipped to `done` and `git mv`d to `docs/plans/archive/`.
+is exercised (refusal/failure paths tested, new runtime failure modes mapped to the error contract — the
+`SPEC §` that owns failure behaviour), the spec/guide and requirements index are updated, the traceability
+map is updated, and the plan is flipped to `done` and `git mv`d to `docs/plans/archive/`.
 
 ## Artefact prose — one home per fact
 

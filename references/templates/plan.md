@@ -21,7 +21,7 @@ mode: spec-first         # spec-first | implementation-aligned
 - [ ] No open ADR needed, or the ADR is already `Accepted`
 - [ ] Out-of-scope written below
 - [ ] Verification commands named: `<build_entrypoint> <ci_target>`, `<…>`
-- [ ] Negative space named: what must refuse / fail closed, and the intended failure behaviour for each
+- [ ] Negative space named: what must refuse / fail closed, with the intended failure behaviour — cite the `REQ` acceptance / `SPEC §`, don't restate
 
 ## Tasks
 
@@ -38,7 +38,7 @@ mode: spec-first         # spec-first | implementation-aligned
 All of the below land in the **same PR** that implements the plan (no follow-up close-out PR):
 
 - [ ] Code + tests complete and verified on the branch
-- [ ] Negative space exercised: refusal/failure paths tested; new runtime failure modes map to the documented error contract
+- [ ] Negative space exercised: refusal/failure paths tested; new runtime failure modes map to the error-contract `SPEC §`
 - [ ] Spec and/or guide updated if behaviour changed
 - [ ] Requirements index status updated
 - [ ] `traceability.yaml` updated (packages / tests / probes)
