@@ -1,13 +1,13 @@
 ---
 name: sdd-specify
-description: This skill should be used when the user asks to "add a requirement / capability", "write or extend a spec", "make this behaviour normative (RFC-2119)", "record an ADR / architectural decision", or "resolve a STRAND". The SDD definition layer — authors the `REQ`, the canonical RFC-2119 `SPEC §`, and the `ADR`, assigning identifiers and wiring traceability. Not for exploring/design (superpowers brainstorming first); not for planning or building (superpowers writing-plans / executing-plans); a traceability audit (sdd-trace); or a one-line edit to an existing spec § (open the file directly).
+description: This skill should be used when the user asks to "add a requirement / capability", "write or extend a spec", "make this behaviour normative (RFC-2119)", "record an ADR / architectural decision", or "resolve a STRAND". The SDD definition layer — authors the `REQ`, the canonical RFC-2119 `SPEC §`, and the `ADR`, assigning identifiers and wiring traceability. Not for exploring/design (superpowers brainstorming), planning/building (superpowers writing-plans / executing-plans), a traceability audit (sdd-trace), or a one-line spec edit (open the file directly).
 argument-hint: "<capability, behaviour, or decision to record> [REQ-id]"
 allowed-tools: Read, Write, Edit, Glob, Grep
 ---
 
 # Specify — the SDD definition layer
 
-> **Bundled `references/` is at the plugin root** (beside `skills/`, two levels above this file) — *not* under this skill. Read any `references/…` path as `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or `../../references/…` from this skill's directory, or Glob for the installed `references/…` (host-agnostic).
+> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
 
 Turn intent (often a design doc from `superpowers:brainstorming`) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
 
@@ -17,7 +17,7 @@ If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`
 
 1. Read `docs/.sdd.yaml` for `req_style`, `req_areas`, `req_gap`.
 2. **Assign the next identifier** without collision — area-prefixed (`REQ-<AREA>-NNN`, reject unknown areas) or flat-numeric (next slot at `req_gap` spacing).
-3. From `references/templates/requirement.md`: capability (what + why), **observable, testable** acceptance criteria, explicit out-of-scope, and the two status fields (`status: draft`, `implementation: proposed`).
+3. From `references/templates/requirement.md`: capability (what + why), **observable, testable** acceptance criteria — covering the **negative space** (what the capability must refuse or fail closed on, with the intended failure behaviour as an observable outcome; the normative *how* lives in the spec, §B), not only happy paths — explicit out-of-scope, and the two status fields (`status: draft`, `implementation: proposed`).
 4. Add the index row to `docs/requirements/README.md`.
 - **No implementation detail** — no file paths, no "how". Track the two status axes separately (`draft` is binding now).
 
@@ -26,7 +26,8 @@ If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`
 1. Open the **canonical** topic spec under `paths.specifications`. Confirm no other file already owns this prose — never create a second copy.
 2. **Look up ground truth** for any domain fact in the source named in `.sdd.yaml` (`ground_truth`); never guess.
 3. Write the statement with explicit **RFC-2119** keywords (MUST/SHALL, SHOULD, MAY) and a stable `§N` anchor. No task lists, no file paths, no PR summaries.
-4. Set/verify the `Status:` header; wire the requirements index row to the canonical anchor (link only); add/update the `traceability.yaml` entry (`references/traceability-schema.md`).
+4. **The spec owns the negative space's *how*.** Refusals, `MUST NOT`s, fail-closed behaviour, and the error contract (what failure looks like) are written here with normative force — the `REQ` acceptance criteria only name and cite them (§A).
+5. Set/verify the `Status:` header; wire the requirements index row to the canonical anchor (link only); add/update the `traceability.yaml` entry (`references/traceability-schema.md`).
 - **One canonical home — never duplicate normative prose.** This is the cardinal rule.
 
 ## C · ADR (`ADR-NNNN`) — record an irreversible decision

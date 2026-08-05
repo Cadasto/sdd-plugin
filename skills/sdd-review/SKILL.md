@@ -1,26 +1,26 @@
 ---
 name: sdd-review
-description: This skill should be used when the user asks to "run the SDD review", "review this PR/change for spec conformance", "dispatch the reviewers and post findings to the PR", or "spec-aware code review before merge". Opt-in orchestration — dispatches the installed generic code reviewers plus the SDD traceability auditor and spec-conformance reviewer, consolidates the findings, and (optionally) posts them to the PR. It sequences and adds the SDD lens; it does not replace generic review. Not for authoring (sdd-specify), the in-session drift-only scan (sdd-trace), or whether the tests pass (superpowers verification-before-completion).
+description: This skill should be used when the user asks to "run the SDD review", "review this PR/change for spec conformance", "dispatch the reviewers and post findings to the PR", or "spec-aware code review before merge". Opt-in orchestration — dispatches the installed generic code reviewers plus the SDD traceability auditor and spec-conformance reviewer, consolidates the findings, and (optionally) posts them to the PR. Not for authoring (sdd-specify), the in-session drift-only scan (sdd-trace), or whether the tests pass (superpowers verification-before-completion).
 argument-hint: "[REQ-id or plan file] [--post to comment on the PR]"
 allowed-tools: Task, Bash, Read, Grep, Glob
 ---
 
-# Review — orchestrate a spec-aware review and post it to the PR
+# Review — orchestrate a spec-aware review (optionally posted to the PR)
 
-> **Bundled `references/` is at the plugin root** (beside `skills/`, two levels above this file) — *not* under this skill. Read any `references/…` path as `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or `../../references/…` from this skill's directory, or Glob for the installed `references/…` (host-agnostic).
+> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
 
-An **opt-in** convenience that runs at the end of an implementation slice. It does **not** own code review — it *sequences* the reviewers you already have and adds the two lenses only SDD can: traceability and spec conformance. Invoke it deliberately (it is not an automatic gate); read `docs/.sdd.yaml` first for `paths.*` and the build targets.
+An **opt-in** convenience that runs at the end of an implementation slice. It does **not** own code review — it *sequences* the already-installed reviewers and adds the two lenses only SDD can: traceability and spec conformance. It lands best **before** the PR is opened (or before human review is requested): the same findings cost the same to produce either way, but caught pre-publication they fold into the slice as ordinary work instead of becoming visible review rounds with their own fix/re-verify/respond cycles. Invoke it deliberately (it is not an automatic gate); read `docs/.sdd.yaml` first for `paths.*` and the build targets.
 
 ## Steps
 
-0. **Scope the change.** Resolve the `REQ`/`SPEC §`/plan under review (from the argument, the plan header, or the PR/commit citation) and the PR (`gh pr view`). The review scope is the branch diff against its base.
-1. **Generic review — delegate, don't reimplement.** Run whichever generic reviewer is installed: the built-in `/code-review --comment`, `superpowers:requesting-code-review`, or the `pr-review-toolkit` (`/review-pr`). This covers bugs, style, security, tests. If none is installed, say so and skip this step — do **not** hand-roll a generic reviewer here.
+0. **Scope the change.** Resolve the `REQ`/`SPEC §`/plan under review (from the argument, the plan header, or the PR/commit citation) and the PR if one exists (`gh pr view`) — pre-PR review needs only the branch. The review scope is the branch diff against its base.
+1. **Generic review — delegate, don't reimplement.** Run whichever generic reviewer is installed: the built-in `/code-review`, `superpowers:requesting-code-review`, or the `pr-review-toolkit` (`/review-pr`). This covers bugs, style, security, tests. Run it **without** posting — use each tool's report-only mode (no `--comment`, no PR-posting option) so findings are consolidated in step 3 and posted (or not) in step 4. If none is installed, say so and skip this step — do **not** hand-roll a generic reviewer here.
 2. **SDD lens — dispatch read-only agents (in parallel).**
    - `sdd-traceability-auditor` — a whole-tree map-vs-tree drift/orphan scan (its native mode); surface anything the change broke anywhere in the chain.
    - `sdd-spec-conformance-reviewer` — does the code satisfy the `SPEC §` / `REQ` acceptance criteria it cites, clause by clause.
    Both are read-only and return severity-ranked findings; neither edits.
 3. **Consolidate.** Merge the findings; dedupe against the generic reviewer's; rank blockers first (unmet MUST, duplicated normative prose, broken `canonical` link) and drop nits. Keep the write-up economical per `references/artefact-prose.md`.
-4. **Post (if `--post`, or when asked).** Post to the PR: one comment per finding, anchored to `file:line`, citing the `SPEC §` / finding it concerns — terse and identifier-anchored (`references/artefact-prose.md`). Use the generic reviewer's `--comment` path, or `gh pr comment` / `gh pr review`. Without `--post`, present the consolidated report in-session and name the next action.
+4. **Post (if `--post`, or when asked).** Post to the PR: one comment per finding, anchored to `file:line`, citing the `SPEC §` / finding it concerns — terse and identifier-anchored (`references/artefact-prose.md`). Use the generic reviewer's posting path (e.g. `/code-review --comment`), or `gh pr comment` / `gh pr review`. Without `--post` (or with no PR yet), present the consolidated report in-session and name the next action.
 
 ## Guardrails
 

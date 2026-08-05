@@ -7,6 +7,16 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
+## [0.4.0] - 2026-08-05
+
+### Changed
+- References: `sdd-methodology.md` defines the **negative space** discipline — §3: acceptance criteria cover what the capability must refuse or fail closed on, with the intended failure behaviour; §9 DoR names it (cited from the `REQ`/`SPEC §`, not restated) and §9 DoD exercises it (refusal paths tested, new runtime failure modes mapped to the error contract — the RFC-2119 `SPEC §` owning failure behaviour); §4: fail-closed clauses carry the same force as positive ones; §11: happy-path-only acceptance is an anti-pattern. Templates `requirement.md`, `plan.md`, and `development-process.md` mirror.
+- Skills: `sdd-specify` authors the negative space at the right altitude — §A the `REQ` names and cites it as an observable outcome, §B the spec owns the normative *how* (`MUST NOT`/fail-closed/error contract); `sdd-archive` blocks the archive on unmet plan-DoD boxes (negative space exercised included).
+- Skills: `sdd-review` lands best before the PR is opened (findings fold into the slice instead of becoming post-publication review rounds); the generic reviewer runs report-only until the post step, and scoping no longer assumes an open PR.
+- Agents: `sdd-doc-reviewer` flags happy-path-only acceptance criteria, a DoR with no named negative space, and a `done` plan with unchecked DoD boxes; `sdd-spec-conformance-reviewer` enumerates negative-space criteria as first-class clauses (an untested refusal path is a finding).
+- Agents: system prompts now open in second person ("You are…") per agent-authoring guidance; `docs/authoring.md` records the convention.
+- Skills, agents: trimmed the always-on frontmatter `description`s (~6% less always-loaded context) and the per-skill `references/` resolution note (~40%); every quoted trigger phrase, disambiguation target, and resolution path kept. `sdd-scaffold` wording made imperative per the skill-authoring style.
+
 ## [0.3.0] - 2026-07-11
 
 ### Added
