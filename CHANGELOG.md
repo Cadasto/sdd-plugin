@@ -7,6 +7,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
+## [Unreleased]
+
+### Changed
+- References: `sdd-methodology.md` — DoR names the **negative space** (inputs/states the change must refuse or fail closed on, with intended failure behaviour); DoD exercises it (refusal paths tested, new runtime failure modes mapped to the documented error contract); §4 boundary rule: acceptance criteria cover the negative space, not only happy paths. Templates `plan.md` and `requirement.md` mirror.
+- Skills: `sdd-review` — note that the review lands best before the PR is opened (findings fold into the slice instead of becoming post-publication review rounds).
+
 ## [0.3.0] - 2026-07-11
 
 ### Added

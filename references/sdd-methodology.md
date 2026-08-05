@@ -40,7 +40,7 @@ The single most important rule: **every document has exactly one job and one alt
 
 ### Boundary rules (enforced by review, partly by CI)
 
-- **Requirements** carry no file paths and no migration steps — only capability + acceptance + out-of-scope.
+- **Requirements** carry no file paths and no migration steps — only capability + acceptance + out-of-scope. Acceptance criteria cover the **negative space** too — what the capability must refuse or fail closed on — not only the happy paths.
 - **Specifications** carry RFC-2119 prose only — no checkbox task lists, no implementation file paths, no PR-style summaries, no duplicated requirement bodies.
 - **Plans** MUST cite the `REQ-*` / `SPEC-* §` (or ADR) they implement, in the header.
 - **ADRs** cover one decision each; long flows and schema DDL stay in the specs.
@@ -140,9 +140,11 @@ Plans are the **only** place checkbox task lists live. Filename: `docs/plans/YYY
 - [ ] Affected `SPEC-* §` are listed (or a new § is called out).
 - [ ] No open ADR is needed, or the ADR is already `Accepted`.
 - [ ] Out-of-scope is written; verification commands are named.
+- [ ] The **negative space** is named: the inputs and states the change must refuse or fail closed on, with the intended failure behaviour for each — not only the happy paths.
 
 **Definition of Done** (a feature is not finished until — all in the **same implementing PR**):
 - [ ] Code + tests complete and verified on the branch.
+- [ ] The DoR's negative space is exercised: refusal/failure paths have tests, and each **new runtime failure mode** the change introduces maps to the documented error contract (not left to a generic fall-through).
 - [ ] Spec and/or guide updated if behaviour changed.
 - [ ] Requirements index status updated.
 - [ ] Traceability map (`traceability.yaml`) updated to the landed packages/tests/probes.

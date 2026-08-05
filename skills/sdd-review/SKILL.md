@@ -9,7 +9,7 @@ allowed-tools: Task, Bash, Read, Grep, Glob
 
 > **Bundled `references/` is at the plugin root** (beside `skills/`, two levels above this file) — *not* under this skill. Read any `references/…` path as `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or `../../references/…` from this skill's directory, or Glob for the installed `references/…` (host-agnostic).
 
-An **opt-in** convenience that runs at the end of an implementation slice. It does **not** own code review — it *sequences* the reviewers you already have and adds the two lenses only SDD can: traceability and spec conformance. Invoke it deliberately (it is not an automatic gate); read `docs/.sdd.yaml` first for `paths.*` and the build targets.
+An **opt-in** convenience that runs at the end of an implementation slice. It does **not** own code review — it *sequences* the reviewers you already have and adds the two lenses only SDD can: traceability and spec conformance. It lands best **before** the PR is opened (or before human review is requested): the same findings cost the same to produce either way, but caught pre-publication they fold into the slice as ordinary work instead of becoming visible review rounds with their own fix/re-verify/respond cycles. Invoke it deliberately (it is not an automatic gate); read `docs/.sdd.yaml` first for `paths.*` and the build targets.
 
 ## Steps
 
