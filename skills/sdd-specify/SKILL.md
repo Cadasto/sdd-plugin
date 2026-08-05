@@ -17,7 +17,7 @@ If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`
 
 1. Read `docs/.sdd.yaml` for `req_style`, `req_areas`, `req_gap`.
 2. **Assign the next identifier** without collision — area-prefixed (`REQ-<AREA>-NNN`, reject unknown areas) or flat-numeric (next slot at `req_gap` spacing).
-3. From `references/templates/requirement.md`: capability (what + why), **observable, testable** acceptance criteria, explicit out-of-scope, and the two status fields (`status: draft`, `implementation: proposed`).
+3. From `references/templates/requirement.md`: capability (what + why), **observable, testable** acceptance criteria — covering the **negative space** (what the capability must refuse or fail closed on, with the expected failure behaviour), not only happy paths — explicit out-of-scope, and the two status fields (`status: draft`, `implementation: proposed`).
 4. Add the index row to `docs/requirements/README.md`.
 - **No implementation detail** — no file paths, no "how". Track the two status axes separately (`draft` is binding now).
 
