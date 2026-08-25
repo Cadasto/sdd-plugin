@@ -7,7 +7,9 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
-## [Unreleased]
+## [0.4.1] - 2026-08-25
+
+Corrects three component defects and the claims the docs made about them: a `PostToolUse` hook timeout that was five hours rather than twenty seconds, an always-on router that inherited every tool, and two agents that described themselves as read-only while holding `Bash`.
 
 ### Changed
 - Docs: `README.md` — the agents table was headed **read-only**, which holds for one of the three. `sdd-doc-reviewer` declares only `Read`/`Grep`/`Glob` and is read-only outright; `sdd-traceability-auditor` and `sdd-spec-conformance-reviewer` add `Bash`, which writes. The heading is now **report-only**, with a line saying which guarantee is enforced and which is a contract the agent keeps. `/sdd-trace` is relabelled the same way — it declares `Bash` too.
