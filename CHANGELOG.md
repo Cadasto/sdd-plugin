@@ -16,6 +16,10 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Docs: `docs/versioning.md`, `AGENTS.md` — the marketplace no longer tracks this repo's default branch. The Cadasto catalog pins each entry to a release tag, so a release is not live until the entry in `Cadasto/plugin-marketplace` bumps `version` and `source.ref`; added as release step 8.
 
 ### Fixed
+- Hooks: the `PostToolUse` reminder declared `"timeout": 20000`. Claude Code reads a hook timeout in **seconds** (`hook.timeout * 1000` internally), so that was 5 hours 33 minutes, not 20 seconds — a hung script would have stalled the session rather than being cut off. Now `20`.
+- Skills: `spec-driven-development` declared no `allowed-tools`, so the always-on router inherited **every** tool including `Write`, `Edit`, and `Bash`. It explains and routes — it reads the references and `docs/.sdd.yaml` and does no artefact work — so it now declares `Read, Grep, Glob`.
+- Agents: `sdd-traceability-auditor` and `sdd-spec-conformance-reviewer` described themselves as **read-only** while declaring `Bash`, which writes. Both are **report-only**, and each body now says no-edit is a contract it keeps rather than a sandbox that keeps it. `sdd-doc-reviewer` is unchanged: it declares only `Read`/`Grep`/`Glob`, so read-only is accurate there.
+
 - Docs: `claude plugin add` is not a Claude Code command. `README.md`, `docs/install.md`, `docs/versioning.md` (the dogfood release step), and `AGENTS.md` load a local working copy with `claude --plugin-dir <path>`, which applies to that session only.
 
 ## [0.4.0] - 2026-08-05
