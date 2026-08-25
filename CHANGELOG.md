@@ -12,6 +12,9 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Changed
 - Docs: `docs/versioning.md`, `AGENTS.md` — the marketplace no longer tracks this repo's default branch. The Cadasto catalog pins each entry to a release tag, so a release is not live until the entry in `Cadasto/plugin-marketplace` bumps `version` and `source.ref`; added as release step 8.
 
+### Fixed
+- Docs: `claude plugin add` is not a Claude Code command. `README.md`, `docs/install.md`, `docs/versioning.md` (the dogfood release step), and `AGENTS.md` load a local working copy with `claude --plugin-dir <path>`, which applies to that session only.
+
 ## [0.4.0] - 2026-08-05
 
 ### Changed

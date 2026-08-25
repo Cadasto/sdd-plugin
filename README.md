@@ -70,10 +70,10 @@ So planning, TDD, execution, generic verification, code review, and branch-finis
 /plugin install sdd@cadasto
 ```
 
-Or from a local working copy, for development:
+Or load a local working copy for a single session, for development:
 
 ```bash
-claude plugin add /path/to/sdd-plugin
+claude --plugin-dir /path/to/sdd-plugin
 ```
 
 ### Cursor
