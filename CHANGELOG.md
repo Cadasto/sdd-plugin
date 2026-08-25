@@ -7,6 +7,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
+## [Unreleased]
+
+### Changed
+- Docs: `docs/versioning.md`, `AGENTS.md` — the marketplace no longer tracks this repo's default branch. The Cadasto catalog pins each entry to a release tag, so a release is not live until the entry in `Cadasto/plugin-marketplace` bumps `version` and `source.ref`; added as release step 8.
+
 ## [0.4.0] - 2026-08-05
 
 ### Changed
