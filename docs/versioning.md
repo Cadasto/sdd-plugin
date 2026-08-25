@@ -1,4 +1,4 @@
-# Versioning and Releases
+# Versioning and releases
 
 This plugin uses [Semantic Versioning](https://semver.org), adapted to skill / agent / rule / reference content:
 
