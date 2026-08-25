@@ -1,4 +1,4 @@
-# Versioning and Releases
+# Versioning and releases
 
 This plugin uses [Semantic Versioning](https://semver.org), adapted to skill / agent / rule / reference content:
 
@@ -14,7 +14,7 @@ While on the `0.x` line, treat the plugin as pre-stable: a breaking change may s
 
 1. Bump `version` in **both** manifests (they must agree): `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`. Keep `description` and `author` identical across both — `scripts/validate.py` enforces this parity.
 2. Run `./scripts/validate.sh` and `claude plugin validate .`.
-3. **Dogfood:** install from a working copy (`claude plugin add /path/to/sdd-plugin`) and run the full loop on a throwaway repo on **both** hosts — see [testing.md](testing.md).
+3. **Dogfood:** load the working copy (`claude --plugin-dir /path/to/sdd-plugin`) and run the full loop on a throwaway repo on **both** hosts — see [testing.md](testing.md).
 4. Fold the accumulated `## [Unreleased]` notes into a dated `## [X.Y.Z] - YYYY-MM-DD` section in [CHANGELOG.md](../CHANGELOG.md) (Keep a Changelog — groups in order Added, Changed, Deprecated, Removed, Fixed, Security; see [AGENTS.md](../AGENTS.md#changelog-style)).
 5. Sync the docs surface (AGENTS.md, README.md) with what shipped. Keep the `/sdd-*` list in `hooks/session-start.sh` in step when a skill is added or renamed.
 6. Commit (`chore(release): vX.Y.Z`) and tag: `git tag -a vX.Y.Z -m "sdd-plugin vX.Y.Z"`.

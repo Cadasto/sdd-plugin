@@ -1,6 +1,6 @@
-# Testing and Validation
+# Testing and validation
 
-This is a pure-content repository — JSON manifests + Markdown components. There is no build step or package manager. Testing means validating structure, then installing locally and exercising the components.
+This is a pure-content repository — JSON manifests + Markdown components, with no build step or package manager. Testing means validating structure, then installing locally and exercising the components.
 
 ## Validation
 
@@ -17,8 +17,8 @@ Install from your working copy (see [install.md](install.md)), then exercise eac
 - **Session-start hook** — open a repo containing `docs/.sdd.yaml`; one SDD context line should print (and the scaffold pointer in a repo with `docs/` but no SDD structure).
 - **`spec-driven-development` router** — ask "what is SDD?" or "should I write a spec or a requirement?"; it should explain and route, not perform an artefact action.
 - **`/sdd-scaffold`** — in an empty repo, run it and confirm the `docs/` tree, templates, `docs/.sdd.yaml`, and `AGENTS.md` appear; run it again and confirm it is idempotent (fills gaps, doesn't clobber).
-- **`/sdd-specify`** — capture a REQ, write a SPEC §, record an ADR; confirm identifiers are assigned without collision, the traceability entry is written, and a doc-kind boundary violation (e.g. a file path in a requirement) is refused/flagged. (Planning and building are then handed to the superpowers loop — confirm the router points there and that a plan lands in `docs/plans/`, not `docs/superpowers/plans/`.)
-- **`/sdd-trace`** — with a deliberately broken `canonical` link, confirm the drift is reported (read-only, no edits).
+- **`/sdd-specify`** — capture a REQ, write a SPEC §, record an ADR; confirm identifiers are assigned without collision, the traceability entry is written, and a doc-kind boundary violation (for example a file path in a requirement) is refused/flagged. (Planning and building are then handed to the superpowers loop — confirm the router points there and that a plan lands in `docs/plans/`, not `docs/superpowers/plans/`.)
+- **`/sdd-trace`** — with a deliberately broken `canonical` link, confirm the drift is reported (report-only, no edits).
 - **`/sdd-review`** — on a branch that implements a REQ, confirm it dispatches the traceability auditor + spec-conformance reviewer (and the installed generic reviewer if present), consolidates findings, and — with `--post` — posts them to the PR; without `--post`, presents them in-session. It should *delegate* generic review, not hand-roll one.
 - **`/sdd-archive`** — confirm a finished plan moves to `plans/archive/` via `git mv` and the indexes update, and that it is done as the final commit of the implementing branch (same PR), not a follow-up.
 - **Agents** — ask for a whole-repo audit (`sdd-traceability-auditor`), a single-doc review (`sdd-doc-reviewer`), and a code-vs-spec conformance check (`sdd-spec-conformance-reviewer`); confirm each returns ranked findings and none edits files or spawns sub-agents.

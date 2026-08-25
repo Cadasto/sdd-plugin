@@ -1,5 +1,6 @@
 ---
 name: spec-driven-development
+allowed-tools: Read, Grep, Glob
 description: This skill should be used when the user mentions spec-driven development concepts outside a specific artefact action — "what is SDD", "explain spec-driven development", "how does this repo's spec workflow work", "where does the spec fit with planning/building", or vocabulary like normative, RFC-2119, traceability, drift, ADR, requirement-vs-spec. Explains the methodology, routes intent to the right sdd-* skill, and maps the SDD↔superpowers boundary. Not for performing an artefact action — use the specific sdd-* skill.
 ---
 

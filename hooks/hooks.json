@@ -17,7 +17,7 @@
           {
             "type": "command",
             "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/spec-edit-reminder.sh",
-            "timeout": 20000
+            "timeout": 20
           }
         ]
       }

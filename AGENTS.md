@@ -81,7 +81,7 @@ No build step — pure Markdown + JSON. Validate and dogfood locally:
 ```bash
 ./scripts/validate.sh             # manifests, dual-host parity, frontmatter (warns & skips if Python is absent)
 claude plugin validate .          # manifest + component structure (no Python needed)
-claude plugin add /path/to/sdd-plugin   # install locally
+claude --plugin-dir /path/to/sdd-plugin # load locally for one session
 ```
 
 Then run the loop (`/sdd-scaffold` → `/sdd-specify` → plan/build via superpowers → `/sdd-trace` → `/sdd-archive`) on a throwaway repo, and verify skill auto-triggering and the agents on both hosts. Fuller guidance: [`docs/`](docs/). CI runs `scripts/validate.py` strictly on every push/PR.
