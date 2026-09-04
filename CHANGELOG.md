@@ -15,6 +15,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - References: `traceability-schema.md` — the `agents:` and `review_panel` descriptor block and the plan frontmatter contract.
 - Skills: `sdd-finalize` — the release sweep: deletes `done` and `abandoned` plans as the first step of a version bump, after an inbound-link check; the first run also removes a legacy `docs/plans/archive/`.
 - Agents: `sdd-implementer` — implements one bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. Holds no `Agent` tool, so it cannot spawn workers.
+- Skills: `sdd-triage` — one review round: every comment channel enumerated, findings merged into the ledger, verified before fixing, the pattern class swept, fixed in the PR, re-review prompts printed.
 
 ### Changed
 - References: `sdd-methodology.md` §9 is now a working-plan lifecycle — `active | done | postponed | abandoned`, five dispatch preconditions, close-out on four surfaces, archive in place, sweep at the release.
@@ -23,6 +24,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Templates: `plan.md` carries a minimal header; `ai-workflow.md` gains the standing orchestration section, the canonical review-request block, and the ledger rules; `AGENTS.md` mirrors the orchestration rules; `development-process.md` replaces the DoR/DoD blocks with dispatch preconditions, the lanes, and the PR-body close-out with its `Lane:` line; `ci.md` no longer routes verification through another plugin.
 - Skills: `sdd-archive` is reduced to the frontmatter flip, the status updates, and the PR body — no `git mv`, no index.
 - Agents: the three reviewers gain the materiality threshold, the settled-adjudications memory, and the cross-repo rule.
+- Skills: `sdd-review` detects the lane, dispatches per lane, writes one ledger instead of one comment per finding, and prints one canonical prompt block per `review_panel` entry with `--panel`.
 
 ### Removed
 - References: the `plans:` axis of a traceability record and `paths.plans_archive` from the descriptor and its template.
