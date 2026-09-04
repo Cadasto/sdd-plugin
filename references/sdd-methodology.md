@@ -133,6 +133,8 @@ requirements index (one row per REQ)
 it implements (§9). The durable record of what shipped is the requirement status, the specification
 section, the ADR, the PR body, the changelog, and git.
 
+Code and tests cite the `REQ` (and `PROBE`) ids they realise — a doc comment, a test name — so the chain stays greppable.
+
 See [traceability-schema.md](traceability-schema.md) for the machine-readable record format.
 
 ### Drift CI — the non-negotiable gate
@@ -215,7 +217,7 @@ release. A finished plan's leftover items travel to the review ledger's `Deferre
 - **Happy-path-only acceptance.** Acceptance criteria that never name what the capability must refuse or fail closed on — the negative space is part of the contract (§3, §9).
 - **Mixing kinds.** Tasks in a spec, file paths in a requirement, multiple decisions in one ADR — each erodes the boundaries that make the system legible.
 - **A status line that lies.** A plan left `active` after it shipped, or a `REQ` left `in_progress` after
-  it landed. There is no index to rot any more, so the frontmatter is the only state and it has to be true.
+  it landed. There is no plans index to rot any more, so the frontmatter is the only state and it has to be true.
 - **Memoir prose.** A specification section or a probe entry states the **current contract only**. History
   — what it used to say, and why it changed — lives in git and in the ADR. A spec that narrates its own
   past is two documents in one file.
