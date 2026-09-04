@@ -17,8 +17,8 @@ The argument is the `REQ`, the plan file, or — to pick an interrupted delivery
 
 ## Steps
 
-0. **Read the descriptor.** `paths.*`, the build targets, and the whole `agents:` block. No descriptor means the repo is not scaffolded — route to `/sdd-scaffold` and stop.
-1. **The dispatch gate.** Confirm all five preconditions before briefing the first worker: a `REQ` with acceptance criteria exists; the affected `SPEC §` exist or a new § is called out; any needed `ADR` is `Accepted`; the negative space is cited from the `REQ` and the `SPEC §` that owns the failure behaviour; the verification commands are known. If one is unmet, stop and name it — do not dispatch, and do not write the missing document yourself without saying so. (Methodology §9 owns the list. Route a missing `REQ`/`SPEC §`/`ADR` to `/sdd-specify`.)
+0. **Read the descriptor.** `paths.*`, the build targets, and the whole `agents:` block. No descriptor means the repo is not scaffolded — route to `/sdd-scaffold` and stop. A descriptor with no `agents:` block is a repo scaffolded before delivery existed: route to `/sdd-scaffold` to fill that block before any dispatch.
+1. **The dispatch gate.** Confirm all five preconditions before briefing the first worker: a `REQ` with acceptance criteria exists; the affected `SPEC §` exist or a new § is called out; any needed `ADR` is `Accepted`; the negative space is cited from the `REQ` acceptance criteria and the `SPEC §` that owns the failure behaviour; the verification commands are known. If one is unmet, stop and name it — do not dispatch, and do not write the missing document yourself without saying so. (Methodology §9 owns the list. Route a missing `REQ`/`SPEC §`/`ADR` to `/sdd-specify`.)
 2. **Decide the lane.** Full or maintenance, per `references/sdd-methodology.md` §12, or from `--lane`. Record it; it drives the per-task gate, the reviewers, and the PR-body line.
 3. **The plan, on the branch.** Create or check out the feature branch, write the plan to `<paths.plans>/YYYY-MM-DD-<slug>.md` from the plan template with `status: active`, and commit it. The plan travels with the branch and its worktrees, so every worker and reviewer reads the same file. (The template is `references/templates/plan.md`.) A plan introduces no normative statement. If writing it makes you want to state a rule, that rule belongs in a spec and the dispatch gate was not actually met.
 4. **Fan out.** Dispatch one `sdd-implementer` per task. Run independent tasks in parallel up to `agents.max_parallel_workers`; give each parallel, mutating worker its own worktree when `agents.worktree_per_worker` is true. Sequential work stays on the branch. Pass `agents.worker_model` as the model override **on the dispatch**. Never try to edit an agent file — plugin agents live in a read-only install cache. Every brief carries six things: the task; the `REQ`/`SPEC §` it cites; the files it may touch; the verification command; the instruction to end with an `En-route findings` section; the instruction not to spawn subagents. Name any skills from `agents.worker_skills` in the brief itself. A task that needs your whole context to make sense is not delegated: do it in-session and record in the PR body that you did, and why it could not be made self-contained.
@@ -26,7 +26,7 @@ The argument is the `REQ`, the plan file, or — to pick an interrupted delivery
 6. **Account for completion.** A worker that died is re-dispatched, or the gap is written into the plan's Notes. A task is not done because a dispatch ended. Tick a task in the plan only after its verification command ran and its output was read.
 7. **Round 0, in the branch.** Run `/sdd-review` on the branch. Its findings are **round 0** of the ledger. Fix the blockers in the branch before the draft PR opens.
 8. **Open the draft PR.** Open it as a draft (`gh pr create --draft`) — a draft requests no reviewers, so it publishes nothing, and it gives every later agent the whole computable substrate: inline anchors, threads with resolve state, and `gh` access. Fill the PR body from the repo's `docs/development-process.md` close-out block, including the `Lane:` line and the **claim line** naming the session and worktree that own this branch. A session that finds a claim it did not make stops and asks. Post round 0 as the ledger comment.
-9. **The maintainer's review of the draft appends to round 0.** Stop here and wait. Do not mark the PR ready on your own judgement.
+9. **The maintainer's review of the draft appends to round 0.** Stop here and wait. Do not mark the PR ready on your own judgement. Work those findings with `/sdd-triage` in the branch — each fix briefed to an `sdd-implementer` worker like any other task — then return to step 10.
 10. **Close out and mark ready.** When round 0 has no open blocker, run `/sdd-archive` — it flips the plan to `status: done` in place, sets the `SPEC §` and `REQ` statuses and the traceability map, and completes the PR body — then mark the PR ready (`gh pr ready`).
 11. **Print the panel prompts.** Run `/sdd-review <PR> --panel`. Nothing in the repository can start reviewers that run outside it. Print the blocks for a person to paste, and stop.
 
@@ -38,12 +38,13 @@ The argument is the `REQ`, the plan file, or — to pick an interrupted delivery
 - **Workers never spawn workers.**
 - **Deterministic fan-out through the harness's Workflow tool is explicit opt-in: ask before using it, and fall back to sequential dispatch otherwise.**
 - **Never claim a build is green you did not run and read.**
-- **Triaging what comes back after the PR is ready is `/sdd-triage`, not this skill.**
+- **Working a review round is `/sdd-triage`, not this skill — from round 0 on.**
 
 ## Reference
 
 - `references/sdd-methodology.md` — §9 the dispatch preconditions and the close-out surfaces, §12 the two lanes, §13 the two gates.
 - `references/traceability-schema.md` §1 — the `agents:` block this skill reads.
 - `references/artefact-prose.md` — the findings ledger and what the PR body carries.
-- The skills `/sdd-review` (round 0 and `--panel`), `/sdd-archive` (close-out), `/sdd-triage` (later rounds), `/sdd-finalize` (the release sweep).
+- The skills `/sdd-review` (round 0 and `--panel`), `/sdd-archive` (close-out), `/sdd-triage` (working a review round, from round 0 on), `/sdd-finalize` (the release sweep).
+- The consuming repo's `docs/ai-workflow.md` § Orchestration and § Review — the repository's own copy of the orchestration rules and the review-request block, which it may have tuned. Follow that copy, not a version retyped here.
 - The agent `sdd-implementer` — the worker this skill briefs and dispatches.
