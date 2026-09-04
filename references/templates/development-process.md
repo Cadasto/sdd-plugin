@@ -66,11 +66,11 @@ statement** — a `REQ`'s acceptance criteria, a `SPEC §` behaviour, a public A
 
 - **Full lane** — new capability, any change to API shape, behaviour, or error contract, any spec
   amendment. Owes the plan, the `REQ`/spec edits, the traceability update, the SDD reviewers, and a PR body
-  with the review lens and the identifiers touched.
+  with the review lens and the identifiers touched. Its PR body carries `Lane: full`.
 - **Maintenance lane** — refactors, moves and splits, performance work, dependency bumps, tooling,
   documentation polish, and a bug-fix whose fix makes the code match an **existing** spec statement. Owes
-  green tests, a green drift gate, and one PR-body line. A bug-fix that reveals the **spec** was wrong is
-  full lane.
+  green tests, a green drift gate, and one PR-body line: its PR body carries
+  `Lane: maintenance — no normative change`. A bug-fix that reveals the **spec** was wrong is full lane.
 
 The drift gate runs in **both** lanes — the map may never rot. The guard against a mislabelled lane is a
 ratchet, not a diff check: any newly added or materially changed requirement owes observable acceptance
@@ -82,8 +82,7 @@ The PR body is where the close-out lives. Copy this block (a repo may also keep 
 `.github/PULL_REQUEST_TEMPLATE.md`):
 
 ````markdown
-Lane: full
-<!-- a maintenance-lane PR carries instead: Lane: maintenance — no normative change -->
+Lane: <full | maintenance — no normative change>
 Implements: <REQ-…> · <SPEC-NAME §N> · <ADR-NNNN>
 Plan: docs/plans/<YYYY-MM-DD-slug>.md
 Claim: session <id> · worktree <path or none>
