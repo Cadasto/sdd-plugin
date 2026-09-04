@@ -26,7 +26,7 @@ Lay down the spec-driven structure from the methodology — the `docs/` tree, te
      requirements/   (README.md)
      specifications/ (README.md, traceability.yaml)
      adr/            (README.md)
-     plans/          (README.md)
+     plans/
    ```
    Copy from the resolved templates directory: `sdd.yaml`→`docs/.sdd.yaml`, `requirement.md`/`specification.md`/`adr.md`/`plan.md` into a `_template.md` in each kind's folder, `traceability.yaml` (starter), the two index READMEs, and `development-process.md`/`ai-workflow.md`/`ci.md`.
 4. **Write the governed entry point.** If no `AGENTS.md` exists, copy `AGENTS.md` from the templates directory and fill the identity + tooling placeholders from the descriptor. If one exists, do **not** clobber it — instead report the SDD sections to merge in, and offer to add them. Fill the `agents:` block in `docs/.sdd.yaml` with the repo's delivery parameters (worker model, parallelism, reviewers, task-review gate, review panel); every value is an example the repo may change.

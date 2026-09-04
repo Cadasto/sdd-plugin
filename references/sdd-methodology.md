@@ -243,6 +243,8 @@ acceptance criteria, a `SPEC §` behaviour, a public API shape, or an error cont
 | PR body | review lens + identifiers touched | one line: `Lane: maintenance — no normative change` |
 | The drift gate (`spec-check`) | runs | **runs** — the map may never rot, in either lane |
 
+A full-lane PR body carries `Lane: full`.
+
 **Membership.** Maintenance lane: refactors, package moves and splits, performance work, dependency
 bumps, tooling, comment and documentation polish, and a bug-fix whose fix makes the code match an
 **existing** spec statement. Full lane: new capability, any change to API shape, behaviour, or error

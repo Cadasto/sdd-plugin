@@ -14,7 +14,7 @@ status: active           # active | done | postponed | abandoned
 # Plan — <title>  (<YYYY-MM-DD>)
 
 **Implements:** <REQ-AREA-NNN> · <SPEC-NAME §N> · <ADR-NNNN>
-**Lane:** full | maintenance
+**Lane:** <full | maintenance — no normative change>
 **Verify:** `<build_entrypoint> <ci_target>` · `<build_entrypoint> <spec_check_target>`
 
 ## Tasks

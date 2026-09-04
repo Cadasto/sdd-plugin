@@ -1,6 +1,6 @@
 ---
 name: sdd-review
-description: This skill should be used when the user asks to "run the SDD review", "review this PR or change for spec conformance", "review the branch before the draft PR", or "print the review prompts for the panel". Spec-aware review orchestration — detects the lane, dispatches the SDD reviewer agents plus the repo's declared reviewers on the full lane and the language reviewer alone on the maintenance lane, and writes one numbered ledger. With `--panel` it prints one canonical prompt block per `review_panel` entry. Not for working a review round back into the ledger and fixing it (sdd-triage), or for authoring documents (sdd-specify).
+description: This skill should be used when the user asks to "run the SDD review", "review this PR or change for spec conformance", "review the branch before the draft PR", or "print the review prompts for the panel". Spec-aware review orchestration — detects the lane, dispatches the SDD reviewer agents plus the repo's declared reviewers on the full lane and the declared reviewers alone on the maintenance lane, and writes one numbered ledger. With `--panel` it prints one canonical prompt block per `review_panel` entry. Not for working a review round back into the ledger and fixing it (sdd-triage), or for authoring documents (sdd-specify).
 argument-hint: "[PR number, REQ-id, or plan file] [--panel] [--post]"
 allowed-tools: Agent, Task, Bash, Read, Grep, Glob
 ---

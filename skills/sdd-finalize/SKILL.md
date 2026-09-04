@@ -1,6 +1,6 @@
 ---
 name: sdd-finalize
-description: This skill should be used when the user asks to "cut the release", "bump the version", "sweep the finished plans", or "clean up docs/plans before the tag". The release-time plan sweep — as the first step of a version bump and before the tag, deletes every plan whose status is `done` or `abandoned`, after checking for inbound links; the first run in a repo also removes `docs/plans/archive/` and its index. Never touches `active` or `postponed` plans. Not for closing out one plan inside its PR (sdd-archive) or for the traceability drift scan (sdd-trace).
+description: This skill should be used when the user asks to "cut the release", "bump the version", "sweep the finished plans", or "clean up docs/plans before the tag". The release-time plan sweep — as the first step of a version bump and before the tag, deletes every plan whose status is `done` or `abandoned`, after checking for inbound links; the first run in a repo also sweeps the legacy `docs/plans/archive/` and its index. Never touches `active` or `postponed` plans. Not for closing out one plan inside its PR (sdd-archive) or for the traceability drift scan (sdd-trace).
 argument-hint: "[--dry-run]"
 allowed-tools: Read, Edit, Bash, Glob, Grep
 ---

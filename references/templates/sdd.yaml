@@ -1,6 +1,6 @@
 # docs/.sdd.yaml — the project descriptor. Every /sdd-* skill reads this first.
 # Edit to match this repo's conventions, then never switch req_style (it would renumber IDs).
-# Full field reference: references/traceability-schema.md.
+# Full field reference: the sdd plugin's `references/traceability-schema.md`.
 sdd:
   req_style: area-prefixed          # area-prefixed | flat-numeric
   req_areas: [FOUND]                # required iff req_style == area-prefixed; add areas deliberately

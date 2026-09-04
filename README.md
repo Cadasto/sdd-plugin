@@ -16,7 +16,7 @@ The plugin operates on **documentation** (`docs/*.md`, a requirements index, a t
 Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Archive
 ```
 
-The plugin owns the **spec / document / traceability layer** *and* the **delivery pipeline that runs on it** — plan, worker fan-out, review, triage, and close-out. Its job is to keep the specification the source of truth and the chain `REQ → SPEC § → ADR → Plan → code → test` intact from the first requirement to the merged PR.
+The plugin owns the **spec / document / traceability layer** *and* the **delivery pipeline that runs on it** — plan, worker fan-out, review, triage, and close-out. Its job is to keep the specification the source of truth and the chain `REQ → SPEC § → ADR → code → test` intact from the first requirement to the merged PR.
 
 ## Components
 

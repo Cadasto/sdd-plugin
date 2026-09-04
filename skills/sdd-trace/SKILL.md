@@ -16,7 +16,7 @@ Owns the *spec-side* check: does the traceability map still match the tree, and 
 Assemble in one shot so no whole-tree grep is needed:
 
 1. The **registry row** from the requirements index.
-2. The **traceability block** — canonical link, `status`/`implementation`, packages, tests, probes, plans.
+2. The **traceability block** — canonical link, `status`/`implementation`, packages, tests, probes.
 3. The **canonical spec excerpt** — the actual normative §, fetched from the `canonical` link.
 4. Any **open `STRAND`s** touching this REQ (if `use_strands`).
 
@@ -27,7 +27,7 @@ Present it compactly and name the next action (e.g. "no implementation yet → `
 With no REQ, walk the map against the tree and report each orphan class:
 
 - a `canonical` link to a missing file/anchor;
-- a listed `package`/`test`/`plan` path that does not exist;
+- a listed `package`/`test` path that does not exist;
 - a `PROBE` id with no corresponding test;
 - a requirement marked `landed`/`shipped` with no `packages`/`tests`;
 - a `REQ` in the index but not the map (or vice-versa);

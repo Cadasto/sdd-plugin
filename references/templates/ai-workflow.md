@@ -68,7 +68,7 @@ Dispatched: <reviewers> · Reported: <n> of <m>
 ## Deferred
 | id | item | carried from | owner |
 |---|---|---|---|
-| F3 | <the item> | this PR | next change touching <area> |
+| F3 | <the item, in a few words> | this PR | next change touching <area> |
 ```
 
 **The canonical review request.** Reviewers that run outside this repository never load the SDD plugin, so
