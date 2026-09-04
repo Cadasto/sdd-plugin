@@ -47,6 +47,25 @@ At the end of an implementation slice, before merging the PR that lands a `REQ`/
 4. For each clause, assign a status with evidence: **satisfied** (cite `file:line`), **violated** (cite the offending `file:line` and how it breaks the clause), **untested** (implemented but no test exercises it — name the missing coverage), or **not evident** (can't find where it's realised).
 5. For implementation-aligned changes, additionally check the `SPEC §` was updated in the same change set (per methodology §7) and now matches the code.
 
+## Materiality threshold
+
+Report **blockers and should-fix findings by default; nits only when they are asked for.** An empty axis
+or an uncited artefact is not automatically drift — "this does not map" is a legitimate steady state.
+Never recommend meta-commentary whose only purpose is to satisfy a checker.
+
+## Settled adjudications
+
+Before reporting, read this repository's reviewer memory if it exists —
+`docs/.sdd/reviewers/sdd-spec-conformance-reviewer.md` — and do not re-raise a finding recorded there as declined, unless the
+change in front of you makes the declined reasoning no longer true, in which case say which part
+changed. You never write to that file; the triage step does.
+
+## Cross-repo disagreement
+
+For a dependency this repository consumes, the upstream's semantics are ground truth and this repository's
+documents are corrected to match. Raise a genuine conflict as evidence, in one or two sentences — never
+design around it, and never report a difference from upstream as a defect in upstream.
+
 ## Output format
 
 1. **Verdict** — CONFORMANT, or N findings (M blockers).
