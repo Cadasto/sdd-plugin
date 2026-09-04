@@ -38,13 +38,13 @@ The argument is the `REQ`, the plan file, or — to pick an interrupted delivery
 - **Workers never spawn workers.**
 - **Deterministic fan-out through the harness's Workflow tool is explicit opt-in: ask before using it, and fall back to sequential dispatch otherwise.**
 - **Never claim a build is green you did not run and read.**
-- **Working a review round is `/sdd-triage`, not this skill — from round 0 on.**
+- **Working findings posted on the PR — the maintainer's round-0 review and every later round — is `/sdd-triage`'s job, not this skill's; the in-branch fix wave of step 7 happens before any PR exists and is this skill's own work.**
 
 ## Reference
 
 - `references/sdd-methodology.md` — §9 the dispatch preconditions and the close-out surfaces, §12 the two lanes, §13 the two gates.
 - `references/traceability-schema.md` §1 — the `agents:` block this skill reads.
 - `references/artefact-prose.md` — the findings ledger and what the PR body carries.
-- The skills `/sdd-review` (round 0 and `--panel`), `/sdd-archive` (close-out), `/sdd-triage` (working a review round, from round 0 on), `/sdd-finalize` (the release sweep).
+- The skills `/sdd-review` (round 0 and `--panel`), `/sdd-archive` (close-out), `/sdd-triage` (findings posted on the PR, round 0 onward), `/sdd-finalize` (the release sweep).
 - The consuming repo's `docs/ai-workflow.md` § Orchestration and § Review — the repository's own copy of the orchestration rules and the review-request block, which it may have tuned. Follow that copy, not a version retyped here.
 - The agent `sdd-implementer` — the worker this skill briefs and dispatches.
