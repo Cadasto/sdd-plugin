@@ -208,7 +208,8 @@ release. A finished plan's leftover items travel to the review ledger's `Deferre
 - **Name an authoritative ground-truth source for domain facts and forbid guessing them.** Every domain has a "look it up" rule; the source is declared in `.sdd.yaml` (`ground_truth`).
 - **Cross-repo disagreement.** For a dependency this repository consumes, the upstream's semantics are
   ground truth and this repository's documents are corrected to match. Raise a genuine conflict as
-  evidence, in one or two sentences — never design around it.
+  evidence, in one or two sentences — never design around it, and a difference from upstream is never
+  reported as a defect in upstream.
 
 ## 11. Anti-patterns to design against
 

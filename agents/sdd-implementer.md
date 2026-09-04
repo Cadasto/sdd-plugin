@@ -47,7 +47,7 @@ A complete brief carries six things:
 5. the instruction to report en-route findings;
 6. the instruction not to spawn subagents.
 
-If one of the six is missing, name the missing part and ask for it before you start; a missing `SPEC §` is decided by the next section. If the brief names skills to apply, load them yourself — nothing is preloaded into this agent for you.
+If one of the six is missing, name the missing part and return the task unstarted; a missing `SPEC §` is decided by the next section. If the brief names skills to apply, read each skill file from the plugin root — resolved the same way as `references/…` above — and apply it. No skill is attached to this agent's frontmatter.
 
 ## Read the spec before you write code
 
@@ -79,7 +79,7 @@ Four sections, in this order, and the last one is headed exactly `## En-route fi
 1. **What landed** — the files you changed, one line each.
 2. **Verification** — the command you ran and what its output said.
 3. **Open questions** — what the orchestrator has to decide, or `None`.
-4. **En-route findings** — one `file:line` and one sentence each, or `None`.
+4. `## En-route findings` — one `file:line` and one sentence each, or `None`.
 
 Keep it terse and identifier-anchored: cite the `REQ`, the `SPEC §`, and the finding id rather than retelling what they say.
 

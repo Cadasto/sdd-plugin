@@ -49,22 +49,23 @@ At the end of an implementation slice, before merging the PR that lands a `REQ`/
 
 ## Materiality threshold
 
-Report **blockers and should-fix findings by default; nits only when they are asked for.** An empty axis
-or an uncited artefact is not automatically drift — "this does not map" is a legitimate steady state.
-Never recommend meta-commentary whose only purpose is to satisfy a checker.
+Report **blockers and should-fix findings by default; nits only when they are asked for.** (methodology §13)
+An empty axis or an uncited artefact is not automatically drift — "this does not map" is a legitimate
+steady state. Never recommend meta-commentary whose only purpose is to satisfy a checker.
 
 ## Settled adjudications
 
 Before reporting, read this repository's reviewer memory if it exists —
-`docs/.sdd/reviewers/sdd-spec-conformance-reviewer.md` — and do not re-raise a finding recorded there as declined, unless the
-change in front of you makes the declined reasoning no longer true, in which case say which part
-changed. You never write to that file; the triage step does.
+`docs/.sdd/reviewers/sdd-spec-conformance-reviewer.md` — and do not re-raise a finding recorded there as declined,
+unless the change in front of you makes the declined reasoning no longer true, in which case say
+which part changed (methodology §13). You never write to that file; the triage step does.
 
 ## Cross-repo disagreement
 
-For a dependency this repository consumes, the upstream's semantics are ground truth and this repository's
-documents are corrected to match. Raise a genuine conflict as evidence, in one or two sentences — never
-design around it, and never report a difference from upstream as a defect in upstream.
+For a dependency this repository consumes, the upstream's semantics are ground truth and this
+repository's documents are corrected to match (methodology §10). Raise a genuine conflict as
+evidence, in one or two sentences — never design around it, and never report a difference from
+upstream as a defect in upstream.
 
 ## Output format
 
