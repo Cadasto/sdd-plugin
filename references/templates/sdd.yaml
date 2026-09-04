@@ -11,7 +11,6 @@ sdd:
     specifications: docs/specifications
     adr: docs/adr
     plans: docs/plans
-    plans_archive: docs/plans/archive
 
   traceability: docs/specifications/traceability.yaml
 
@@ -24,3 +23,16 @@ sdd:
   upstream: ""                      # sibling SDD repo this one consumes (cross-repo gap drafts); blank if none
 
   ground_truth: "<the authoritative source for this repo's domain facts — agents MUST look up, never guess>"
+
+  # Delivery parameters. /sdd-deliver and /sdd-review read these instead of asking.
+  # Every value here is an EXAMPLE — no model and no reviewer is required by the plugin.
+  agents:
+    worker_model: opus              # model override /sdd-deliver passes on each worker dispatch
+    max_parallel_workers: 3
+    worktree_per_worker: true       # parallel, mutating tasks only
+    worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
+    reviewers: []                   # this repo's own language reviewers, by agent name
+    task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
+    review_panel:                   # who reviews the PR, per lane; names are prompt targets, not integrations
+      full: [claude, cursor]
+      maintenance: [claude]

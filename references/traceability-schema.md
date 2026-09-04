@@ -18,7 +18,6 @@ sdd:
     specifications: docs/specifications
     adr: docs/adr
     plans: docs/plans
-    plans_archive: docs/plans/archive
 
   traceability: docs/specifications/traceability.yaml
 
@@ -35,6 +34,19 @@ sdd:
   # The authoritative source for this repo's domain facts. Agents MUST look facts up here,
   # never guess. Free text — e.g. a domain MCP, an internal spec registry, an API reference.
   ground_truth: "<the authoritative source for this repo's domain facts>"
+
+  # Delivery parameters. /sdd-deliver and /sdd-review read these instead of asking.
+  # Every value here is an EXAMPLE — no model and no reviewer is required by the plugin.
+  agents:
+    worker_model: opus              # model override /sdd-deliver passes on each worker dispatch
+    max_parallel_workers: 3
+    worktree_per_worker: true       # parallel, mutating tasks only
+    worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
+    reviewers: []                   # this repo's own language reviewers, by agent name
+    task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
+    review_panel:                   # who reviews the PR, per lane; names are prompt targets, not integrations
+      full: [claude, cursor]
+      maintenance: [claude]
 ```
 
 ### Fields
@@ -51,9 +63,28 @@ sdd:
 | `upstream` | The sibling SDD repo this one files cross-repo gap drafts against (see `references/cross-repo-gap.md`). |
 | `ground_truth` | The named "look it up, don't guess" source for domain facts. |
 
+### `agents:` fields
+
+| Field | Meaning |
+|---|---|
+| `worker_model` | The model `/sdd-deliver` passes as the **per-dispatch override** when it dispatches a worker. |
+| `max_parallel_workers` | Ceiling on workers running at once. Sequential plans run one. |
+| `worktree_per_worker` | Give each parallel, mutating worker its own git worktree. A worktree is real setup cost; pay it only where parallelism pays back. |
+| `worker_skills` | Skills a worker should apply. **Named in the brief**, not preloaded in frontmatter. |
+| `reviewers` | The repository's own language reviewers, by agent name. Used for the per-task gate and as the code-review member of the review panel. |
+| `task_review` | `on` · `off` · `lane`. `lane` means on for the full lane and off for the maintenance lane. |
+| `review_panel.full` / `review_panel.maintenance` | Which reviewers `/sdd-review --panel` prints a prompt block for, per lane. Values are **examples**; a repository picks its own, and none is mandated. |
+
+> **`worker_model` is applied per dispatch, never written into an agent file.** Plugin agent definitions
+> live in the host's read-only install cache, so no skill can rewrite their frontmatter. `sdd-implementer`
+> ships `model: inherit` and the driver overrides it on each dispatch.
+
+> **The descriptor learns no lane field.** The lane is a property of a change, declared in the PR body
+> ([sdd-methodology.md §12](sdd-methodology.md)) — not a property of a repository.
+
 ## 2. The traceability map — `traceability.yaml`
 
-One record per requirement, linking it to its canonical spec section and to the code/tests/probes/plans that realise it. This is an **index** — it carries no normative prose.
+One record per requirement, linking it to its canonical spec section and to the code/tests/probes that realise it. This is an **index** — it carries no normative prose.
 
 ```yaml
 # traceability.yaml — machine-readable REQ → spec → code → test map.
@@ -71,8 +102,6 @@ requirements:
       - PROBE-073
     tests:
       - openehr/serialize/canjson/edgecases_test.go
-    plans:
-      - docs/plans/archive/2026-05-12-type-registry.md
 ```
 
 ### Record fields
@@ -87,16 +116,40 @@ requirements:
 | `packages` | when landed | Source packages/modules that implement it. |
 | `tests` | when landed | Test files that assert it. |
 | `probes` | optional | `PROBE-*` ids (conformance probes), if `use_probes`. |
-| `plans` | optional | Plan(s) that delivered it (active or archived). |
 
 ### What `spec-check` verifies
 
 The drift gate fails when the map and the tree disagree, surfacing each orphan class:
 
 - a `canonical` link points at a missing file or anchor;
-- a listed `package`, `test`, or `plan` path does not exist;
+- a listed `package` or `test` path does not exist;
 - a `PROBE` id has no corresponding test;
 - a requirement marked `landed`/`shipped` has no `packages` or `tests`;
 - a requirement exists in the index but not the map (or vice-versa).
 
+> **A record has no plan axis and no `pr:` pointer.** The implementing change is found by searching the
+> repository history for the `REQ` id, which every commit, PR title, and test name already carries. A
+> pointer would be one more copy of a fact that can lag.
+
 `/sdd-trace` reports these in-session and may run the real `spec_check_target`; generic test/build verification before a done-claim is `superpowers:verification-before-completion`, and `/sdd-archive` performs the close-out.
+
+## 3. The plan frontmatter
+
+A plan is a working file, not a governed artefact ([sdd-methodology.md §9](sdd-methodology.md)), but its
+frontmatter is machine-read by `/sdd-archive` and `/sdd-finalize`, so it is a contract:
+
+```yaml
+---
+plan: <YYYY-MM-DD-slug>
+implements: [<REQ-…>, <SPEC-NAME §N>]
+mode: spec-first          # spec-first | implementation-aligned
+status: active            # active | done | postponed | abandoned
+---
+```
+
+| Key | Required | Meaning |
+|---|---|---|
+| `plan` | yes | `YYYY-MM-DD-<slug>`, matching the filename. |
+| `implements` | yes | The identifiers this plan delivers. A plan that cites none is not a plan. |
+| `mode` | yes | Which source-of-truth mode this slice runs in (methodology §7). |
+| `status` | yes | `active` · `done` · `postponed` · `abandoned`. `/sdd-archive` sets `done` in place; `/sdd-finalize` deletes `done` and `abandoned` at the next version bump and never touches `active` or `postponed`. |
