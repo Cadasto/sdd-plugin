@@ -7,6 +7,15 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
+## [Unreleased]
+
+### Added
+- References: `sdd-methodology.md` §12 two lanes with the ratchet guard, §13 review discipline (two gates, the ledger as the default, the materiality threshold, collapse-before-add, the reviewer memory path), §14 the keep-list.
+
+### Changed
+- References: `sdd-methodology.md` §9 is now a working-plan lifecycle — `active | done | postponed | abandoned`, five dispatch preconditions, close-out on four surfaces, archive in place, sweep at the release.
+- References: `sdd-methodology.md` §5 states lazy identifier allocation as the default; §10 adds the cross-repo disagreement rule; §11 adds the memoir rule.
+
 ## [0.4.1] - 2026-08-25
 
 Corrects three component defects and the claims the docs made about them: a `PostToolUse` hook timeout that was five hours rather than twenty seconds, an always-on router that inherited every tool, and two agents that described themselves as read-only while holding `Bash`.
