@@ -1,6 +1,6 @@
 ---
 name: sdd-specify
-description: This skill should be used when the user asks to "add a requirement / capability", "write or extend a spec", "make this behaviour normative (RFC-2119)", "record an ADR / architectural decision", or "resolve a STRAND". The SDD definition layer — authors the `REQ`, the canonical RFC-2119 `SPEC §`, and the `ADR`, assigning identifiers and wiring traceability. Not for exploring/design (superpowers brainstorming), planning/building (superpowers writing-plans / executing-plans), a traceability audit (sdd-trace), or a one-line spec edit (open the file directly).
+description: This skill should be used when the user asks to "add a requirement / capability", "write or extend a spec", "make this behaviour normative (RFC-2119)", "record an ADR / architectural decision", or "resolve a STRAND". The SDD definition layer — authors the `REQ`, the canonical RFC-2119 `SPEC §`, and the `ADR`, assigning identifiers and wiring traceability. Not for exploring/design, planning and building (sdd-deliver), a traceability audit (sdd-trace), or a one-line spec edit (open the file directly).
 argument-hint: "<capability, behaviour, or decision to record> [REQ-id]"
 allowed-tools: Read, Write, Edit, Glob, Grep
 ---
@@ -9,9 +9,9 @@ allowed-tools: Read, Write, Edit, Glob, Grep
 
 > **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
 
-Turn intent (often a design doc from `superpowers:brainstorming`) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
+Turn intent (often a design note from an exploration session) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
 
-If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour hasn't been explored yet, route to superpowers `brainstorming` first (see `references/sdd-with-superpowers.md`).
+If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour hasn't been explored yet, explore it first.
 
 ## A · Requirement (`REQ-*`) — capture the capability
 
@@ -38,16 +38,16 @@ If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`
 
 ## Working from a brainstorming design doc
 
-A `docs/superpowers/specs/*-design.md` is **input narrative, not the source of truth.** Extract normative statements into the canonical spec (§B) and capture the capability as a `REQ` (§A). Redirect rules: `references/sdd-with-superpowers.md`.
+A design note is **input narrative, not the source of truth.** Extract its normative statements into the canonical spec.
 
 ## Guardrails
 
 - Keep the kinds separate even though one skill authors all three: a requirement has no normative prose, a spec has no tasks, an ADR holds one decision.
 - Don't settle an open question silently — record it as an ADR (§C) or a `STRAND`, or return to brainstorming.
 - For a missing **upstream** capability (consuming a sibling SDD repo), see `references/cross-repo-gap.md`.
-- After specifying, hand off to superpowers planning per `references/sdd-with-superpowers.md` (plan lands in `docs/plans/` with the SDD citing header).
+- After specifying, hand off to `/sdd-deliver`: the plan lands in `docs/plans/` with the citing header.
 
 ## Reference
 
 - `references/sdd-methodology.md` — §3 document kinds & boundaries, §4 RFC-2119, §5 identifiers & single canonical home, §6 status axes.
-- `references/templates/{requirement,specification,adr}.md` · `references/traceability-schema.md` · `references/sdd-with-superpowers.md` · `references/cross-repo-gap.md`.
+- `references/templates/{requirement,specification,adr}.md` · `references/traceability-schema.md` · `references/cross-repo-gap.md`.

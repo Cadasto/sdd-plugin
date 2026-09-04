@@ -16,6 +16,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Skills: `sdd-finalize` — the release sweep: deletes `done` and `abandoned` plans as the first step of a version bump, after an inbound-link check; the first run also removes a legacy `docs/plans/archive/`.
 - Agents: `sdd-implementer` — implements one bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. Holds no `Agent` tool, so it cannot spawn workers.
 - Skills: `sdd-triage` — one review round: every comment channel enumerated, findings merged into the ledger, verified before fixing, the pattern class swept, fixed in the PR, re-review prompts printed.
+- Skills: `sdd-deliver` — the delivery driver: dispatch preconditions, the plan on the branch, `sdd-implementer` fan-out per `agents:`, the per-task gate by lane, round 0 of the ledger, the draft PR, close-out, ready, panel prompts.
 
 ### Changed
 - References: `sdd-methodology.md` §9 is now a working-plan lifecycle — `active | done | postponed | abandoned`, five dispatch preconditions, close-out on four surfaces, archive in place, sweep at the release.
@@ -25,10 +26,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Skills: `sdd-archive` is reduced to the frontmatter flip, the status updates, and the PR body — no `git mv`, no index.
 - Agents: the three reviewers gain the materiality threshold, the settled-adjudications memory, and the cross-repo rule.
 - Skills: `sdd-review` detects the lane, dispatches per lane, writes one ledger instead of one comment per finding, and prints one canonical prompt block per `review_panel` entry with `--panel`.
+- Skills: `spec-driven-development` routes the new surface and states in one paragraph that a general engineering plugin is optional.
 
 ### Removed
 - References: the `plans:` axis of a traceability record and `paths.plans_archive` from the descriptor and its template.
 - Agents: `sdd-doc-reviewer` no longer reviews plan headers; `sdd-traceability-auditor` no longer reports plan drift classes.
+- References: `sdd-with-superpowers.md` and the `docs/superpowers/` path redirect.
 
 ## [0.4.1] - 2026-08-25
 
