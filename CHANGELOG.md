@@ -25,9 +25,11 @@ become skills, and findings live in one ledger per change.
 ### Changed
 - References: `sdd-methodology.md` §9 is now a working-plan lifecycle — `active | done | postponed | abandoned`, five dispatch preconditions, close-out on four surfaces, archive in place, sweep at the release.
 - References: `sdd-methodology.md` §5 states lazy identifier allocation as the default; §10 adds the cross-repo disagreement rule; §11 adds the memoir rule.
+- References: `artefact-prose.md` states the changelog-bullet rule and the single-canonical-home rule, both as reviewer rules with no tool behind them yet.
 - Skills: `sdd-archive` is reduced to the frontmatter flip, the status updates, and the PR body — no `git mv`, no index.
 - Skills: `sdd-review` detects the lane, dispatches per lane, writes one ledger instead of one comment per finding, and prints one canonical prompt block per `review_panel` entry with `--panel`.
 - Skills: `sdd-trace` reports a plan/`REQ` status mismatch from the plan's frontmatter rather than from a plans index.
+- Skills: `spec-driven-development` routes the new surface and states in one paragraph that a general engineering plugin is optional.
 - Agents: the three reviewers gain the materiality threshold, the settled-adjudications memory, and the cross-repo rule.
 - Agents: the three reviewers route code review to the repository's own declared reviewers and test-passing to the build gate.
 - Templates: `plan.md` carries a minimal header; `ai-workflow.md` gains the standing orchestration section, the canonical review-request block, and the ledger rules; `AGENTS.md` mirrors the orchestration rules; `development-process.md` replaces the DoR/DoD blocks with dispatch preconditions, the lanes, and the PR-body close-out with its `Lane:` line.
@@ -37,7 +39,7 @@ become skills, and findings live in one ledger per change.
 
 ### Removed
 - References: `sdd-with-superpowers.md` and the `docs/superpowers/` path redirect. A general engineering plugin is optional and described in one paragraph in the router.
-- References: the `plans:` axis of a traceability record and `paths.plans_archive` from the descriptor.
+- References: the `plans:` axis of a traceability record and `paths.plans_archive` from the descriptor and its template.
 - Agents: `sdd-doc-reviewer` no longer reviews plan headers; `sdd-traceability-auditor` no longer reports plan drift classes.
 
 ## [0.4.1] - 2026-08-25

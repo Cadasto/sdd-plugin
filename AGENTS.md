@@ -102,7 +102,7 @@ Then run the loop (`/sdd-scaffold` → `/sdd-specify` → `/sdd-deliver` → `/s
 - Skill bodies are imperative and **cite `references/sdd-methodology.md`** rather than restating rules; every `sdd-*` skill **reads `docs/.sdd.yaml` first** instead of hard-coding paths/identifier styles.
 
 ### Documentation Sync
-When adding or renaming components, update in lockstep: **AGENTS.md** (component tables), **README.md** (tables), **CHANGELOG.md**, and the `/sdd-*` list in **`hooks/session-start.sh`**. Cursor uses the same skills/agents/rules paths; no separate Cursor-only list is required.
+When adding or renaming components, update in lockstep: **AGENTS.md** (component tables), **README.md** (tables), **CHANGELOG.md**, the Cursor rule **`rules/sdd-context.mdc`** (it carries its own `/sdd-*` list), and the `/sdd-*` list in **`hooks/session-start.sh`**. Cursor reads the same skills/agents/rules paths, so no separate Cursor-only component list is required.
 
 ### Versioning
 Plugin version (and, for consistency, description and author) must be kept in sync in **both** `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`. Follow Semantic Versioning; update both manifests and **CHANGELOG.md** when releasing. See [docs/versioning.md](docs/versioning.md).

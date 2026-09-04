@@ -1,6 +1,6 @@
 ---
 name: sdd-trace
-description: This skill should be used when the user asks to "show traceability for REQ-X", "assemble context for REQ-X", "what implements/tests this requirement", "are there orphan requirements", or wants a quick in-session drift / spec-check scan. Read-only — assembles the one-shot context bundle for a REQ and reports drift/orphans in-session (the spec-check analogue). Not for tests/build verification (the build gate), authoring (sdd-specify), close-out (sdd-archive), or a whole-repo pre-release audit (sdd-traceability-auditor agent).
+description: This skill should be used when the user asks to "show traceability for REQ-X", "assemble context for REQ-X", "what implements/tests this requirement", "are there orphan requirements", or wants a quick in-session drift / spec-check scan. Report-only — assembles the one-shot context bundle for a REQ and reports drift/orphans in-session (the spec-check analogue). Not for tests/build verification (the build gate), authoring (sdd-specify), close-out (sdd-archive), or a whole-repo pre-release audit (sdd-traceability-auditor agent).
 argument-hint: "[REQ-id, or blank for a whole-tree drift scan]"
 allowed-tools: Read, Glob, Grep, Bash
 ---
@@ -37,7 +37,7 @@ If the repo defines the `spec_check_target` build target, run it (`<build_entryp
 
 ## Guardrails
 
-- **Strictly read-only.** Diagnose; the owning skill fixes (`sdd-specify` for spec/index, the build workflow for code/tests, `sdd-archive` for plan state). Never edit here.
+- **Strictly report-only.** Diagnose; the owning skill fixes (`sdd-specify` for spec/index, the build workflow for code/tests, `sdd-archive` for plan state). Never edit here.
 - **Scope is traceability, not test results** — tests and build passing is the build gate's job — run it and read its output.
 - For a heavy, context-isolated whole-repo audit, dispatch the **`sdd-traceability-auditor`** agent — same scan, isolated context, returns a report.
 
