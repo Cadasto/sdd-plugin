@@ -18,7 +18,8 @@ Every document has one job. Don't mix them.
 
 - Requirements: capability + acceptance + out-of-scope. **No** file paths or implementation detail.
 - Specifications: RFC-2119 prose only. **No** task lists, file paths, or duplicated requirement bodies.
-- Plans: cite the `REQ`/`SPEC §`/`ADR` they implement in the header. The only place checkboxes live.
+- Plans: cite the `REQ`/`SPEC §`/`ADR` they implement in the frontmatter. The only place checkboxes live.
+  A working file on the branch, not a governed artefact.
 - ADRs: one decision each.
 
 ## Identifiers
@@ -33,15 +34,15 @@ normative prose has a **single canonical home** — the requirements index only 
 REQ (capability + acceptance)            [gate: worth doing]
  └─ SPEC § (RFC-2119, Status: Draft)      [gate: single home, no duplicate prose]
      └─ ADR (only if an irreversible fork) [gate: Accepted before code]
-         └─ PLAN (tasks + verification)    [gate: Definition of Ready]
-             └─ CODE + TESTS (cite IDs)    [gate: tests green]
+         └─ PLAN (tasks + verification)    [gate: dispatch preconditions]
+             └─ CODE + TESTS (cite ids)    [gate: tests green + drift gate green]
                  └─ update SPEC status + traceability  [gate: same PR]
-                     └─ update REQ status; flip + archive plan (same PR) [gate: Definition of Done]
+                     └─ update REQ status; flip the plan to done in place [gate: PR-body close-out]
 ```
 
-The whole close-out — spec status, requirements index, traceability, and the plan flip + archive move —
-lands in the **same PR** that implements the plan. No follow-up PR: the one merge that ships the code also
-closes the plan.
+The whole close-out — spec status, requirements index, traceability, and the plan flip — lands in the
+**same PR** that implements the plan. No follow-up PR. The plan file stays where it is so reviewers can
+read it through the merge; it is deleted at the next version bump.
 
 ## Two source-of-truth modes
 
@@ -50,15 +51,58 @@ closes the plan.
   is updated in the same PR**. *"Code wins until the spec is updated — in the same PR."* Never let the spec
   silently lag.
 
-## Definitions of Ready / Done
+## Dispatch preconditions
 
-See the plan template. A plan may not start until its `REQ` + acceptance exist, affected `SPEC §` are
-listed, any needed ADR is `Accepted`, out-of-scope is written, verification commands are named, and the
-**negative space** is named (what must refuse or fail closed, with the intended failure behaviour). A
-feature is not done until — **in the same PR** — code + tests are complete and verified, the negative space
-is exercised (refusal/failure paths tested, new runtime failure modes mapped to the error contract — the
-`SPEC §` that owns failure behaviour), the spec/guide and requirements index are updated, the traceability
-map is updated, and the plan is flipped to `done` and `git mv`d to `docs/plans/archive/`.
+Five things are confirmed **before the first task is dispatched** — checked, not ticked in a file. A `REQ`
+with acceptance criteria exists; the affected `SPEC §` exist or a new § is called out; any needed ADR is
+`Accepted`; the **negative space** is cited from the `REQ` acceptance criteria and the `SPEC §` that owns
+the failure behaviour (what must refuse or fail closed, and how); the verification commands are known. An
+unmet precondition stops the dispatch and is named.
+
+## The two lanes
+
+The lane test is one question, answered in one line of the PR body: **does this change alter any normative
+statement** — a `REQ`'s acceptance criteria, a `SPEC §` behaviour, a public API shape, an error contract?
+
+- **Full lane** — new capability, any change to API shape, behaviour, or error contract, any spec
+  amendment. Owes the plan, the `REQ`/spec edits, the traceability update, the SDD reviewers, and a PR body
+  with the review lens and the identifiers touched.
+- **Maintenance lane** — refactors, moves and splits, performance work, dependency bumps, tooling,
+  documentation polish, and a bug-fix whose fix makes the code match an **existing** spec statement. Owes
+  green tests, a green drift gate, and one PR-body line. A bug-fix that reveals the **spec** was wrong is
+  full lane.
+
+The drift gate runs in **both** lanes — the map may never rot. The guard against a mislabelled lane is a
+ratchet, not a diff check: any newly added or materially changed requirement owes observable acceptance
+criteria and its own canonical `SPEC §`, whatever lane the change claims.
+
+## The PR body — the close-out record
+
+The PR body is where the close-out lives. Copy this block (a repo may also keep it as
+`.github/PULL_REQUEST_TEMPLATE.md`):
+
+````markdown
+Lane: full
+<!-- a maintenance-lane PR carries instead: Lane: maintenance — no normative change -->
+Implements: <REQ-…> · <SPEC-NAME §N> · <ADR-NNNN>
+Plan: docs/plans/<YYYY-MM-DD-slug>.md
+Claim: session <id> · worktree <path or none>
+
+Review lens: <what to look at; what is out of scope>
+Verified: `<command>` → <what the output said>
+
+Close-out
+- [ ] Code and tests complete, and the verification output was read — not assumed
+- [ ] Negative space exercised: refusal and failure paths tested; each new runtime failure mode maps to the error-contract `SPEC §`
+- [ ] `SPEC §` status set; `REQ` implementation status set
+- [ ] `traceability.yaml` updated (packages / tests / probes)
+- [ ] Plan flipped to `status: done` in place — no move, no index
+- [ ] Deferred items and workers' en-route findings are in the ledger's `Deferred` table
+- [ ] Any code the orchestrator wrote itself is named here, with why the task could not be made self-contained
+````
+
+Findings for the change live in **one review ledger comment** on the same PR, updated per round. See
+[ai-workflow.md](ai-workflow.md) § Review.
 
 ## Artefact prose — one home per fact
 

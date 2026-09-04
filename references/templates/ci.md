@@ -22,6 +22,7 @@ mechanically. Two enabling policies:
 | **(scheduled) drift bot** | re-runs codegen / `spec-check` on a clean checkout; opens a tracking issue on drift between PRs |
 
 The non-negotiable SDD gate is **`spec-check`** (`<build_entrypoint> <spec_check_target>`): it turns
-"we have specs" into "our specs can't silently rot." Before a done-claim, run the full build gate via
-`superpowers:verification-before-completion` (tests/build/lint) **and** `/sdd-trace` (traceability/drift);
-`/sdd-trace` reports drift in-session without modifying anything, `/sdd-review` (opt-in) can post a spec-aware review to the PR, and `/sdd-archive` performs the close-out inside the implementing PR.
+"we have specs" into "our specs can't silently rot", and it runs on **both** lanes. Before a done-claim,
+run the full build gate (`<build_entrypoint> <ci_target>`) and read its output, then `/sdd-trace` for
+traceability drift. `/sdd-review` writes the review ledger onto the PR and `/sdd-archive` performs the
+close-out inside the implementing PR.

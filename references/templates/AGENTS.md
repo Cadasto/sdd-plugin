@@ -28,10 +28,24 @@ The linked docs are **canonical** — defer to them rather than duplicating thei
 
 ## Workflow (short form)
 
-`REQ` (what + acceptance) → `SPEC §` (RFC-2119) → `ADR` (if an irreversible fork) → `PLAN` (tasks) →
-`CODE + TESTS` (cite IDs) → update spec status + traceability → update `REQ` status + flip and archive the
-plan — **all in the same PR that implements it** (no follow-up close-out PR). New behaviour is *spec-first*;
-hardening shipped code is *implementation-aligned* (code may lead, spec updated in the same PR).
+`REQ` (what + acceptance) → `SPEC §` (RFC-2119) → `ADR` (if an irreversible fork) → `PLAN` (tasks, on the
+branch) → `CODE + TESTS` (cite ids) → update spec status + traceability → update `REQ` status + flip the
+plan to `status: done` **in place** — all in the same PR that implements it. The plan file does not move
+and there is no plans index; finished plans are deleted at the next version bump by `/sdd-finalize`. New
+behaviour is *spec-first*; hardening shipped code is *implementation-aligned* (code may lead, spec updated
+in the same PR).
+
+## Orchestration
+
+- **The maintainer merges and orchestrates.** Agents open draft PRs and mark them ready; a person merges.
+- **One orchestrator, bounded workers.** The main session holds the judgement and dispatches
+  `sdd-implementer` workers for bounded tasks. It does not write product code, except for a task that
+  cannot be made self-contained — and it says so in the PR body.
+- **A brief is self-contained**, and a worker never spawns another worker.
+- **The draft PR body is the lock** — it names the session and worktree that own the branch.
+- Worker model, parallelism, the task-review gate, and the review panel live in
+  [`docs/.sdd.yaml`](docs/.sdd.yaml) under `agents:`. Full text: [docs/ai-workflow.md](docs/ai-workflow.md)
+  § Orchestration.
 
 ## Load-bearing rules
 
