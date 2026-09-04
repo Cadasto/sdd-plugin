@@ -11,10 +11,12 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Added
 - References: `sdd-methodology.md` §12 two lanes with the ratchet guard, §13 review discipline (two gates, the ledger as the default, the materiality threshold, collapse-before-add, the reviewer memory path), §14 the keep-list.
+- References: `artefact-prose.md` — the findings ledger, the `Deferred` table, completion accounting, and the prose register.
 
 ### Changed
 - References: `sdd-methodology.md` §9 is now a working-plan lifecycle — `active | done | postponed | abandoned`, five dispatch preconditions, close-out on four surfaces, archive in place, sweep at the release.
 - References: `sdd-methodology.md` §5 states lazy identifier allocation as the default; §10 adds the cross-repo disagreement rule; §11 adds the memoir rule.
+- References: `artefact-prose.md` states the changelog-bullet rule and the single-canonical-home rule, both as reviewer rules with no tool behind them yet.
 
 ## [0.4.1] - 2026-08-25
 
