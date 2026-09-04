@@ -27,9 +27,8 @@ reviewer's judgement call and are written here so the judgement is the same ever
 
 ## The findings ledger
 
-All findings for one change live in **one numbered comment on the PR**, updated in place each round,
-whatever channel they arrived through. This is the default format for a review, not a remedy applied to
-a review that went wrong. Policy: [sdd-methodology.md §13](sdd-methodology.md).
+Policy — why one ledger, why the `Deferred` table is the carrier, why completion is accounted — lives in
+[sdd-methodology.md](sdd-methodology.md) §13; this section gives the format.
 
 ````markdown
 ## Review ledger — round N (reviewer, date)
@@ -52,14 +51,11 @@ Dispatched: <reviewers> · Reported: <n> of <m>
   id for the life of the change.
 - `severity` is `blocker | should-fix | nit`. `status` is `open | fixed@<sha> | declined + reason | deferred`.
 - Every fix pass enumerates **the ledger**, never the comment channels.
-- **Completion accounting.** The header names which reviewers were dispatched and how many reported. A
-  panel that cannot say whether all its members reported is not evidence of absence.
+- **Completion accounting.** The header names which reviewers were dispatched and how many reported.
 - Near-duplicate findings from two reviewers merge under **one** id, with both sources named.
-- **The `Deferred` table is the carrier for a non-blocking finding**, rolled forward into the next change
-  that touches the area. A review leftover does not become a tracker issue.
 - Write a finding id as `F12`, or in words — **never as a bare hash-plus-number**, which a hosting platform
-  renders as a link to an unrelated issue or pull request. That is a false citation, and it also trips the
-  disclosure grep in this plan's Global Constraints.
+  renders as a link to an unrelated issue or pull request. That is a false citation, and every tool that
+  scans for issue and pull-request references will read it that way.
 
 ## Writing for an agent reader
 
