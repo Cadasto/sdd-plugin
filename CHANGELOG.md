@@ -13,12 +13,14 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - References: `sdd-methodology.md` §12 two lanes with the ratchet guard, §13 review discipline (two gates, the ledger as the default, the materiality threshold, collapse-before-add, the reviewer memory path), §14 the keep-list.
 - References: `artefact-prose.md` — the findings ledger, the `Deferred` table, completion accounting, and the prose register.
 - References: `traceability-schema.md` — the `agents:` and `review_panel` descriptor block and the plan frontmatter contract.
+- Skills: `sdd-finalize` — the release sweep: deletes `done` and `abandoned` plans as the first step of a version bump, after an inbound-link check; the first run also removes a legacy `docs/plans/archive/`.
 
 ### Changed
 - References: `sdd-methodology.md` §9 is now a working-plan lifecycle — `active | done | postponed | abandoned`, five dispatch preconditions, close-out on four surfaces, archive in place, sweep at the release.
 - References: `sdd-methodology.md` §5 states lazy identifier allocation as the default; §10 adds the cross-repo disagreement rule; §11 adds the memoir rule.
 - References: `artefact-prose.md` states the changelog-bullet rule and the single-canonical-home rule, both as reviewer rules with no tool behind them yet.
 - Templates: `plan.md` carries a minimal header; `ai-workflow.md` gains the standing orchestration section, the canonical review-request block, and the ledger rules; `AGENTS.md` mirrors the orchestration rules; `development-process.md` replaces the DoR/DoD blocks with dispatch preconditions, the lanes, and the PR-body close-out with its `Lane:` line; `ci.md` no longer routes verification through another plugin.
+- Skills: `sdd-archive` is reduced to the frontmatter flip, the status updates, and the PR body — no `git mv`, no index.
 
 ### Removed
 - References: the `plans:` axis of a traceability record and `paths.plans_archive` from the descriptor and its template.
