@@ -11,5 +11,6 @@
 - [ ] Both manifests kept in sync when metadata changed: `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`
 - [ ] Methodology rules cite `references/sdd-methodology.md` rather than restating them; no normative rule duplicated
 - [ ] No internal/private repo names, absolute paths, or org-private details added (this repo may be public)
+- [ ] Disclosure grep clean over the tree, `CHANGELOG.md`, and the commit messages on this branch
 - [ ] Version bumped and [CHANGELOG.md](../CHANGELOG.md) updated (if component content changed) — see [docs/versioning.md](../docs/versioning.md)
 - [ ] Docs synced (AGENTS.md, README.md, `hooks/session-start.sh`) when components were added or renamed

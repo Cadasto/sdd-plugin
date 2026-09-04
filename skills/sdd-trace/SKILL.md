@@ -31,7 +31,7 @@ With no REQ, walk the map against the tree and report each orphan class:
 - a `PROBE` id with no corresponding test;
 - a requirement marked `landed`/`shipped` with no `packages`/`tests`;
 - a `REQ` in the index but not the map (or vice-versa);
-- a `done` plan left in the active list, or an active plan whose REQ is already `shipped`.
+- a plan whose frontmatter `status` disagrees with its `REQ` — `status: active` while the `REQ` is already `shipped`, or `status: done` while the `REQ` is not.
 
 If the repo defines the `spec_check_target` build target, run it (`<build_entrypoint> <spec_check_target>`) to corroborate traceability drift. Then report the human-readable breakdown, grouped by class with the offending id/path; **recommend** fixes, do not apply them.
 

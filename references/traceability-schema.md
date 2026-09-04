@@ -58,7 +58,7 @@ sdd:
 | `req_gap` | Spacing for flat-numeric IDs so new requirements slot in without renumbering. |
 | `paths.*` | Where each document kind lives. Skills resolve all locations from here. |
 | `traceability` | Path to the traceability map. |
-| `build_entrypoint` / `ci_target` / `spec_check_target` | The build tool and the target names `/sdd-trace` (and superpowers' verification) invoke. |
+| `build_entrypoint` / `ci_target` / `spec_check_target` | The build tool and the target names `/sdd-trace` and the delivery gates invoke. |
 | `use_probes` / `use_strands` | Toggle the optional `PROBE`/`STRAND` machinery. |
 | `upstream` | The sibling SDD repo this one files cross-repo gap drafts against (see `references/cross-repo-gap.md`). |
 | `ground_truth` | The named "look it up, don't guess" source for domain facts. |
@@ -131,7 +131,7 @@ The drift gate fails when the map and the tree disagree, surfacing each orphan c
 > repository history for the `REQ` id, which every commit, PR title, and test name already carries. A
 > pointer would be one more copy of a fact that can lag.
 
-`/sdd-trace` reports these in-session and may run the real `spec_check_target`; generic test/build verification before a done-claim is `superpowers:verification-before-completion`, and `/sdd-archive` performs the close-out.
+`/sdd-trace` reports these in-session and may run the real `spec_check_target`; the full build gate before a done-claim is `<build_entrypoint> <ci_target>`, and `/sdd-archive` performs the close-out.
 
 ## 3. The plan frontmatter
 

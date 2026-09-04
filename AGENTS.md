@@ -12,7 +12,7 @@ It is **general-purpose and language-agnostic** by design: the skills operate on
 
 This plugin encodes the **spec-anchored** rung of SDD: the specification — not the code, not the prompt — is the source of truth; code is measured against it; and the governance machinery the mainstream toolkits omit (stable identifiers, a machine-checked traceability map, and CI that fails on drift) is built in.
 
-The authoritative, public-safe statement of the methodology — the rigour ladder, the seven document kinds and their boundary rules, RFC-2119 discipline, the identifier scheme, the two status axes, the traceability chain, the two source-of-truth modes, the plan DoR/DoD, and the anti-patterns — lives in **[`references/sdd-methodology.md`](references/sdd-methodology.md)**. Skills cite it rather than restating it; treat it as canonical and keep the rules in one place. The machine-readable formats (`traceability.yaml` records and the `.sdd.yaml` descriptor) are in **[`references/traceability-schema.md`](references/traceability-schema.md)**.
+The authoritative, public-safe statement of the methodology — the rigour ladder, the seven document kinds and their boundary rules, RFC-2119 discipline, the identifier scheme, the two status axes, the traceability chain, the two source-of-truth modes, the plan lifecycle, the two lanes, the review discipline, and the anti-patterns — lives in **[`references/sdd-methodology.md`](references/sdd-methodology.md)**. Skills cite it rather than restating it; treat it as canonical and keep the rules in one place. The machine-readable formats (`traceability.yaml` records and the `.sdd.yaml` descriptor) are in **[`references/traceability-schema.md`](references/traceability-schema.md)**.
 
 The loop: `Specify → (Clarify) → Plan → Tasks → Implement → Verify → Archive`, under a constitution of document-kind boundaries.
 
@@ -32,7 +32,7 @@ This repo supports **both Claude Code and Cursor**; shared assets (skills, agent
 - **Claude manifest**: `.claude-plugin/plugin.json` — `name` (`sdd`), `version`, `description`, `author` (an **object** `{name, url}` — `claude plugin validate` rejects a bare string), `license`, `repository`, `keywords`. Claude Code discovers components from the **default folders** (`skills/`, `agents/`, `hooks/`) automatically.
 - **Cursor manifest**: `.cursor-plugin/plugin.json` — same metadata **plus** explicit top-level path keys (`skills`, `agents`, `rules`, `hooks`). No `mcpServers` — this plugin has no MCP backend. Keep `name`/`version`/`description`/`author` identical to the Claude manifest.
 - **Skills**: `skills/<name>/SKILL.md` — shared by both hosts. The `sdd-*` skills carry `argument-hint` + `allowed-tools` so they are both auto-invoked on intent and user-invocable as `/sdd-*`; `spec-driven-development` is the always-on router. **Skills use `allowed-tools:` (the Claude Code skill/command key — Cursor reads it too); only agents use `tools:`.**
-- **Agents**: `agents/<name>.md` — read-only, context-isolated specialists (`tools:` not `allowed-tools:`).
+- **Agents**: `agents/<name>.md` — context-isolated specialists (`tools:` not `allowed-tools:`). Three are report-only; `sdd-implementer` mutates within the files its brief names.
 - **References**: `references/` — the canonical methodology, the schemas, the artefact prose-economy rule (`artefact-prose.md`), and `references/templates/` (the files `sdd-scaffold` emits). Skills cite these instead of duplicating rules.
 - **Cursor rules**: `rules/*.mdc` — Cursor-only rule guidance (`description` / `globs` / `alwaysApply`), referenced by the Cursor manifest's `rules` path. Shipped: `rules/sdd-context.mdc`.
 - **Claude hooks**: `hooks/hooks.json` — object `{ "hooks": { "SessionStart": [...], "PostToolUse": [...] } }`; use `${CLAUDE_PLUGIN_ROOT}` in command paths.
@@ -44,29 +44,37 @@ This repo supports **both Claude Code and Cursor**; shared assets (skills, agent
 
 ## Components
 
-Scope is the **spec / document / traceability layer**. The generic engineering loop (explore, plan, TDD, execute, generic verify, code review, branch-finish) is intentionally **not** reimplemented — it is delegated to the **superpowers** plugin (see "Works with superpowers" below). This keeps the surface small and non-colliding.
+Scope is the **spec / document / traceability layer** and the **delivery pipeline that runs on it**: plan → workers → review → triage → close-out. Exploration is the one end left open — see "Optional: a general engineering plugin" below.
 
-### Skills (6)
+### Skills (9)
 | Skill | Purpose |
 |-------|---------|
-| `spec-driven-development` | Auto-invoked awareness/router — explains the methodology, routes intent, maps the SDD↔superpowers boundary, and blocks code-first work when no `REQ`/spec exists |
-| `sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor (idempotent); records the superpowers path-redirect |
+| `spec-driven-development` | Auto-invoked awareness/router — explains the methodology, routes intent, states where an optional general engineering plugin still fits, and blocks code-first work when no `REQ`/spec exists |
+| `sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor (idempotent) |
 | `sdd-specify` | The definition layer — author the `REQ` (capability + acceptance), the canonical RFC-2119 `SPEC §`, and the `ADR`; assign identifiers; wire traceability |
-| `sdd-trace` | The traceability gate — one-shot context bundle for a `REQ` + whole-tree drift/orphan report (the `spec-check` analogue). Read-only; defers generic test/build verification to superpowers |
-| `sdd-review` | Opt-in orchestration — dispatches the installed generic reviewers + the SDD traceability auditor + spec-conformance reviewer, consolidates findings, and (optionally) posts them to the PR. *Delegates* generic review and posting; adds the SDD lenses |
-| `sdd-archive` | The close-out — confirm the document-side Definition of Done, flip the plan to done and archive it (inside the implementing PR), update the indexes; defers merge/PR to superpowers |
+| `sdd-deliver` | The delivery driver — dispatch preconditions, the plan on the branch, `sdd-implementer` fan-out per `agents:`, the per-task gate by lane, round 0 of the ledger, the draft PR, close-out, ready, panel prompts |
+| `sdd-review` | Lane-aware review orchestration — dispatches the SDD reviewers plus the repo's declared reviewers on the full lane, the declared reviewers alone on the maintenance lane; writes one ledger; `--panel` prints the canonical prompt blocks |
+| `sdd-triage` | One review round — enumerate every comment channel, merge into the ledger, verify before fixing, sweep the axis, fix in this PR, resolve, print the re-review prompts |
+| `sdd-trace` | The traceability gate — one-shot context bundle for a `REQ` + whole-tree drift/orphan report (the `spec-check` analogue). Report-only; whether the tests and the build pass is the build gate's job |
+| `sdd-archive` | The close-out inside the implementing PR — flips the plan to `status: done` in place, sets the `SPEC §` and `REQ` statuses and the traceability map, fills the PR body. No move, no index |
+| `sdd-finalize` | The release sweep — as the first step of a version bump, before the tag, deletes `done` and `abandoned` plans after an inbound-link check; the first run also removes a legacy `plans/archive/` |
 
-### Agents (3, read-only)
+### Agents (4)
 | Agent | Purpose |
 |-------|---------|
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans (the `spec-check` analogue) |
-| `sdd-doc-reviewer` | Reviews a single SDD document (REQ/SPEC/ADR/plan header — **not** code; code review is superpowers) for boundary violations (mixed kinds, duplicated prose, missing RFC-2119 force, unstable identifiers) |
+| `sdd-doc-reviewer` | Reviews a single SDD document (REQ/SPEC/ADR — **not** code) for boundary violations (mixed kinds, duplicated prose, missing RFC-2119 force, unstable identifiers) |
 | `sdd-spec-conformance-reviewer` | Judges whether implemented code satisfies the normative `SPEC §` / `REQ` acceptance criteria it cites, clause by clause (conformance — **not** code quality, drift, or test-passing) |
+| `sdd-implementer` | The one mutating agent — implements a single bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. No `Agent` tool, so it cannot spawn workers |
 
-### Works with superpowers
-SDD is complementary to the **superpowers** plugin. Combined flow:
-`superpowers:brainstorming → sdd-specify → superpowers:writing-plans → executing-plans/TDD → sdd-trace · sdd-review (opt-in) + superpowers:verification-before-completion → sdd-archive (in the implementing PR) + superpowers:finishing-a-development-branch`.
-Superpowers owns planning/TDD/execution/verification/code-review/branch-finishing; SDD owns the documents and traceability. Superpowers writes design docs + plans under `docs/superpowers/` — treat them as working artefacts and route the canonical content into `docs/specifications/` (via `sdd-specify`) and `docs/plans/`. Full seam + the path redirect: [`references/sdd-with-superpowers.md`](references/sdd-with-superpowers.md).
+Three of the four are report-only; `sdd-implementer` writes, within the files its brief names.
+
+### Optional: a general engineering plugin
+A general engineering plugin such as superpowers is optional and is no longer part of this plugin's
+surface or its references. Exploration workflows are still a good way to open a new idea before
+`/sdd-specify`; planning, execution, verification, code review, and branch finishing are covered by
+`/sdd-deliver`, `sdd-implementer`, the review ledger, and the PR-body close-out. Running both over the
+same work duplicates the loop and splits the plan's home.
 
 ### Hooks
 - **SessionStart** — detects an SDD repository and prints a context line plus the `/sdd-*` surface (or a scaffold pointer in a non-SDD repo with a `docs/` dir).
@@ -84,7 +92,7 @@ claude plugin validate .          # manifest + component structure (no Python ne
 claude --plugin-dir /path/to/sdd-plugin # load locally for one session
 ```
 
-Then run the loop (`/sdd-scaffold` → `/sdd-specify` → plan/build via superpowers → `/sdd-trace` → `/sdd-archive`) on a throwaway repo, and verify skill auto-triggering and the agents on both hosts. Fuller guidance: [`docs/`](docs/). CI runs `scripts/validate.py` strictly on every push/PR.
+Then run the loop (`/sdd-scaffold` → `/sdd-specify` → `/sdd-deliver` → `/sdd-review` → `/sdd-triage` → `/sdd-archive` → `/sdd-finalize`) on a throwaway repo, and verify skill auto-triggering and the agents on both hosts. Fuller guidance: [`docs/`](docs/). CI runs `scripts/validate.py` strictly on every push/PR.
 
 ### File Conventions
 - Skills go in `skills/<name>/SKILL.md`; agents in `agents/<name>.md`; Cursor rules in `rules/<name>.mdc`.
@@ -112,12 +120,13 @@ Use feature branches and pull requests. Validation runs on every push/PR.
 
 ## Gotchas
 
-- **Agents use `tools:`, not `allowed-tools:`.** In an agent file `allowed-tools:` is ignored and the agent silently inherits *all* tools. All three shipped agents are read-only — keep them that way.
+- **Agents use `tools:`, not `allowed-tools:`.** In an agent file `allowed-tools:` is ignored and the agent silently inherits *all* tools. Three of the four shipped agents are report-only — keep them that way; `sdd-implementer` is the one that writes.
 - **`author` in `plugin.json` must be an object** (`{name, url}`); `claude plugin validate` rejects a bare string.
 - **`${CLAUDE_PLUGIN_ROOT}` is Claude-Code-only.** Cursor hook commands stay workspace-relative (`bash hooks/session-start.sh`) — don't "fix" them to use it. For locating bundled templates, `sdd-scaffold` prefers `${CLAUDE_PLUGIN_ROOT}` (or a Cursor plugin-root variable, *if* the host exposes one — unconfirmed) and falls back to a Glob for the installed templates, which is the host-agnostic path. Keep both hook configs in step.
 - **One canonical home for the rules: `references/sdd-methodology.md`.** Skills keep only their procedure and cite the reference. When the methodology changes, update the reference — don't re-inline rule text into each skill.
 - **`spec-driven-development` is deliberately distinct from the plugin name `sdd`.** Naming the router skill `sdd` would collide (`sdd:sdd`). The skill/command prefix is `sdd-`; the router is the full phrase.
-- **Don't duplicate superpowers.** SDD owns only the spec/document/traceability layer; planning, TDD, execution, generic verification, code review, and branch-finishing are superpowers' job. When extending the plugin, resist re-adding a `sdd-plan`/`sdd-implement`/`sdd-verify` that competes — layer the SDD discipline (citing header, DoR/DoD, traceability) onto superpowers instead. See [`references/sdd-with-superpowers.md`](references/sdd-with-superpowers.md).
-- **The `docs/superpowers/` path redirect.** superpowers writes design docs to `docs/superpowers/specs/` and plans to `docs/superpowers/plans/`. These are working/narrative artefacts — the canonical homes are `docs/specifications/` (normative, via `sdd-specify`) and `docs/plans/`. `sdd-scaffold` records this override in the target repo's `AGENTS.md`; don't let a parallel `docs/superpowers/` tree become a second source of truth.
+- **Don't grow a second delivery loop.** The plugin now owns plan → workers → review → triage → close-out; a general engineering plugin is optional and complementary at the exploration end only.
+- **Plugin agent files are read-only at runtime.** They live in the host's install cache, so no skill can rewrite an agent's frontmatter. `sdd-implementer` ships `model: inherit` and `/sdd-deliver` passes `agents.worker_model` as a per-dispatch override.
+- **An agent's `skills:` frontmatter may not name another plugin's skill.** That is unconfirmed; `worker_skills` is applied by the dispatch brief instead.
 - **Public-safety is a hard gate.** Before committing any content, confirm no internal repo names, absolute paths, or org-private details leaked in (see the constraint above). The PR template includes this check.
 - **Register in the marketplace separately — and repin it on every release.** Public availability requires an entry in the `cadasto` marketplace, maintained in `Cadasto/plugin-marketplace`. That entry is pinned to a release tag, so tagging here ships nothing until the entry's `version` and `source.ref` are bumped; see [docs/versioning.md](docs/versioning.md#marketplace).

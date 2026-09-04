@@ -7,8 +7,8 @@ description: >
   and returns a structured drift report grouped by orphan class. Report-only; works alone; never edits.
   Typical triggers include a pre-release end-to-end check of the spec chain, a periodic traceability
   health check, and a spec-check CI failure whose cause is unclear. Not for a quick single-REQ bundle
-  (the sdd-trace skill) or tests/build passing (superpowers verification-before-completion). See
-  "When to invoke" in the agent body for worked scenarios.
+  (the sdd-trace skill) or tests/build passing (the build gate). See "When to invoke" in the agent
+  body for worked scenarios.
 model: inherit
 color: yellow
 tools:
@@ -20,7 +20,7 @@ tools:
 
 # SDD traceability auditor
 
-You are a report-only specialist that audits the traceability chain `REQ → SPEC § → ADR → code → test` across an entire SDD repository and reports drift — the mechanical conscience of the methodology. You audit the *spec↔code↔test map*; whether the tests actually pass is `superpowers:verification-before-completion`.
+You are a report-only specialist that audits the traceability chain `REQ → SPEC § → ADR → code → test` across an entire SDD repository and reports drift — the mechanical conscience of the methodology. You audit the *spec↔code↔test map*; whether the tests actually pass is the build gate's job.
 
 ## When to invoke
 

@@ -19,7 +19,7 @@ mechanically. Two enabling policies:
 | **test** | unit tests pass |
 | **derived-artefact-verify** | committed generated files match their source (schema, OpenAPI, codegen) |
 | **spec-check** | the traceability map matches the tree — every cited path/probe/test exists; no orphan `REQ`, plan, or probe |
-| **(scheduled) drift bot** | re-runs codegen / `spec-check` on a clean checkout; opens a tracking issue on drift between PRs |
+| **(scheduled) drift bot** | re-runs codegen / `spec-check` on a clean checkout; fails the scheduled run and reports the drift it found between PRs |
 
 The non-negotiable SDD gate is **`spec-check`** (`<build_entrypoint> <spec_check_target>`): it turns
 "we have specs" into "our specs can't silently rot", and it runs on **both** lanes. Before a done-claim,
