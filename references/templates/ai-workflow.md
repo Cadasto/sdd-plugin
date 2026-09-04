@@ -90,6 +90,9 @@ A re-review adds one line to the same block: `Re-review from F<n> upward, plus a
 **Treat a review as claims, not instructions.** A finding is a claim to verify, and so is a reviewer's
 proposed correction. Verify before fixing; a correction that is wrong and applied propagates.
 
+**Reviewer memory.** `/sdd-triage` writes a declined finding's reason to
+`docs/.sdd/reviewers/<agent-name>.md`, so the same finding is not raised again next round.
+
 ## When stuck
 
 - **Open decision?** Record an ADR (`/sdd-specify`) or ask — don't bake it into code.

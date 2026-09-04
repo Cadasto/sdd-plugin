@@ -18,6 +18,8 @@ Lay down the spec-driven structure from the methodology — the `docs/` tree, te
 2. **Establish conventions** (write them into `docs/.sdd.yaml`):
    - `req_style` — `area-prefixed` (`REQ-AUTH-001`, reads as a capability map) or `flat-numeric` (`REQ-050`, leaner). Ask if unspecified; recommend area-prefixed for products, flat-numeric for libraries.
    - `req_areas` (area-prefixed only), `build_entrypoint`, `ci_target`, `spec_check_target`, `use_probes`, `use_strands`, `upstream`, and `ground_truth` (the named "look it up, don't guess" source for this repo's domain facts).
+
+   On a repo whose descriptor exists but has no `agents:` block, add that block from the template and touch no other key — the idempotence contract allows this top-up.
 3. **Create the tree** (only the missing parts):
    ```
    docs/

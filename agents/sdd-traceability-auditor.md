@@ -56,7 +56,7 @@ Reach for this agent when the scan is whole-tree and context isolation is worth 
 - **Index/map disagreement** — a REQ present in one but not the other; status axes inconsistent.
 - **A status line that lies** — a `REQ` left `in_progress` after it landed, or a `SPEC §` status that does
   not match what the map says shipped. There is no plans index and no plan axis on a record; a plan file's
-  status is not a drift class.
+  status is not a drift class. This agent does not report plan status; `/sdd-trace` does.
 
 ## Materiality threshold
 

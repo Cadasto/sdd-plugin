@@ -102,7 +102,7 @@ Then run the loop (`/sdd-scaffold` → `/sdd-specify` → `/sdd-deliver` → `/s
 - Skill bodies are imperative and **cite `references/sdd-methodology.md`** rather than restating rules; every `sdd-*` skill **reads `docs/.sdd.yaml` first** instead of hard-coding paths/identifier styles.
 
 ### Documentation Sync
-When adding or renaming components, update in lockstep: **AGENTS.md** (component tables), **README.md** (tables), **CHANGELOG.md**, the Cursor rule **`rules/sdd-context.mdc`** (it carries its own `/sdd-*` list), and the `/sdd-*` list in **`hooks/session-start.sh`**. Cursor reads the same skills/agents/rules paths, so no separate Cursor-only component list is required.
+When adding or renaming components, update in lockstep: **AGENTS.md** (component tables), **README.md** (tables), **CHANGELOG.md**, the Cursor rule **`rules/sdd-context.mdc`** (it carries its own `/sdd-*` list), and the `/sdd-*` list in **`hooks/session-start.sh`**. Cursor reads the same skills/agents/rules paths, so no separate Cursor-only component list is required. When a machine format changes in `references/traceability-schema.md`, update `references/templates/traceability.yaml`, `references/templates/sdd.yaml`, and every skill or agent that names a record field, in the same commit.
 
 ### Versioning
 Plugin version (and, for consistency, description and author) must be kept in sync in **both** `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`. Follow Semantic Versioning; update both manifests and **CHANGELOG.md** when releasing. See [docs/versioning.md](docs/versioning.md).

@@ -39,7 +39,7 @@ If the repo defines the `spec_check_target` build target, run it (`<build_entryp
 
 - **Strictly report-only.** Diagnose; the owning skill fixes (`sdd-specify` for spec/index, the build workflow for code/tests, `sdd-archive` for plan state). Never edit here.
 - **Scope is traceability, not test results** — tests and build passing is the build gate's job — run it and read its output.
-- For a heavy, context-isolated whole-repo audit, dispatch the **`sdd-traceability-auditor`** agent — same scan, isolated context, returns a report.
+- For a heavy, context-isolated whole-repo audit, dispatch the **`sdd-traceability-auditor`** agent — the same map-vs-tree scan, isolated context, returns a report.
 
 ## Reference
 

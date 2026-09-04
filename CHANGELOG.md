@@ -20,7 +20,7 @@ become skills, and findings live in one ledger per change.
 - Agents: `sdd-implementer` — implements one bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. Holds no `Agent` tool, so it cannot spawn workers.
 - References: `sdd-methodology.md` §12 two lanes with the ratchet guard, §13 review discipline (two gates, the ledger as the default, the materiality threshold, collapse-before-add, the reviewer memory path), §14 the keep-list.
 - References: `artefact-prose.md` — the findings ledger, the `Deferred` table, completion accounting, and the prose register.
-- References: `traceability-schema.md` — the `agents:` and `review_panel` descriptor block and the plan frontmatter contract.
+- References: `traceability-schema.md` — the `agents:` and `review_panel` descriptor block and the plan frontmatter contract; `templates/sdd.yaml` carries the matching `agents:` block.
 
 ### Changed
 - References: `sdd-methodology.md` §9 is now a working-plan lifecycle — `active | done | postponed | abandoned`, five dispatch preconditions, close-out on four surfaces, archive in place, sweep at the release.
@@ -28,6 +28,8 @@ become skills, and findings live in one ledger per change.
 - References: `artefact-prose.md` states the changelog-bullet rule and the single-canonical-home rule, both as reviewer rules with no tool behind them yet.
 - Skills: `sdd-archive` is reduced to the frontmatter flip, the status updates, and the PR body — no `git mv`, no index.
 - Skills: `sdd-review` detects the lane, dispatches per lane, writes one ledger instead of one comment per finding, and prints one canonical prompt block per `review_panel` entry with `--panel`.
+- Skills: `sdd-scaffold` no longer creates `docs/plans/archive/` or a plans index, and fills the `agents:` block of the descriptor.
+- Skills: `sdd-specify` hands off to `/sdd-deliver` and no longer routes design notes through another plugin.
 - Skills: `sdd-trace` reports a plan/`REQ` status mismatch from the plan's frontmatter rather than from a plans index.
 - Skills: `spec-driven-development` routes the new surface and states in one paragraph that a general engineering plugin is optional.
 - Agents: the three reviewers gain the materiality threshold, the settled-adjudications memory, and the cross-repo rule.
