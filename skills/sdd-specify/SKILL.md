@@ -11,7 +11,7 @@ allowed-tools: Read, Write, Edit, Glob, Grep
 
 Turn intent (often a design note from an exploration session) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
 
-If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour hasn't been explored yet, explore it first.
+If the repo is not scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour has not been explored yet, explore it first: write a design note under `docs/analysis/`, or run the host's brainstorming workflow, and return with the note as input.
 
 ## A · Requirement (`REQ-*`) — capture the capability
 
@@ -45,7 +45,7 @@ A design note is **input narrative, not the source of truth.** Extract its norma
 - Keep the kinds separate even though one skill authors all three: a requirement has no normative prose, a spec has no tasks, an ADR holds one decision.
 - Don't settle an open question silently — record it as an ADR (§C) or a `STRAND`, or return to brainstorming.
 - For a missing **upstream** capability (consuming a sibling SDD repo), see `references/cross-repo-gap.md`.
-- After specifying, hand off to `/sdd-deliver`: the plan lands in `docs/plans/` with the citing header.
+- After specifying, run `/sdd-trace <REQ-id>` to confirm the record resolves — index row, canonical anchor, traceability entry — then hand off to `/sdd-deliver`: the plan lands in `docs/plans/` with the citing header.
 
 ## Reference
 

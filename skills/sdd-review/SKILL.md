@@ -15,21 +15,20 @@ This runs best on the branch, before the draft PR opens: the same findings cost 
 
 ## Steps
 
-0. **Detect the lane.** Read the lane from the `Lane:` line in the PR body if a PR exists, and corroborate it against the diff: a change with edits under `paths.requirements`, `paths.specifications` or `paths.adr`, or that alters an API shape or an error contract, is full lane whatever the line says. Say which source you used. If there is no PR yet, take the lane from the plan header.
-1. **Scope the change.** Resolve the `REQ` / `SPEC §` / plan under review — from the argument, the plan header, or the PR citation — and the PR if one exists (`gh pr view`). The scope is the branch diff against its base.
+0. **Detect the lane.** Read the lane from the `Lane:` line in the PR body if a PR exists, and corroborate it against the diff: a change with edits under `paths.requirements`, `paths.specifications` or `paths.adr`, or that alters an API shape or an error contract, is full lane whatever the line says. Record which source was used. If there is no PR yet, take the lane from the plan header.
+1. **Scope the change.** Resolve the `REQ` / `SPEC §` / plan under review — from the argument, the plan header, or the PR citation — and the PR if one exists (on GitHub, `gh pr view`). The scope is the branch diff against its base.
 2. **Dispatch, per lane.** On the **full lane**, dispatch `sdd-traceability-auditor` and `sdd-spec-conformance-reviewer` in parallel, plus every reviewer named in `agents.reviewers`. Dispatch `sdd-doc-reviewer` as well when the change touches a requirement, specification, or ADR. On the **maintenance lane**, dispatch only the reviewers named in `agents.reviewers`. The SDD reviewer agents are not dispatched — there is no spec delta to review. Run every reviewer report-only; nothing is posted from inside a reviewer.
 3. **Account for completion.** Record which reviewers were dispatched and how many reported. A dispatch that died and was not re-run is a gap, and the ledger header says so.
 4. **Write the ledger.** Write **one** ledger comment, not one comment per finding — the format and its rules are in `references/artefact-prose.md`. Allocate ids from the next free `F<n>`; an id already in the ledger keeps its number. Merge near-duplicate findings from two reviewers under one id and name both sources. Blockers and should-fix in the table; nits go straight to `Deferred` (methodology §13). Before the draft PR exists this is **round 0**, held in-session and posted when the draft opens. On the maintenance lane with `agents.reviewers` empty, the accounting line reads `Dispatched: none — agents.reviewers is empty · Reported: 0 of 0` and the ledger is not marked clean — an empty list is an unconfigured gate, never a clean one.
-5. **Post (with `--post`, or when asked).** `gh pr comment` for a new ledger; edit the existing ledger comment in place for a later round. Never open a tracker issue for a review finding.
+5. **Post (with `--post`, or when asked).** Post a new ledger as one PR comment (on GitHub, `gh pr comment`); edit the existing ledger comment in place for a later round. Never open a tracker issue for a review finding.
 6. **Panel prompts (with `--panel`).** Print one prompt block per name in `agents.review_panel.<lane>`, filled from the canonical text in the repo's `docs/ai-workflow.md` § Review — the repository's copy, not a version retyped here. Nothing in the repository can start those reviewers; the blocks are for a person to paste.
 
 ## Guardrails
 
 - **Opt-in, not an automatic gate.** Run it when asked, not after every implementation slice.
-- **The dispatched agents never edit.** They report; applying a fix is `/sdd-triage`'s job.
+- **Neither the dispatched agents nor this skill edits anything: fixing what the ledger holds is `/sdd-triage`.**
 - **This is not the test gate** — whether the build passes is the build's job; read its output before claiming green.
 - **One ledger. Never one comment per finding.**
-- **Fixing what the ledger holds is `/sdd-triage`.**
 
 ## Reference
 

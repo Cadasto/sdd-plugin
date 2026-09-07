@@ -40,9 +40,9 @@ The **specification — not the code, not the prompt — is the source of truth.
 
 ## Optional: a general engineering plugin
 
-A general engineering plugin such as superpowers is **optional** and no longer part of this plugin's
-surface. Exploration workflows like brainstorming remain a good way to open a new idea before
-`/sdd-specify`. Planning, task execution, verification, code review, and branch finishing are covered here
+A general engineering plugin such as superpowers is **optional**. Exploration workflows like brainstorming
+are a good way to open a new idea before `/sdd-specify`. Planning, task execution, verification, code
+review, and branch finishing are covered here
 by `/sdd-deliver`, the `sdd-implementer` agent, the review ledger, and the PR-body close-out; running both
 sets over the same work duplicates the loop and splits the plan's home. Plans belong in `docs/plans/`; if a
 tool wants to write them somewhere else, point it at `docs/plans/` rather than keeping a second tree.
