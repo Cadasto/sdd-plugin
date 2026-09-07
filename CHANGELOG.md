@@ -7,7 +7,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
-## [Unreleased]
+## [0.5.0] - 2026-09-08
 
 The methodology sheds the plan lifecycle and the plugin takes over the delivery pipeline: a plan is a
 working file that is flipped to `done` where it lies and swept at the next release, delivery and triage
