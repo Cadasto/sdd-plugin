@@ -43,11 +43,13 @@ A session restart is required for an update to take effect.
 
 Add this repository as a plugin (Cursor **Settings → Plugins**, via Git URL or local path). The repo root contains `.cursor-plugin/plugin.json`, which declares the `skills`, `agents`, `rules`, and `hooks` paths. After changing content locally, reload or reinstall the plugin so Cursor picks it up.
 
+> Cursor subagents inherit every tool. The `tools:` and `disallowedTools:` grants in `agents/*.md` are Claude Code fields, so on Cursor the reviewers' no-edit rule and the implementer's no-spawn rule hold as contracts stated in the agent bodies. Cursor's `subagentStart` hook can deny a spawn and is the enforceable path; 0.5.0 does not ship it.
+
 > The Cursor hook wiring targets the `sessionStart` and `afterFileEdit` events; if your Cursor version exposes a different post-edit event or payload shape, adjust `hooks/cursor-hooks.json` and the path-extraction in `hooks/spec-edit-reminder.sh` accordingly.
 
 ## Host repository requirements
 
-Installing the plugin needs nothing. To get full value, the **repository you apply SDD to** should expose a single build entry point (`make` / `task` / `just` / `npm`) with a `spec-check` target and a full `ci` target — `/sdd-trace` (and superpowers' `verification-before-completion`) invoke these. `/sdd-scaffold` can stub them for you and records the target names in `docs/.sdd.yaml`.
+Installing the plugin needs nothing. To get full value, the **repository you apply SDD to** should expose a single build entry point (`make` / `task` / `just` / `npm`) with a `spec-check` target and a full `ci` target — `/sdd-trace` and the delivery gates invoke these. `/sdd-scaffold` can stub them for you and records the target names in `docs/.sdd.yaml`.
 
 The `spec-check` target itself is repo-specific (it validates the traceability map against the tree). The plugin defines *what* it must check (see [references/traceability-schema.md](../references/traceability-schema.md)); the host repo implements it in whatever language/tooling it uses.
 

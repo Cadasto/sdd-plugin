@@ -27,5 +27,8 @@ Thumbs.db
 docs/plans/
 docs/research/
 
+# Plan workspace used while developing this plugin (never staged)
+.superpowers/
+
 # Claude Code local project memory (machine-specific)
 CLAUDE.local.md

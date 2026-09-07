@@ -16,52 +16,49 @@ The plugin operates on **documentation** (`docs/*.md`, a requirements index, a t
 Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Archive
 ```
 
-The plugin owns the **spec / document / traceability layer**; it deliberately leaves the generic engineering loop (exploring, planning, TDD, execution, code review, branch-finishing) to the [superpowers](#works-with-superpowers) plugin. SDD's job is to keep the specification the source of truth and the chain `REQ → SPEC § → ADR → Plan → code → test` intact.
+The plugin owns the **spec / document / traceability layer** *and* the **delivery pipeline that runs on it** — plan, worker fan-out, review, triage, and close-out. Its job is to keep the specification the source of truth and the chain `REQ → SPEC § → ADR → code → test` intact from the first requirement to the merged PR.
 
 ## Components
 
 ### Skills
 
-A focused surface — five `/sdd-*` commands plus an always-on router.
+A focused surface — eight `/sdd-*` commands plus an always-on router.
 
 | Skill | Use it to… |
 |---|---|
-| `spec-driven-development` | Auto-invoked awareness/router — explains the methodology, routes intent, maps how SDD complements superpowers, and blocks jumping to code when no requirement or spec exists yet |
-| `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor (idempotent — fills gaps, never clobbers) |
+| `spec-driven-development` | Auto-invoked awareness/router — explains the methodology, routes intent, states where an optional general engineering plugin still fits, and blocks jumping to code when no requirement or spec exists yet |
+| `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor, suggesting `agents.reviewers` from the build manifests (idempotent — fills gaps, never clobbers) |
 | `/sdd-specify` | The definition layer — capture a capability (`REQ`), write RFC-2119 normative behaviour into the canonical spec (`SPEC §`), and record decisions (`ADR`); assigns identifiers and wires traceability |
+| `/sdd-deliver` | The delivery driver — check the dispatch preconditions, write the plan on the branch, fan `sdd-implementer` workers out per the descriptor's `agents:` block, gate each task by lane, open round 0 of the ledger and the draft PR, then close out and mark it ready |
+| `/sdd-review` | Lane-aware review orchestration — dispatch the SDD reviewers plus the repo's declared reviewers on the full lane, the declared reviewers alone on the maintenance lane, and write one numbered ledger; `--panel` prints the canonical prompt blocks |
+| `/sdd-triage` | One review round — enumerate every comment channel, merge the findings into the ledger, verify before fixing, sweep the pattern class, fix in this PR, resolve, and print the re-review prompts |
 | `/sdd-trace` | The traceability gate — assemble the one-shot context bundle for a `REQ`, and report drift / orphans (the `spec-check` analogue). Report-only |
-| `/sdd-review` | *Opt-in* — orchestrate a spec-aware review (your installed generic reviewers + the SDD traceability auditor + spec-conformance reviewer), consolidate the findings, and optionally post them to the PR. Delegates generic review and posting; adds the SDD lenses |
-| `/sdd-archive` | Close out a finished feature — confirm the document-side Definition of Done, flip the plan to done and archive it **inside the implementing PR**, update the indexes |
+| `/sdd-archive` | The close-out inside the implementing PR — flip the plan to `status: done` in place, set the `SPEC §` and `REQ` statuses and the traceability map, and fill the PR body. No move, no index |
+| `/sdd-finalize` | The release sweep — as the first step of a version bump, before the tag, delete the `done` and `abandoned` plans after an inbound-link check |
 
-### Agents (report-only)
+### Agents
 
-None declares `Write` or `Edit`. `sdd-doc-reviewer` holds only `Read`/`Grep`/`Glob` and so is read-only outright; the other two add `Bash` for read-only scoping (`git diff`, `git log`), which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it.
+The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only `Read`/`Grep`/`Glob` and so is read-only outright; the other two add `Bash` for read-only scoping (`git diff`, `git log`), which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and every other tool the host offers — the repository's MCP servers included — is inherited. These grants are enforced by Claude Code. Cursor's subagent frontmatter carries no tool grant — a subagent inherits every tool — so on Cursor both the reviewers' no-edit rule and the implementer's no-spawn rule are contracts the agent bodies state, not sandboxes; Cursor's `subagentStart` hook is the enforceable path and is not shipped in 0.5.0.
 
 | Agent | Purpose |
 |---|---|
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans (the `spec-check` analogue) |
-| `sdd-doc-reviewer` | Reviews an SDD document (requirement / spec / ADR / plan header — **not** code) for boundary violations: mixed document kinds, duplicated normative prose, missing RFC-2119 force, unstable identifiers |
+| `sdd-doc-reviewer` | Reviews an SDD document (requirement / spec / ADR — **not** code) for boundary violations: mixed document kinds, duplicated normative prose, missing RFC-2119 force, unstable identifiers |
 | `sdd-spec-conformance-reviewer` | Judges whether implemented code satisfies the normative `SPEC §` / `REQ` acceptance criteria it cites, clause by clause — the conformance pass (not code quality, drift, or test-passing) |
+| `sdd-implementer` | Implements one bounded task from a delivery brief — reads the `SPEC §` the brief cites, cites `REQ`/`PROBE` ids in the code and tests it writes, verifies with the command the brief names, and returns `En-route findings` |
 
 ### Hooks
 
 - **SessionStart** — detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a short context line plus the available `/sdd-*` surface.
-- **PostToolUse** *(Claude Code)* — after an edit to a requirement, spec, ADR, plan, or the traceability map, reminds you to keep the traceability chain in sync and run `/sdd-trace`.
+- **PostToolUse** *(Claude Code)* / **afterFileEdit** *(Cursor, `hooks/cursor-hooks.json`)* — after an edit to a requirement, spec, ADR, plan, or the traceability map, reminds you to keep the traceability chain in sync and run `/sdd-trace`.
 
 ### Cursor
 
 `rules/sdd-context.mdc` mirrors the router skill for Cursor; the `.cursor-plugin/plugin.json` manifest declares the shared `skills`/`agents`/`rules` paths and the Cursor hook config.
 
-## Works with superpowers
+## Optional: a general engineering plugin
 
-SDD is **complementary** to the [superpowers](https://github.com/anthropics/claude-code) plugin, not a replacement. Superpowers owns the engineering loop; SDD owns the specification and its traceability:
-
-```
-superpowers:brainstorming → SDD:/sdd-specify → superpowers:writing-plans → executing-plans / TDD
-   → SDD:/sdd-trace · SDD:/sdd-review (opt-in) + superpowers:verification-before-completion → SDD:/sdd-archive (in the implementing PR) + superpowers:finishing-a-development-branch
-```
-
-Planning, TDD, execution, generic verification, code review, and branch-finishing stay with superpowers; SDD records the requirements/specs/decisions, keeps the traceability chain honest, and closes out the documents. One integration detail to know: superpowers writes design docs and plans under `docs/superpowers/` — treat those as working artefacts and route their canonical content into `docs/specifications/` (via `/sdd-specify`) and `docs/plans/`. Full seam: [references/sdd-with-superpowers.md](references/sdd-with-superpowers.md).
+A general engineering plugin such as superpowers is optional: exploration workflows help before `/sdd-specify`, and everything after that is covered here. The router skill `spec-driven-development` states where the seam lies.
 
 ## Install
 
@@ -87,13 +84,16 @@ See [docs/install.md](docs/install.md) for details.
 ## Quick start
 
 ```
-/sdd-scaffold                         # lay down the docs/ tree + .sdd.yaml in this repo
+/sdd-scaffold                          # lay down the docs/ tree + .sdd.yaml in this repo
 /sdd-specify add a capability for <X>  # capture the REQ, write the normative SPEC, record any ADR
-# … plan & build with superpowers (writing-plans → executing-plans / TDD); land the plan in docs/plans/
-/sdd-trace REQ-...                     # check the traceability chain / drift before merge
-/sdd-review --post                     # (opt-in) spec-aware review → post findings to the PR
-/sdd-archive REQ-...                   # close out spec, index, and plan — in the implementing PR
+/sdd-deliver REQ-...                   # preconditions → plan on the branch → workers → round 0 → draft PR
+/sdd-review <PR> --panel               # print the prompt blocks for outside reviewers (--post writes the ledger)
+/sdd-triage <PR>                       # each review round: merge, verify, fix, resolve, re-request
+/sdd-archive REQ-...                   # close out spec status, REQ status, traceability, and the plan — in its PR
+/sdd-finalize                          # at the next version bump, before the tag: sweep finished plans
 ```
+
+The walkthrough is [docs/quick-start.md](docs/quick-start.md); prompts by use case are in [docs/examples.md](docs/examples.md).
 
 ## The project descriptor
 
@@ -113,15 +113,32 @@ sdd:
   ci_target: ci                     # `make ci`, `task ci`, `npm run ci`
   spec_check_target: spec-check
   ground_truth: "<the authoritative source for this repo's domain facts>"
+
+  # Delivery parameters. /sdd-deliver and /sdd-review read these instead of asking.
+  # Every value here is an EXAMPLE — no model and no reviewer is required by the plugin.
+  agents:
+    worker_model: inherit           # per-dispatch model override; inherit = no override, or a host model id
+    max_parallel_workers: 3
+    worktree_per_worker: true       # parallel, mutating tasks only
+    worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
+    reviewers: []                   # this repo's own language reviewers, by agent name
+    task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
+    review_panel:                   # who reviews the PR, per lane; names are prompt targets, not integrations
+      full: [claude, cursor]
+      maintenance: [claude]
 ```
 
 ## Documentation
 
+- [docs/quick-start.md](docs/quick-start.md) — one capability from idea to a ready pull request
+- [docs/examples.md](docs/examples.md) — prompts by use case
 - [docs/install.md](docs/install.md) — install on both hosts
+- [docs/upgrading.md](docs/upgrading.md) — moving a repository from 0.4.x
 - [docs/testing.md](docs/testing.md) — validate and dogfood
 - [docs/versioning.md](docs/versioning.md) — SemVer + release steps
 - [docs/authoring.md](docs/authoring.md) — skill / agent / rule authoring conventions
 - [references/sdd-methodology.md](references/sdd-methodology.md) — the methodology this plugin encodes
+- [references/artefact-prose.md](references/artefact-prose.md) — the ledger and the prose rules
 
 ## Prerequisites
 

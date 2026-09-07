@@ -84,6 +84,16 @@ Pick **one** REQ style and stay consistent (declared in `.sdd.yaml`):
 
 Each requirement's normative prose lives in **exactly one** spec section. The requirements index only **links** to it — it never duplicates the requirement body. Two copies = two sources of truth = guaranteed drift.
 
+### Lazy identifier allocation (the default)
+
+**An idea with no acceptance contract does not get a `REQ` id.** Identifiers are allocated when a slice
+meets the dispatch preconditions (§9), not when it is imagined. You cannot argue about the number of an
+id that does not exist yet, and an id that was never published can never be renumbered.
+
+This is a rule about *when* an id is allocated, not about *how* it is shaped. Decadal gaps, topic bands,
+and area prefixes are the repository's own call and are declared in `.sdd.yaml`; this rule retires none
+of them.
+
 ### The STRAND concept (naming the unknowns)
 
 A `STRAND-NN` is an open architectural question that is scoped, named, and tracked but **not yet decided** — explicitly *not* a draft requirement. It resolves by: produce evidence (spike / benchmark / fit-gap) → write an ADR → amend the affected `REQ`s → close the strand with a backlink to the ADR. This is the formal home for "we don't know yet," which keeps unknowns out of the code.
@@ -113,45 +123,82 @@ The discipline that keeps mode 2 honest: **"code wins until the spec is updated 
 ```
 requirements index (one row per REQ)
   └─→ canonical topic spec (normative prose lives here, ONCE)
-        └─→ traceability map (machine-readable: packages, probes, tests, plans)
-              └─→ plan (docs/plans/YYYY-MM-DD-*.md)
-                    └─→ code
-                          └─→ tests
-                                └─→ conformance probes (optional)
+        └─→ traceability map (machine-readable: packages, probes, tests)
+              └─→ code
+                    └─→ tests
+                          └─→ conformance probes (optional)
 ```
 
-Two rules make the chain trustworthy:
+**The plan is not a link in this chain.** It is a working file on the branch that cites the `REQ`/`SPEC §`
+it implements (§9). The durable record of what shipped is the requirement status, the specification
+section, the ADR, the PR body, the changelog, and git.
 
-1. **Single canonical home** (§5) — the index links, the spec owns the prose.
-2. **Cite identifiers when crossing the chain** — plans list the `REQ`s they implement; code references its `REQ`/spec sections; a test citing a normative requirement names the `REQ` (and `PROBE`) in a comment; an ADR cites the `STRAND` it resolves.
+Code and tests cite the `REQ` (and `PROBE`) ids they realise — a doc comment, a test name — so the chain stays greppable.
 
 See [traceability-schema.md](traceability-schema.md) for the machine-readable record format.
 
 ### Drift CI — the non-negotiable gate
 
-A `spec-check` target validates the traceability map against the actual tree (cited paths exist, probes resolve, no orphans). So **a requirement with no plan, a plan with no code, code with no test, or a probe with no test is a mechanically detectable drift signal.** This is what turns "we have specs" into "our specs can't silently rot."
+A `spec-check` target validates the traceability map against the actual tree (cited paths exist, probes resolve, no orphans). So **a requirement with no code, code with no test, or a probe with no test is a mechanically detectable drift signal.** This is what turns "we have specs" into "our specs can't silently rot."
 
-## 9. The plan lifecycle — Definition of Ready / Done
+## 9. The plan lifecycle — a working file, finished in place, swept at the release
 
-Plans are the **only** place checkbox task lists live. Filename: `docs/plans/YYYY-MM-DD-<slug>.md`; header cites the `REQ`/`SPEC §`/`ADR` it covers.
+A plan is a **working file on the branch**, not a governed artefact. It is the only place checkbox task
+lists live, and it introduces **no normative statement** — a rule goes in a spec first.
 
-**Definition of Ready** (a plan may not start until):
-- [ ] A `REQ-*` exists with acceptance criteria.
-- [ ] Affected `SPEC-* §` are listed (or a new § is called out).
-- [ ] No open ADR is needed, or the ADR is already `Accepted`.
-- [ ] Out-of-scope is written; verification commands are named.
-- [ ] The **negative space** is named: the inputs and states the change must refuse or fail closed on, with the intended failure behaviour for each — **cited** from the `REQ` acceptance criteria and the `SPEC §` that owns the failure behaviour, not restated in the plan.
+Filename: `docs/plans/YYYY-MM-DD-<slug>.md`. Frontmatter:
 
-**Definition of Done** (a feature is not finished until — all in the **same implementing PR**):
-- [ ] Code + tests complete and verified on the branch.
-- [ ] The DoR's negative space is exercised: refusal/failure paths have tests, and each **new runtime failure mode** the change introduces maps to the **error contract** — the RFC-2119 `SPEC §` that owns failure behaviour — not left to a generic fall-through.
-- [ ] Spec and/or guide updated if behaviour changed.
-- [ ] Requirements index status updated.
-- [ ] Traceability map (`traceability.yaml`) updated to the landed packages/tests/probes.
-- [ ] Plan flipped to `done` and `git mv`d to `docs/plans/archive/`.
-- [ ] `AGENTS.md` (or its tables) updated if anything user-facing changed.
+| Key | Value |
+|---|---|
+| `plan` | `YYYY-MM-DD-<slug>`, matching the filename |
+| `implements` | the `REQ` / `SPEC §` / `ADR` identifiers this plan delivers |
+| `mode` | `spec-first` or `implementation-aligned` (§7) |
+| `status` | `active` · `done` · `postponed` · `abandoned` |
 
-**Archive-on-completion is normative, not housekeeping:** leaving `done` plans in the active list rots the index. This is the industry's *outer/archive loop*. Land the close-out (plan flip + archive move + index/status updates) in the **same PR** that implements the plan — not a follow-up — so the one merge that ships the code also closes the plan.
+### Dispatch preconditions
+
+Five things are confirmed **before the first task is dispatched** — checked, not ticked in a file:
+
+1. A `REQ` with acceptance criteria exists.
+2. The affected `SPEC §` exist, or a new § is called out.
+3. Any needed `ADR` is `Accepted`.
+4. The negative space is **cited** from the `REQ` acceptance criteria and the `SPEC §` that owns the
+   failure behaviour — what the change must refuse or fail closed on — not restated in the plan.
+5. The verification commands are known.
+
+An unmet precondition stops the dispatch and is named. A file of checkboxes cannot refuse to start work;
+a gate can.
+
+### Close-out: four surfaces, in the implementing PR
+
+When the work is done, four things are set in the same PR that lands the code: the affected `SPEC §`
+status, the `REQ` implementation status, the `traceability.yaml` packages/tests/probes, and the PR body.
+The PR body carries the close-out checklist, the identifiers implemented, the verification commands and
+what they returned, and the deferred items.
+
+### Archive in place, sweep at the release
+
+The plan's frontmatter is flipped to `status: done` **where the file lies**. It does not move, and there
+is no plans index to update, because there is no plans index. The plan stays on the branch through the
+merge so reviewers can read it.
+
+At the next version bump — as the first step, before the tag — every plan whose `status` is `done` or
+`abandoned` is deleted. Inbound links from `docs/**` are checked first — a link from a file that leaves in the same sweep does not count — and the sweep stops with the list;
+the fix is to cite the PR or the `REQ` instead. A plan whose `status` is `active` or `postponed` is never
+touched.
+
+**Why two steps rather than one.** A moved file's links rot; a status line cannot. Deleting the plan
+inside its own PR would take it away from the round that needs it. Between the flip and the sweep,
+`docs/plans/` holds active, postponed, and recently finished plans, and the `status` line is the only
+state. No index can lag, because there is none.
+
+### Postponed and abandoned work
+
+A postponed plan keeps its file: `status: postponed` plus one line saying what would restart it. A later
+branch flips it back to `active` and continues. Work abandoned before its PR merges goes with the branch.
+Work abandoned after its plan reached the main line is marked `status: abandoned` and swept at the next
+release. A finished plan's leftover items travel to the review ledger's `Deferred` table (§13) or become a
+`deferred`-status `REQ`; they never keep a finished plan alive.
 
 ## 10. Agent affordances
 
@@ -159,6 +206,10 @@ Plans are the **only** place checkbox task lists live. Filename: `docs/plans/YYY
 - **One-shot context bundle** — a `spec-context REQ=NNN` command assembles, in one shot, the index row + traceability block + canonical spec excerpt + any open strands, so an agent never has to grep the whole tree. `/sdd-trace` is the in-session analogue.
 - **A published agent loop** (`ai-workflow.md`): locate the `REQ` → follow to its canonical spec → look up ground truth (never guess) → cite identifiers → don't decide open questions in code → verify with the full gate.
 - **Name an authoritative ground-truth source for domain facts and forbid guessing them.** Every domain has a "look it up" rule; the source is declared in `.sdd.yaml` (`ground_truth`).
+- **Cross-repo disagreement.** For a dependency this repository consumes, the upstream's semantics are
+  ground truth and this repository's documents are corrected to match. Raise a genuine conflict as
+  evidence, in one or two sentences — never design around it, and a difference from upstream is never
+  reported as a defect in upstream.
 
 ## 11. Anti-patterns to design against
 
@@ -166,10 +217,100 @@ Plans are the **only** place checkbox task lists live. Filename: `docs/plans/YYY
 - **Rules that exist only in code.** A normative constraint with no `REQ`/spec is invisible to reviewers and agents. Add the `REQ` first.
 - **Happy-path-only acceptance.** Acceptance criteria that never name what the capability must refuse or fail closed on — the negative space is part of the contract (§3, §9).
 - **Mixing kinds.** Tasks in a spec, file paths in a requirement, multiple decisions in one ADR — each erodes the boundaries that make the system legible.
-- **Stale active lists.** `done` plans left active, or an index that lags reality, destroys trust. Archive on completion.
+- **A status line that lies.** A plan left `active` after it shipped, or a `REQ` left `in_progress` after
+  it landed. There is no plans index to rot any more, so the frontmatter is the only state and it has to be true.
+- **Memoir prose.** A specification section or a probe entry states the **current contract only**. History
+  — what it used to say, and why it changed — lives in git and in the ADR. A spec that narrates its own
+  past is two documents in one file.
 - **Settling open questions silently in a PR.** Surface them — a STRAND, an ADR, or a question to the user. Undocumented decisions compound.
 - **Renumbering identifiers.** Breaks every external citation.
 - **CI logic that diverges from local.** If the local gate ≠ what CI runs, agents can't self-verify. One build entry point; every check is a target.
+
+## 12. Ceremony proportional to contract change — the two lanes
+
+Ceremony is owed to a change of contract, not to a volume of code. **The lane test is one question,
+answered in one line of the PR body: does this change alter any normative statement** — a `REQ`'s
+acceptance criteria, a `SPEC §` behaviour, a public API shape, or an error contract?
+
+| Obligation | **Full lane** | **Maintenance lane** |
+|---|---|---|
+| Plan file | required, on the branch | optional — a throwaway task list, not committed |
+| `REQ` / index / `SPEC §` edits | required | forbidden by definition — needing one makes the change full lane |
+| `traceability.yaml` | updated for landed packages/tests/probes | only when file paths moved, and the drift gate names exactly which rows |
+| `ADR` | when an irreversible fork was taken | never — a maintenance change taking an irreversible fork is full lane |
+| SDD reviewer agents | dispatched | skipped — there is no spec delta to review |
+| Review scope | code + conformance + traceability | code review only |
+| PR body | review lens + identifiers touched | one line: `Lane: maintenance — no normative change` |
+| The drift gate (`spec-check`) | runs | **runs** — the map may never rot, in either lane |
+
+A full-lane PR body carries `Lane: full`.
+
+**Membership.** Maintenance lane: refactors, package moves and splits, performance work, dependency
+bumps, tooling, comment and documentation polish, and a bug-fix whose fix makes the code match an
+**existing** spec statement. Full lane: new capability, any change to API shape, behaviour, or error
+contract, any spec amendment — including a bug-fix that reveals the **spec itself** was wrong, where the
+spec amendment rides with the fix as implementation-aligned work (§7).
+
+**The guard against lane abuse is a ratchet, not a diff check.** Any newly added or materially changed
+requirement owes observable acceptance criteria and its own canonical `SPEC §`, whatever lane the change
+claims. The undocumented baseline can only shrink. A ratchet cannot be gamed by mislabelling a change,
+which is exactly what a diff check invites. A mislabel that slips through surfaces in the next full-lane
+conformance review.
+
+**The lane belongs to the change, not to the repository.** It is declared per PR. `.sdd.yaml` learns no
+lane field.
+
+## 13. Review discipline
+
+**Two gates.** The merge gate is: the code is correct; every MUST the change touches has a named test
+that fails when the guard is removed; the code conforms to the cited `SPEC §`; the drift gate is green.
+Everything else — index polish, header alignment, citation parity, trimming — is **non-blocking by
+definition** and goes to the review ledger's `Deferred` table. It is not a review round.
+
+**The ledger is the default review format, not a remedy.** All findings for a change live in one
+numbered comment on the PR, updated in place each round, whatever channel they arrived through. Format
+and rules: [artefact-prose.md](artefact-prose.md). The `Deferred` table is the carrier for a non-blocking
+finding; it is rolled forward into the next change that touches the area. A review leftover does not
+become a tracker issue — that fragments the work away from the change that caused it.
+
+**Materiality threshold.** A reviewer reports **blockers and should-fix findings by default; nits only
+when they are asked for.** An empty axis or an uncited artefact is not automatically drift — "this does
+not map" is a legitimate steady state. Never recommend meta-commentary whose only purpose is to satisfy
+a checker.
+
+**Verify before fixing.** A finding is a claim, and so is a reviewer's proposed correction. Both are
+checked against the code and the spec before either is applied. A correction that is wrong and applied
+propagates into every artefact that cites it.
+
+**Sweep the axis, not the instance.** For each confirmed defect, census the pattern class before
+resolving it. One fixed instance of a class that recurs is a finding deferred, not a finding closed.
+
+**Collapse before you add.** A `REQ` amended during review may not accrete per-incident corollaries; each
+new residual folds into the existing invariant or replaces it. This is **not** "do not amend mid-review" —
+the in-review amendment loop is where much of the value is.
+
+**Settled adjudications are remembered.** A declined finding, with the reason it was declined, is written
+to the repository's reviewer memory at `docs/.sdd/reviewers/<agent-name>.md`, so the same finding is not
+re-raised the next round. The reviewer agents read that file; the triage step writes it.
+
+**The review layer meets the bar it imposes.** A fan-out of reviewers records which members were
+dispatched and how many reported. A panel that cannot say whether all its members reported is not
+evidence of absence.
+
+## 14. What this methodology does not relax
+
+The mechanisms below earned their cost and are untouched by the lanes, the lean plan lifecycle, and the
+review thresholds:
+
+- normative topic specs with RFC-2119 force, and "when code and specs disagree, the specs win";
+- spec-first for new capability, including the pre-code spec review;
+- stated closure properties and invariants as the review anchor, and axis sweeps from them;
+- ground-truth pinning — look it up, never guess;
+- the mutation-detectability bar: removing the guard MUST fail a named test;
+- identifier stability — a published id is never renumbered or reused;
+- ADRs for irreversible forks; STRANDs for genuinely open questions;
+- the traceability map for packages, tests and probes, and the drift gate that validates it — in **both**
+  lanes.
 
 ## Sources
 

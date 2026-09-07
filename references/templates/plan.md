@@ -1,31 +1,26 @@
-<!-- Template: an implementation plan. Produced by superpowers:writing-plans and landed here in
-     docs/plans/ with the SDD citing header below. Filename: docs/plans/YYYY-MM-DD-<slug>.md
-     Plans are the ONLY place checkbox task lists live. A plan introduces NO new normative rules
-     (put those in a spec first, via /sdd-specify). Cite the REQ/SPEC §/ADR it implements in the header. -->
+<!-- Template: a working implementation plan. Filename: docs/plans/YYYY-MM-DD-<slug>.md
+     A plan is a working file on the branch: the only place checkbox task lists live, and it
+     introduces NO normative statement (a rule goes in a spec first, via /sdd-specify).
+     /sdd-archive flips status to done in place — no move, no index.
+     /sdd-finalize deletes done and abandoned plans at the next version bump. Postponed plans
+     are never deleted. -->
 ---
 plan: <YYYY-MM-DD-slug>
-status: active           # active | done | postponed
 implements: [<REQ-AREA-NNN>, <SPEC-NAME §N>]
 mode: spec-first         # spec-first | implementation-aligned
+status: active           # active | done | postponed | abandoned
 ---
 
 # Plan — <title>  (<YYYY-MM-DD>)
 
 **Implements:** <REQ-AREA-NNN> · <SPEC-NAME §N> · <ADR-NNNN>
-**Mode:** spec-first | implementation-aligned
-
-## Definition of Ready
-
-- [ ] A `REQ-*` exists with acceptance criteria
-- [ ] Affected `SPEC-* §` listed (or a new § called out)
-- [ ] No open ADR needed, or the ADR is already `Accepted`
-- [ ] Out-of-scope written below
-- [ ] Verification commands named: `<build_entrypoint> <ci_target>`, `<…>`
-- [ ] Negative space named: what must refuse / fail closed, with the intended failure behaviour — cite the `REQ` acceptance / `SPEC §`, don't restate
+**Lane:** <full | maintenance — no normative change>
+**Verify:** `<build_entrypoint> <ci_target>` · `<build_entrypoint> <spec_check_target>`
 
 ## Tasks
 
-<!-- Small, independently testable units. Each names what it advances and how to verify it. -->
+<!-- Small, independently testable units. Each names what it advances and how to verify it.
+     A task that needs the orchestrator's whole context to make sense is not delegated. -->
 - [ ] **T1** — <task> · cites <REQ-…> · verify: `<command>`
 - [ ] **T2** — <task> · verify: `<command>`
 
@@ -33,14 +28,13 @@ mode: spec-first         # spec-first | implementation-aligned
 
 - <…>
 
-## Definition of Done
+## Deferred
 
-All of the below land in the **same PR** that implements the plan (no follow-up close-out PR):
+<!-- Items consciously not done here. They travel to the PR ledger's Deferred table. -->
+- <…>
 
-- [ ] Code + tests complete and verified on the branch
-- [ ] Negative space exercised: refusal/failure paths tested; new runtime failure modes map to the error-contract `SPEC §`
-- [ ] Spec and/or guide updated if behaviour changed
-- [ ] Requirements index status updated
-- [ ] `traceability.yaml` updated (packages / tests / probes)
-- [ ] Plan flipped to `done` and `git mv`'d into `plans/archive/`
-- [ ] `AGENTS.md` tables updated if anything user-facing changed
+## Notes
+
+<!-- What a fresh session needs to resume from this file alone: which tasks landed, which worker
+     dispatch died and was not re-run, any adjudication made mid-flight.
+     If status is postponed, one line saying what would restart it. -->

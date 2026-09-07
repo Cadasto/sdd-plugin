@@ -1,17 +1,17 @@
 ---
 name: sdd-specify
-description: This skill should be used when the user asks to "add a requirement / capability", "write or extend a spec", "make this behaviour normative (RFC-2119)", "record an ADR / architectural decision", or "resolve a STRAND". The SDD definition layer — authors the `REQ`, the canonical RFC-2119 `SPEC §`, and the `ADR`, assigning identifiers and wiring traceability. Not for exploring/design (superpowers brainstorming), planning/building (superpowers writing-plans / executing-plans), a traceability audit (sdd-trace), or a one-line spec edit (open the file directly).
+description: This skill should be used when the user asks to "add a requirement", "write, extend, or amend a spec", "make this behaviour normative", "record an ADR", or "resolve a STRAND". Authors the REQ, the RFC-2119 SPEC §, and the ADR, assigning identifiers and wiring traceability. Not for planning and building (sdd-deliver) or a drift audit (sdd-trace).
 argument-hint: "<capability, behaviour, or decision to record> [REQ-id]"
 allowed-tools: Read, Write, Edit, Glob, Grep
 ---
 
 # Specify — the SDD definition layer
 
-> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
+> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
-Turn intent (often a design doc from `superpowers:brainstorming`) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
+Turn intent (often a design note from an exploration session) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
 
-If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour hasn't been explored yet, route to superpowers `brainstorming` first (see `references/sdd-with-superpowers.md`).
+If the repo is not scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour has not been explored yet, explore it first: write a design note under `docs/analysis/`, or run the host's brainstorming workflow, and return with the note as input.
 
 ## A · Requirement (`REQ-*`) — capture the capability
 
@@ -21,11 +21,11 @@ If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`
 4. Add the index row to `docs/requirements/README.md`.
 - **No implementation detail** — no file paths, no "how". Track the two status axes separately (`draft` is binding now).
 
-## B · Specification (`SPEC-* §`) — make behaviour normative
+## B · Specification (`SPEC-* §`) — make or amend normative behaviour
 
 1. Open the **canonical** topic spec under `paths.specifications`. Confirm no other file already owns this prose — never create a second copy.
 2. **Look up ground truth** for any domain fact in the source named in `.sdd.yaml` (`ground_truth`); never guess.
-3. Write the statement with explicit **RFC-2119** keywords (MUST/SHALL, SHOULD, MAY) and a stable `§N` anchor. No task lists, no file paths, no PR summaries.
+3. Write or amend the statement with explicit **RFC-2119** keywords (MUST/SHALL, SHOULD, MAY) and a stable `§N` anchor. No task lists, no file paths, no PR summaries. An amendment to an existing § — one sentence or many — is full-lane work (methodology §12) and goes through steps 4 and 5 like a new §; there is no edit of normative text small enough to skip them.
 4. **The spec owns the negative space's *how*.** Refusals, `MUST NOT`s, fail-closed behaviour, and the error contract (what failure looks like) are written here with normative force — the `REQ` acceptance criteria only name and cite them (§A).
 5. Set/verify the `Status:` header; wire the requirements index row to the canonical anchor (link only); add/update the `traceability.yaml` entry (`references/traceability-schema.md`).
 - **One canonical home — never duplicate normative prose.** This is the cardinal rule.
@@ -38,16 +38,16 @@ If the repo isn't scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`
 
 ## Working from a brainstorming design doc
 
-A `docs/superpowers/specs/*-design.md` is **input narrative, not the source of truth.** Extract normative statements into the canonical spec (§B) and capture the capability as a `REQ` (§A). Redirect rules: `references/sdd-with-superpowers.md`.
+A design note is **input narrative, not the source of truth.** Extract its normative statements into the canonical spec.
 
 ## Guardrails
 
 - Keep the kinds separate even though one skill authors all three: a requirement has no normative prose, a spec has no tasks, an ADR holds one decision.
 - Don't settle an open question silently — record it as an ADR (§C) or a `STRAND`, or return to brainstorming.
 - For a missing **upstream** capability (consuming a sibling SDD repo), see `references/cross-repo-gap.md`.
-- After specifying, hand off to superpowers planning per `references/sdd-with-superpowers.md` (plan lands in `docs/plans/` with the SDD citing header).
+- After specifying, run `/sdd-trace <REQ-id>` to confirm the record resolves — index row, canonical anchor, traceability entry — then hand off to `/sdd-deliver`: the plan lands in `docs/plans/` with the citing header.
 
 ## Reference
 
 - `references/sdd-methodology.md` — §3 document kinds & boundaries, §4 RFC-2119, §5 identifiers & single canonical home, §6 status axes.
-- `references/templates/{requirement,specification,adr}.md` · `references/traceability-schema.md` · `references/sdd-with-superpowers.md` · `references/cross-repo-gap.md`.
+- `references/templates/{requirement,specification,adr}.md` · `references/traceability-schema.md` · `references/cross-repo-gap.md`.

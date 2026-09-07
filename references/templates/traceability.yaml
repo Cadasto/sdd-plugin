@@ -1,6 +1,6 @@
 # traceability.yaml — machine-readable REQ → spec → code → test map.
 # One record per requirement. This is an INDEX: it carries NO normative prose.
-# Validated against the tree by the `spec-check` target. Schema: references/traceability-schema.md.
+# Validated against the tree by the `spec-check` target. Schema: the sdd plugin's `references/traceability-schema.md`.
 #
 # Example record (delete once you add real ones):
 # requirements:
@@ -12,5 +12,4 @@
 #     packages: []
 #     tests: []
 #     probes: []
-#     plans: []
 requirements: []

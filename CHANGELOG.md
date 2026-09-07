@@ -7,6 +7,53 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
+## [Unreleased]
+
+The methodology sheds the plan lifecycle and the plugin takes over the delivery pipeline: a plan is a
+working file that is flipped to `done` where it lies and swept at the next release, delivery and triage
+become skills, and findings live in one ledger per change. Moving a repository from 0.4.x is described in `docs/upgrading.md`.
+
+### Added
+- Skills: `sdd-deliver` — the delivery driver: dispatch preconditions, the plan on the branch, `sdd-implementer` fan-out per `agents:`, the per-task gate by lane, round 0 of the ledger, the draft PR, close-out, ready, panel prompts.
+- Skills: `sdd-triage` — one review round: every comment channel enumerated, findings merged into the ledger, verified before fixing, the pattern class swept, fixed in the PR, re-review prompts printed.
+- Skills: `sdd-finalize` — the release sweep: deletes `done` and `abandoned` plans as the first step of a version bump, after an inbound-link check; the first run also removes a legacy `docs/plans/archive/`.
+- Agents: `sdd-implementer` — implements one bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. Denies `Agent` and `Task` through `disallowedTools:` and inherits every other tool the host offers, MCP servers included, so a repository's code index is reachable. On Claude Code it cannot spawn workers; on Cursor, whose subagent frontmatter carries no tool grant, the same rule is a contract the body states.
+- References: `sdd-methodology.md` §12 two lanes with the ratchet guard, §13 review discipline (two gates, the ledger as the default, the materiality threshold, collapse-before-add, the reviewer memory path), §14 the keep-list.
+- References: `artefact-prose.md` — the findings ledger, the `Deferred` table, completion accounting, and the prose register.
+- References: `traceability-schema.md` — the `agents:` and `review_panel` descriptor block and the plan frontmatter contract; `templates/sdd.yaml` carries the matching `agents:` block.
+- Templates: `brief.md` — the worker brief `/sdd-deliver` fills per task — and `adr-README.md`, the ADR index the scaffold emits.
+- Docs: `docs/quick-start.md` — one capability from scaffold to a ready pull request — and `docs/examples.md`, prompts by use case; `docs/upgrading.md` — the 0.4.x to 0.5.0 migration table.
+
+### Changed
+- References: `sdd-methodology.md` §9 is now a working-plan lifecycle — `active | done | postponed | abandoned`, five dispatch preconditions, close-out on four surfaces, archive in place, sweep at the release.
+- References: `sdd-methodology.md` §5 states lazy identifier allocation as the default; §10 adds the cross-repo disagreement rule; §11 adds the memoir rule.
+- References: `artefact-prose.md` states the changelog-bullet rule and the single-canonical-home rule, both as reviewer rules with no tool behind them yet.
+- Skills: every description is trimmed to trigger phrases, purpose, and boundary; bodies drop second person and history-relative phrasing; the plugin-root note is one line; forge commands are qualified per host; `sdd-specify` names the exploration route and ends with a trace check; `sdd-scaffold`'s stub gate fails until a checker is wired.
+- Skills: `sdd-deliver` runs on either lane — the maintenance lane owes no `REQ`, plan, or close-out, per methodology §12 — and runs the full build gate before round 0 and before marking ready; `sdd-finalize` ignores inbound links whose source is itself swept; `sdd-trace` accepts an implementation-aligned plan on a shipped `REQ`; `sdd-review` holds no `Write`. The implementer accepts a maintenance brief with no `REQ`; `sdd-review` takes `--lane` when there is no PR and no plan; an empty `agents.reviewers` on the maintenance lane is cleared by the maintainer's own review; the polish classes of §13 go to `Deferred` from both review and triage.
+- Manifests: the Cursor manifest carries `repository` and `keywords`; the validator checks license, repository, and keywords for parity.
+- Templates: `sdd.yaml` defaults `worker_model` to `inherit`; the manifest description names the delivery pipeline.
+- Skills: `sdd-specify` owns spec amendments — any normative change is full lane — and the router sends them there; `sdd-archive` stops when the branch has no plan; `sdd-deliver` keeps the maintenance task list in the PR body.
+- Agents: `sdd-implementer` cites only the identifiers its brief names — the `REQ` on the full lane, the preserved `SPEC §` or nothing on the maintenance lane.
+- References: `artefact-prose.md` — the maintainer's review is appended to the ledger's accounting line as `maintainer`, where the ready check finds it.
+- Skills: `sdd-archive` is reduced to the frontmatter flip, the status updates, and the PR body — no `git mv`, no index.
+- Skills: `sdd-review` detects the lane, dispatches per lane, writes one ledger instead of one comment per finding, and prints one canonical prompt block per `review_panel` entry with `--panel`.
+- Skills: `sdd-scaffold` no longer creates `docs/plans/archive/` or a plans index, and fills the `agents:` block of the descriptor, suggesting `agents.reviewers` and `agents.worker_skills` from the build manifests in the tree (`go.mod`, `composer.json`, `package.json`) for the maintainer to confirm.
+- Skills: `sdd-specify` hands off to `/sdd-deliver` and no longer routes design notes through another plugin.
+- Skills: `sdd-trace` reports a plan/`REQ` status mismatch from the plan's frontmatter rather than from a plans index.
+- Skills: `spec-driven-development` routes the new surface and states in one paragraph that a general engineering plugin is optional.
+- Agents: the three reviewers gain the materiality threshold, the settled-adjudications memory, and the cross-repo rule.
+- Agents: the three reviewers route code review to the repository's own declared reviewers and test-passing to the build gate.
+- Templates: `plan.md` carries a minimal header; `ai-workflow.md` gains the standing orchestration section with its code-index line, the canonical review-request block, and the ledger rules; `AGENTS.md` mirrors the orchestration rules; `development-process.md` replaces the DoR/DoD blocks with dispatch preconditions, the lanes, and the PR-body close-out with its `Lane:` line.
+- Templates: `ci.md` names the build gate directly, and its scheduled drift-bot row fails the run and reports the drift instead of opening a tracking issue.
+- Hooks: `session-start.sh` lists the full `/sdd-*` surface and the new plan rule.
+- Scripts: `validate.py` requires every agent to declare a grant — `tools:` or `disallowedTools:` — and still rejects `allowed-tools:`.
+- Docs: `AGENTS.md`, `README.md`, `docs/authoring.md`, `docs/install.md`, `docs/testing.md`, and `rules/sdd-context.mdc` follow the new surface; the PR template gains the disclosure grep and `.gitignore` excludes the plan workspace.
+
+### Removed
+- References: `sdd-with-superpowers.md` and the `docs/superpowers/` path redirect. A general engineering plugin is optional and described in one paragraph in the router.
+- References: the `plans:` axis of a traceability record and `paths.plans_archive` from the descriptor and its template.
+- Agents: `sdd-doc-reviewer` no longer reviews plan headers; `sdd-traceability-auditor` no longer reports plan drift classes.
+
 ## [0.4.1] - 2026-08-25
 
 Corrects three component defects and the claims the docs made about them: a `PostToolUse` hook timeout that was five hours rather than twenty seconds, an always-on router that inherited every tool, and two agents that described themselves as read-only while holding `Bash`.

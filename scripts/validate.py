@@ -5,13 +5,14 @@ This is a single-plugin repository (the plugin lives at the repo root), supporti
 both Claude Code (``.claude-plugin/plugin.json``) and Cursor (``.cursor-plugin/plugin.json``).
 Checks:
   * both manifests parse as JSON and carry the required fields;
-  * dual-host parity (name/version/description/author agree across manifests);
+  * dual-host parity (name/version/description/author/license/repository/keywords agree across manifests);
   * every component path declared in a manifest exists inside the plugin dir;
   * kebab-case directory/file names for skills, agents, commands, and rules;
   * hook-config JSON validity when present;
   * SKILL.md / agent / command frontmatter — required keys, and ``name`` matching the
-    directory/filename. Agents MUST declare ``tools:`` (never ``allowed-tools:``, which
-    Claude Code silently ignores so the agent inherits *all* tools — flagged as an error).
+    directory/filename. Agents MUST declare a grant — ``tools:`` (allowlist) or
+    ``disallowedTools:`` (denylist) — and never ``allowed-tools:``, which Claude Code
+    silently ignores so the agent inherits *all* tools (both flagged as errors).
 
 This plugin has no MCP backend, so there is intentionally no ``.mcp.json`` check.
 
@@ -32,7 +33,7 @@ KEBAB_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 # `mcpServers` — this plugin bundles no MCP server.
 MANIFEST_PATH_FIELDS = ("logo", "rules", "skills", "agents", "commands", "hooks")
 # Fields that must agree across the Claude and Cursor manifests.
-SYNCED_FIELDS = ("name", "version", "description", "author")
+SYNCED_FIELDS = ("name", "version", "description", "author", "license", "repository", "keywords")
 
 
 def err(msg):
@@ -101,7 +102,7 @@ def validate_md_components(subdir: str, *, require_name: bool, is_agent: bool = 
     """Validate flat .md components (agents/, commands/): kebab-case filename, frontmatter
     present with the required fields, and any `name` matching the filename stem. Non-recursive,
     so nested material is intentionally skipped (shared command references live in top-level
-    references/). Agents are additionally checked for the `allowed-tools:` foot-gun."""
+    references/). Agents are additionally checked for a declared grant and the `allowed-tools:` foot-gun."""
     comp_dir = ROOT / subdir
     if not comp_dir.is_dir():
         return
@@ -121,8 +122,11 @@ def validate_md_components(subdir: str, *, require_name: bool, is_agent: bool = 
         if fm_name and fm_name.group(1) != md.stem:
             err(f"{rel}: frontmatter name '{fm_name.group(1)}' != filename '{md.stem}'")
         if is_agent and re.search(r"^allowed-tools:", front, re.MULTILINE):
-            err(f"{rel}: agents must declare 'tools:' not 'allowed-tools:' "
-                f"('allowed-tools:' is silently ignored, so the agent inherits ALL tools)")
+            err(f"{rel}: agents declare a grant with 'tools:' or 'disallowedTools:', never "
+                f"'allowed-tools:' (it is silently ignored, so the agent inherits ALL tools)")
+        if is_agent and not re.search(r"^(tools|disallowedTools):", front, re.MULTILINE):
+            err(f"{rel}: agents must declare a tool grant — 'tools:' (allowlist) or "
+                f"'disallowedTools:' (denylist); with neither, the grant is implicit")
 
 
 def validate_rules():
@@ -167,6 +171,14 @@ def validate_json_file(path: Path, label: str):
         load_json(path, label)
 
 
+def validate_hook_scripts():
+    """Every shell script under hooks/ must be executable: both hook configs invoke them by path,
+    and a script without the execute bit fails silently at session start."""
+    for sh in sorted((ROOT / "hooks").glob("*.sh")):
+        if not sh.stat().st_mode & 0o111:
+            err(f"{sh.relative_to(ROOT)}: hook script is not executable (chmod +x)")
+
+
 def main():
     manifests = {}
     for subdir, label in ((".claude-plugin", "Claude manifest"), (".cursor-plugin", "Cursor manifest")):
@@ -198,6 +210,7 @@ def main():
     # Hook configs must be valid JSON when present.
     validate_json_file(ROOT / "hooks" / "hooks.json", "Claude hooks")
     validate_json_file(ROOT / "hooks" / "cursor-hooks.json", "Cursor hooks")
+    validate_hook_scripts()
 
     validate_skills()
     validate_md_components("agents", require_name=True, is_agent=True)
@@ -213,4 +226,4 @@ if __name__ == "__main__":
             print(f"  - {e}")
         sys.exit(1)
     print("OK: manifests, dual-host parity, component paths, kebab-case names, "
-          "hook configs, skills, agents, commands, and rules are valid")
+          "hook configs and scripts, skills, agents, commands, and rules are valid")
