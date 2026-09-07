@@ -68,7 +68,7 @@ Then:
 /sdd-review <N> --post
 ```
 
-On the maintenance lane only the reviewers named in `agents.reviewers` are dispatched — there is no spec delta for the SDD reviewers to read. If that list is empty, the ledger's accounting line reads `Dispatched: none — agents.reviewers is empty · Reported: 0 of 0` and the ledger is not marked clean.
+On the maintenance lane only the reviewers named in `agents.reviewers` are dispatched — there is no spec delta for the SDD reviewers to read. If that list is empty, the ledger's accounting line reads `Dispatched: none — agents.reviewers is empty · Reported: 0 of 0` and the ledger is not marked clean. Your own review of the pull request then stands as the panel and clears it.
 
 The lane is guarded by a ratchet, not a diff check: a reviewer that finds a new rule living only in code flags it, and the change becomes full lane. `make spec-check` runs in both lanes.
 
