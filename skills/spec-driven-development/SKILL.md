@@ -35,7 +35,7 @@ The **specification — not the code, not the prompt — is the source of truth.
 | Traceability / drift / spec-check / a REQ's context | `sdd-trace` |
 | Does the code satisfy the `SPEC §` it cites, clause by clause | `sdd-spec-conformance-reviewer` agent |
 | Review a *requirement, spec, or ADR* for boundary violations | `sdd-doc-reviewer` agent |
-| Close out the spec, index, and plan — in the implementing PR | `sdd-archive` |
+| Close out the spec status, the requirement status, traceability, and the plan — in the implementing PR | `sdd-archive` |
 | Sweep finished plans at a version bump, before the tag | `sdd-finalize` |
 
 ## Optional: a general engineering plugin

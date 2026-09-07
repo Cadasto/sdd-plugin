@@ -4,7 +4,7 @@ This is a pure-content repository — JSON manifests + Markdown components, with
 
 ## Validation
 
-- **Manifest / component validation** — `./scripts/validate.sh` (also run by CI on every PR): checks both `plugin.json` manifests, dual-host parity (name/version/description/author agree), declared component paths, kebab-case names, hook-config JSON, and SKILL.md / agent / command frontmatter (including `name` == directory/filename, and that agents declare a grant — `tools:` or `disallowedTools:` — never `allowed-tools:`). The wrapper runs `scripts/validate.py`; if Python 3 isn't installed it prints a warning and skips (exit 0) rather than failing — install `python3` for the full local check, or rely on `claude plugin validate .` and CI. CI pins Python so the deep check always runs there.
+- **Manifest / component validation** — `./scripts/validate.sh` (CI runs the underlying `python3 scripts/validate.py` directly on every PR): checks both `plugin.json` manifests, dual-host parity (name/version/description/author agree), declared component paths, kebab-case names, hook-config JSON, and SKILL.md / agent / command frontmatter (including `name` == directory/filename, and that agents declare a grant — `tools:` or `disallowedTools:` — never `allowed-tools:`). The wrapper runs `scripts/validate.py`; if Python 3 isn't installed it prints a warning and skips (exit 0) rather than failing — install `python3` for the full local check, or rely on `claude plugin validate .` and CI. CI pins Python so the deep check always runs there.
 - **Official validator** — `claude plugin validate .`: checks the manifest and component structure (no extra dependencies).
 - **Structural review** — run the `plugin-dev:plugin-validator` agent after creating or modifying components.
 - **Skill quality review** — run the `plugin-dev:skill-reviewer` agent: description-triggering quality, progressive disclosure, content structure.
@@ -21,7 +21,7 @@ Install from your working copy (see [install.md](install.md)), then exercise eac
 - **`/sdd-deliver`** — on a REQ whose spec is written, confirm it refuses to dispatch when a precondition is unmet (no spec, no acceptance criteria, no branch), writes the plan to `docs/plans/` on the branch, and opens a **draft** PR whose body carries the claim line.
 - **`/sdd-trace`** — with a deliberately broken `canonical` link, confirm the drift is reported (report-only, no edits).
 - **`/sdd-review`** — on a branch that implements a REQ, confirm it detects the lane, dispatches the SDD reviewers plus the repo's declared reviewers on the full lane, and writes **one numbered ledger** rather than one comment per finding.
-- **`/sdd-review --panel`** — confirm it prints one prompt block per `review_panel` entry for the lane, and still posts one ledger.
+- **`/sdd-review --panel`** — confirm it prints one prompt block per `review_panel` entry for the lane and posts nothing; `--post` is what writes the ledger comment.
 - **`/sdd-triage`** — with findings sitting in more than one place on the PR, confirm it reads all three comment channels (the PR conversation, review comments, and inline code comments) before it fixes anything.
 - **`/sdd-archive`** — confirm the plan's frontmatter flips to `status: done` **in place** — no `git mv`, no index edit — and that the `SPEC §` status, the `REQ` status, and `traceability.yaml` are set in the same commit.
 - **`/sdd-finalize`** — with a `done` plan that `docs/**` still links to, confirm it refuses to delete that plan and names the inbound link; confirm it never touches an `active` or `postponed` plan.
@@ -29,5 +29,6 @@ Install from your working copy (see [install.md](install.md)), then exercise eac
 - **`sdd-implementer`** — dispatch it with a one-task brief; confirm it stays inside the files the brief names, returns an `En-route findings` section, and spawns no sub-agents.
 - **`spec-edit-reminder` hook** — edit a file under `docs/specifications/`; confirm the one-line reminder prints.
 - **Cursor rule** — in Cursor, open a file under `docs/` and confirm `sdd-context.mdc` attaches.
+- **Cursor smoke** — install the branch as a Cursor plugin; dispatch `sdd-implementer` with a one-task brief and confirm it spawns no subagent (a stated contract there, not a grant); run `/sdd-deliver` far enough to write a plan, and confirm it fails loud rather than silently when `gh` is missing.
 
 After editing content, reinstall (or restart the session) to pick up changes.

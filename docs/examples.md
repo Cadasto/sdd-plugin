@@ -157,7 +157,7 @@ sdd:
     task_review: lane
 ```
 
-Workers load those skills from their brief; the reviewer sits on the per-task gate and on the review panel in both lanes. If the repository has a code-index tool, name it in `docs/ai-workflow.md` § Orchestration — workers and reviewers query it before grepping. The same shape holds for any language; the values are the repository's.
+Workers load those skills from their brief; the reviewer sits on the per-task gate and on the review panel in both lanes. If the repository has a code-index tool, name it in `docs/ai-workflow.md` § Orchestration — workers query it before grepping, and the orchestrator uses it to anchor reviewer briefs. The same shape holds for any language; the values are the repository's.
 
 ## Sweep plans at a release
 

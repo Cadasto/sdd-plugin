@@ -36,7 +36,7 @@ Do not close out unverified work; closing out asserts the slice is done.
 ## Guardrails
 
 - **Cite, don't restate** — the close-out commit and PR body follow `references/artefact-prose.md`.
-- **Four surfaces:** `SPEC §` status, `REQ` status, `traceability.yaml`, PR body. Nothing else changes at close-out.
+- **Four close-out surfaces plus the in-place plan flip:** `SPEC §` status, `REQ` status, `traceability.yaml`, PR body — and the plan's `status: done` (step 4). Nothing else changes at close-out.
 - **`AGENTS.md` capability tables are maintenance-lane work**; update them if something user-facing shipped, in this PR or the next.
 
 ## Reference

@@ -32,7 +32,7 @@ This repo supports **both Claude Code and Cursor**; shared assets (skills, agent
 - **Claude manifest**: `.claude-plugin/plugin.json` — `name` (`sdd`), `version`, `description`, `author` (an **object** `{name, url}` — `claude plugin validate` rejects a bare string), `license`, `repository`, `keywords`. Claude Code discovers components from the **default folders** (`skills/`, `agents/`, `hooks/`) automatically.
 - **Cursor manifest**: `.cursor-plugin/plugin.json` — same metadata **plus** explicit top-level path keys (`skills`, `agents`, `rules`, `hooks`). No `mcpServers` — this plugin has no MCP backend. Keep `name`/`version`/`description`/`author` identical to the Claude manifest.
 - **Skills**: `skills/<name>/SKILL.md` — shared by both hosts. The `sdd-*` skills carry `argument-hint` + `allowed-tools` so they are both auto-invoked on intent and user-invocable as `/sdd-*`; `spec-driven-development` is the always-on router. **Skills use `allowed-tools:` (the Claude Code skill/command key — Cursor reads it too); only agents use `tools:`.**
-- **Agents**: `agents/<name>.md` — context-isolated specialists (`tools:` not `allowed-tools:`). Three are report-only; `sdd-implementer` mutates within the files its brief names.
+- **Agents**: `agents/<name>.md` — context-isolated specialists (`tools:` or `disallowedTools:`, never `allowed-tools:`). Three are report-only; `sdd-implementer` mutates within the files its brief names.
 - **References**: `references/` — the canonical methodology, the schemas, the artefact prose-economy rule (`artefact-prose.md`), and `references/templates/` (the files `sdd-scaffold` emits). Skills cite these instead of duplicating rules.
 - **Cursor rules**: `rules/*.mdc` — Cursor-only rule guidance (`description` / `globs` / `alwaysApply`), referenced by the Cursor manifest's `rules` path. Shipped: `rules/sdd-context.mdc`.
 - **Claude hooks**: `hooks/hooks.json` — object `{ "hooks": { "SessionStart": [...], "PostToolUse": [...] } }`; use `${CLAUDE_PLUGIN_ROOT}` in command paths.
@@ -40,7 +40,7 @@ This repo supports **both Claude Code and Cursor**; shared assets (skills, agent
 - **Shared hook scripts**: `hooks/session-start.sh` (detects an SDD repo, prints context + the `/sdd-*` surface) and `hooks/spec-edit-reminder.sh` (reminds to sync traceability after a doc edit). Both host-agnostic; both exit 0 always.
 - **Claude settings**: `.claude/settings.json` enables the maintainer plugins used while developing this repo (skill-creator, superpowers, plugin-dev, claude-md-management) and pre-approves the validate commands; `.claude/CLAUDE.md` imports this file via `@../AGENTS.md`. `.claude/settings.local.json` is gitignored.
 - **Validation**: `scripts/validate.sh` (graceful local wrapper — warns and skips if Python is absent) runs `scripts/validate.py`, which checks both manifests, dual-host parity, declared component paths, kebab-case names, hook-config JSON, and skill/agent/rule frontmatter. CI pins Python and runs the validator strictly ([`.github/workflows/validate.yml`](.github/workflows/validate.yml)).
-- **Contributor docs**: `docs/` holds committed human-facing references — [quick start](docs/quick-start.md), [examples](docs/examples.md), [install](docs/install.md), [testing](docs/testing.md), [versioning](docs/versioning.md), [authoring](docs/authoring.md). `.github/` holds issue + PR templates, `copilot-instructions.md`, and the validate workflow. (Planning/research working notes under `docs/plans/` and `docs/research/` are gitignored — not part of the published plugin.)
+- **Contributor docs**: `docs/` holds committed human-facing references — [quick start](docs/quick-start.md), [examples](docs/examples.md), [install](docs/install.md), [upgrading](docs/upgrading.md), [testing](docs/testing.md), [versioning](docs/versioning.md), [authoring](docs/authoring.md). `.github/` holds issue + PR templates, `copilot-instructions.md`, and the validate workflow. (Planning/research working notes under `docs/plans/` and `docs/research/` are gitignored — not part of the published plugin.)
 
 ## Components
 
@@ -65,9 +65,9 @@ Scope is the **spec / document / traceability layer** and the **delivery pipelin
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans (the `spec-check` analogue) |
 | `sdd-doc-reviewer` | Reviews a single SDD document (REQ/SPEC/ADR — **not** code) for boundary violations (mixed kinds, duplicated prose, missing RFC-2119 force, unstable identifiers) |
 | `sdd-spec-conformance-reviewer` | Judges whether implemented code satisfies the normative `SPEC §` / `REQ` acceptance criteria it cites, clause by clause (conformance — **not** code quality, drift, or test-passing) |
-| `sdd-implementer` | The one mutating agent — implements a single bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. Denies `Agent`/`Task`, so it cannot spawn workers; inherits every other tool, MCP servers included |
+| `sdd-implementer` | The one mutating agent — implements a single bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. Denies `Agent`/`Task` (enforced on Claude Code; a stated contract on Cursor), so it cannot spawn workers; inherits every other tool, MCP servers included |
 
-Three of the four are report-only; `sdd-implementer` writes, within the files its brief names.
+Three of the four are report-only; `sdd-implementer` writes, within the files its brief names. Tool grants are enforced by Claude Code only; Cursor subagents inherit every tool, so there the grants hold as contracts the bodies state.
 
 ### Optional: a general engineering plugin
 A general engineering plugin such as superpowers is optional: exploration workflows help before `/sdd-specify`, and everything after that is covered here. The router skill `spec-driven-development` states where the seam lies.
@@ -94,7 +94,7 @@ Then run the loop (`/sdd-scaffold` → `/sdd-specify` → `/sdd-deliver` → `/s
 - Skills go in `skills/<name>/SKILL.md`; agents in `agents/<name>.md`; Cursor rules in `rules/<name>.mdc`.
 - Shared reference material and scaffold templates live in top-level **`references/`** (not under `commands/`). The legacy `commands/` folder is not used — slash commands are authored as user-invoked skills.
 - All markdown components use YAML frontmatter; frontmatter `name` MUST equal the directory (skills) or filename stem (agents).
-- `allowed-tools:` (skills) pre-approves tools; **agents use `tools:`** — `allowed-tools:` in an agent file is ignored and the agent silently inherits all tools.
+- `allowed-tools:` (skills) pre-approves tools; **agents declare a grant with `tools:` (allowlist) or `disallowedTools:` (denylist)** — `allowed-tools:` in an agent file is ignored and the agent silently inherits all tools.
 - Skill bodies are imperative and **cite `references/sdd-methodology.md`** rather than restating rules; every `sdd-*` skill **reads `docs/.sdd.yaml` first** instead of hard-coding paths/identifier styles.
 
 ### Documentation Sync
@@ -116,7 +116,7 @@ Use feature branches and pull requests. Validation runs on every push/PR.
 
 ## Gotchas
 
-- **Agents use `tools:`, not `allowed-tools:`.** In an agent file `allowed-tools:` is ignored and the agent silently inherits *all* tools. Three of the four shipped agents are report-only — keep them that way; `sdd-implementer` is the one that writes.
+- **Agents declare a grant — `tools:` (allowlist) or `disallowedTools:` (denylist) — never `allowed-tools:`.** In an agent file `allowed-tools:` is ignored and the agent silently inherits *all* tools. The three reviewers keep allowlists and stay report-only; `sdd-implementer` keeps its denylist (`Agent, Task`) so a consuming repo's MCP code index stays reachable — never move it to an allowlist.
 - **`author` in `plugin.json` must be an object** (`{name, url}`); `claude plugin validate` rejects a bare string.
 - **`${CLAUDE_PLUGIN_ROOT}` is Claude-Code-only.** Cursor hook commands stay workspace-relative (`bash hooks/session-start.sh`) — don't "fix" them to use it. For locating bundled templates, `sdd-scaffold` prefers `${CLAUDE_PLUGIN_ROOT}` (or a Cursor plugin-root variable, *if* the host exposes one — unconfirmed) and falls back to a Glob for the installed templates, which is the host-agnostic path. Keep both hook configs in step.
 - **One canonical home for the rules: `references/sdd-methodology.md`.** Skills keep only their procedure and cite the reference. When the methodology changes, update the reference — don't re-inline rule text into each skill.

@@ -10,7 +10,7 @@ A tiny per-repo config so the skills stay repo-agnostic. **Every skill reads it 
 sdd:
   # Identifier style for requirements. Pick one and never switch (it would renumber IDs).
   req_style: area-prefixed          # area-prefixed | flat-numeric
-  req_areas: [FOUND, EHR, CLIN, AUTH, HARD]   # required iff req_style == area-prefixed
+  req_areas: [FOUND, EHR, CLIN, AUTH]   # required iff req_style == area-prefixed
   req_gap: 10                       # decadal gap for flat-numeric (REQ-010, REQ-020, …)
 
   paths:
@@ -38,7 +38,7 @@ sdd:
   # Delivery parameters. /sdd-deliver and /sdd-review read these instead of asking.
   # Every value here is an EXAMPLE — no model and no reviewer is required by the plugin.
   agents:
-    worker_model: opus              # model override /sdd-deliver passes on each worker dispatch
+    worker_model: inherit           # per-dispatch model override; inherit = no override, or a host model id
     max_parallel_workers: 3
     worktree_per_worker: true       # parallel, mutating tasks only
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
@@ -67,7 +67,7 @@ sdd:
 
 | Field | Meaning |
 |---|---|
-| `worker_model` | The model `/sdd-deliver` passes as the **per-dispatch override** when it dispatches a worker. |
+| `worker_model` | The model `/sdd-deliver` passes as the **per-dispatch override** when it dispatches a worker; `inherit` passes none. A model id is host-specific, so the default is `inherit`. |
 | `max_parallel_workers` | Ceiling on workers running at once. Sequential plans run one. |
 | `worktree_per_worker` | Give each parallel, mutating worker its own git worktree. A worktree is real setup cost; pay it only where parallelism pays back. |
 | `worker_skills` | Skills a worker should apply. **Named in the brief**, not preloaded in frontmatter. |
@@ -77,7 +77,7 @@ sdd:
 
 > **`worker_model` is applied per dispatch, never written into an agent file.** Plugin agent definitions
 > live in the host's read-only install cache, so no skill can rewrite their frontmatter. `sdd-implementer`
-> ships `model: inherit` and the driver overrides it on each dispatch.
+> ships `model: inherit` and the driver overrides it on each dispatch when `worker_model` names a model.
 
 > **The descriptor learns no lane field.** The lane is a property of a change, declared in the PR body
 > ([sdd-methodology.md §12](sdd-methodology.md)) — not a property of a repository.
@@ -91,17 +91,17 @@ One record per requirement, linking it to its canonical spec section and to the 
 # Validated against the tree by the `spec-check` target. Do not put requirement prose here.
 requirements:
   - id: REQ-040
-    title: Type registry
-    canonical: docs/specifications/rm-modeling.md#type-registry-req-040
+    title: Token refresh
+    canonical: docs/specifications/auth.md#token-refresh-req-040
     status: draft               # spec stability:   draft | stable | deprecated
     implementation: landed      # build status:     planned | partial | landed   (or proposed | in_progress | shipped | deferred)
     packages:
-      - openehr/rm/typereg
+      - internal/auth/refresh
     probes:                     # optional (use_probes)
       - PROBE-031
       - PROBE-073
     tests:
-      - openehr/serialize/canjson/edgecases_test.go
+      - internal/auth/refresh_test.go
 ```
 
 ### Record fields

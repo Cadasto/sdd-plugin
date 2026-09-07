@@ -43,6 +43,8 @@ A session restart is required for an update to take effect.
 
 Add this repository as a plugin (Cursor **Settings → Plugins**, via Git URL or local path). The repo root contains `.cursor-plugin/plugin.json`, which declares the `skills`, `agents`, `rules`, and `hooks` paths. After changing content locally, reload or reinstall the plugin so Cursor picks it up.
 
+> Cursor subagents inherit every tool. The `tools:` and `disallowedTools:` grants in `agents/*.md` are Claude Code fields, so on Cursor the reviewers' no-edit rule and the implementer's no-spawn rule hold as contracts stated in the agent bodies. Cursor's `subagentStart` hook can deny a spawn and is the enforceable path; 0.5.0 does not ship it.
+
 > The Cursor hook wiring targets the `sessionStart` and `afterFileEdit` events; if your Cursor version exposes a different post-edit event or payload shape, adjust `hooks/cursor-hooks.json` and the path-extraction in `hooks/spec-edit-reminder.sh` accordingly.
 
 ## Host repository requirements

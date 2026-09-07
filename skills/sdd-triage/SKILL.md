@@ -9,7 +9,7 @@ allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 
 > `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
-Read `docs/.sdd.yaml` first for the `agents:` block — `agents.review_panel` for the prompt targets step 7 prints, and `agents.reviewers` where step 5 briefs a fix to the repository's own reviewers.
+Read `docs/.sdd.yaml` first for the `agents:` block — `agents.review_panel.<lane>` names the prompt targets step 7 prints. Take the lane from the `Lane:` line in the PR body, corroborated against the diff as `/sdd-review` step 0 does: edits under `paths.requirements`, `paths.specifications`, or `paths.adr` make it full lane whatever the line says.
 
 Run this in the orchestrator session: triage is judgement. The fixes it decides on are briefed to `sdd-implementer` workers like any other task.
 
@@ -23,7 +23,7 @@ The argument is the PR number. `--from F<n>` narrows the re-review request in st
 4. **Sweep the pattern class.** For each confirmed defect, search the tree for every other instance of the same pattern before resolving it (methodology §13). Fixing one instance of a recurring class leaves the finding open.
 5. **Fix in this PR; defer only what is out of scope.** Confirmed findings are fixed in this PR. Only what is genuinely out of scope goes to the ledger's `Deferred` table, which is rolled forward into the next change that touches the area. Never open a tracker issue for a review leftover — it fragments the work away from the change that caused it (methodology §13). Workers' en-route findings enter the same table. Brief each fix to an `sdd-implementer` worker with the finding id attached; do the fix in-session only when it cannot be made self-contained.
 6. **Push and resolve.** A resolution comment is one line: what changed and the fixing SHA. Plain words, no re-description of the fix — the diff has it (`references/artefact-prose.md`). Write a finding id as `F12` or in words, never as a bare hash-plus-number, which the hosting platform renders as a link to an unrelated issue (artefact-prose.md). Resolve threads where the platform allows it.
-7. **Request re-review.** Post the ledger update, run the in-repo review again for the changed scope, and print the re-review prompt blocks (`--from F<n>`) for the reviewers that run outside this repository, from the repo's `docs/ai-workflow.md` § Review — one block per name in `agents.review_panel.<lane>`.
+7. **Request re-review.** Post the ledger update, run the in-repo review again for the changed scope, and print the re-review prompt blocks (`--from F<n>`) for the reviewers that run outside this repository, from the repo's `docs/ai-workflow.md` § Review — one block per name in `agents.review_panel.<lane>`, for the lane read at the start.
 
 ## Guardrails
 

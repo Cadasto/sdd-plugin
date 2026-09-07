@@ -122,8 +122,8 @@ def validate_md_components(subdir: str, *, require_name: bool, is_agent: bool = 
         if fm_name and fm_name.group(1) != md.stem:
             err(f"{rel}: frontmatter name '{fm_name.group(1)}' != filename '{md.stem}'")
         if is_agent and re.search(r"^allowed-tools:", front, re.MULTILINE):
-            err(f"{rel}: agents must declare 'tools:' not 'allowed-tools:' "
-                f"('allowed-tools:' is silently ignored, so the agent inherits ALL tools)")
+            err(f"{rel}: agents declare a grant with 'tools:' or 'disallowedTools:', never "
+                f"'allowed-tools:' (it is silently ignored, so the agent inherits ALL tools)")
         if is_agent and not re.search(r"^(tools|disallowedTools):", front, re.MULTILINE):
             err(f"{rel}: agents must declare a tool grant — 'tools:' (allowlist) or "
                 f"'disallowedTools:' (denylist); with neither, the grant is implicit")
@@ -171,6 +171,14 @@ def validate_json_file(path: Path, label: str):
         load_json(path, label)
 
 
+def validate_hook_scripts():
+    """Every shell script under hooks/ must be executable: both hook configs invoke them by path,
+    and a script without the execute bit fails silently at session start."""
+    for sh in sorted((ROOT / "hooks").glob("*.sh")):
+        if not sh.stat().st_mode & 0o111:
+            err(f"{sh.relative_to(ROOT)}: hook script is not executable (chmod +x)")
+
+
 def main():
     manifests = {}
     for subdir, label in ((".claude-plugin", "Claude manifest"), (".cursor-plugin", "Cursor manifest")):
@@ -202,6 +210,7 @@ def main():
     # Hook configs must be valid JSON when present.
     validate_json_file(ROOT / "hooks" / "hooks.json", "Claude hooks")
     validate_json_file(ROOT / "hooks" / "cursor-hooks.json", "Cursor hooks")
+    validate_hook_scripts()
 
     validate_skills()
     validate_md_components("agents", require_name=True, is_agent=True)
@@ -217,4 +226,4 @@ if __name__ == "__main__":
             print(f"  - {e}")
         sys.exit(1)
     print("OK: manifests, dual-host parity, component paths, kebab-case names, "
-          "hook configs, skills, agents, commands, and rules are valid")
+          "hook configs and scripts, skills, agents, commands, and rules are valid")

@@ -38,7 +38,7 @@ A focused surface — eight `/sdd-*` commands plus an always-on router.
 
 ### Agents
 
-The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only `Read`/`Grep`/`Glob` and so is read-only outright; the other two add `Bash` for read-only scoping (`git diff`, `git log`), which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and every other tool the host offers — the repository's MCP servers included — is inherited.
+The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only `Read`/`Grep`/`Glob` and so is read-only outright; the other two add `Bash` for read-only scoping (`git diff`, `git log`), which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and every other tool the host offers — the repository's MCP servers included — is inherited. These grants are enforced by Claude Code. Cursor's subagent frontmatter carries no tool grant — a subagent inherits every tool — so on Cursor both the reviewers' no-edit rule and the implementer's no-spawn rule are contracts the agent bodies state, not sandboxes; Cursor's `subagentStart` hook is the enforceable path and is not shipped in 0.5.0.
 
 | Agent | Purpose |
 |---|---|
@@ -50,7 +50,7 @@ The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only 
 ### Hooks
 
 - **SessionStart** — detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a short context line plus the available `/sdd-*` surface.
-- **PostToolUse** *(Claude Code)* — after an edit to a requirement, spec, ADR, plan, or the traceability map, reminds you to keep the traceability chain in sync and run `/sdd-trace`.
+- **PostToolUse** *(Claude Code)* / **afterFileEdit** *(Cursor, `hooks/cursor-hooks.json`)* — after an edit to a requirement, spec, ADR, plan, or the traceability map, reminds you to keep the traceability chain in sync and run `/sdd-trace`.
 
 ### Cursor
 
@@ -87,9 +87,9 @@ See [docs/install.md](docs/install.md) for details.
 /sdd-scaffold                          # lay down the docs/ tree + .sdd.yaml in this repo
 /sdd-specify add a capability for <X>  # capture the REQ, write the normative SPEC, record any ADR
 /sdd-deliver REQ-...                   # preconditions → plan on the branch → workers → round 0 → draft PR
-/sdd-review <PR> --panel               # ledger on the PR + the prompt blocks for reviewers outside the repo
+/sdd-review <PR> --panel               # print the prompt blocks for outside reviewers (--post writes the ledger)
 /sdd-triage <PR>                       # each review round: merge, verify, fix, resolve, re-request
-/sdd-archive REQ-...                   # close out spec, index, and plan — in the implementing PR
+/sdd-archive REQ-...                   # close out spec status, REQ status, traceability, and the plan — in its PR
 /sdd-finalize                          # at the next version bump, before the tag: sweep finished plans
 ```
 
@@ -117,7 +117,7 @@ sdd:
   # Delivery parameters. /sdd-deliver and /sdd-review read these instead of asking.
   # Every value here is an EXAMPLE — no model and no reviewer is required by the plugin.
   agents:
-    worker_model: opus              # model override /sdd-deliver passes on each worker dispatch
+    worker_model: inherit           # per-dispatch model override; inherit = no override, or a host model id
     max_parallel_workers: 3
     worktree_per_worker: true       # parallel, mutating tasks only
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
@@ -133,6 +133,7 @@ sdd:
 - [docs/quick-start.md](docs/quick-start.md) — one capability from idea to a ready pull request
 - [docs/examples.md](docs/examples.md) — prompts by use case
 - [docs/install.md](docs/install.md) — install on both hosts
+- [docs/upgrading.md](docs/upgrading.md) — moving a repository from 0.4.x
 - [docs/testing.md](docs/testing.md) — validate and dogfood
 - [docs/versioning.md](docs/versioning.md) — SemVer + release steps
 - [docs/authoring.md](docs/authoring.md) — skill / agent / rule authoring conventions

@@ -45,6 +45,8 @@ If one of the six is missing, name the missing part and return the task unstarte
 
 Read the `SPEC §` the brief cites before writing code. If the task changes spec-visible behaviour and the brief names no `SPEC §`, return the task unstarted and say which behaviour has no specification. Never resolve a spec question from memory or by inference from the surrounding code. An unresolved spec question goes back to the orchestrator.
 
+A maintenance-lane brief cites the `SPEC §` whose behaviour must stay unchanged, or says `maintenance — no normative change`. If the task turns out to need that behaviour to change, stop, report it under En-route findings, and return the task — a normative change is full-lane work.
+
 ## Cite identifiers
 
 Cite the `REQ` (and `PROBE`, where the repository uses them) in the code and tests you write — a doc comment, a test name — so the chain stays greppable.

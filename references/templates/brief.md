@@ -4,7 +4,7 @@
 # Brief — <plan> · <T<n>>
 
 **Task.** <what to build or change, in enough detail to act on without reading the plan>
-**Cites.** <REQ-AREA-NNN> · <SPEC-NAME §N>  <!-- spec-visible behaviour with no SPEC § is returned unstarted -->
+**Cites.** <REQ-AREA-NNN> · <SPEC-NAME §N>  <!-- full lane: the § implemented (none = returned unstarted); maintenance lane: the § whose behaviour must not change, or "maintenance — no normative change" -->
 **Files.** <the only paths the worker may touch>
 **Verify.** `<command>`  <!-- the worker runs it, reads it, and quotes the output -->
 **Skills.** <agents.worker_skills, or none>
