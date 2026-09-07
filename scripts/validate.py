@@ -5,7 +5,7 @@ This is a single-plugin repository (the plugin lives at the repo root), supporti
 both Claude Code (``.claude-plugin/plugin.json``) and Cursor (``.cursor-plugin/plugin.json``).
 Checks:
   * both manifests parse as JSON and carry the required fields;
-  * dual-host parity (name/version/description/author agree across manifests);
+  * dual-host parity (name/version/description/author/license/repository/keywords agree across manifests);
   * every component path declared in a manifest exists inside the plugin dir;
   * kebab-case directory/file names for skills, agents, commands, and rules;
   * hook-config JSON validity when present;
@@ -33,7 +33,7 @@ KEBAB_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 # `mcpServers` — this plugin bundles no MCP server.
 MANIFEST_PATH_FIELDS = ("logo", "rules", "skills", "agents", "commands", "hooks")
 # Fields that must agree across the Claude and Cursor manifests.
-SYNCED_FIELDS = ("name", "version", "description", "author")
+SYNCED_FIELDS = ("name", "version", "description", "author", "license", "repository", "keywords")
 
 
 def err(msg):

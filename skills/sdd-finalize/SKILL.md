@@ -26,7 +26,7 @@ With `--dry-run`, print steps 2–4 and delete nothing.
 ## Guardrails
 
 - **Never touch an `active` or a `postponed` plan.**
-- **Never delete a plan that another document under `docs/**`, or under a `paths.*` directory outside it, still links to.**
+- **Never delete a plan that another document under `docs/**`, or under a `paths.*` directory outside it, still links to — a link from a file that leaves in the same sweep does not count.**
 - **This is not the close-out.** One plan being finished inside its PR is `/sdd-archive`.
 - **The sweep is a deletion, not a move.** Finished plans are deleted, never moved to an archive directory.
 

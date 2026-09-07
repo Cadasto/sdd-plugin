@@ -33,13 +33,13 @@ The brief is the single source of requirements for this task. Never exceed it. I
 A complete brief follows `references/templates/brief.md` and carries six things:
 
 1. the task — what to build or change, in enough detail to act on;
-2. the `REQ` and `SPEC §` identifiers it cites;
+2. the `REQ` and `SPEC §` identifiers it cites — on the maintenance lane, the `SPEC §` whose behaviour must not change or the words `maintenance — no normative change`, and no `REQ`;
 3. the files you may touch;
 4. the verification command;
 5. the instruction to report en-route findings;
 6. the instruction not to spawn subagents.
 
-If one of the six is missing, name the missing part and return the task unstarted; a missing `SPEC §` is decided by the next section. If the brief names skills to apply, read each skill file from the plugin root — resolved the same way as `references/…` above — and apply it. No skill is attached to this agent's frontmatter.
+If one of the six is missing, name the missing part and return the task unstarted. A `Cites` field with no `REQ` is complete on the maintenance lane; a missing `SPEC §` is decided by the next section. If the brief names skills to apply, read each skill file from the plugin root — resolved the same way as `references/…` above — and apply it. No skill is attached to this agent's frontmatter.
 
 ## Read the spec before you write code
 

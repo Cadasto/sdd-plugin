@@ -30,7 +30,7 @@ Ground claims in the public methodology lineage (GitHub Spec Kit, AWS Kiro, the 
 This repo supports **both Claude Code and Cursor**; shared assets (skills, agents, references) are used by both. Host-specific manifests and hook configs are separate.
 
 - **Claude manifest**: `.claude-plugin/plugin.json` — `name` (`sdd`), `version`, `description`, `author` (an **object** `{name, url}` — `claude plugin validate` rejects a bare string), `license`, `repository`, `keywords`. Claude Code discovers components from the **default folders** (`skills/`, `agents/`, `hooks/`) automatically.
-- **Cursor manifest**: `.cursor-plugin/plugin.json` — same metadata **plus** explicit top-level path keys (`skills`, `agents`, `rules`, `hooks`). No `mcpServers` — this plugin has no MCP backend. Keep `name`/`version`/`description`/`author` identical to the Claude manifest.
+- **Cursor manifest**: `.cursor-plugin/plugin.json` — same metadata **plus** explicit top-level path keys (`skills`, `agents`, `rules`, `hooks`). No `mcpServers` — this plugin has no MCP backend. Keep `name`/`version`/`description`/`author`/`license`/`repository`/`keywords` identical to the Claude manifest.
 - **Skills**: `skills/<name>/SKILL.md` — shared by both hosts. The `sdd-*` skills carry `argument-hint` + `allowed-tools` so they are both auto-invoked on intent and user-invocable as `/sdd-*`; `spec-driven-development` is the always-on router. **Skills use `allowed-tools:` (the Claude Code skill/command key — Cursor reads it too); only agents use `tools:`.**
 - **Agents**: `agents/<name>.md` — context-isolated specialists (`tools:` or `disallowedTools:`, never `allowed-tools:`). Three are report-only; `sdd-implementer` mutates within the files its brief names.
 - **References**: `references/` — the canonical methodology, the schemas, the artefact prose-economy rule (`artefact-prose.md`), and `references/templates/` (the files `sdd-scaffold` emits). Skills cite these instead of duplicating rules.
@@ -101,7 +101,7 @@ Then run the loop (`/sdd-scaffold` → `/sdd-specify` → `/sdd-deliver` → `/s
 When adding or renaming components, update in lockstep: **AGENTS.md** (component tables), **README.md** (tables), **CHANGELOG.md**, the Cursor rule **`rules/sdd-context.mdc`** (it carries its own `/sdd-*` list), and the `/sdd-*` list in **`hooks/session-start.sh`**. Cursor reads the same skills/agents/rules paths, so no separate Cursor-only component list is required. When a machine format changes in `references/traceability-schema.md`, update `references/templates/traceability.yaml`, `references/templates/sdd.yaml`, and every skill or agent that names a record field, in the same commit.
 
 ### Versioning
-Plugin version (and, for consistency, description and author) must be kept in sync in **both** `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`. Follow Semantic Versioning; update both manifests and **CHANGELOG.md** when releasing. See [docs/versioning.md](docs/versioning.md).
+Plugin version (and description, author, license, repository, and keywords) must be kept in sync in **both** `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`. Follow Semantic Versioning; update both manifests and **CHANGELOG.md** when releasing. See [docs/versioning.md](docs/versioning.md).
 
 ### CHANGELOG style
 - Entries go under `## [Unreleased]` while work is in flight and fold into the next `## [X.Y.Z] - YYYY-MM-DD` section at release.

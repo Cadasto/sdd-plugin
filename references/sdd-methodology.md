@@ -183,7 +183,7 @@ is no plans index to update, because there is no plans index. The plan stays on 
 merge so reviewers can read it.
 
 At the next version bump — as the first step, before the tag — every plan whose `status` is `done` or
-`abandoned` is deleted. Inbound links from `docs/**` are checked first and the sweep stops with the list;
+`abandoned` is deleted. Inbound links from `docs/**` are checked first — a link from a file that leaves in the same sweep does not count — and the sweep stops with the list;
 the fix is to cite the PR or the `REQ` instead. A plan whose `status` is `active` or `postponed` is never
 touched.
 

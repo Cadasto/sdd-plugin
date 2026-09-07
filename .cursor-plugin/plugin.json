@@ -7,6 +7,8 @@
     "url": "https://github.com/Cadasto"
   },
   "license": "MIT",
+  "repository": "https://github.com/Cadasto/sdd-plugin",
+  "keywords": ["spec-driven-development", "sdd", "specifications", "requirements", "adr", "traceability"],
   "skills": "skills",
   "agents": "agents",
   "rules": "rules",
