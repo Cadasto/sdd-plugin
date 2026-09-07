@@ -42,7 +42,7 @@ sdd:
     max_parallel_workers: 3
     worktree_per_worker: true       # parallel, mutating tasks only
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
-    reviewers: []                   # this repo's own language reviewers, by agent name
+    reviewers: []                   # this repo's own language reviewers, by agent name; /sdd-scaffold suggests from the build manifests
     task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
     review_panel:                   # who reviews the PR, per lane; names are prompt targets, not integrations
       full: [claude, cursor]
@@ -71,7 +71,7 @@ sdd:
 | `max_parallel_workers` | Ceiling on workers running at once. Sequential plans run one. |
 | `worktree_per_worker` | Give each parallel, mutating worker its own git worktree. A worktree is real setup cost; pay it only where parallelism pays back. |
 | `worker_skills` | Skills a worker should apply. **Named in the brief**, not preloaded in frontmatter. |
-| `reviewers` | The repository's own language reviewers, by agent name. Used for the per-task gate and as the code-review member of the review panel. |
+| `reviewers` | The repository's own language reviewers, by agent name. Used for the per-task gate and as the code-review member of the review panel. `/sdd-scaffold` suggests a value from the build manifests in the tree; the maintainer confirms it. |
 | `task_review` | `on` · `off` · `lane`. `lane` means on for the full lane and off for the maintenance lane. |
 | `review_panel.full` / `review_panel.maintenance` | Which reviewers `/sdd-review --panel` prints a prompt block for, per lane. Values are **examples**; a repository picks its own, and none is mandated. |
 

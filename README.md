@@ -27,7 +27,7 @@ A focused surface — eight `/sdd-*` commands plus an always-on router.
 | Skill | Use it to… |
 |---|---|
 | `spec-driven-development` | Auto-invoked awareness/router — explains the methodology, routes intent, states where an optional general engineering plugin still fits, and blocks jumping to code when no requirement or spec exists yet |
-| `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor (idempotent — fills gaps, never clobbers) |
+| `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor, suggesting `agents.reviewers` from the build manifests (idempotent — fills gaps, never clobbers) |
 | `/sdd-specify` | The definition layer — capture a capability (`REQ`), write RFC-2119 normative behaviour into the canonical spec (`SPEC §`), and record decisions (`ADR`); assigns identifiers and wires traceability |
 | `/sdd-deliver` | The delivery driver — check the dispatch preconditions, write the plan on the branch, fan `sdd-implementer` workers out per the descriptor's `agents:` block, gate each task by lane, open round 0 of the ledger and the draft PR, then close out and mark it ready |
 | `/sdd-review` | Lane-aware review orchestration — dispatch the SDD reviewers plus the repo's declared reviewers on the full lane, the declared reviewers alone on the maintenance lane, and write one numbered ledger; `--panel` prints the canonical prompt blocks |

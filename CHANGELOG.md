@@ -28,7 +28,7 @@ become skills, and findings live in one ledger per change.
 - References: `artefact-prose.md` states the changelog-bullet rule and the single-canonical-home rule, both as reviewer rules with no tool behind them yet.
 - Skills: `sdd-archive` is reduced to the frontmatter flip, the status updates, and the PR body — no `git mv`, no index.
 - Skills: `sdd-review` detects the lane, dispatches per lane, writes one ledger instead of one comment per finding, and prints one canonical prompt block per `review_panel` entry with `--panel`.
-- Skills: `sdd-scaffold` no longer creates `docs/plans/archive/` or a plans index, and fills the `agents:` block of the descriptor.
+- Skills: `sdd-scaffold` no longer creates `docs/plans/archive/` or a plans index, and fills the `agents:` block of the descriptor, suggesting `agents.reviewers` and `agents.worker_skills` from the build manifests in the tree (`go.mod`, `composer.json`, `package.json`) for the maintainer to confirm.
 - Skills: `sdd-specify` hands off to `/sdd-deliver` and no longer routes design notes through another plugin.
 - Skills: `sdd-trace` reports a plan/`REQ` status mismatch from the plan's frontmatter rather than from a plans index.
 - Skills: `spec-driven-development` routes the new surface and states in one paragraph that a general engineering plugin is optional.
