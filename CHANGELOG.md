@@ -7,7 +7,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
-## [0.5.0] - 2026-09-04
+## [Unreleased]
 
 The methodology sheds the plan lifecycle and the plugin takes over the delivery pipeline: a plan is a
 working file that is flipped to `done` where it lies and swept at the next release, delivery and triage
@@ -32,6 +32,9 @@ become skills, and findings live in one ledger per change. Moving a repository f
 - Skills: `sdd-deliver` runs on either lane — the maintenance lane owes no `REQ`, plan, or close-out, per methodology §12 — and runs the full build gate before round 0 and before marking ready; `sdd-finalize` ignores inbound links whose source is itself swept; `sdd-trace` accepts an implementation-aligned plan on a shipped `REQ`; `sdd-review` holds no `Write`. The implementer accepts a maintenance brief with no `REQ`; `sdd-review` takes `--lane` when there is no PR and no plan; an empty `agents.reviewers` on the maintenance lane is cleared by the maintainer's own review; the polish classes of §13 go to `Deferred` from both review and triage.
 - Manifests: the Cursor manifest carries `repository` and `keywords`; the validator checks license, repository, and keywords for parity.
 - Templates: `sdd.yaml` defaults `worker_model` to `inherit`; the manifest description names the delivery pipeline.
+- Skills: `sdd-specify` owns spec amendments — any normative change is full lane — and the router sends them there; `sdd-archive` stops when the branch has no plan; `sdd-deliver` keeps the maintenance task list in the PR body.
+- Agents: `sdd-implementer` cites only the identifiers its brief names — the `REQ` on the full lane, the preserved `SPEC §` or nothing on the maintenance lane.
+- References: `artefact-prose.md` — the maintainer's review is appended to the ledger's accounting line as `maintainer`, where the ready check finds it.
 - Skills: `sdd-archive` is reduced to the frontmatter flip, the status updates, and the PR body — no `git mv`, no index.
 - Skills: `sdd-review` detects the lane, dispatches per lane, writes one ledger instead of one comment per finding, and prints one canonical prompt block per `review_panel` entry with `--panel`.
 - Skills: `sdd-scaffold` no longer creates `docs/plans/archive/` or a plans index, and fills the `agents:` block of the descriptor, suggesting `agents.reviewers` and `agents.worker_skills` from the build manifests in the tree (`go.mod`, `composer.json`, `package.json`) for the maintainer to confirm.

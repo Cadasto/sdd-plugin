@@ -34,7 +34,7 @@ This repo may be published. Author all content as **general-purpose, language-ag
 
 ## Dual-host parity
 
-Skills, agents, and rules are shared by both hosts. The **Cursor** manifest (`.cursor-plugin/plugin.json`) declares each component path; **Claude** discovers the default folders automatically. Keep the two manifests' `name`/`version`/`description`/`author` identical (`scripts/validate.py` checks parity), and the Cursor hook commands **workspace-relative** (`bash hooks/session-start.sh`), never `${CLAUDE_PLUGIN_ROOT}` (a Claude-Code-only variable).
+Skills, agents, and rules are shared by both hosts. The **Cursor** manifest (`.cursor-plugin/plugin.json`) declares each component path; **Claude** discovers the default folders automatically. Keep the two manifests' `name`/`version`/`description`/`author`/`license`/`repository`/`keywords` identical (`scripts/validate.py` checks parity), and the Cursor hook commands **workspace-relative** (`bash hooks/session-start.sh`), never `${CLAUDE_PLUGIN_ROOT}` (a Claude-Code-only variable).
 
 ## Before committing
 

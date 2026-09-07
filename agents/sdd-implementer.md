@@ -49,7 +49,7 @@ A maintenance-lane brief cites the `SPEC §` whose behaviour must stay unchanged
 
 ## Cite identifiers
 
-Cite the `REQ` (and `PROBE`, where the repository uses them) in the code and tests you write — a doc comment, a test name — so the chain stays greppable.
+Cite the identifiers the brief names in the code and tests you write — a doc comment, a test name — so the chain stays greppable: the `REQ` (and `PROBE`, where the repository uses them) on the full lane; on the maintenance lane the `SPEC §` whose behaviour is preserved, or nothing when the brief says `maintenance — no normative change`. Never invent an identifier.
 
 ## Verification
 
@@ -76,7 +76,7 @@ Four sections, in this order, and the last one is headed exactly `## En-route fi
 3. **Open questions** — what the orchestrator has to decide, or `None`.
 4. `## En-route findings` — one `file:line` and one sentence each, or `None`.
 
-Keep it terse and identifier-anchored: cite the `REQ`, the `SPEC §`, and the finding id rather than retelling what they say.
+Keep it terse and identifier-anchored: cite the `REQ` and `SPEC §` the brief names — or its `maintenance — no normative change` line — and the finding id, rather than retelling what they say.
 
 ## Edge cases
 

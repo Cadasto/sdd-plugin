@@ -143,7 +143,7 @@ The format and its rules live in [artefact-prose.md](../references/artefact-pros
 /sdd-deliver <N>
 ```
 
-Given a pull request number, the skill reads the draft's body — the claim line and the plan path — and the plan file on the branch, and continues at the first unfinished step. A claim line that names a different session stops it: two sessions on one branch means one of them is thrown away.
+Given a pull request number, the skill reads the draft's body — the claim line, and the plan path or, on the maintenance lane, the task list — plus the plan file on the branch when there is one, and continues at the first unfinished step. A claim line that names a different session stops it: two sessions on one branch means one of them is thrown away.
 
 ## Configure a Go repository
 

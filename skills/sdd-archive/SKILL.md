@@ -11,7 +11,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 Close out a finished slice on the branch that implements it. The plan is flipped to `done` where it lies: no move, no link rewrite, no index. Read `docs/.sdd.yaml` for `paths.plans` and the traceability map location.
 
-The argument is the plan file or the `REQ` being closed out; given neither, find the active plan on this branch and name it before changing anything.
+The argument is the plan file or the `REQ` being closed out; given neither, find the active plan on this branch and name it before changing anything. If the branch has no plan, stop: a maintenance-lane change has nothing to close out, and a full-lane change without a plan has not been through `/sdd-deliver`.
 
 ## When to run it
 

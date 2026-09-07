@@ -51,7 +51,7 @@ Dispatched: <reviewers> · Reported: <n> of <m>
   id for the life of the change.
 - `severity` is `blocker | should-fix | nit`. `status` is `open | fixed@<sha> | declined + reason | deferred`.
 - Every fix pass enumerates **the ledger**, never the comment channels.
-- **Completion accounting.** The header names which reviewers were dispatched and how many reported.
+- **Completion accounting.** The header names which reviewers were dispatched and how many reported. The maintainer's review of the draft is appended to the same line when it is in — `Dispatched: <reviewers>, maintainer · Reported: <n> of <m>` — which is where a ready check finds it; on a `Dispatched: none` ledger the maintainer is then the whole panel.
 - Near-duplicate findings from two reviewers merge under **one** id, with both sources named.
 - Write a finding id as `F12`, or in words — **never as a bare hash-plus-number**, which a hosting platform
   renders as a link to an unrelated issue or pull request. That is a false citation, and every tool that

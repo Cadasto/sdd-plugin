@@ -60,7 +60,8 @@ round. Ids are `F<n>` and append-only; `status` is `open | fixed@<sha> | decline
 Report blockers and should-fix by default; nits go to `Deferred`. The `Deferred` table is the carrier for
 a non-blocking finding — it is rolled forward into the next change that touches the area, and never
 becomes a tracker issue. Write a finding id as `F12`, never as a bare hash-plus-number, which a hosting
-platform renders as a link to an unrelated issue.
+platform renders as a link to an unrelated issue. The maintainer's review of the draft is appended to the
+accounting line as `maintainer`; the ready check looks for it there.
 
 ```markdown
 ## Review ledger — round N (reviewer, date)

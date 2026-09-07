@@ -28,7 +28,7 @@ The **specification — not the code, not the prompt — is the source of truth.
 |---|---|
 | Set up / extend the SDD docs structure | `sdd-scaffold` |
 | Capture a capability, write normative behaviour, or record a decision (REQ/SPEC/ADR) | `sdd-specify` |
-| Amend one sentence of an existing spec § | open the file directly, then `sdd-trace` to confirm the record still resolves |
+| Amend an existing spec § — any normative change, one sentence or many, is full lane | `sdd-specify` |
 | Deliver a REQ or plan: preconditions, plan, workers, gates, draft PR | `sdd-deliver` |
 | Implement one bounded task from a brief | `sdd-implementer` agent (dispatched by `sdd-deliver`) |
 | Spec-aware review into the ledger; prompt blocks for the panel | `sdd-review` |
