@@ -22,6 +22,7 @@ become skills, and findings live in one ledger per change.
 - References: `artefact-prose.md` — the findings ledger, the `Deferred` table, completion accounting, and the prose register.
 - References: `traceability-schema.md` — the `agents:` and `review_panel` descriptor block and the plan frontmatter contract; `templates/sdd.yaml` carries the matching `agents:` block.
 - Templates: `brief.md` — the worker brief `/sdd-deliver` fills per task — and `adr-README.md`, the ADR index the scaffold emits.
+- Docs: `docs/quick-start.md` — one capability from scaffold to a ready pull request — and `docs/examples.md`, prompts by use case.
 
 ### Changed
 - References: `sdd-methodology.md` §9 is now a working-plan lifecycle — `active | done | postponed | abandoned`, five dispatch preconditions, close-out on four surfaces, archive in place, sweep at the release.

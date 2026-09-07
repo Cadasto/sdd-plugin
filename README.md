@@ -93,6 +93,8 @@ See [docs/install.md](docs/install.md) for details.
 /sdd-finalize                          # at the next version bump, before the tag: sweep finished plans
 ```
 
+The walkthrough is [docs/quick-start.md](docs/quick-start.md); prompts by use case are in [docs/examples.md](docs/examples.md).
+
 ## The project descriptor
 
 `/sdd-scaffold` writes `docs/.sdd.yaml`; every other skill reads it. It is what keeps the plugin repo-agnostic:
@@ -128,6 +130,8 @@ sdd:
 
 ## Documentation
 
+- [docs/quick-start.md](docs/quick-start.md) — one capability from idea to a ready pull request
+- [docs/examples.md](docs/examples.md) — prompts by use case
 - [docs/install.md](docs/install.md) — install on both hosts
 - [docs/testing.md](docs/testing.md) — validate and dogfood
 - [docs/versioning.md](docs/versioning.md) — SemVer + release steps
