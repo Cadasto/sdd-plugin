@@ -58,7 +58,7 @@ The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only 
 
 ## Optional: a general engineering plugin
 
-A general engineering plugin such as superpowers is optional and is no longer part of this plugin's surface or its references. Exploration workflows are still a good way to open a new idea before `/sdd-specify`; planning, execution, verification, code review, and branch finishing are covered by `/sdd-deliver`, `sdd-implementer`, the review ledger, and the PR-body close-out. Running both over the same work duplicates the loop and splits the plan's home.
+A general engineering plugin such as superpowers is optional: exploration workflows help before `/sdd-specify`, and everything after that is covered here. The router skill `spec-driven-development` states where the seam lies.
 
 ## Install
 

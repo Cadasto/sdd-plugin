@@ -70,11 +70,7 @@ Scope is the **spec / document / traceability layer** and the **delivery pipelin
 Three of the four are report-only; `sdd-implementer` writes, within the files its brief names.
 
 ### Optional: a general engineering plugin
-A general engineering plugin such as superpowers is optional and is no longer part of this plugin's
-surface or its references. Exploration workflows are still a good way to open a new idea before
-`/sdd-specify`; planning, execution, verification, code review, and branch finishing are covered by
-`/sdd-deliver`, `sdd-implementer`, the review ledger, and the PR-body close-out. Running both over the
-same work duplicates the loop and splits the plan's home.
+A general engineering plugin such as superpowers is optional: exploration workflows help before `/sdd-specify`, and everything after that is covered here. The router skill `spec-driven-development` states where the seam lies.
 
 ### Hooks
 - **SessionStart** — detects an SDD repository and prints a context line plus the `/sdd-*` surface (or a scaffold pointer in a non-SDD repo with a `docs/` dir).

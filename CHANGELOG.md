@@ -21,11 +21,13 @@ become skills, and findings live in one ledger per change.
 - References: `sdd-methodology.md` §12 two lanes with the ratchet guard, §13 review discipline (two gates, the ledger as the default, the materiality threshold, collapse-before-add, the reviewer memory path), §14 the keep-list.
 - References: `artefact-prose.md` — the findings ledger, the `Deferred` table, completion accounting, and the prose register.
 - References: `traceability-schema.md` — the `agents:` and `review_panel` descriptor block and the plan frontmatter contract; `templates/sdd.yaml` carries the matching `agents:` block.
+- Templates: `brief.md` — the worker brief `/sdd-deliver` fills per task — and `adr-README.md`, the ADR index the scaffold emits.
 
 ### Changed
 - References: `sdd-methodology.md` §9 is now a working-plan lifecycle — `active | done | postponed | abandoned`, five dispatch preconditions, close-out on four surfaces, archive in place, sweep at the release.
 - References: `sdd-methodology.md` §5 states lazy identifier allocation as the default; §10 adds the cross-repo disagreement rule; §11 adds the memoir rule.
 - References: `artefact-prose.md` states the changelog-bullet rule and the single-canonical-home rule, both as reviewer rules with no tool behind them yet.
+- Skills: every description is trimmed to trigger phrases, purpose, and boundary; bodies drop second person and history-relative phrasing; the plugin-root note is one line; forge commands are qualified per host; `sdd-specify` names the exploration route and ends with a trace check; `sdd-scaffold`'s stub gate fails until a checker is wired.
 - Skills: `sdd-archive` is reduced to the frontmatter flip, the status updates, and the PR body — no `git mv`, no index.
 - Skills: `sdd-review` detects the lane, dispatches per lane, writes one ledger instead of one comment per finding, and prints one canonical prompt block per `review_panel` entry with `--panel`.
 - Skills: `sdd-scaffold` no longer creates `docs/plans/archive/` or a plans index, and fills the `agents:` block of the descriptor, suggesting `agents.reviewers` and `agents.worker_skills` from the build manifests in the tree (`go.mod`, `composer.json`, `package.json`) for the maintainer to confirm.
