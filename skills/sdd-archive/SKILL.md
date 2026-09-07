@@ -1,13 +1,13 @@
 ---
 name: sdd-archive
-description: 'This skill should be used when the user asks to "close out the plan", "mark the plan done", "mark the requirement shipped", or "this feature is done — close it out". The SDD close-out inside the implementing PR — flips the plan''s frontmatter to `status: done` where it lies, sets the SPEC § and REQ statuses and the traceability map, and fills the PR body. No file move, no index. Not for deleting finished plans at a release (sdd-finalize), for the drift check (sdd-trace), or for reviewing the change (sdd-review).'
+description: This skill should be used when the user asks to "close out the plan", "mark the plan done", "mark the requirement shipped", or "this feature is done, close it out". Flips the plan status to done in place and sets the SPEC §, REQ, traceability, and PR-body surfaces inside the implementing PR. Not for deleting finished plans at a release (sdd-finalize), the drift check (sdd-trace), or review (sdd-review).
 argument-hint: "<plan file or REQ to close out>"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 # Archive — the SDD close-out, in place
 
-> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
+> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
 Close out a finished slice on the branch that implements it. The plan is flipped to `done` where it lies: no move, no link rewrite, no index. Read `docs/.sdd.yaml` for `paths.plans` and the traceability map location.
 

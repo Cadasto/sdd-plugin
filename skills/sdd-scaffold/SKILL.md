@@ -1,13 +1,13 @@
 ---
 name: sdd-scaffold
-description: This skill should be used when the user asks to "set up SDD", "initialize spec-driven development", "scaffold the docs tree", "add SDD structure to this repo", or "create the requirements/specifications layout". Creates the SDD docs/ tree, document templates, the .sdd.yaml descriptor, AGENTS.md, and the process docs — idempotently. Not for authoring a requirement, spec, or decision in an already-scaffolded repo (use sdd-specify).
+description: This skill should be used when the user asks to "set up SDD", "initialize spec-driven development", "scaffold the docs tree", or "add SDD structure to this repo". Creates the docs/ tree, templates, the .sdd.yaml descriptor, AGENTS.md, and the process docs, idempotently. Not for authoring a requirement, spec, or decision in a scaffolded repo (sdd-specify).
 argument-hint: "[req-style: area-prefixed|flat-numeric] [build tool: make|task|just|npm]"
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 # Scaffold an SDD repository
 
-> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy. (Step 0 below resolves the same root for copying templates.)
+> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy. Step 0 resolves the same root for copying templates.
 
 Lay down the spec-driven structure from the methodology — the `docs/` tree, templates, the project descriptor, the governed `AGENTS.md`, and the process docs. **Idempotent:** detect what already exists and fill gaps; never overwrite a populated file.
 

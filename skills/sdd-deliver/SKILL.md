@@ -1,13 +1,13 @@
 ---
 name: sdd-deliver
-description: This skill should be used when the user asks to "deliver REQ-…", "run the delivery pipeline", "take this REQ to a draft PR", or "plan and build this requirement end to end". The delivery driver — checks the dispatch preconditions, writes the plan on the branch, fans `sdd-implementer` workers out per the descriptor's `agents:` block, gates each task by lane, runs the in-branch review into round 0 of the ledger, opens the draft PR, then closes out and marks it ready. Not for work with no REQ or plan behind it, which belongs to whatever general engineering loop you use, and not for working a review round (sdd-triage).
+description: This skill should be used when the user asks to "deliver REQ-…", "run the delivery pipeline", "take this REQ to a draft PR", or "plan and build this requirement end to end". Drives one REQ or plan from the dispatch preconditions through workers, gates, and round 0 to a ready pull request. Not for work with no REQ or plan behind it, or for working a review round (sdd-triage).
 argument-hint: "<REQ-id, plan file, or PR number to resume> [--lane full|maintenance]"
 allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 ---
 
 # Deliver — one REQ or plan, from preconditions to a ready pull request
 
-> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
+> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
 Drive one `REQ` or one plan from preconditions to a ready pull request. Read `docs/.sdd.yaml` first — the procedure and its parameters come from the descriptor and this file, never from session memory.
 

@@ -1,13 +1,13 @@
 ---
 name: sdd-trace
-description: This skill should be used when the user asks to "show traceability for REQ-X", "assemble context for REQ-X", "what implements/tests this requirement", "are there orphan requirements", or wants a quick in-session drift / spec-check scan. Report-only — assembles the one-shot context bundle for a REQ and reports drift/orphans in-session (the spec-check analogue). Not for tests/build verification (the build gate), authoring (sdd-specify), close-out (sdd-archive), or a whole-repo pre-release audit (sdd-traceability-auditor agent).
+description: This skill should be used when the user asks to "show traceability for REQ-X", "what implements or tests this requirement", "are there orphan requirements", or wants a quick drift scan. Report-only. Assembles a REQ's context bundle or reports map-versus-tree drift in-session. Not for tests or build verification, authoring (sdd-specify), close-out (sdd-archive), or a whole-repo audit (sdd-traceability-auditor agent).
 argument-hint: "[REQ-id, or blank for a whole-tree drift scan]"
 allowed-tools: Read, Glob, Grep, Bash
 ---
 
 # Trace — the SDD traceability gate
 
-> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
+> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
 Owns the *spec-side* check: does the traceability map still match the tree, and what is the full context for a requirement. Read `docs/.sdd.yaml` for paths, the traceability map, and `spec_check_target`. (Whether the tests and the build pass is the build gate's job — see Guardrails.)
 

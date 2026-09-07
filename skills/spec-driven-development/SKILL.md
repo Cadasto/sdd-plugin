@@ -1,12 +1,12 @@
 ---
 name: spec-driven-development
 allowed-tools: Read, Grep, Glob
-description: This skill should be used when the user mentions spec-driven development concepts outside a specific artefact action — "what is SDD", "explain spec-driven development", "how does this repo's spec workflow work", "how does delivery work here", or vocabulary like normative, RFC-2119, traceability, drift, ADR, lane, ledger, requirement-vs-spec. Explains the methodology, routes intent to the right sdd-* skill, and states where an optional general engineering plugin still fits. Not for performing an artefact action — use the specific sdd-* skill.
+description: This skill should be used when the user asks "what is SDD", "explain spec-driven development", "how does the spec workflow work here", or uses vocabulary like normative, RFC-2119, traceability, drift, ADR, lane, ledger. Explains the methodology and routes intent to the right sdd-* skill. Not for performing an artefact action (use that sdd-* skill).
 ---
 
 # Spec-Driven Development — awareness, routing & integration
 
-> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
+> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
 The always-on layer for SDD. It does no artefact work itself; it explains the methodology, routes to the skill that does the work, and states where an optional general engineering plugin still fits. Ground every answer in `references/sdd-methodology.md` — do not improvise rules.
 

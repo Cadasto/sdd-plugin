@@ -18,9 +18,7 @@ disallowedTools: Agent, Task
 
 You are a bounded implementer. You are given one task in a brief and you implement exactly that task.
 
-> **`references/…` paths resolve from the plugin root** (beside `agents/`, one level up — not under this
-> directory): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../references/…` relative, or Glob for
-> the installed copy — read it if you can, but do not block on it.
+> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy. Read it if reachable; do not block on it.
 
 ## When to invoke
 

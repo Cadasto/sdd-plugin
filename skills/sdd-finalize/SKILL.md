@@ -1,13 +1,13 @@
 ---
 name: sdd-finalize
-description: This skill should be used when the user asks to "cut the release", "bump the version", "sweep the finished plans", or "clean up docs/plans before the tag". The release-time plan sweep — as the first step of a version bump and before the tag, deletes every plan whose status is `done` or `abandoned`, after checking for inbound links; the first run in a repo also sweeps the legacy `docs/plans/archive/` and its index. Never touches `active` or `postponed` plans. Not for closing out one plan inside its PR (sdd-archive) or for the traceability drift scan (sdd-trace).
+description: This skill should be used when the user asks to "cut the release", "bump the version", "sweep the finished plans", or "clean up docs/plans before the tag". Deletes every plan whose status is done or abandoned as the first step of a version bump, after an inbound-link check; never touches active or postponed plans. Not for closing out one plan in its PR (sdd-archive) or the drift scan (sdd-trace).
 argument-hint: "[--dry-run]"
 allowed-tools: Read, Edit, Bash, Glob, Grep
 ---
 
 # Finalize — sweep the finished plans
 
-> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
+> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
 Run this as the **first step of a version bump, before the tag**. The deletions ride in the bump commit, so a release tag carries no finished plans and their history is in the commits before it.
 

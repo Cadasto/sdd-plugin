@@ -1,13 +1,13 @@
 ---
 name: sdd-triage
-description: This skill should be used when the user asks to "triage the review", "the reviews are in — work through them", "merge the review findings into the ledger", or "fix what the panel found". The review-round procedure — enumerates every comment channel on the PR, merges findings into the numbered ledger, verifies each claim before fixing, sweeps the pattern class, fixes in this PR, writes resolution comments, and prints the re-review prompts. Not for producing the first review (sdd-review) or for closing out the plan (sdd-archive).
+description: This skill should be used when the user asks to "triage the review", "the reviews are in, work through them", "merge the findings into the ledger", or "fix what the panel found". Works one review round to the end. Every comment channel is read, findings are merged and verified, fixes land in this PR, and re-review is requested. Not for the first review (sdd-review) or the close-out (sdd-archive).
 argument-hint: "<PR number> [--from F<n>]"
 allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 ---
 
 # Triage — work one review round to the end
 
-> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
+> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
 Read `docs/.sdd.yaml` first for the `agents:` block — `agents.review_panel` for the prompt targets step 7 prints, and `agents.reviewers` where step 5 briefs a fix to the repository's own reviewers.
 

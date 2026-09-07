@@ -1,13 +1,13 @@
 ---
 name: sdd-specify
-description: This skill should be used when the user asks to "add a requirement / capability", "write or extend a spec", "make this behaviour normative (RFC-2119)", "record an ADR / architectural decision", or "resolve a STRAND". The SDD definition layer — authors the `REQ`, the canonical RFC-2119 `SPEC §`, and the `ADR`, assigning identifiers and wiring traceability. Not for exploring/design, planning and building (sdd-deliver), a traceability audit (sdd-trace), or a one-line spec edit (open the file directly).
+description: This skill should be used when the user asks to "add a requirement", "write or extend a spec", "make this behaviour normative", "record an ADR", or "resolve a STRAND". Authors the REQ, the RFC-2119 SPEC §, and the ADR, assigning identifiers and wiring traceability. Not for planning and building (sdd-deliver), a drift audit (sdd-trace), or a one-line spec edit.
 argument-hint: "<capability, behaviour, or decision to record> [REQ-id]"
 allowed-tools: Read, Write, Edit, Glob, Grep
 ---
 
 # Specify — the SDD definition layer
 
-> **`references/…` paths resolve from the plugin root** (beside `skills/`, two levels up — not under this skill): `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, `../../references/…` relative, or Glob for the installed copy.
+> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
 Turn intent (often a design note from an exploration session) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
 
