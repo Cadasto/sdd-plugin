@@ -17,7 +17,7 @@ become skills, and findings live in one ledger per change.
 - Skills: `sdd-deliver` — the delivery driver: dispatch preconditions, the plan on the branch, `sdd-implementer` fan-out per `agents:`, the per-task gate by lane, round 0 of the ledger, the draft PR, close-out, ready, panel prompts.
 - Skills: `sdd-triage` — one review round: every comment channel enumerated, findings merged into the ledger, verified before fixing, the pattern class swept, fixed in the PR, re-review prompts printed.
 - Skills: `sdd-finalize` — the release sweep: deletes `done` and `abandoned` plans as the first step of a version bump, after an inbound-link check; the first run also removes a legacy `docs/plans/archive/`.
-- Agents: `sdd-implementer` — implements one bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. Holds no `Agent` tool, so it cannot spawn workers.
+- Agents: `sdd-implementer` — implements one bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. Denies `Agent` and `Task` through `disallowedTools:` and inherits every other tool the host offers, MCP servers included, so a repository's code index is reachable; it cannot spawn workers.
 - References: `sdd-methodology.md` §12 two lanes with the ratchet guard, §13 review discipline (two gates, the ledger as the default, the materiality threshold, collapse-before-add, the reviewer memory path), §14 the keep-list.
 - References: `artefact-prose.md` — the findings ledger, the `Deferred` table, completion accounting, and the prose register.
 - References: `traceability-schema.md` — the `agents:` and `review_panel` descriptor block and the plan frontmatter contract; `templates/sdd.yaml` carries the matching `agents:` block.
@@ -34,9 +34,10 @@ become skills, and findings live in one ledger per change.
 - Skills: `spec-driven-development` routes the new surface and states in one paragraph that a general engineering plugin is optional.
 - Agents: the three reviewers gain the materiality threshold, the settled-adjudications memory, and the cross-repo rule.
 - Agents: the three reviewers route code review to the repository's own declared reviewers and test-passing to the build gate.
-- Templates: `plan.md` carries a minimal header; `ai-workflow.md` gains the standing orchestration section, the canonical review-request block, and the ledger rules; `AGENTS.md` mirrors the orchestration rules; `development-process.md` replaces the DoR/DoD blocks with dispatch preconditions, the lanes, and the PR-body close-out with its `Lane:` line.
+- Templates: `plan.md` carries a minimal header; `ai-workflow.md` gains the standing orchestration section with its code-index line, the canonical review-request block, and the ledger rules; `AGENTS.md` mirrors the orchestration rules; `development-process.md` replaces the DoR/DoD blocks with dispatch preconditions, the lanes, and the PR-body close-out with its `Lane:` line.
 - Templates: `ci.md` names the build gate directly, and its scheduled drift-bot row fails the run and reports the drift instead of opening a tracking issue.
 - Hooks: `session-start.sh` lists the full `/sdd-*` surface and the new plan rule.
+- Scripts: `validate.py` requires every agent to declare a grant — `tools:` or `disallowedTools:` — and still rejects `allowed-tools:`.
 - Docs: `AGENTS.md`, `README.md`, `docs/authoring.md`, `docs/install.md`, `docs/testing.md`, and `rules/sdd-context.mdc` follow the new surface; the PR template gains the disclosure grep and `.gitignore` excludes the plan workspace.
 
 ### Removed

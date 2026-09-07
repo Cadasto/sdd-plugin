@@ -38,7 +38,7 @@ A focused surface — eight `/sdd-*` commands plus an always-on router.
 
 ### Agents
 
-The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only `Read`/`Grep`/`Glob` and so is read-only outright; the other two add `Bash` for read-only scoping (`git diff`, `git log`), which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes; it holds no `Agent` tool, so it cannot dispatch further agents.
+The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only `Read`/`Grep`/`Glob` and so is read-only outright; the other two add `Bash` for read-only scoping (`git diff`, `git log`), which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and every other tool the host offers — the repository's MCP servers included — is inherited.
 
 | Agent | Purpose |
 |---|---|

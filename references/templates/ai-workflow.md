@@ -37,6 +37,9 @@ pipeline — plan, workers, review, triage, close-out — is run by the `/sdd-*`
 - **A brief is self-contained**: the task, the `REQ`/`SPEC §` it cites, the files it may touch, the
   verification command, the instruction to report en-route findings, and the instruction not to spawn
   subagents.
+- **Code index:** `<none | the tool that indexes this repository>`. When one is named, workers and
+  reviewers query it first for symbols, callers, and structure, and fall back to `grep` for literals,
+  configuration, and prose. The brief repeats the name; no agent file carries it.
 - **Workers do not spawn workers.** Parallel workers that mutate the tree each get their own worktree;
   sequential work stays on the branch.
 - **Completion is accounted for.** A worker that dies is re-dispatched, or the gap is written into the

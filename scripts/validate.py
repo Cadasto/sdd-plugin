@@ -10,8 +10,9 @@ Checks:
   * kebab-case directory/file names for skills, agents, commands, and rules;
   * hook-config JSON validity when present;
   * SKILL.md / agent / command frontmatter — required keys, and ``name`` matching the
-    directory/filename. Agents MUST declare ``tools:`` (never ``allowed-tools:``, which
-    Claude Code silently ignores so the agent inherits *all* tools — flagged as an error).
+    directory/filename. Agents MUST declare a grant — ``tools:`` (allowlist) or
+    ``disallowedTools:`` (denylist) — and never ``allowed-tools:``, which Claude Code
+    silently ignores so the agent inherits *all* tools (both flagged as errors).
 
 This plugin has no MCP backend, so there is intentionally no ``.mcp.json`` check.
 
@@ -101,7 +102,7 @@ def validate_md_components(subdir: str, *, require_name: bool, is_agent: bool = 
     """Validate flat .md components (agents/, commands/): kebab-case filename, frontmatter
     present with the required fields, and any `name` matching the filename stem. Non-recursive,
     so nested material is intentionally skipped (shared command references live in top-level
-    references/). Agents are additionally checked for the `allowed-tools:` foot-gun."""
+    references/). Agents are additionally checked for a declared grant and the `allowed-tools:` foot-gun."""
     comp_dir = ROOT / subdir
     if not comp_dir.is_dir():
         return
@@ -123,6 +124,9 @@ def validate_md_components(subdir: str, *, require_name: bool, is_agent: bool = 
         if is_agent and re.search(r"^allowed-tools:", front, re.MULTILINE):
             err(f"{rel}: agents must declare 'tools:' not 'allowed-tools:' "
                 f"('allowed-tools:' is silently ignored, so the agent inherits ALL tools)")
+        if is_agent and not re.search(r"^(tools|disallowedTools):", front, re.MULTILINE):
+            err(f"{rel}: agents must declare a tool grant — 'tools:' (allowlist) or "
+                f"'disallowedTools:' (denylist); with neither, the grant is implicit")
 
 
 def validate_rules():

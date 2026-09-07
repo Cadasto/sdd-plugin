@@ -65,7 +65,7 @@ Scope is the **spec / document / traceability layer** and the **delivery pipelin
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans (the `spec-check` analogue) |
 | `sdd-doc-reviewer` | Reviews a single SDD document (REQ/SPEC/ADR — **not** code) for boundary violations (mixed kinds, duplicated prose, missing RFC-2119 force, unstable identifiers) |
 | `sdd-spec-conformance-reviewer` | Judges whether implemented code satisfies the normative `SPEC §` / `REQ` acceptance criteria it cites, clause by clause (conformance — **not** code quality, drift, or test-passing) |
-| `sdd-implementer` | The one mutating agent — implements a single bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. No `Agent` tool, so it cannot spawn workers |
+| `sdd-implementer` | The one mutating agent — implements a single bounded task from a brief, cites `REQ`/`PROBE` ids, verifies with the named command, and returns `En-route findings`. Denies `Agent`/`Task`, so it cannot spawn workers; inherits every other tool, MCP servers included |
 
 Three of the four are report-only; `sdd-implementer` writes, within the files its brief names.
 
