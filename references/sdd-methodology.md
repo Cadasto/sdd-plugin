@@ -65,7 +65,7 @@ Statements without a keyword are **informative**. The rule: *don't implement inf
 
 ## 5. Identifier scheme
 
-Stable, citable identifiers thread the whole repo — they appear in commit messages, PR titles, code comments, test names, and plan headers. **They must never be renumbered or reused once published** (renumbering is a major doc-version event that breaks every external citation).
+Stable, citable identifiers thread the whole repo — they appear in commit messages, PR titles, test names, and plan headers. **They must never be renumbered or reused once published** (renumbering is a major doc-version event that breaks every external citation).
 
 | Prefix | Meaning |
 |---|---|
@@ -133,7 +133,7 @@ requirements index (one row per REQ)
 it implements (§9). The durable record of what shipped is the requirement status, the specification
 section, the ADR, the PR body, the changelog, and git.
 
-Code and tests cite the `REQ` (and `PROBE`) ids they realise — a doc comment, a test name — so the chain stays greppable.
+Tests cite the `REQ` (and `PROBE`) ids they realise in their names, and the implementing commit cites them in its message, so the chain stays greppable. **Doc comments are not a carrier.** A doc comment is written for whoever reads the API and follows the language's own convention; the map, the commit history, and the test names carry the identifiers.
 
 See [traceability-schema.md](traceability-schema.md) for the machine-readable record format.
 

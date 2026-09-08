@@ -29,7 +29,7 @@ The linked docs are **canonical** — defer to them rather than duplicating thei
 ## Workflow (short form)
 
 `REQ` (what + acceptance) → `SPEC §` (RFC-2119) → `ADR` (if an irreversible fork) → `PLAN` (tasks, on the
-branch) → `CODE + TESTS` (cite ids) → update spec status + traceability → update `REQ` status + flip the
+branch) → `CODE + TESTS` (tests cite ids) → update spec status + traceability → update `REQ` status + flip the
 plan to `status: done` **in place** — all in the same PR that implements it. The plan file does not move
 and there is no plans index; finished plans are deleted at the next version bump by `/sdd-finalize`. New
 behaviour is *spec-first*; hardening shipped code is *implementation-aligned* (code may lead, spec updated

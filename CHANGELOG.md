@@ -7,6 +7,13 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
+## [Unreleased]
+
+### Changed
+- References: `sdd-methodology.md` §8 — identifiers are carried by test names and the implementing commit message. A doc comment is not a carrier: it is written for whoever reads the API, in the host language's own convention. §5 drops code comments from the list of places identifiers appear.
+- Agents: `sdd-implementer` cites identifiers in test names and its commit message, and is told not to put them in doc comments.
+- Templates: the flow diagrams read `CODE + TESTS (tests cite ids)`.
+
 ## [0.5.0] - 2026-09-08
 
 The methodology sheds the plan lifecycle and the plugin takes over the delivery pipeline: a plan is a

@@ -3,7 +3,8 @@ name: sdd-implementer
 description: >
   Use this agent to implement one bounded task from a delivery brief. The brief is the single source of
   requirements and the agent never exceeds it: it reads the SPEC § the brief cites, cites REQ and PROBE
-  identifiers in the code and tests it writes, verifies with the command the brief names, and returns an
+  identifiers in test names and its commit message and never in doc comments, verifies with the command
+  the brief names, and returns an
   En-route findings section for anything wrong outside its scope. Typical triggers include one task of a
   plan dispatched by the delivery driver, a parallel task running in its own worktree, and a scoped fix
   decided during triage. Not for deciding what to build (that is the orchestrator's judgement), not for
@@ -49,7 +50,11 @@ A maintenance-lane brief cites the `SPEC §` whose behaviour must stay unchanged
 
 ## Cite identifiers
 
-Cite the identifiers the brief names in the code and tests you write — a doc comment, a test name — so the chain stays greppable: the `REQ` (and `PROBE`, where the repository uses them) on the full lane; on the maintenance lane the `SPEC §` whose behaviour is preserved, or nothing when the brief says `maintenance — no normative change`. Never invent an identifier.
+Cite the identifiers the brief names in **test names and the commit message**, so the chain stays greppable: the `REQ` (and `PROBE`, where the repository uses them) on the full lane; on the maintenance lane the `SPEC §` whose behaviour is preserved, or nothing when the brief says `maintenance — no normative change`. Never invent an identifier.
+
+**Do not put identifiers in doc comments.** A doc comment is read by whoever uses the code, who does not
+know or need the repository's identifier scheme. Write it in the host language's own convention and in
+plain prose. The requirement-to-code link lives in the traceability map, not in the source text.
 
 ## Verification
 

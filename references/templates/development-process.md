@@ -35,7 +35,7 @@ REQ (capability + acceptance)            [gate: worth doing]
  └─ SPEC § (RFC-2119, Status: Draft)      [gate: single home, no duplicate prose]
      └─ ADR (only if an irreversible fork) [gate: Accepted before code]
          └─ PLAN (tasks + verification)    [gate: dispatch preconditions]
-             └─ CODE + TESTS (cite ids)    [gate: tests green + drift gate green]
+             └─ CODE + TESTS (tests cite ids)  [gate: tests green + drift gate green]
                  └─ update SPEC status + traceability  [gate: same PR]
                      └─ update REQ status; flip the plan to done in place [gate: PR-body close-out]
 ```
