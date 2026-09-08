@@ -1074,11 +1074,279 @@ def check_map_schema(ctx: Context, report) -> None:
                 add("%s: unknown key '%s'" % (record.id, key), at="WARN")
 
 
+def _identifier_re(identifier: str) -> "re.Pattern":
+    """Match one identifier on its own boundaries, so REQ-FOUND-0011 is not REQ-FOUND-001."""
+    return re.compile(r"(?<![0-9A-Za-z_-])%s(?![0-9A-Za-z_-])" % re.escape(identifier))
+
+
+def _heading_span(found: List[Tuple[int, int, str, str]], index: int, total: int) -> Tuple[int, int]:
+    lineno, level = found[index][0], found[index][1]
+    for later_line, later_level, _, _ in found[index + 1 :]:
+        if later_level <= level:
+            return lineno, later_line
+    return lineno, total + 1
+
+
+def _anchor_span(text: str, fragment: str) -> Optional[Tuple[int, int]]:
+    """The section an explicit ``<a id="…">`` sits in."""
+    if fragment not in explicit_anchors(text):
+        return None
+    lines = text.split("\n")
+    anchor_line = 0
+    for index, line in enumerate(lines):
+        if fragment in _ANCHOR_RE.findall(line):
+            anchor_line = index + 1
+            break
+    if not anchor_line:
+        return None
+    found = headings(text)
+    enclosing = None
+    for index, entry in enumerate(found):
+        if entry[0] <= anchor_line:
+            enclosing = index
+        else:
+            break
+    if enclosing is None:
+        return 1, len(lines) + 1
+    return _heading_span(found, enclosing, len(lines))
+
+
+def _implements_marker(text: str, span: Tuple[int, int], identifier: str) -> bool:
+    pattern = _identifier_re(identifier)
+    start, end = span
+    for lineno, line in _content_lines(text, False):
+        if start <= lineno < end and "**Implements:**" in line and pattern.search(line):
+            return True
+    return False
+
+
+def _probe_catalogue_ids(ctx: Context) -> Optional[set]:
+    """Every PROBE id a catalogue heading carries, or ``None`` when none is configured."""
+    rel = ctx.desc.probes_catalogue
+    if not rel:
+        return None
+    found = set()
+    for _, _, title, _ in headings(ctx.read(ctx.desc.resolve(rel))):
+        found.update(re.findall(r"PROBE-\d+", title))
+    return found
+
+
+def check_map_to_tree(ctx: Context, report) -> None:
+    """Every record resolves onto the tree: canonical section, evidence paths, probes."""
+    desc = ctx.desc
+    level = ctx.level("map-to-tree")
+    catalogue = _probe_catalogue_ids(ctx)
+    for record in ctx.records:
+        anchor = record.id or "%s:%d" % (desc.traceability, record.line)
+
+        def add(message):
+            report.add("map-to-tree", level, anchor, message)
+
+        path_part, _, fragment = record.canonical.partition("#")
+        if path_part:
+            target = desc.resolve(path_part)
+            if not target.is_file():
+                add("canonical file missing: %s" % path_part)
+            elif fragment:
+                text = ctx.read(target)
+                span = section_slice(text, fragment)
+                if span is None:
+                    span = _anchor_span(text, fragment)
+                if span is None:
+                    add(
+                        "canonical anchor '#%s' resolves to no heading slug and no explicit anchor in %s"
+                        % (fragment, path_part)
+                    )
+                elif record.id and not _implements_marker(text, span, record.id):
+                    add(
+                        "the section at '#%s' carries no '**Implements:** %s' line"
+                        % (fragment, record.id)
+                    )
+        for rel in record.packages:
+            if not desc.resolve(rel).exists():
+                add("missing package path: %s" % rel)
+        for key in ("tests", "operations"):
+            for rel in getattr(record, key):
+                target = desc.resolve(rel)
+                if not target.exists():
+                    add("missing %s path: %s" % (key, rel))
+                elif not target.is_file():
+                    add("a %s entry must be a file, not a directory: %s" % (key, rel))
+        for probe in record.probes:
+            if catalogue is not None:
+                if probe not in catalogue:
+                    add("%s resolves to no heading in %s" % (probe, desc.probes_catalogue))
+            elif not any(probe in ctx.read(desc.resolve(rel)) for rel in record.tests):
+                add("%s is named by no catalogue and by none of the record's tests" % probe)
+        if record.enforced() and not record.evidence():
+            add(
+                "%s is '%s' and carries no evidence: packages, tests or operations"
+                % (record.id, record.implementation)
+            )
+
+
+_STABILITY_HEADERS = ("stability", "status")
+_IMPLEMENTATION_HEADERS = ("implementation", "impl.", "impl")
+
+
+def _cell_text(cell: str) -> str:
+    return cell.replace("`", "").replace("*", "").strip()
+
+
+def _index_columns(header: List[str], cells: List[str]) -> Tuple[Optional[str], Optional[str]]:
+    """The stability and implementation cells, found by header text, else the last two."""
+    stability = None
+    implementation = None
+    for index, name in enumerate(header):
+        if index >= len(cells):
+            break
+        lowered = _cell_text(name).lower()
+        if lowered in _STABILITY_HEADERS:
+            stability = cells[index]
+        elif lowered in _IMPLEMENTATION_HEADERS:
+            implementation = cells[index]
+    if stability is None and implementation is None and len(cells) >= 2:
+        stability, implementation = cells[-2], cells[-1]
+    return stability, implementation
+
+
+def check_index_sync(ctx: Context, report) -> None:
+    """The requirements index, the detail files and the map agree on both status axes."""
+    desc = ctx.desc
+    level = ctx.level("index-sync")
+    index_path = desc.requirements_index_path()
+    index_rel = ctx.rel(index_path)
+    if not index_path.is_file():
+        report.add("index-sync", level, index_rel, "the requirements index is missing")
+        return
+    pattern = desc.req_pattern()
+    rows = []
+    for lineno, header, cells in table_rows(ctx.read(index_path)):
+        identifier = None
+        for cell in cells:
+            match = pattern.search(cell)
+            if match:
+                identifier = match.group(0)
+                break
+        if identifier is None:
+            continue
+        stability, implementation = _index_columns(header, cells)
+        rows.append((lineno, identifier, stability, implementation))
+    if not rows:
+        report.add(
+            "index-sync",
+            level,
+            index_rel,
+            "the requirements index parses to zero rows carrying a REQ id",
+        )
+        return
+
+    seen = set()
+    for lineno, identifier, stability, implementation in rows:
+        anchor = "%s:%d" % (index_rel, lineno)
+        if identifier in seen:
+            report.add("index-sync", level, anchor, "%s has more than one index row" % identifier)
+            continue
+        seen.add(identifier)
+        record = ctx.records_by_id.get(identifier)
+        if record is None:
+            report.add(
+                "index-sync",
+                level,
+                anchor,
+                "%s has an index row but is missing from traceability" % identifier,
+            )
+            continue
+        if stability is not None and _cell_text(stability).lower() != record.status.lower():
+            report.add(
+                "index-sync",
+                level,
+                anchor,
+                "%s: the index Stability cell '%s' does not equal the record status '%s'"
+                % (identifier, _cell_text(stability), record.status),
+            )
+        if (
+            implementation is not None
+            and _cell_text(implementation).lower() != record.implementation.lower()
+        ):
+            report.add(
+                "index-sync",
+                level,
+                anchor,
+                "%s: the index Implementation cell '%s' does not equal the record implementation '%s'"
+                % (identifier, _cell_text(implementation), record.implementation),
+            )
+    for record in ctx.records:
+        if record.id and record.id not in seen:
+            report.add(
+                "index-sync", level, record.id, "%s has a record but is missing from the index" % record.id
+            )
+
+    requirements_dir = desc.requirements_dir()
+    if requirements_dir is None:
+        report.add(
+            "index-sync",
+            "NOTE",
+            index_rel,
+            "the detail-file check is skipped: the lightweight profile keeps the index in one file",
+        )
+    else:
+        for record in ctx.records:
+            if not record.id:
+                continue
+            for detail in sorted(requirements_dir.glob("%s*.md" % record.id)):
+                front, _ = frontmatter(ctx.read(detail))
+                detail_rel = ctx.rel(detail)
+                if front is None:
+                    report.add(
+                        "index-sync",
+                        level,
+                        detail_rel,
+                        "%s: the detail file carries no frontmatter" % record.id,
+                    )
+                    continue
+                for key, expected in (
+                    ("status", record.status),
+                    ("implementation", record.implementation),
+                ):
+                    actual = _as_str(front.get(key))
+                    if actual.lower() != expected.lower():
+                        report.add(
+                            "index-sync",
+                            level,
+                            detail_rel,
+                            "%s: the detail file says %s '%s'; the record says '%s'"
+                            % (record.id, key, actual, expected),
+                        )
+
+    for spec in desc.specification_files():
+        front, _ = frontmatter(ctx.read(spec))
+        if not front or "requirements" not in front:
+            continue
+        declared = set(_as_str(item) for item in _as_list(front.get("requirements")))
+        owned = set()
+        for record in ctx.records:
+            if not record.id or not record.canonical:
+                continue
+            if ctx.rel(desc.resolve(record.canonical.partition("#")[0])) == ctx.rel(spec):
+                owned.add(record.id)
+        if declared != owned:
+            report.add(
+                "index-sync",
+                "WARN",
+                ctx.rel(spec),
+                "frontmatter requirements: %s does not equal the records whose canonical points here: %s"
+                % (sorted(declared), sorted(owned)),
+            )
+
+
 # --- family registry (later families are inserted above this banner) -------
 
 CHECKS = {
     "descriptor": check_descriptor,
     "map-schema": check_map_schema,
+    "map-to-tree": check_map_to_tree,
+    "index-sync": check_index_sync,
 }
 
 

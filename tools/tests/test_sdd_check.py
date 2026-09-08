@@ -361,3 +361,120 @@ class TestMapSchemaFamily(BaselineCase):
         self.write(MAP_REL, "requirements: []\n")
         finding = self.assert_finding(self.run_only("map-schema"), "zero records")
         self.assertIn(MAP_REL, finding.anchor)
+
+
+# ---------------------------------------------------------------------------
+# map-to-tree
+# ---------------------------------------------------------------------------
+SPEC_REL = "docs/specifications/env.md"
+
+
+class TestMapToTreeFamily(BaselineCase):
+    def test_canonical_file_missing(self):
+        (self.tmp / SPEC_REL).unlink()
+        self.assert_finding(self.run_only("map-to-tree"), "canonical file missing")
+
+    def test_anchor_missing(self):
+        self.edit(MAP_REL, "#1--boundary-req-found-001", "#1--no-such-section")
+        self.assert_finding(self.run_only("map-to-tree"), "anchor")
+
+    def test_implements_marker_outside_the_section(self):
+        self.edit(SPEC_REL, "**Implements:** REQ-FOUND-001\n\n", "")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)",
+                  "## §1 — Boundary (REQ-FOUND-001)\n\nNo marker here.\n\n## §2 — Later\n\n**Implements:** REQ-FOUND-001")
+        self.assert_finding(self.run_only("map-to-tree"), "Implements")
+
+    def test_implements_marker_matches_on_identifier_boundary(self):
+        self.edit(SPEC_REL, "**Implements:** REQ-FOUND-001", "**Implements:** REQ-FOUND-0011")
+        self.assert_finding(self.run_only("map-to-tree"), "Implements")
+
+    def test_missing_package_path(self):
+        self.edit(MAP_REL, "      - src/env\n", "      - src/nowhere\n")
+        self.assert_finding(self.run_only("map-to-tree"), "missing package path")
+
+    def test_test_entry_must_be_a_file(self):
+        self.edit(MAP_REL, "      - tests/env_test.py", "      - tests")
+        self.assert_finding(self.run_only("map-to-tree"), "must be a file")
+
+    def test_probe_without_catalogue_or_citing_test(self):
+        self.edit(MAP_REL, "    tests:", "    probes:\n      - PROBE-001\n    tests:")
+        self.assert_finding(self.run_only("map-to-tree"), "PROBE-001")
+
+    def test_probe_resolved_by_the_catalogue(self):
+        self.edit(MAP_REL, "    tests:", "    probes:\n      - PROBE-001\n    tests:")
+        self.write("docs/specifications/conformance.md",
+                   "---\nkind: specification\nspec: SPEC-CONF\nstatus: draft\nmode: spec-first\n---\n\n"
+                   "# Conformance probes\n\n#### PROBE-001 — the refusal names the variable\n\nA probe.\n")
+        self.edit(sdd_check.DESCRIPTOR_REL, 'probes_catalogue: ""',
+                  'probes_catalogue: docs/specifications/conformance.md')
+        self.assert_clean(self.run_only("map-to-tree"))
+
+    def test_enforced_record_needs_evidence(self):
+        self.edit(MAP_REL, "    packages:\n      - src/env\n    tests:\n      - tests/env_test.py\n", "")
+        self.assert_finding(self.run_only("map-to-tree"), "no evidence")
+
+    def test_operations_alone_is_evidence(self):
+        self.edit(MAP_REL, "    packages:\n      - src/env\n    tests:\n      - tests/env_test.py\n",
+                  "    operations:\n      - docs/operations/run.md\n")
+        self.write("docs/operations/run.md", "---\nkind: operations\n---\n\n# Run the service\n\nStart it.\n")
+        self.assert_clean(self.run_only("map-to-tree"))
+
+
+# ---------------------------------------------------------------------------
+# index-sync
+# ---------------------------------------------------------------------------
+INDEX_REL = "docs/requirements/README.md"
+INDEX_ROW = "| [REQ-FOUND-001](REQ-FOUND-001.md) | Environment boundary | Draft | shipped |"
+SECOND_RECORD = (
+    "  - id: REQ-FOUND-002\n"
+    "    title: Second\n"
+    "    canonical: docs/specifications/env.md#1--boundary-req-found-001\n"
+    "    status: draft\n"
+    "    implementation: proposed\n"
+)
+
+
+class TestIndexSyncFamily(BaselineCase):
+    def test_row_without_a_record(self):
+        self.edit(INDEX_REL, INDEX_ROW, INDEX_ROW + "\n| REQ-FOUND-002 | Second | Draft | proposed |")
+        self.assert_finding(self.run_only("index-sync"), "missing from traceability")
+
+    def test_record_without_a_row(self):
+        text = (self.tmp / MAP_REL).read_text()
+        self.write(MAP_REL, text + SECOND_RECORD)
+        self.assert_finding(self.run_only("index-sync"), "missing from the index")
+
+    def test_implementation_cell_disagrees(self):
+        self.edit(INDEX_REL, "| Draft | shipped |", "| Draft | proposed |")
+        self.assert_finding(self.run_only("index-sync"), "Implementation")
+
+    def test_detail_file_status_disagrees(self):
+        self.edit("docs/requirements/REQ-FOUND-001.md", "status: draft", "status: stable")
+        self.assert_finding(self.run_only("index-sync"), "detail file")
+
+    def test_columns_are_found_by_header_not_position(self):
+        self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |", "| ID | Title | Impl. | Status |")
+        self.edit(INDEX_REL, "| Environment boundary | Draft | shipped |", "| Environment boundary | shipped | Draft |")
+        self.assert_clean(self.run_only("index-sync"))
+
+    def test_index_with_no_req_rows(self):
+        self.edit(INDEX_REL, INDEX_ROW, "| none yet | — | — | — |")
+        self.assert_finding(self.run_only("index-sync"), "zero rows")
+
+    def test_specification_requirements_frontmatter_warns(self):
+        self.edit(SPEC_REL, "requirements: [REQ-FOUND-001]", "requirements: [REQ-FOUND-001, REQ-FOUND-002]")
+        self.assert_finding(self.run_only("index-sync"), "requirements:", level="WARN")
+
+    def test_lightweight_profile_skips_the_detail_file_check(self):
+        index = (self.tmp / INDEX_REL).read_text().replace("[REQ-FOUND-001](REQ-FOUND-001.md)", "REQ-FOUND-001")
+        self.write("docs/requirements.md", index)
+        for child in sorted((self.tmp / "docs/requirements").iterdir()):
+            child.unlink()
+        (self.tmp / "docs/requirements").rmdir()
+        self.edit(sdd_check.DESCRIPTOR_REL, "profile: full", "profile: lightweight")
+        self.edit(sdd_check.DESCRIPTOR_REL, "requirements: docs/requirements", "requirements: docs/requirements.md")
+        report = self.run_only("index-sync")
+        self.assert_clean(report)
+        notes = [f for f in self.levelled(report, "NOTE") if "detail" in f.message]
+        self.assertTrue(notes, report.render(self.tmp))
+        self.assertIn("skipped", notes[0].message)
