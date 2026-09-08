@@ -45,7 +45,7 @@ The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only 
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans (the `spec-check` analogue) |
 | `sdd-doc-reviewer` | Reviews an SDD document (requirement / spec / ADR — **not** code) for boundary violations: mixed document kinds, duplicated normative prose, missing RFC-2119 force, unstable identifiers |
 | `sdd-spec-conformance-reviewer` | Judges whether implemented code satisfies the normative `SPEC §` / `REQ` acceptance criteria it cites, clause by clause — the conformance pass (not code quality, drift, or test-passing) |
-| `sdd-implementer` | Implements one bounded task from a delivery brief — reads the `SPEC §` the brief cites, cites `REQ`/`PROBE` ids in the code and tests it writes, verifies with the command the brief names, and returns `En-route findings` |
+| `sdd-implementer` | Implements one bounded task from a delivery brief — reads the `SPEC §` the brief cites, cites `REQ`/`PROBE` ids in test names and its commit message, verifies with the command the brief names, and returns `En-route findings` |
 
 ### Hooks
 
