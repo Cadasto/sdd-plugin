@@ -158,3 +158,206 @@ class TestYamlSubset(unittest.TestCase):
     def test_bad_dedent_raises(self):
         text = "a:\n    b: 1\n  c: 2\n"
         self.assertEqual(3, self._error_line(text))
+
+
+# ---------------------------------------------------------------------------
+# Markdown helpers
+# ---------------------------------------------------------------------------
+SAMPLE_DOC = """---
+kind: specification
+status: draft
+---
+
+# SPEC-ENV — Environment
+
+Prose with an `inline code` span.
+
+## §1 — Environment boundary (REQ-FOUND-001)
+
+<a id="legacy-boundary"></a>
+<a name="older-boundary"></a>
+
+**Implements:** REQ-FOUND-001
+
+```yaml
+## not a heading
+```
+
+<!-- a comment
+spanning two lines -->
+
+### §1.1 — A deeper section
+
+Still inside section one.
+
+## §2 — Second section
+
+Outside section one.
+"""
+
+
+class TestMarkdownHelpers(unittest.TestCase):
+    def test_slugify_drops_symbols_and_keeps_double_hyphen(self):
+        self.assertEqual(
+            "1--environment-boundary-req-found-001",
+            sdd_check.slugify("§1 — Environment boundary (REQ-FOUND-001)"),
+        )
+
+    def test_slugify_keeps_underscore(self):
+        self.assertEqual("event_context-stays", sdd_check.slugify("EVENT_CONTEXT stays"))
+
+    def test_headings_report_level_and_slug(self):
+        found = sdd_check.headings(SAMPLE_DOC)
+        levels = [(level, slug) for _, level, _, slug in found]
+        self.assertIn((1, "spec-env--environment"), levels)
+        self.assertIn((2, "1--environment-boundary-req-found-001"), levels)
+        self.assertIn((3, "11--a-deeper-section"), levels)
+        self.assertNotIn((2, "not-a-heading"), levels)
+
+    def test_explicit_anchors(self):
+        self.assertEqual(
+            {"legacy-boundary", "older-boundary"}, sdd_check.explicit_anchors(SAMPLE_DOC)
+        )
+
+    def test_section_slice_stops_at_same_level_not_deeper(self):
+        span = sdd_check.section_slice(SAMPLE_DOC, "1--environment-boundary-req-found-001")
+        self.assertIsNotNone(span)
+        start, end = span
+        body = "\n".join(SAMPLE_DOC.split("\n")[start - 1 : end - 1])
+        self.assertIn("**Implements:** REQ-FOUND-001", body)
+        self.assertIn("A deeper section", body)
+        self.assertNotIn("Second section", body)
+        self.assertIsNone(sdd_check.section_slice(SAMPLE_DOC, "no-such-anchor"))
+
+    def test_frontmatter_on_line_one(self):
+        mapping, after = sdd_check.frontmatter(SAMPLE_DOC)
+        self.assertEqual("specification", mapping["kind"])
+        self.assertEqual(5, after)
+
+    def test_frontmatter_after_leading_html_comment(self):
+        text = "<!-- generated: do not edit -->\n---\nkind: guide\n---\n\n# Title\n"
+        mapping, after = sdd_check.frontmatter(text)
+        self.assertEqual({"kind": "guide"}, mapping)
+        self.assertEqual(5, after)
+
+    def test_frontmatter_absent_when_prose_comes_first(self):
+        text = "# Title\n\nSome prose.\n\n---\nkind: guide\n---\n"
+        self.assertEqual((None, 0), sdd_check.frontmatter(text))
+
+    def test_strip_noncontent_blanks_fences_code_spans_and_comments(self):
+        rows = dict(sdd_check.strip_noncontent(SAMPLE_DOC))
+        lines = SAMPLE_DOC.split("\n")
+        self.assertEqual(len(lines), len(rows))
+        fence_line = lines.index("## not a heading") + 1
+        self.assertEqual("", rows[fence_line].strip())
+        prose_line = lines.index("Prose with an `inline code` span.") + 1
+        self.assertNotIn("inline code", rows[prose_line])
+        self.assertIn("Prose with an", rows[prose_line])
+        comment_line = lines.index("spanning two lines -->") + 1
+        self.assertEqual("", rows[comment_line].strip())
+        self.assertEqual("", rows[2].strip())
+
+    def test_table_rows_skips_the_separator(self):
+        text = (
+            "| ID | Title | Impl. |\n"
+            "|---|---|---|\n"
+            "| REQ-FOUND-001 | Boundary | shipped |\n"
+            "| REQ-FOUND-002 | Second | planned |\n"
+            "\nprose\n"
+        )
+        rows = sdd_check.table_rows(text)
+        self.assertEqual(2, len(rows))
+        line, header, cells = rows[0]
+        self.assertEqual(3, line)
+        self.assertEqual(["ID", "Title", "Impl."], header)
+        self.assertEqual(["REQ-FOUND-001", "Boundary", "shipped"], cells)
+        self.assertEqual(["REQ-FOUND-002", "Second", "planned"], rows[1][2])
+
+
+# ---------------------------------------------------------------------------
+# descriptor and map-schema
+# ---------------------------------------------------------------------------
+class TestDescriptorFamily(BaselineCase):
+    def test_unknown_req_style(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "req_style: area-prefixed", "req_style: other")
+        self.assert_finding(self.run_only("descriptor"), "req_style")
+
+    def test_area_prefixed_without_areas(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "  req_areas: [FOUND]\n", "")
+        self.assert_finding(self.run_only("descriptor"), "req_areas")
+
+    def test_excluded_area_must_be_disjoint(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "excluded_areas: [BENCH]", "excluded_areas: [FOUND]")
+        self.assert_finding(self.run_only("descriptor"), "disjoint")
+
+    def test_pinned_version_must_equal_the_tool(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, 'version: "0.6.0"', 'version: "0.5.0"')
+        self.assert_finding(self.run_only("descriptor"), "version")
+
+    def test_family_severity_vocabulary(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "rfc2119: warn", "rfc2119: loud")
+        self.assert_finding(self.run_only("descriptor"), "error | warn | off")
+
+    def test_unknown_family_key(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "      draft-reason: off", "      lanes: error")
+        self.assert_finding(self.run_only("descriptor"), "unknown family")
+
+    def test_full_profile_requires_a_directory(self):
+        self.write("docs/requirements.md", (self.tmp / "docs/requirements/README.md").read_text())
+        self.edit(sdd_check.DESCRIPTOR_REL, "requirements: docs/requirements", "requirements: docs/requirements.md")
+        self.assert_finding(self.run_only("descriptor"), "profile full requires a directory")
+
+    def test_lightweight_profile_accepts_a_file(self):
+        self.write("docs/requirements.md", (self.tmp / "docs/requirements/README.md").read_text())
+        self.edit(sdd_check.DESCRIPTOR_REL, "profile: full", "profile: lightweight")
+        self.edit(sdd_check.DESCRIPTOR_REL, "requirements: docs/requirements", "requirements: docs/requirements.md")
+        self.assert_clean(self.run_only("descriptor"))
+
+
+MAP_REL = "docs/specifications/traceability.yaml"
+
+
+class TestMapSchemaFamily(BaselineCase):
+    def test_duplicate_id(self):
+        text = (self.tmp / MAP_REL).read_text()
+        self.write(MAP_REL, text + "  - id: REQ-FOUND-001\n    title: Twin\n"
+                   "    canonical: docs/specifications/env.md#1--boundary-req-found-001\n"
+                   "    status: draft\n    implementation: planned\n")
+        self.assert_finding(self.run_only("map-schema"), "duplicate")
+
+    def test_excluded_area(self):
+        self.edit(MAP_REL, "id: REQ-FOUND-001", "id: REQ-BENCH-001")
+        self.assert_finding(self.run_only("map-schema"), "excluded")
+
+    def test_undeclared_area(self):
+        self.edit(MAP_REL, "id: REQ-FOUND-001", "id: REQ-OTHER-001")
+        self.assert_finding(self.run_only("map-schema"), "not declared")
+
+    def test_implementation_vocabulary(self):
+        self.edit(MAP_REL, "implementation: shipped", "implementation: done")
+        self.assert_finding(self.run_only("map-schema"), "implementation")
+
+    def test_canonical_needs_an_anchor(self):
+        self.edit(MAP_REL, "canonical: docs/specifications/env.md#1--boundary-req-found-001",
+                  "canonical: docs/specifications/env.md")
+        self.assert_finding(self.run_only("map-schema"), "path#anchor")
+
+    def test_retired_plans_key_warns(self):
+        self.edit(MAP_REL, "    status: draft", "    plans: [x]\n    status: draft")
+        report = self.run_only("map-schema")
+        self.assertEqual([], self.levelled(report, "ERROR"), report.render(self.tmp))
+        warnings = self.levelled(report, "WARN")
+        self.assertEqual(1, len(warnings), report.render(self.tmp))
+        self.assertIn("plans", warnings[0].message)
+        self.assertIn("retired", warnings[0].message)
+
+    def test_zero_records(self):
+        self.write(MAP_REL, "requirements: []\n")
+        report = self.run_only("map-schema")
+        self.assert_finding(report, "zero records")
+        self.assertEqual(1, report.exit_code())
+
+    def test_map_error_anchor_names_the_file(self):
+        self.write(MAP_REL, "requirements: []\n")
+        finding = self.assert_finding(self.run_only("map-schema"), "zero records")
+        self.assertIn(MAP_REL, finding.anchor)

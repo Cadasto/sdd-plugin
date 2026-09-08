@@ -356,9 +356,10 @@ class _YamlParser:
         if end == -1:
             self.fail("an unterminated inline list", lineno)
         body = text[1:end]
-        items: List[str] = []
+        items: List[Tuple[str, bool]] = []
         current = ""
         quote = ""
+        quoted = False
         for char in body:
             if quote:
                 if char == quote:
@@ -368,20 +369,24 @@ class _YamlParser:
                 continue
             if char in "\"'":
                 quote = char
+                quoted = True
                 continue
             if char == ",":
-                if current.strip():
-                    items.append(current.strip())
+                if current.strip() or quoted:
+                    items.append((current.strip(), quoted))
                 current = ""
+                quoted = False
                 continue
             if char == "{":
                 self.fail("a flow mapping is not supported", lineno)
             current += char
-        if current.strip():
-            items.append(current.strip())
+        if current.strip() or quoted:
+            items.append((current.strip(), quoted))
         out: List[object] = []
-        for token in items:
-            if token[0] == "&":
+        for token, was_quoted in items:
+            if was_quoted:
+                out.append(token)
+            elif token[0] == "&":
                 self.fail("an anchor is not supported", lineno)
             elif token[0] == "*":
                 self.fail("an alias is not supported", lineno)
@@ -399,3 +404,1172 @@ class _YamlParser:
 def load_yaml(text: str, *, source: str = "<yaml>"):
     """Parse the YAML subset this tool supports. Raises :class:`YamlError`."""
     return _YamlParser(text, source).parse()
+
+
+# ---------------------------------------------------------------------------
+# Markdown helpers
+# ---------------------------------------------------------------------------
+
+_HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
+_ANCHOR_RE = re.compile(r"<a\s+(?:id|name)\s*=\s*[\"']([^\"']+)[\"']", re.IGNORECASE)
+_FENCE_RE = re.compile(r"^(```+|~~~+)")
+_CODE_SPAN_RE = re.compile(r"(`+)(.+?)\1")
+
+
+def slugify(heading: str) -> str:
+    """The GitHub heading-anchor rule: lower-case, drop everything outside letters,
+    digits, space, hyphen and underscore, then spaces to hyphens with no collapsing."""
+    kept = []
+    for char in heading.strip().lower():
+        if char.isalnum() or char in " -_":
+            kept.append(char)
+    return "".join(kept).replace(" ", "-")
+
+
+def frontmatter(text: str) -> Tuple[Optional[dict], int]:
+    """Return ``(mapping, line after the closing '---')``, or ``(None, 0)``.
+
+    The block opens on line 1 or right after a leading HTML comment block.
+    """
+    lines = text.split("\n")
+    index = 0
+    in_comment = False
+    while index < len(lines):
+        stripped = lines[index].strip()
+        if in_comment:
+            if "-->" in stripped:
+                in_comment = False
+            index += 1
+            continue
+        if not stripped:
+            index += 1
+            continue
+        if stripped.startswith("<!--"):
+            if "-->" not in stripped:
+                in_comment = True
+            index += 1
+            continue
+        break
+    if index >= len(lines) or lines[index].strip() != "---":
+        return None, 0
+    close = None
+    for probe in range(index + 1, len(lines)):
+        if lines[probe].strip() == "---":
+            close = probe
+            break
+    if close is None:
+        return None, 0
+    body = "\n".join(lines[index + 1 : close])
+    try:
+        parsed = load_yaml(body, source="frontmatter")
+    except YamlError:
+        return None, 0
+    if parsed is None:
+        parsed = {}
+    if not isinstance(parsed, dict):
+        return None, 0
+    return parsed, close + 2
+
+
+def _content_lines(text: str, blank_code_spans: bool) -> List[Tuple[int, str]]:
+    """Every line with fences, HTML comments and frontmatter blanked, numbers kept."""
+    lines = text.split("\n")
+    _, after = frontmatter(text)
+    out: List[Tuple[int, str]] = []
+    fence = None
+    in_comment = False
+    for index, raw in enumerate(lines):
+        lineno = index + 1
+        if after and lineno < after:
+            out.append((lineno, ""))
+            continue
+        line = raw
+        if in_comment:
+            end = line.find("-->")
+            if end == -1:
+                out.append((lineno, ""))
+                continue
+            line = " " * (end + 3) + line[end + 3 :]
+            in_comment = False
+        if fence is not None:
+            out.append((lineno, ""))
+            if line.lstrip().startswith(fence):
+                fence = None
+            continue
+        match = _FENCE_RE.match(line.lstrip())
+        if match:
+            fence = match.group(1)[:3]
+            out.append((lineno, ""))
+            continue
+        while True:
+            open_at = line.find("<!--")
+            if open_at == -1:
+                break
+            close_at = line.find("-->", open_at + 4)
+            if close_at == -1:
+                line = line[:open_at]
+                in_comment = True
+                break
+            line = line[:open_at] + " " * (close_at + 3 - open_at) + line[close_at + 3 :]
+        if blank_code_spans:
+            line = _CODE_SPAN_RE.sub(lambda m: " " * len(m.group(0)), line)
+        out.append((lineno, line))
+    return out
+
+
+def strip_noncontent(text: str) -> List[Tuple[int, str]]:
+    """Lines with fences, inline code, HTML comments and frontmatter blanked."""
+    return _content_lines(text, True)
+
+
+def headings(text: str) -> List[Tuple[int, int, str, str]]:
+    """Every ATX heading outside fenced code, as ``(line, level, text, slug)``."""
+    out: List[Tuple[int, int, str, str]] = []
+    for lineno, line in _content_lines(text, False):
+        match = _HEADING_RE.match(line)
+        if match:
+            title = match.group(2).strip().rstrip("#").strip()
+            out.append((lineno, len(match.group(1)), title, slugify(title)))
+    return out
+
+
+def explicit_anchors(text: str) -> set:
+    """Every ``<a id="…">`` and ``<a name="…">`` target in the document."""
+    return set(_ANCHOR_RE.findall(text))
+
+
+def section_slice(text: str, slug: str) -> Optional[Tuple[int, int]]:
+    """The half-open line span ``[start, end)`` of the section a heading slug opens."""
+    found = headings(text)
+    total = len(text.split("\n"))
+    for index, (lineno, level, _, heading_slug) in enumerate(found):
+        if heading_slug != slug:
+            continue
+        end = total + 1
+        for later_line, later_level, _, _ in found[index + 1 :]:
+            if later_level <= level:
+                end = later_line
+                break
+        return lineno, end
+    return None
+
+
+def table_rows(text: str) -> List[Tuple[int, List[str], List[str]]]:
+    """Every pipe-table data row as ``(line, header cells, row cells)``."""
+    rows: List[Tuple[int, List[str], List[str]]] = []
+    lines = _content_lines(text, False)
+    index = 0
+    while index < len(lines) - 1:
+        lineno, line = lines[index]
+        nxt = lines[index + 1][1]
+        if "|" in line and _is_separator(nxt):
+            header = _split_cells(line)
+            index += 2
+            while index < len(lines):
+                row_line, row_text = lines[index]
+                if "|" not in row_text or not row_text.strip():
+                    break
+                rows.append((row_line, header, _split_cells(row_text)))
+                index += 1
+            continue
+        index += 1
+    return rows
+
+
+def _is_separator(line: str) -> bool:
+    stripped = line.strip()
+    if "|" not in stripped or not stripped:
+        return False
+    for cell in _split_cells(stripped):
+        if not re.match(r"^:?-{1,}:?$", cell):
+            return False
+    return True
+
+
+def _split_cells(line: str) -> List[str]:
+    stripped = line.strip()
+    if stripped.startswith("|"):
+        stripped = stripped[1:]
+    if stripped.endswith("|"):
+        stripped = stripped[:-1]
+    return [cell.strip() for cell in stripped.split("|")]
+
+
+# ---------------------------------------------------------------------------
+# Descriptor
+# ---------------------------------------------------------------------------
+
+DEFAULT_PATHS = {
+    "requirements": "docs/requirements",
+    "specifications": "docs/specifications",
+    "adr": "docs/adr",
+    "plans": "docs/plans",
+}
+
+
+def _as_list(value) -> list:
+    if isinstance(value, list):
+        return value
+    return []
+
+
+def _as_str(value, fallback: str = "") -> str:
+    if value is None:
+        return fallback
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    return str(value)
+
+
+class Descriptor:
+    """`docs/.sdd.yaml`, with a default for every key the schema gives one."""
+
+    def __init__(self, root: Path, data: dict):
+        self.root = Path(root)
+        self.data = data
+        self.profile = _as_str(data.get("profile"), "full") or "full"
+        self.req_style = _as_str(data.get("req_style"), "area-prefixed") or "area-prefixed"
+        self.req_areas = [_as_str(a) for a in _as_list(data.get("req_areas"))]
+        self.req_gap = data.get("req_gap", 10)
+        self.excluded_areas = [_as_str(a) for a in _as_list(data.get("excluded_areas"))]
+        kinds = [_as_str(k) for k in _as_list(data.get("doc_kinds"))]
+        self.doc_kinds = kinds or list(DEFAULT_KINDS)
+        self.default_mode = _as_str(data.get("default_mode"), "spec-first") or "spec-first"
+        paths = data.get("paths")
+        self.paths = dict(DEFAULT_PATHS)
+        if isinstance(paths, dict):
+            for key, value in paths.items():
+                self.paths[_as_str(key)] = _as_str(value)
+        self.traceability = _as_str(
+            data.get("traceability"), "docs/specifications/traceability.yaml"
+        )
+        self.build_entrypoint = _as_str(data.get("build_entrypoint"), "make")
+        self.ci_target = _as_str(data.get("ci_target"), "ci")
+        self.spec_check_target = _as_str(data.get("spec_check_target"), "spec-check")
+        self.use_probes = bool(data.get("use_probes", False))
+        self.use_strands = bool(data.get("use_strands", False))
+        self.upstream = data.get("upstream", "")
+        self.ground_truth = data.get("ground_truth", "")
+        hooks = data.get("hooks")
+        self.hooks = hooks if isinstance(hooks, dict) else {}
+        agents = data.get("agents")
+        self.agents = agents if isinstance(agents, dict) else {}
+        check = data.get("check")
+        self.check = check if isinstance(check, dict) else {}
+        self.script = _as_str(self.check.get("script"), "scripts/sdd-check.py")
+        self.check_version = _as_str(self.check.get("version"), "")
+        links = self.check.get("links")
+        self.links_exclude = [_as_str(g) for g in _as_list((links or {}).get("exclude"))]
+        changelog = self.check.get("changelog")
+        changelog = changelog if isinstance(changelog, dict) else {}
+        self.changelog_path = _as_str(changelog.get("path"), "CHANGELOG.md")
+        max_words = changelog.get("max_words", 35)
+        self.changelog_max_words = max_words if isinstance(max_words, int) else 35
+        self.code_roots = [_as_str(r) for r in _as_list(self.check.get("code_roots"))]
+        globs = [_as_str(g) for g in _as_list(self.check.get("test_globs"))]
+        self.test_globs = globs or list(DEFAULT_TEST_GLOBS)
+        self.probes_catalogue = _as_str(self.check.get("probes_catalogue"), "")
+        families = self.check.get("families")
+        self.families = {}
+        if isinstance(families, dict):
+            for key, value in families.items():
+                self.families[_as_str(key)] = _as_str(value)
+
+    # -- loading ----------------------------------------------------------
+    @classmethod
+    def load(cls, root: Path) -> "Descriptor":
+        path = Path(root) / DESCRIPTOR_REL
+        if not path.is_file():
+            raise FileNotFoundError(DESCRIPTOR_REL)
+        text = path.read_text(encoding="utf-8", errors="replace")
+        data = load_yaml(text, source=DESCRIPTOR_REL)
+        if isinstance(data, dict) and isinstance(data.get("sdd"), dict):
+            data = data["sdd"]
+        if not isinstance(data, dict):
+            raise YamlError("the descriptor is not a mapping", 1, DESCRIPTOR_REL)
+        return cls(Path(root), data)
+
+    # -- derived ----------------------------------------------------------
+    def resolve(self, rel: str) -> Path:
+        return self.root / rel
+
+    def severity(self, family: str) -> str:
+        value = self.families.get(family)
+        if value in SEVERITIES:
+            return value
+        return DEFAULT_SEVERITY.get(family, "error")
+
+    def req_pattern(self) -> "re.Pattern":
+        if self.req_style == "flat-numeric":
+            return re.compile(r"REQ-\d{3,}")
+        return re.compile(r"REQ-[A-Z][A-Z0-9]*-\d{3,}")
+
+    def _is_file_form(self, rel: str) -> bool:
+        return Path(rel).suffix != "" or self.resolve(rel).is_file()
+
+    def requirements_index_path(self) -> Path:
+        rel = self.paths.get("requirements", DEFAULT_PATHS["requirements"])
+        if self._is_file_form(rel):
+            return self.resolve(rel)
+        return self.resolve(rel) / "README.md"
+
+    def requirements_dir(self) -> Optional[Path]:
+        rel = self.paths.get("requirements", DEFAULT_PATHS["requirements"])
+        if self._is_file_form(rel):
+            return None
+        return self.resolve(rel)
+
+    def specification_files(self) -> List[Path]:
+        rel = self.paths.get("specifications", DEFAULT_PATHS["specifications"])
+        target = self.resolve(rel)
+        if self._is_file_form(rel):
+            return [target] if target.is_file() else []
+        if not target.is_dir():
+            return []
+        return sorted(p for p in target.rglob("*.md") if p.is_file())
+
+    def docs_roots(self) -> List[Path]:
+        roots = [self.root / "docs"]
+        seen = {"docs"}
+        for rel in self.paths.values():
+            normal = str(Path(rel).as_posix())
+            if normal in seen or normal.startswith("docs/"):
+                continue
+            seen.add(normal)
+            roots.append(self.resolve(rel))
+        return roots
+
+    def ground_truth_sources(self) -> List[str]:
+        if isinstance(self.ground_truth, list):
+            return [_as_str(s) for s in self.ground_truth if _as_str(s)]
+        one = _as_str(self.ground_truth)
+        return [one] if one else []
+
+    def upstream_relations(self) -> Dict[str, dict]:
+        if isinstance(self.upstream, dict):
+            return {
+                _as_str(name): body
+                for name, body in self.upstream.items()
+                if isinstance(body, dict)
+            }
+        name = _as_str(self.upstream)
+        return {name: {"repo": name}} if name else {}
+
+
+# ---------------------------------------------------------------------------
+# Records
+# ---------------------------------------------------------------------------
+
+RECORD_KEYS = (
+    "id",
+    "title",
+    "canonical",
+    "status",
+    "implementation",
+    "packages",
+    "tests",
+    "probes",
+    "operations",
+    "draft_reason",
+)
+RECORD_LIST_KEYS = ("packages", "tests", "probes", "operations")
+
+
+@dataclasses.dataclass
+class Record:
+    """One traceability-map record."""
+
+    id: str = ""
+    title: str = ""
+    canonical: str = ""
+    status: str = ""
+    implementation: str = ""
+    packages: List[str] = dataclasses.field(default_factory=list)
+    tests: List[str] = dataclasses.field(default_factory=list)
+    probes: List[str] = dataclasses.field(default_factory=list)
+    operations: List[str] = dataclasses.field(default_factory=list)
+    draft_reason: str = ""
+    unknown_keys: List[str] = dataclasses.field(default_factory=list)
+    line: int = 0
+    raw: dict = dataclasses.field(default_factory=dict)
+
+    def enforced(self) -> bool:
+        return self.implementation in ENFORCED
+
+    def evidence(self) -> List[str]:
+        return list(self.packages) + list(self.tests) + list(self.operations)
+
+
+def _sequence_line_numbers(text: str, key: str) -> List[int]:
+    """The line number of every ``- `` item directly under a top-level key."""
+    lines = text.split("\n")
+    start = None
+    for index, line in enumerate(lines):
+        if re.match(r"^%s\s*:\s*(#.*)?$" % re.escape(key), line):
+            start = index + 1
+            break
+    if start is None:
+        return []
+    numbers: List[int] = []
+    item_indent = None
+    for index in range(start, len(lines)):
+        line = lines[index]
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent == 0:
+            break
+        match = re.match(r"^\s*-\s", line)
+        if match and (item_indent is None or indent == item_indent):
+            item_indent = indent
+            numbers.append(index + 1)
+    return numbers
+
+
+def load_map(desc: Descriptor) -> List[Record]:
+    """Read the traceability map. Raises ``FileNotFoundError`` or ``YamlError``."""
+    path = desc.resolve(desc.traceability)
+    if not path.is_file():
+        raise FileNotFoundError(desc.traceability)
+    text = path.read_text(encoding="utf-8", errors="replace")
+    data = load_yaml(text, source=desc.traceability)
+    entries = data.get("requirements") if isinstance(data, dict) else None
+    if not isinstance(entries, list):
+        return []
+    numbers = _sequence_line_numbers(text, "requirements")
+    records: List[Record] = []
+    for index, entry in enumerate(entries):
+        lineno = numbers[index] if index < len(numbers) else 0
+        if not isinstance(entry, dict):
+            records.append(Record(line=lineno))
+            continue
+        record = Record(line=lineno, raw=entry)
+        record.id = _as_str(entry.get("id"))
+        record.title = _as_str(entry.get("title"))
+        record.canonical = _as_str(entry.get("canonical"))
+        record.status = _as_str(entry.get("status"))
+        record.implementation = _as_str(entry.get("implementation"))
+        record.draft_reason = _as_str(entry.get("draft_reason"))
+        for key in RECORD_LIST_KEYS:
+            setattr(record, key, [_as_str(v) for v in _as_list(entry.get(key))])
+        record.unknown_keys = [_as_str(k) for k in entry.keys() if _as_str(k) not in RECORD_KEYS]
+        records.append(record)
+    return records
+
+
+# ---------------------------------------------------------------------------
+# Context
+# ---------------------------------------------------------------------------
+
+
+class Context:
+    """What every family reads: the root, the descriptor, the records, cached files."""
+
+    def __init__(
+        self,
+        root: Path,
+        desc: Descriptor,
+        records: List[Record],
+        changelog_all: bool = False,
+    ):
+        self.root = Path(root)
+        self.desc = desc
+        self.records = records
+        self.records_by_id = {r.id: r for r in records if r.id}
+        self.changelog_all = changelog_all
+        self._texts: Dict[str, str] = {}
+        self._docs_files: Optional[List[Path]] = None
+        self._git_ok: Optional[bool] = None
+
+    # -- files ------------------------------------------------------------
+    def abs(self, path) -> Path:
+        candidate = Path(path)
+        return candidate if candidate.is_absolute() else self.root / candidate
+
+    def rel(self, path) -> str:
+        candidate = self.abs(path)
+        try:
+            return candidate.relative_to(self.root).as_posix()
+        except ValueError:
+            return candidate.as_posix()
+
+    def read(self, path) -> str:
+        key = str(self.abs(path))
+        if key not in self._texts:
+            try:
+                self._texts[key] = Path(key).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                self._texts[key] = ""
+        return self._texts[key]
+
+    def docs_files(self) -> List[Path]:
+        if self._docs_files is None:
+            found: List[Path] = []
+            for root in self.desc.docs_roots():
+                if not root.is_dir():
+                    continue
+                for path in sorted(root.rglob("*.md")):
+                    if path.is_file() and ".git" not in path.parts:
+                        found.append(path)
+            seen = set()
+            unique = []
+            for path in found:
+                if str(path) not in seen:
+                    seen.add(str(path))
+                    unique.append(path)
+            self._docs_files = unique
+        return self._docs_files
+
+    # -- git --------------------------------------------------------------
+    def _run_git(self, args) -> Optional[str]:
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(self.root)] + [str(a) for a in args],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+        except (OSError, ValueError):
+            return None
+        if proc.returncode != 0:
+            return None
+        return proc.stdout.decode("utf-8", "replace")
+
+    def git(self, *args) -> Optional[str]:
+        """Run a git command in the repository, or return ``None`` when git cannot serve."""
+        if self._git_ok is None:
+            top = self._run_git(("rev-parse", "--show-toplevel"))
+            self._git_ok = False
+            if top is not None and top.strip():
+                try:
+                    self._git_ok = Path(top.strip()).resolve() == self.root.resolve()
+                except OSError:
+                    self._git_ok = False
+        if not self._git_ok:
+            return None
+        return self._run_git(args)
+
+    # -- severity ---------------------------------------------------------
+    def level(self, family: str) -> str:
+        return "ERROR" if self.desc.severity(family) == "error" else "WARN"
+
+
+# ---------------------------------------------------------------------------
+# Families
+# ---------------------------------------------------------------------------
+
+
+def check_descriptor(ctx: Context, report) -> None:
+    """The descriptor is internally consistent and matches the tree and the tool."""
+    desc = ctx.desc
+    level = ctx.level("descriptor")
+
+    def add(message):
+        report.add("descriptor", level, DESCRIPTOR_REL, message)
+
+    if desc.profile not in ("full", "lightweight"):
+        add("profile: '%s' is not full | lightweight" % desc.profile)
+    if desc.req_style not in ("area-prefixed", "flat-numeric"):
+        add("req_style: '%s' is not area-prefixed | flat-numeric" % desc.req_style)
+    elif desc.req_style == "area-prefixed":
+        if not desc.req_areas:
+            add("req_areas: an area-prefixed repository declares at least one area")
+    elif desc.req_areas:
+        add("req_areas: a flat-numeric repository declares no areas")
+    overlap = sorted(set(desc.excluded_areas) & set(desc.req_areas))
+    if overlap:
+        add("excluded_areas must be disjoint from req_areas: %s" % ", ".join(overlap))
+    for key in ("requirements", "specifications", "adr", "plans"):
+        rel = desc.paths.get(key, "")
+        if not rel:
+            add("paths.%s is not declared" % key)
+            continue
+        file_form = desc._is_file_form(rel)
+        if file_form and desc.profile == "full":
+            add("paths.%s: profile full requires a directory, not '%s'" % (key, rel))
+            continue
+        if file_form and key not in ("requirements", "specifications"):
+            add("paths.%s: only requirements and specifications may name a file" % key)
+            continue
+        if not desc.resolve(rel).exists():
+            add("paths.%s: '%s' does not exist" % (key, rel))
+    if not desc.traceability:
+        add("traceability is not declared")
+    elif not desc.resolve(desc.traceability).is_file():
+        add("traceability: '%s' does not exist" % desc.traceability)
+    if desc.check_version != __version__:
+        add(
+            "check.version '%s' does not equal the tool's version %s"
+            % (desc.check_version, __version__)
+        )
+    for family, value in desc.families.items():
+        if family not in FAMILIES:
+            add("check.families: unknown family '%s'" % family)
+        elif value not in SEVERITIES:
+            add("check.families.%s: '%s' is not error | warn | off" % (family, value))
+    if desc.default_mode not in MODES:
+        add("default_mode: '%s' is not %s" % (desc.default_mode, " | ".join(MODES)))
+    unknown_kinds = [k for k in desc.doc_kinds if k not in DEFAULT_KINDS]
+    if unknown_kinds:
+        add("doc_kinds: '%s' is outside the kind vocabulary" % ", ".join(sorted(unknown_kinds)))
+
+
+def check_map_schema(ctx: Context, report) -> None:
+    """Every record carries the fields the schema requires, with values in vocabulary."""
+    desc = ctx.desc
+    level = ctx.level("map-schema")
+    pattern = desc.req_pattern()
+    seen: Dict[str, int] = {}
+    for record in ctx.records:
+        where = desc.traceability
+        if record.line:
+            where = "%s:%d" % (desc.traceability, record.line)
+
+        def add(message, anchor=where, at=level):
+            report.add("map-schema", at, anchor, message)
+
+        if not record.id:
+            add("a record carries no id")
+        elif not pattern.fullmatch(record.id):
+            add("id '%s' does not match the repository's %s style" % (record.id, desc.req_style))
+        else:
+            if record.id in seen:
+                add("duplicate id %s, first seen at line %d" % (record.id, seen[record.id]))
+            else:
+                seen[record.id] = record.line
+            if desc.req_style == "area-prefixed":
+                area = record.id.split("-")[1]
+                if area in desc.excluded_areas:
+                    add("id %s uses the excluded area '%s'" % (record.id, area))
+                elif area not in desc.req_areas:
+                    add("id %s uses an area that is not declared in req_areas: '%s'" % (record.id, area))
+        for key in ("title", "canonical", "status", "implementation"):
+            if not getattr(record, key):
+                add("%s: %s is required" % (record.id or "a record", key))
+        if record.status and record.status not in STATUS:
+            add("%s: status '%s' is not %s" % (record.id, record.status, " | ".join(STATUS)))
+        if record.implementation and record.implementation not in IMPLEMENTATION:
+            add(
+                "%s: implementation '%s' is not %s"
+                % (record.id, record.implementation, " | ".join(IMPLEMENTATION))
+            )
+        if record.canonical:
+            path_part, _, anchor_part = record.canonical.partition("#")
+            if not path_part or not anchor_part:
+                add("%s: canonical must be path#anchor, not '%s'" % (record.id, record.canonical))
+        for key in RECORD_LIST_KEYS:
+            value = record.raw.get(key)
+            if value is None:
+                continue
+            if not isinstance(value, list) or any(not isinstance(v, str) for v in value):
+                add("%s: %s must be a list of strings" % (record.id, key))
+        for key in record.unknown_keys:
+            if key == "plans":
+                add(
+                    "%s: unknown key 'plans' — the plan axis is retired from the record schema"
+                    % record.id,
+                    at="WARN",
+                )
+            else:
+                add("%s: unknown key '%s'" % (record.id, key), at="WARN")
+
+
+# --- family registry (later families are inserted above this banner) -------
+
+CHECKS = {
+    "descriptor": check_descriptor,
+    "map-schema": check_map_schema,
+}
+
+
+# ---------------------------------------------------------------------------
+# Report
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass
+class Finding:
+    """One reported defect. ``level`` is ERROR, WARN or NOTE; a NOTE never fails a run."""
+
+    family: str
+    level: str
+    anchor: str
+    message: str
+
+
+class Report:
+    """Everything a run has to say, and the exit code it earns."""
+
+    def __init__(self):
+        self.findings: List[Finding] = []
+        self.families_run: List[str] = []
+        self.families_skipped: Dict[str, str] = {}
+        self.waived: Dict[str, List[str]] = {}
+        self.link_exclusions: List[str] = []
+        self.record_count = 0
+        self.profile = "full"
+        self.fatal_message: Optional[str] = None
+
+    @classmethod
+    def fatal(cls, message: str) -> "Report":
+        """A run that could not configure itself: nothing ran, the exit code is 2."""
+        report = cls()
+        report.fatal_message = message
+        return report
+
+    def add(self, family: str, level: str, anchor: str, message: str) -> None:
+        self.findings.append(Finding(family, level, anchor, message))
+
+    def errors(self) -> int:
+        return len([f for f in self.findings if f.level == "ERROR"])
+
+    def warnings(self) -> int:
+        return len([f for f in self.findings if f.level == "WARN"])
+
+    def exit_code(self) -> int:
+        if self.fatal_message is not None:
+            return 2
+        return 1 if self.errors() else 0
+
+    def _ordered(self) -> List[Finding]:
+        order = {name: index for index, name in enumerate(FAMILIES)}
+        return sorted(self.findings, key=lambda f: order.get(f.family, len(FAMILIES)))
+
+    def render(self, root) -> str:
+        if self.fatal_message is not None:
+            return "\n".join(
+                [
+                    "sdd-check %s · %s" % (__version__, root),
+                    "sdd-check: FAILED — %s" % self.fatal_message,
+                    "families run: none; skipped: all (the tool could not configure itself)",
+                ]
+            )
+        lines = [
+            "sdd-check %s · %s · profile %s · %d REQ records"
+            % (__version__, root, self.profile, self.record_count)
+        ]
+        for finding in self._ordered():
+            lines.append(
+                "[%s] %s %s: %s" % (finding.family, finding.level, finding.anchor, finding.message)
+            )
+        errors, warnings = self.errors(), self.warnings()
+        if errors:
+            lines.append("sdd-check: FAILED — %d errors, %d warnings" % (errors, warnings))
+        else:
+            lines.append(
+                "sdd-check: OK — %d checks, 0 errors, %d warnings"
+                % (len(self.families_run), warnings)
+            )
+        skipped = [
+            "%s (%s)" % (name, self.families_skipped[name])
+            for name in FAMILIES
+            if name in self.families_skipped
+        ]
+        lines.append(
+            "families run: %s; skipped: %s"
+            % (", ".join(self.families_run) or "none", "; ".join(skipped) or "none")
+        )
+        if self.link_exclusions:
+            lines.append("link exclusions: %s" % ", ".join(self.link_exclusions))
+        return "\n".join(lines)
+
+
+def run_check(root: Path, only: Optional[List[str]], changelog_all: bool) -> Report:
+    """Run the enabled families against a repository and return the report."""
+    root = Path(root)
+    if only is not None:
+        unknown = [name for name in only if name not in FAMILIES]
+        if unknown:
+            return Report.fatal("unknown family '%s' in --only" % unknown[0])
+    try:
+        desc = Descriptor.load(root)
+    except FileNotFoundError:
+        return Report.fatal("%s: not found — run /sdd-scaffold to create it" % DESCRIPTOR_REL)
+    except YamlError as exc:
+        return Report.fatal("%s: %s" % (exc.where(), exc.message))
+    except OSError as exc:
+        return Report.fatal("%s: cannot be read (%s)" % (DESCRIPTOR_REL, exc))
+
+    report = Report()
+    report.profile = desc.profile
+    report.link_exclusions = list(desc.links_exclude)
+
+    planned: List[str] = []
+    for family in FAMILIES:
+        if desc.severity(family) == "off":
+            report.families_skipped[family] = "off"
+        elif only is not None and family not in only:
+            report.families_skipped[family] = "not selected"
+        elif family not in CHECKS:
+            report.families_skipped[family] = "not implemented in this build"
+        else:
+            planned.append(family)
+
+    records: List[Record] = []
+    map_ok = True
+    try:
+        records = load_map(desc)
+    except FileNotFoundError:
+        map_ok = False
+        report.add("map-schema", "ERROR", desc.traceability, "the traceability map is missing")
+    except YamlError as exc:
+        map_ok = False
+        report.add(
+            "map-schema",
+            "ERROR",
+            exc.where(),
+            "the traceability map does not parse: %s" % exc.message,
+        )
+    except OSError as exc:
+        map_ok = False
+        report.add(
+            "map-schema", "ERROR", desc.traceability, "the traceability map cannot be read (%s)" % exc
+        )
+    if map_ok and not records:
+        map_ok = False
+        report.add(
+            "map-schema", "ERROR", desc.traceability, "the traceability map yields zero records"
+        )
+    report.record_count = len(records)
+
+    ctx = Context(root, desc, records, changelog_all)
+    for family in planned:
+        if not map_ok and family in RECORD_FAMILIES:
+            report.families_skipped[family] = "map unavailable"
+            continue
+        CHECKS[family](ctx, report)
+        report.families_run.append(family)
+    return report
+
+
+# ---------------------------------------------------------------------------
+# Generators (stub — a later build writes the generated blocks)
+# ---------------------------------------------------------------------------
+
+
+def run_generate(root: Path, only: Optional[List[str]], verify: bool) -> int:
+    print("not implemented in this build")
+    return 2
+
+
+def run_context(root: Path, requirement: str) -> int:
+    print("not implemented in this build")
+    return 2
+
+
+# ---------------------------------------------------------------------------
+# Selftest (stub — a later build runs the tool against the baseline fixture)
+# ---------------------------------------------------------------------------
+
+
+def run_selftest(root: Path) -> int:
+    print("not implemented in this build")
+    return 2
+
+
+#: The minimal passing repository the unit tests and the selftest build on.
+_BASELINE_FILES = {
+    "docs/.sdd.yaml": """sdd:
+  profile: full
+
+  req_style: area-prefixed
+  req_areas: [FOUND]
+  req_gap: 10
+  excluded_areas: [BENCH]
+
+  doc_kinds: [requirement, specification, adr, plan, guide, analysis, operations, reference, upstream]
+
+  default_mode: spec-first
+
+  paths:
+    requirements: docs/requirements
+    specifications: docs/specifications
+    adr: docs/adr
+    plans: docs/plans
+
+  traceability: docs/specifications/traceability.yaml
+
+  build_entrypoint: make
+  ci_target: ci
+  spec_check_target: spec-check
+
+  use_probes: false
+  use_strands: false
+
+  upstream: ""
+
+  ground_truth: "the specifications in docs/specifications"
+
+  check:
+    script: scripts/sdd-check.py
+    version: "0.6.0"
+    links:
+      exclude: []
+    changelog:
+      path: CHANGELOG.md
+      max_words: 35
+    code_roots: []
+    test_globs: ["*_test.py"]
+    probes_catalogue: ""
+    families:
+      descriptor: error
+      map-schema: error
+      map-to-tree: error
+      index-sync: error
+      plans: error
+      tree-to-map: warn
+      doc-kinds: warn
+      rfc2119: warn
+      one-home: error
+      links: error
+      changelog: warn
+      generated: error
+      draft-reason: off
+
+  hooks:
+    stop_nudge: true
+""",
+    "docs/requirements/README.md": """---
+kind: guide
+---
+
+# Requirements
+
+Each row links to the requirement it names. The traceability map owns both status axes.
+
+<!-- sdd:generated requirements-index -->
+
+| ID | Title | Stability | Implementation |
+|---|---|---|---|
+| [REQ-FOUND-001](REQ-FOUND-001.md) | Environment boundary | Draft | shipped |
+
+<!-- /sdd:generated -->
+""",
+    "docs/requirements/REQ-FOUND-001.md": """---
+kind: requirement
+id: REQ-FOUND-001
+title: Environment boundary
+status: draft
+implementation: shipped
+---
+
+# REQ-FOUND-001 — Environment boundary
+
+The service reads its configuration from the environment when it starts.
+
+## Acceptance criteria
+
+- A start with every declared variable set is accepted.
+- A start with a declared variable absent is refused, and the refusal names the variable.
+
+## Out of scope
+
+- Reloading the configuration while the service runs.
+
+**Canonical:** [SPEC-ENV §1](../specifications/env.md#1--boundary-req-found-001)
+""",
+    "docs/specifications/README.md": """---
+kind: guide
+---
+
+<!-- sdd-check: allow rfc2119, one-home -->
+
+# Specifications
+
+Each specification owns the normative prose for the requirements it lists.
+
+<!-- sdd:generated specifications-index -->
+
+| Specification | Status | Mode |
+|---|---|---|
+| [SPEC-ENV](env.md) | draft | spec-first |
+
+<!-- /sdd:generated -->
+""",
+    "docs/specifications/env.md": """---
+kind: specification
+spec: SPEC-ENV
+status: draft
+mode: spec-first
+requirements: [REQ-FOUND-001]
+---
+
+# SPEC-ENV — Environment
+
+This document owns how the service reads its environment.
+
+## §1 — Boundary (REQ-FOUND-001)
+
+**Implements:** REQ-FOUND-001
+
+The service MUST read every declared variable from the environment when it starts.
+
+The service MUST refuse to start when a declared variable is absent.
+""",
+    "docs/specifications/traceability.yaml": """# traceability.yaml — the machine-readable REQ to spec to code to test map.
+requirements:
+  - id: REQ-FOUND-001
+    title: Environment boundary
+    canonical: docs/specifications/env.md#1--boundary-req-found-001
+    status: draft
+    implementation: shipped
+    packages:
+      - src/env
+    tests:
+      - tests/env_test.py
+""",
+    "docs/adr/README.md": """---
+kind: guide
+---
+
+# Decision records
+
+<!-- sdd:generated adr-index -->
+
+| ADR | Title | Status |
+|---|---|---|
+
+<!-- /sdd:generated -->
+""",
+    "docs/plans/2026-01-01-env.md": """---
+kind: plan
+plan: 2026-01-01-env
+implements: [REQ-FOUND-001]
+mode: spec-first
+status: done
+---
+
+# 2026-01-01 — Environment boundary
+
+## Tasks
+
+- [x] Read the declared variables when the service starts.
+- [x] Refuse a start with a declared variable absent.
+""",
+    "docs/development-process.md": """---
+kind: guide
+---
+
+# Development process
+
+Write the specification first, then the code, then the tests that cite the requirement.
+""",
+    "src/env/__init__.py": "",
+    "tests/env_test.py": '''def test_req_found_001_boundary():
+    """The service refuses to start when a declared variable is absent."""
+    assert True
+''',
+    "CHANGELOG.md": """# Changelog
+
+## [Unreleased]
+
+### Added
+- Config: the service reads every declared variable from the environment when it starts.
+""",
+    "AGENTS.md": """# Agent guide
+
+Read [the development process](docs/development-process.md) before changing anything here.
+""",
+}
+
+
+def write_baseline(root: Path) -> None:
+    """Write the minimal passing repository the tests and the selftest run against."""
+    root = Path(root)
+    for rel, text in _BASELINE_FILES.items():
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Command line
+# ---------------------------------------------------------------------------
+
+COMMANDS = ("check", "generate", "context", "selftest")
+
+USAGE = """usage: sdd-check [check|generate|context|selftest] [options]
+
+  check [--root DIR] [--only fam[,fam]] [--changelog-all]
+  generate [--root DIR] [--only fam[,fam]] [--verify]
+  context <REQ> [--root DIR]
+  selftest [--root DIR]
+  --version
+"""
+
+
+def main(argv=None) -> int:
+    """Parse the command line and run one command. Returns the process exit code."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    argv = [str(item) for item in argv]
+    if not argv:
+        argv = ["check"]
+    if argv[0] in ("--version", "-V"):
+        print(__version__)
+        return 0
+    if argv[0] in ("--help", "-h"):
+        print(USAGE.rstrip())
+        return 0
+    if argv[0].startswith("-"):
+        command, rest = "check", argv
+    else:
+        command, rest = argv[0], argv[1:]
+    if command not in COMMANDS:
+        print("sdd-check: unknown command '%s'" % command)
+        print(USAGE.rstrip())
+        return 2
+
+    root = Path.cwd()
+    only: Optional[List[str]] = None
+    changelog_all = False
+    verify = False
+    positional: List[str] = []
+    index = 0
+    while index < len(rest):
+        arg = rest[index]
+        if arg == "--root":
+            index += 1
+            if index >= len(rest):
+                print("sdd-check: --root needs a directory")
+                return 2
+            root = Path(rest[index])
+        elif arg.startswith("--root="):
+            root = Path(arg.split("=", 1)[1])
+        elif arg == "--only":
+            index += 1
+            if index >= len(rest):
+                print("sdd-check: --only needs a family list")
+                return 2
+            only = [name.strip() for name in rest[index].split(",") if name.strip()]
+        elif arg.startswith("--only="):
+            only = [name.strip() for name in arg.split("=", 1)[1].split(",") if name.strip()]
+        elif arg == "--changelog-all":
+            changelog_all = True
+        elif arg == "--verify":
+            verify = True
+        elif arg.startswith("-"):
+            print("sdd-check: unknown option '%s'" % arg)
+            return 2
+        else:
+            positional.append(arg)
+        index += 1
+
+    if command == "generate":
+        return run_generate(root, only, verify)
+    if command == "context":
+        if len(positional) != 1:
+            print("sdd-check: context takes exactly one requirement id")
+            return 2
+        return run_context(root, positional[0])
+    if command == "selftest":
+        return run_selftest(root)
+    if positional:
+        print("sdd-check: check takes no positional argument ('%s')" % positional[0])
+        return 2
+    report = run_check(root, only, changelog_all)
+    print(report.render(root))
+    return report.exit_code()
+
+
+if __name__ == "__main__":
+    sys.exit(main())
