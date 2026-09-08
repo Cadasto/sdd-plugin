@@ -24,7 +24,7 @@ Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Veri
 
 Capture the **what and the why** — requirements, invariants, acceptance criteria — **not** redundant *how-to* an agent can infer from the existing code. Architectural constraints and business rules are high-value; restating obvious mechanics is noise.
 
-## 3. The seven document kinds
+## 3. The document kinds and their zones
 
 The single most important rule: **every document has exactly one job and one altitude.** Mixing them is the cardinal sin.
 
@@ -37,6 +37,22 @@ The single most important rule: **every document has exactly one job and one alt
 | **Guide** | How do I work in this repo safely? | No | `docs/architecture.md`, … |
 | **Analysis** | What did we measure or compare? | No | `docs/analysis/` |
 | **Operations** | How do operators run the system? | Runbooks | `docs/operations/` |
+| **Reference** | A declared projection or a superseded rationale | No — binds nothing | beside the specs, or `docs/reference/` |
+| **Upstream** | What another repository owes this one (a cross-repo ask) | No — its own state lifecycle | `docs/<upstream>-gap-drafts/` |
+
+### The three zones
+
+The nine kinds fall into three zones. The zone decides how a document is read, and what the drift gate enforces on it.
+
+- **Normative** — `requirement`, `specification`, `adr`, `plan`. Each carries a status vocabulary of its own (§6); the specification carries the RFC-2119 force (§4).
+- **Informative** — `guide`, `analysis`, `operations`, `reference`. Each explains, measures, or projects. None carries a status.
+- **Upstream** — `upstream`. An ask filed at another repository, running its own `state:` lifecycle (§10).
+
+Three rules hold the zones apart:
+
+- Where an informative document and a specification disagree, the specification wins and the informative document is corrected.
+- An informative document may carry a process imperative; it may not be the only home of a product-contract rule — it cites the owning `SPEC §`.
+- A `reference` document is a declared projection: it binds nothing and carries no RFC-2119 keyword.
 
 ### Boundary rules (enforced by review, partly by CI)
 
@@ -45,6 +61,7 @@ The single most important rule: **every document has exactly one job and one alt
 - **Plans** MUST cite the `REQ-*` / `SPEC-* §` (or ADR) they implement, in the header.
 - **ADRs** cover one decision each; long flows and schema DDL stay in the specs.
 - **Guides** are informative; when a guide disagrees with a spec, **the spec wins and the guide is updated.**
+- **Every document declares its kind** in frontmatter (`kind:`); the vocabulary is the descriptor's `doc_kinds`.
 
 ### Normative vs narrative
 
@@ -80,6 +97,10 @@ Pick **one** REQ style and stay consistent (declared in `.sdd.yaml`):
 - **flat-numeric** with decadal gaps (`REQ-050`, room to insert) — leaner for a library.
 - **area-prefixed** (`REQ-AUTH-001`) — reads as a capability map; friendlier for a product.
 
+### Excluded areas
+
+An area a repository has deliberately excluded is declared in `excluded_areas`; the gate rejects an identifier that uses it. A stated non-area ends the 'should this be a requirement?' conversation before it starts.
+
 ### Single canonical home
 
 Each requirement's normative prose lives in **exactly one** spec section. The requirements index only **links** to it — it never duplicates the requirement body. Two copies = two sources of truth = guaranteed drift.
@@ -100,12 +121,32 @@ A `STRAND-NN` is an open architectural question that is scoped, named, and track
 
 ## 6. The two status axes
 
-Track these **separately** on every requirement — conflating them is a common failure:
+A requirement carries two status axes and they are tracked **separately** — conflating them is a common
+failure. **Spec stability** (`status`) says how settled the wording is; promotion to `stable` freezes the
+contract, and a later change needs a deprecation cycle. **Implementation status** (`implementation`) says
+how much of it is built. A requirement can be authoritative (`draft`, binding) while its code is still
+`planned`. That is normal and healthy. The traceability map is the single owner of both axes.
 
-1. **Spec stability** — `Draft` → `Stable` → `Deprecated`. Crucially, **`Draft` is binding *now*** — it only signals the *wording* may still change pre-1.0, not that the requirement is optional. Promotion to `Stable` freezes the contract (later changes need a deprecation cycle).
-2. **Implementation status** — `planned`/`proposed` → `partial`/`in_progress` → `landed`/`shipped`, plus `deferred`.
+Each kind carries its own vocabulary:
 
-A spec can be authoritative (`Draft`, binding) while its code is still `planned`. That is normal and healthy.
+| Kind | Key | Values |
+|---|---|---|
+| **Specification** | `status` | `draft` · `stable` · `deprecated` |
+| **Requirement** | `status` | `draft` · `stable` · `deprecated` |
+| **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` |
+| **Plan** | `status` | `active` · `done` · `postponed` · `abandoned` |
+| **ADR** | `status` | `proposed` · `accepted` · `superseded` · `deprecated` |
+| **Upstream** | `state` | `proposed` · `submitted` · `landed-upstream` · `landed` · `rejected` |
+| Guide, analysis, operations, reference | — | no status |
+
+> **A `draft` specification is binding; a `draft` plan does not exist — plans start `active`.**
+
+The upstream kind deliberately spells its key `state`, not `status`: the lifecycle it tracks belongs to
+another repository, not to this one (§10).
+
+**"Enforced" implementation values** are `in_progress`, `partial`, `landed` and `shipped`. A record with
+one of these carries evidence — at least one `packages`, `tests`, or `operations` entry — and the gate
+fails when it does not.
 
 ## 7. Two source-of-truth modes
 
@@ -139,7 +180,12 @@ See [traceability-schema.md](traceability-schema.md) for the machine-readable re
 
 ### Drift CI — the non-negotiable gate
 
-A `spec-check` target validates the traceability map against the actual tree (cited paths exist, probes resolve, no orphans). So **a requirement with no code, code with no test, or a probe with no test is a mechanically detectable drift signal.** This is what turns "we have specs" into "our specs can't silently rot."
+A `spec-check` build target runs the shared gate, `sdd-check`, vendored into the repository and pinned by
+version in `.sdd.yaml`. It validates the map against the tree in both directions, the index against the
+map, the document kinds, the links, and the prose rules that can be checked mechanically, and it
+regenerates every derived index from one source. Its contract is [sdd-check.md](sdd-check.md). This is
+what turns 'we have specs' into 'our specs can't silently rot' — one implementation, one blind-spot list,
+fixed once for every repository.
 
 ## 9. The plan lifecycle — a working file, finished in place, swept at the release
 
@@ -203,13 +249,16 @@ release. A finished plan's leftover items travel to the review ledger's `Deferre
 ## 10. Agent affordances
 
 - **`AGENTS.md` is the single governed entry point** — a thin 1-page map that **defers to the canonical docs rather than duplicating them.** Per-agent files (`.claude/CLAUDE.md`, etc.) stay tiny and point back to it.
-- **One-shot context bundle** — a `spec-context REQ=NNN` command assembles, in one shot, the index row + traceability block + canonical spec excerpt + any open strands, so an agent never has to grep the whole tree. `/sdd-trace` is the in-session analogue.
+- **One-shot context bundle** — `sdd-check context <REQ>` assembles, in one shot, the index row + traceability block + canonical spec excerpt + any open strands, so an agent never has to grep the whole tree. `/sdd-trace` is the in-session caller.
 - **A published agent loop** (`ai-workflow.md`): locate the `REQ` → follow to its canonical spec → look up ground truth (never guess) → cite identifiers → don't decide open questions in code → verify with the full gate.
-- **Name an authoritative ground-truth source for domain facts and forbid guessing them.** Every domain has a "look it up" rule; the source is declared in `.sdd.yaml` (`ground_truth`).
+- **Name an authoritative ground-truth source for domain facts and forbid guessing them.** Every domain has a "look it up" rule; the source is declared in `.sdd.yaml` (`ground_truth`), as one source or an ordered list consulted first to last — and a local checkout is a cache, not the basis of a claim.
 - **Cross-repo disagreement.** For a dependency this repository consumes, the upstream's semantics are
   ground truth and this repository's documents are corrected to match. Raise a genuine conflict as
   evidence, in one or two sentences — never design around it, and a difference from upstream is never
   reported as a defect in upstream.
+- **The cross-repo ask has a lifecycle.** A `kind: upstream` document carries `state:` through
+  `proposed → submitted → landed-upstream → landed | rejected`; the rules are in
+  [cross-repo-gap.md](cross-repo-gap.md).
 
 ## 11. Anti-patterns to design against
 
@@ -292,6 +341,27 @@ the in-review amendment loop is where much of the value is.
 **Settled adjudications are remembered.** A declined finding, with the reason it was declined, is written
 to the repository's reviewer memory at `docs/.sdd/reviewers/<agent-name>.md`, so the same finding is not
 re-raised the next round. The reviewer agents read that file; the triage step writes it.
+
+**The enforcement register.** A rule without a failing check is a wish. Every hard rule in this
+methodology names its enforcement — a `sdd-check` family, a build target, a hook, or `review-enforced`.
+The review-enforced list is meant to shrink.
+
+| Rule | Enforcement |
+|---|---|
+| Canonical home resolves both ways | `map-to-tree` |
+| Evidence on enforced records | `map-to-tree` |
+| Index equals map | `index-sync` |
+| One canonical home | `one-home` |
+| RFC-2119 only in specifications | `rfc2119` |
+| Doc kinds and status vocabularies | `doc-kinds` |
+| Links and fragments resolve | `links` |
+| Finished plans swept at the release | `plans` |
+| Changelog bullet | `changelog` |
+| Generated blocks match | `generated` |
+| Unknown identifier cited in code | `tree-to-map` |
+| Lanes | review-enforced — `/sdd-review` step 0 |
+| Materiality and collapse-before-add | review-enforced |
+| Mutation-detectability | the build gate's tests |
 
 **The review layer meets the bar it imposes.** A fan-out of reviewers records which members were
 dispatched and how many reported. A panel that cannot say whether all its members reported is not

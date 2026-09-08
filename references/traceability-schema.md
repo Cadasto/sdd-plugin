@@ -8,10 +8,18 @@ A tiny per-repo config so the skills stay repo-agnostic. **Every skill reads it 
 
 ```yaml
 sdd:
+  profile: full                     # full | lightweight
+
   # Identifier style for requirements. Pick one and never switch (it would renumber IDs).
   req_style: area-prefixed          # area-prefixed | flat-numeric
   req_areas: [FOUND, EHR, CLIN, AUTH]   # required iff req_style == area-prefixed
   req_gap: 10                       # decadal gap for flat-numeric (REQ-010, REQ-020, …)
+  excluded_areas: []                # area-prefixed only; tokens that are deliberately not areas
+
+  # The document-kind vocabulary every `kind:` frontmatter value is checked against.
+  doc_kinds: [requirement, specification, adr, plan, guide, analysis, operations, reference, upstream]
+
+  default_mode: spec-first          # the mode a specification has when its frontmatter names none
 
   paths:
     requirements: docs/requirements
@@ -29,11 +37,47 @@ sdd:
   # Optional capabilities — omit if the repo doesn't use them.
   use_probes: true                  # PROBE-NNN conformance probes
   use_strands: true                 # STRAND-NN open research questions
-  upstream: ""                      # sibling SDD repo this one consumes (cross-repo gap drafts); blank if none
+
+  upstream: ""                      # or a map of named relations:
+  # upstream:
+  #   <name>:
+  #     repo: <module path or URL>
+  #     role: consumed | platform-context | ground-truth
+  #     authority: upstream-leads | local-leads
+  #     gap_drafts: docs/<name>-gap-drafts     # role: consumed only
 
   # The authoritative source for this repo's domain facts. Agents MUST look facts up here,
-  # never guess. Free text — e.g. a domain MCP, an internal spec registry, an API reference.
-  ground_truth: "<the authoritative source for this repo's domain facts>"
+  # never guess. One source, or an ordered list consulted first to last.
+  ground_truth: "<one source>"
+
+  check:
+    script: scripts/sdd-check.py   # where the vendored gate lives
+    version: "0.6.0"               # must equal the vendored tool's own version
+    links:
+      exclude: []                  # globs; printed in every report when non-empty
+    changelog:
+      path: CHANGELOG.md
+      max_words: 35
+    code_roots: []                 # for tree-to-map; empty = the repository minus docs/, .git/, vendor/, node_modules/
+    test_globs: ["*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs"]
+    probes_catalogue: ""           # a document whose headings carry PROBE ids; empty = a probe resolves through a cited test
+    families:                      # error | warn | off
+      descriptor: error
+      map-schema: error
+      map-to-tree: error
+      index-sync: error
+      plans: error
+      tree-to-map: warn
+      doc-kinds: warn
+      rfc2119: warn                # the per-kind table in sdd-check.md still errors for requirement/adr/plan/reference
+      one-home: error
+      links: error
+      changelog: warn
+      generated: error
+      draft-reason: off
+
+  hooks:
+    stop_nudge: true               # the session-stop hook's one-shot "record progress" nudge; false disables it in this repository
 
   # Delivery parameters. /sdd-deliver and /sdd-review read these instead of asking.
   # Every value here is an EXAMPLE — no model and no reviewer is required by the plugin.
@@ -53,15 +97,42 @@ sdd:
 
 | Field | Meaning |
 |---|---|
+| `profile` | `full` or `lightweight` — how much structure this repository's docs tree has. See **Profiles** below. |
 | `req_style` | `area-prefixed` (`REQ-AUTH-001`) or `flat-numeric` (`REQ-050`). Drives how `/sdd-specify` assigns the next ID. |
 | `req_areas` | The allowed area tokens (area-prefixed only). New areas are a deliberate, reviewed addition. |
 | `req_gap` | Spacing for flat-numeric IDs so new requirements slot in without renumbering. |
+| `excluded_areas` | Area tokens this repository has deliberately excluded (area-prefixed only). An identifier that uses one is rejected (methodology §5). |
+| `doc_kinds` | The document-kind vocabulary a document's `kind:` frontmatter is checked against (methodology §3). |
+| `default_mode` | The source-of-truth mode a specification has when its own frontmatter names none (methodology §7). |
 | `paths.*` | Where each document kind lives. Skills resolve all locations from here. |
 | `traceability` | Path to the traceability map. |
 | `build_entrypoint` / `ci_target` / `spec_check_target` | The build tool and the target names `/sdd-trace` and the delivery gates invoke. |
 | `use_probes` / `use_strands` | Toggle the optional `PROBE`/`STRAND` machinery. |
-| `upstream` | The sibling SDD repo this one files cross-repo gap drafts against (see `references/cross-repo-gap.md`). |
-| `ground_truth` | The named "look it up, don't guess" source for domain facts. |
+| `upstream` | The upstream relations this repository has: one scalar repo, or a map of named relations with `repo`, `role`, `authority` and `gap_drafts` (see [cross-repo-gap.md](cross-repo-gap.md)). |
+| `ground_truth` | The named "look it up, don't guess" source for domain facts. One source, or an ordered list consulted first to last; a local checkout is a cache, not the basis of a claim. |
+| `check.*` | The shared gate's configuration. See **The check block** below. |
+| `hooks.stop_nudge` | Whether the plugin's session-stop hook may nudge once when a session made no commit and leaves uncommitted changes. `true` by default. |
+
+### Profiles
+
+`profile: lightweight` means `paths.requirements` may name a **file** (a single registry index, no detail
+files) and `paths.specifications` may name a **file** (one document that carries the normative sections
+and, outside them, informative narrative). `full` requires directories.
+
+> **The legacy forms stay valid.** A scalar `ground_truth` and a scalar `upstream` are read as before.
+
+### The check block
+
+| Key | Meaning |
+|---|---|
+| `script` | Where the vendored gate lives in this repository. |
+| `version` | The pinned gate version. It must equal the vendored tool's own version, or the gate refuses to run. |
+| `links.exclude` | Globs the `links` family skips. Printed in every report when non-empty. |
+| `changelog.path` / `changelog.max_words` | The changelog the `changelog` family lints, and the per-bullet word budget. |
+| `code_roots` | Where `tree-to-map` looks for cited identifiers. Empty means the repository minus `docs/`, `.git/`, `vendor/` and `node_modules/`. |
+| `test_globs` | What counts as a test file. |
+| `probes_catalogue` | A document whose headings carry `PROBE` ids. Empty means a probe resolves through a cited test. |
+| `families` | Per-family severity — `error` · `warn` · `off`. The families and the rules each one applies are in [sdd-check.md](sdd-check.md). |
 
 ### `agents:` fields
 
@@ -116,22 +187,20 @@ requirements:
 | `packages` | when landed | Source packages/modules that implement it. |
 | `tests` | when landed | Test files that assert it. |
 | `probes` | optional | `PROBE-*` ids (conformance probes), if `use_probes`. |
+| `operations` | when landed | Runbook paths — the evidence an operations requirement has landed. |
+| `draft_reason` | when draft | Why the wording is still `draft`. Required by the `draft-reason` family when the record is `status: draft` and enforced. |
 
-### What `spec-check` verifies
+An unknown key on a record is reported as a warning, never an error; the retired `plans` key is one such warning.
 
-The drift gate fails when the map and the tree disagree, surfacing each orphan class:
+### What the gate verifies
 
-- a `canonical` link points at a missing file or anchor;
-- a listed `package` or `test` path does not exist;
-- a `PROBE` id has no corresponding test;
-- a requirement marked `landed`/`shipped` has no `packages` or `tests`;
-- a requirement exists in the index but not the map (or vice-versa).
+The gate is `sdd-check`; its families and rules are in [sdd-check.md](sdd-check.md).
 
 > **A record has no plan axis and no `pr:` pointer.** The implementing change is found by searching the
 > repository history for the `REQ` id, which every commit, PR title, and test name already carries. A
 > pointer would be one more copy of a fact that can lag.
 
-`/sdd-trace` reports these in-session and may run the real `spec_check_target`; the full build gate before a done-claim is `<build_entrypoint> <ci_target>`, and `/sdd-archive` performs the close-out.
+`/sdd-trace` reports drift in-session and may run the real `spec_check_target`; the full build gate before a done-claim is `<build_entrypoint> <ci_target>`, and `/sdd-archive` performs the close-out.
 
 ## 3. The plan frontmatter
 
@@ -153,3 +222,20 @@ status: active            # active | done | postponed | abandoned
 | `implements` | yes | The identifiers this plan delivers. A plan that cites none is not a plan. |
 | `mode` | yes | Which source-of-truth mode this slice runs in (methodology §7). |
 | `status` | yes | `active` · `done` · `postponed` · `abandoned`. `/sdd-archive` sets `done` in place; `/sdd-finalize` deletes `done` and `abandoned` at the next version bump and never touches `active` or `postponed`. |
+
+## 4. Generated blocks
+
+Three indexes are derived from the map rather than written by hand. Each one lives between a pair of
+markers:
+
+```markdown
+<!-- sdd:generated requirements-index -->
+…table…
+<!-- /sdd:generated -->
+```
+
+The block names are `requirements-index`, `specifications-index` and `adr-index`.
+
+Text between the markers is written by `sdd-check generate` and verified by the `generated` family; a
+hand edit fails the gate. The two frontmatter lines `status:` and `implementation:` in a requirement
+detail file are also written by `generate` from the map.

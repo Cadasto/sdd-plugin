@@ -15,8 +15,8 @@ The single-canonical-home rule ([sdd-methodology.md](sdd-methodology.md) §5) ap
 | **Review comment** | One finding, anchored to `file:line` (+ the `SPEC §` it violates, if normative) | Essays; re-litigation of settled points | `SPEC §` / finding id |
 | **Resolution comment** | That a finding is fixed — one line + the fixing commit SHA | A re-description of the fix (it's in the diff) | the finding + commit SHA |
 
-Two rules on that table are **stated, not yet enforced** — no tool checks them today, so they are a
-reviewer's judgement call and are written here so the judgement is the same every time:
+Two rules on that table are enforced by the shared gate ([sdd-check.md](sdd-check.md)) — the `changelog`
+and `one-home` families — and are written here so the tool and the reviewer apply the same rule:
 
 - **Changelog bullet.** One sentence, at most about 35 words, leading with the subsystem, no API
   inventory, no rationale. Rationale belongs in the commit body or the ADR.
