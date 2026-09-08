@@ -10,6 +10,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ## [Unreleased]
 
 ### Added
+- Tools: `tools/sdd-check.py` — the drift gate: a strict YAML-subset parser, descriptor and map models, and the drift-core families (descriptor, map schema, map to tree, index sync, plans, tree to map, draft reason), with unit tests.
 - References: `sdd-check.md` — the contract of the shared drift gate: families, severities, report format, exit codes, waivers, generated blocks, vendoring and the version pin.
 - References: `sdd-methodology.md` §3 the nine document kinds in three zones, §5 excluded areas, §6 per-kind status vocabularies, §10 the ground-truth resolution order and the cross-repo ask lifecycle, §13 the enforcement register.
 - References: `traceability-schema.md` — the descriptor's profile, kinds, excluded areas, default mode, upstream relations, `check:` and `hooks:` blocks; two new record fields; generated blocks.

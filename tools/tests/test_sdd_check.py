@@ -478,3 +478,255 @@ class TestIndexSyncFamily(BaselineCase):
         notes = [f for f in self.levelled(report, "NOTE") if "detail" in f.message]
         self.assertTrue(notes, report.render(self.tmp))
         self.assertIn("skipped", notes[0].message)
+
+
+# ---------------------------------------------------------------------------
+# plans, tree-to-map, draft-reason
+# ---------------------------------------------------------------------------
+PLAN_REL = "docs/plans/2026-01-01-env.md"
+LATER_PLAN = """---
+kind: plan
+plan: 2026-02-02-later
+implements: [REQ-FOUND-001]
+mode: spec-first
+status: done
+---
+
+# 2026-02-02 — Later
+
+## Tasks
+
+- [x] Done.
+"""
+
+
+class TestPlansFamily(BaselineCase):
+    def git(self, *args):
+        subprocess.run(
+            ["git", "-C", str(self.tmp)] + list(args),
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def init_git(self):
+        self.git("init", "-q")
+        self.git("config", "user.email", "tests@example.invalid")
+        self.git("config", "user.name", "sdd-check tests")
+        self.git("config", "commit.gpgsign", "false")
+
+    def commit(self, message):
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", message)
+
+    def test_missing_mode(self):
+        self.edit(PLAN_REL, "mode: spec-first\n", "")
+        self.assert_finding(self.run_only("plans"), "mode")
+
+    def test_plan_key_must_equal_the_filename(self):
+        self.edit(PLAN_REL, "plan: 2026-01-01-env", "plan: wrong-name")
+        self.assert_finding(self.run_only("plans"), "filename")
+
+    def test_status_vocabulary(self):
+        self.edit(PLAN_REL, "status: done", "status: finished")
+        self.assert_finding(self.run_only("plans"), "status")
+
+    def test_implements_without_a_record(self):
+        self.edit(PLAN_REL, "implements: [REQ-FOUND-001]", "implements: [REQ-FOUND-009]")
+        self.assert_finding(self.run_only("plans"), "no record")
+
+    def test_active_plan_for_a_shipped_requirement_warns(self):
+        self.edit(PLAN_REL, "status: done", "status: active")
+        self.assert_finding(self.run_only("plans"), "still active", level="WARN")
+
+    def test_active_plan_is_fine_when_implementation_aligned(self):
+        self.edit(PLAN_REL, "status: done", "status: active")
+        self.edit(PLAN_REL, "mode: spec-first", "mode: implementation-aligned")
+        self.assert_clean(self.run_only("plans"))
+
+    def test_done_plan_for_an_unenforced_requirement_warns(self):
+        self.edit(MAP_REL, "implementation: shipped", "implementation: proposed")
+        self.assert_finding(self.run_only("plans"), "not enforced", level="WARN")
+
+    def test_done_plan_after_the_tag_is_clean(self):
+        (self.tmp / PLAN_REL).unlink()
+        self.init_git()
+        self.commit("baseline")
+        self.git("tag", "v1.0.0")
+        self.write("docs/plans/2026-02-02-later.md", LATER_PLAN)
+        self.commit("the later plan")
+        self.assert_clean(self.run_only("plans"))
+
+    def test_done_plan_before_the_tag_is_stale(self):
+        (self.tmp / PLAN_REL).unlink()
+        self.write("docs/plans/2026-02-02-later.md", LATER_PLAN)
+        self.init_git()
+        self.commit("baseline with the plan")
+        self.git("tag", "v1.0.0")
+        self.assert_finding(self.run_only("plans"), "predates the latest release tag")
+
+    def test_without_git_only_the_stale_rule_is_skipped(self):
+        self.edit(PLAN_REL, "status: done", "status: finished")
+        report = self.run_only("plans")
+        self.assertEqual("stale-plan rule needs git", report.families_skipped.get("plans"))
+        self.assertIn("plans (stale-plan rule needs git)", report.render(self.tmp))
+        self.assertIn("plans", report.families_run)
+        self.assert_finding(report, "status")
+
+
+class TestTreeToMapFamily(BaselineCase):
+    def test_unknown_identifier_cited(self):
+        self.write("src/env/thing.py", "# implements REQ-FOUND-077\n")
+        self.assert_finding(self.run_only("tree-to-map"), "unknown identifier cited", level="WARN")
+
+    def test_test_file_citing_a_record_with_no_tests(self):
+        self.edit(MAP_REL, "    tests:\n      - tests/env_test.py\n", "")
+        self.write("tests/other_test.py", "def test_boundary():\n    # REQ-FOUND-001\n    assert True\n")
+        self.assert_finding(self.run_only("tree-to-map"), "lists no tests", level="WARN")
+
+    def test_docs_are_not_scanned(self):
+        self.write("docs/notes.md", "---\nkind: analysis\n---\n\n# Notes\n\nREQ-FOUND-077 was considered.\n")
+        self.assert_clean(self.run_only("tree-to-map"))
+
+
+class TestDraftReasonFamily(BaselineCase):
+    def test_off_by_default(self):
+        report = self.run_only("draft-reason")
+        self.assertEqual("off", report.families_skipped.get("draft-reason"))
+        self.assertNotIn("draft-reason", report.families_run)
+
+    def test_enabled_draft_and_enforced_needs_a_reason(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "draft-reason: off", "draft-reason: error")
+        self.assert_finding(self.run_only("draft-reason"), "draft_reason")
+
+    def test_enabled_with_a_reason_is_clean(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "draft-reason: off", "draft-reason: error")
+        self.edit(MAP_REL, "    status: draft", "    draft_reason: wording under review\n    status: draft")
+        self.assert_clean(self.run_only("draft-reason"))
+
+
+# ---------------------------------------------------------------------------
+# The report and the command line
+# ---------------------------------------------------------------------------
+class TestReport(BaselineCase):
+    def test_first_line_states_what_ran_against_what(self):
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        first = report.render(self.tmp).split("\n")[0]
+        self.assertRegex(first, r"^sdd-check 0\.6\.0 · .* · profile full · 1 REQ records$")
+
+    def test_finding_line_format(self):
+        (self.tmp / SPEC_REL).unlink()
+        report = self.run_only("map-to-tree")
+        lines = report.render(self.tmp).split("\n")
+        wanted = [l for l in lines if l.startswith("[map-to-tree] ERROR REQ-FOUND-001: ")]
+        self.assertTrue(wanted, report.render(self.tmp))
+        self.assertIn("canonical file missing", wanted[0])
+
+    def test_summary_line_for_a_clean_run(self):
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        expected = "sdd-check: OK — %d checks, 0 errors, 0 warnings" % len(report.families_run)
+        self.assertIn(expected, report.render(self.tmp).split("\n"))
+
+    def test_summary_line_for_a_failed_run(self):
+        (self.tmp / SPEC_REL).unlink()
+        report = self.run_only("map-to-tree")
+        self.assertIn(
+            "sdd-check: FAILED — %d errors, %d warnings" % (report.errors(), report.warnings()),
+            report.render(self.tmp).split("\n"),
+        )
+
+    def test_families_run_and_skipped_are_named(self):
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        expected = [f for f in sdd_check.FAMILIES if f in sdd_check.CHECKS and f != "draft-reason"]
+        self.assertEqual(expected, report.families_run)
+        rendered = report.render(self.tmp)
+        self.assertIn("families run: %s;" % ", ".join(expected), rendered)
+        self.assertIn("draft-reason (off)", rendered)
+        for family, reason in report.families_skipped.items():
+            self.assertIn("%s (%s)" % (family, reason), rendered)
+
+    def test_link_exclusions_are_printed_when_set(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "      exclude: []", '      exclude: ["docs/vendor/**"]')
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assertIn("link exclusions: docs/vendor/**", report.render(self.tmp).split("\n"))
+
+    def test_missing_map_skips_the_record_families(self):
+        (self.tmp / MAP_REL).unlink()
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assertEqual(1, report.exit_code())
+        rendered = report.render(self.tmp)
+        self.assertIn("[map-schema] ERROR docs/specifications/traceability.yaml: ", rendered)
+        for family in ("map-to-tree", "index-sync", "plans", "tree-to-map"):
+            self.assertEqual("map unavailable", report.families_skipped.get(family), rendered)
+
+    def test_unparseable_map_names_the_file_and_line(self):
+        self.write(MAP_REL, "requirements:\n  - id: REQ-FOUND-001\n\tbroken: true\n")
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        finding = [f for f in report.findings if f.family == "map-schema"][0]
+        self.assertEqual("ERROR", finding.level)
+        self.assertEqual("docs/specifications/traceability.yaml:3", finding.anchor)
+        self.assertEqual(1, report.exit_code())
+
+    def test_note_never_changes_the_exit_code(self):
+        report = sdd_check.Report()
+        report.add("plans", "NOTE", "docs/plans/x.md", "a note")
+        self.assertEqual(0, report.exit_code())
+
+
+class TestCommandLine(BaselineCase):
+    def run_main(self, argv):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = sdd_check.main(argv)
+        return code, buffer.getvalue()
+
+    def test_check_returns_zero_on_a_clean_repository(self):
+        code, out = self.run_main(["check", "--root", str(self.tmp)])
+        self.assertEqual(0, code, out)
+        self.assertIn("sdd-check: OK", out)
+
+    def test_check_returns_one_on_an_error(self):
+        (self.tmp / SPEC_REL).unlink()
+        code, out = self.run_main(["check", "--root", str(self.tmp)])
+        self.assertEqual(1, code, out)
+        self.assertIn("sdd-check: FAILED", out)
+
+    def test_missing_descriptor_returns_two(self):
+        (self.tmp / sdd_check.DESCRIPTOR_REL).unlink()
+        code, out = self.run_main(["check", "--root", str(self.tmp)])
+        self.assertEqual(2, code, out)
+        self.assertIn("docs/.sdd.yaml", out)
+
+    def test_unparseable_descriptor_returns_two(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "  profile: full", "  profile: full\n\tbroken: true")
+        code, out = self.run_main(["check", "--root", str(self.tmp)])
+        self.assertEqual(2, code, out)
+        self.assertIn("docs/.sdd.yaml", out)
+
+    def test_unknown_family_returns_two(self):
+        code, out = self.run_main(["check", "--root", str(self.tmp), "--only", "links,nope"])
+        self.assertEqual(2, code, out)
+        self.assertIn("unknown family", out)
+
+    def test_unknown_command_returns_two(self):
+        code, out = self.run_main(["frobnicate"])
+        self.assertEqual(2, code, out)
+        self.assertIn("unknown command", out)
+
+    def test_version(self):
+        code, out = self.run_main(["--version"])
+        self.assertEqual(0, code)
+        self.assertEqual("0.6.0", out.strip())
+        self.assertEqual("0.6.0", sdd_check.__version__)
+
+    def test_stub_commands_are_honest(self):
+        for argv in (["generate", "--root", str(self.tmp)],
+                     ["context", "REQ-FOUND-001", "--root", str(self.tmp)],
+                     ["selftest", "--root", str(self.tmp)]):
+            code, out = self.run_main(argv)
+            self.assertEqual(2, code, out)
+            self.assertEqual("not implemented in this build", out.strip())
+
+
+if __name__ == "__main__":
+    unittest.main()

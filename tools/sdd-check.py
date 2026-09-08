@@ -704,25 +704,25 @@ class Descriptor:
             return re.compile(r"REQ-\d{3,}")
         return re.compile(r"REQ-[A-Z][A-Z0-9]*-\d{3,}")
 
-    def _is_file_form(self, rel: str) -> bool:
+    def is_file_form(self, rel: str) -> bool:
         return Path(rel).suffix != "" or self.resolve(rel).is_file()
 
     def requirements_index_path(self) -> Path:
         rel = self.paths.get("requirements", DEFAULT_PATHS["requirements"])
-        if self._is_file_form(rel):
+        if self.is_file_form(rel):
             return self.resolve(rel)
         return self.resolve(rel) / "README.md"
 
     def requirements_dir(self) -> Optional[Path]:
         rel = self.paths.get("requirements", DEFAULT_PATHS["requirements"])
-        if self._is_file_form(rel):
+        if self.is_file_form(rel):
             return None
         return self.resolve(rel)
 
     def specification_files(self) -> List[Path]:
         rel = self.paths.get("specifications", DEFAULT_PATHS["specifications"])
         target = self.resolve(rel)
-        if self._is_file_form(rel):
+        if self.is_file_form(rel):
             return [target] if target.is_file() else []
         if not target.is_dir():
             return []
@@ -984,7 +984,7 @@ def check_descriptor(ctx: Context, report) -> None:
         if not rel:
             add("paths.%s is not declared" % key)
             continue
-        file_form = desc._is_file_form(rel)
+        file_form = desc.is_file_form(rel)
         if file_form and desc.profile == "full":
             add("paths.%s: profile full requires a directory, not '%s'" % (key, rel))
             continue
@@ -1340,6 +1340,192 @@ def check_index_sync(ctx: Context, report) -> None:
             )
 
 
+def _newest_tag_commit(ctx: Context) -> Tuple[Optional[str], str]:
+    """The commit the newest tag points at, and the reason when there is none."""
+    if ctx.git("rev-parse", "--show-toplevel") is None:
+        return None, "stale-plan rule needs git"
+    tags = ctx.git("tag", "--sort=-creatordate") or ""
+    newest = ""
+    for line in tags.split("\n"):
+        if line.strip():
+            newest = line.strip()
+            break
+    if not newest:
+        return None, "stale-plan rule needs a release tag"
+    commit = ctx.git("rev-list", "-n", "1", newest) or ""
+    if not commit.strip():
+        return None, "stale-plan rule needs a release tag"
+    return commit.strip(), ""
+
+
+def check_plans(ctx: Context, report) -> None:
+    """Every plan carries its four frontmatter keys, and a finished plan is swept."""
+    desc = ctx.desc
+    level = ctx.level("plans")
+    plans_dir = desc.resolve(desc.paths.get("plans", "docs/plans"))
+    if not plans_dir.is_dir():
+        return
+    tag_commit, skip_reason = _newest_tag_commit(ctx)
+    if skip_reason:
+        report.families_skipped["plans"] = skip_reason
+    pattern = desc.req_pattern()
+    for path in sorted(plans_dir.rglob("*.md")):
+        if path.name == "_template.md" or not path.is_file():
+            continue
+        anchor = ctx.rel(path)
+        front, _ = frontmatter(ctx.read(path))
+        if front is None:
+            report.add("plans", level, anchor, "the plan carries no frontmatter")
+            continue
+        for key in ("plan", "implements", "mode", "status"):
+            if front.get(key) in (None, "", []):
+                report.add("plans", level, anchor, "frontmatter %s is required" % key)
+        name = _as_str(front.get("plan"))
+        if name and name != path.stem:
+            report.add(
+                "plans",
+                level,
+                anchor,
+                "plan '%s' does not equal the filename stem '%s'" % (name, path.stem),
+            )
+        status = _as_str(front.get("status"))
+        if status and status not in PLAN_STATUS:
+            report.add(
+                "plans", level, anchor, "status '%s' is not %s" % (status, " | ".join(PLAN_STATUS))
+            )
+        mode = _as_str(front.get("mode"))
+        if mode and mode not in MODES:
+            report.add("plans", level, anchor, "mode '%s' is not %s" % (mode, " | ".join(MODES)))
+        implemented: List[Record] = []
+        for item in _as_list(front.get("implements")):
+            token = _as_str(item)
+            if not token.startswith("REQ-"):
+                continue
+            record = ctx.records_by_id.get(token) if pattern.fullmatch(token) else None
+            if record is None:
+                report.add("plans", level, anchor, "implements %s, which has no record" % token)
+            else:
+                implemented.append(record)
+        if (
+            status == "active"
+            and mode == "spec-first"
+            and implemented
+            and all(r.implementation in ("landed", "shipped") for r in implemented)
+        ):
+            report.add(
+                "plans",
+                "WARN",
+                anchor,
+                "every requirement this plan implements is landed or shipped, yet the plan is still active",
+            )
+        if status == "done":
+            open_ids = [r.id for r in implemented if not r.enforced()]
+            if open_ids:
+                report.add(
+                    "plans",
+                    "WARN",
+                    anchor,
+                    "status is done while %s is not enforced" % ", ".join(open_ids),
+                )
+        if tag_commit and status in ("done", "abandoned"):
+            commit = ctx.git("log", "-1", "--format=%H", "--", anchor) or ""
+            commit = commit.strip()
+            if not commit:
+                report.add(
+                    "plans", "NOTE", anchor, "the stale-plan rule is skipped: the file is not committed"
+                )
+            elif ctx.git("merge-base", "--is-ancestor", commit, tag_commit) is not None:
+                report.add(
+                    "plans",
+                    level,
+                    anchor,
+                    "finished plan predates the latest release tag; run /sdd-finalize",
+                )
+
+
+def _walk_code(ctx: Context, roots: List[Path], skip: set):
+    """Every readable text file under the code roots, docs and the usual noise pruned."""
+    for root in roots:
+        if not root.is_dir():
+            if root.is_file():
+                yield root
+            continue
+        for current, dirnames, filenames in os.walk(str(root)):
+            here = Path(current)
+            dirnames[:] = sorted(
+                name
+                for name in dirnames
+                if name not in PRUNED_DIRS
+                and not name.startswith(".")
+                and ctx.rel(here / name) not in skip
+            )
+            for name in sorted(filenames):
+                if name.startswith("."):
+                    continue
+                path = here / name
+                if ctx.rel(path) in skip:
+                    continue
+                try:
+                    if path.stat().st_size > 512 * 1024:
+                        continue
+                except OSError:
+                    continue
+                yield path
+
+
+def check_tree_to_map(ctx: Context, report) -> None:
+    """Every identifier the code cites names a record, and a test names a tested record."""
+    desc = ctx.desc
+    level = ctx.level("tree-to-map")
+    pattern = re.compile(
+        r"(?<![0-9A-Za-z_-])(%s)(?![0-9A-Za-z_-])" % desc.req_pattern().pattern
+    )
+    roots = [desc.resolve(rel) for rel in desc.code_roots] or [ctx.root]
+    skip = set(Path(rel).as_posix() for rel in desc.paths.values())
+    skip.add("docs")
+    skip.add(Path(desc.traceability).as_posix())
+    for path in _walk_code(ctx, roots, skip):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if "REQ-" not in text:
+            continue
+        rel = ctx.rel(path)
+        is_test = any(fnmatch.fnmatch(path.name, glob) for glob in desc.test_globs)
+        seen = set()
+        for lineno, line in enumerate(text.split("\n"), 1):
+            for match in pattern.finditer(line):
+                token = match.group(1)
+                if token in seen:
+                    continue
+                seen.add(token)
+                anchor = "%s:%d" % (rel, lineno)
+                record = ctx.records_by_id.get(token)
+                if record is None:
+                    report.add("tree-to-map", level, anchor, "unknown identifier cited: %s" % token)
+                elif is_test and not record.tests:
+                    report.add(
+                        "tree-to-map",
+                        "WARN",
+                        anchor,
+                        "this test cites %s, whose record lists no tests" % token,
+                    )
+
+
+def check_draft_reason(ctx: Context, report) -> None:
+    """A requirement that is draft and built owes a reason for the wording."""
+    level = ctx.level("draft-reason")
+    for record in ctx.records:
+        if record.status == "draft" and record.enforced() and not record.draft_reason:
+            report.add(
+                "draft-reason",
+                level,
+                record.id or ctx.desc.traceability,
+                "%s is draft and enforced, so it owes a draft_reason" % record.id,
+            )
+
+
 # --- family registry (later families are inserted above this banner) -------
 
 CHECKS = {
@@ -1347,6 +1533,9 @@ CHECKS = {
     "map-schema": check_map_schema,
     "map-to-tree": check_map_to_tree,
     "index-sync": check_index_sync,
+    "plans": check_plans,
+    "tree-to-map": check_tree_to_map,
+    "draft-reason": check_draft_reason,
 }
 
 
