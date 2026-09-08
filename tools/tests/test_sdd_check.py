@@ -728,5 +728,53 @@ class TestCommandLine(BaselineCase):
             self.assertEqual("not implemented in this build", out.strip())
 
 
+# ---------------------------------------------------------------------------
+# The interfaces later builds call
+# ---------------------------------------------------------------------------
+class TestInterfaces(BaselineCase):
+    def test_descriptor_accessors(self):
+        desc = sdd_check.Descriptor.load(self.tmp)
+        self.assertEqual(r"REQ-[A-Z][A-Z0-9]*-\d{3,}", desc.req_pattern().pattern)
+        self.assertEqual(self.tmp / "docs/requirements/README.md", desc.requirements_index_path())
+        self.assertEqual(self.tmp / "docs/requirements", desc.requirements_dir())
+        self.assertIn(self.tmp / "docs/specifications/env.md", desc.specification_files())
+        self.assertEqual([self.tmp / "docs"], desc.docs_roots())
+        self.assertEqual(["the specifications in docs/specifications"], desc.ground_truth_sources())
+        self.assertEqual({}, desc.upstream_relations())
+        self.assertEqual("error", desc.severity("descriptor"))
+        self.assertEqual("off", desc.severity("draft-reason"))
+
+    def test_flat_numeric_pattern(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "req_style: area-prefixed", "req_style: flat-numeric")
+        desc = sdd_check.Descriptor.load(self.tmp)
+        self.assertEqual(r"REQ-\d{3,}", desc.req_pattern().pattern)
+
+    def test_named_upstream_relations(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, '  upstream: ""',
+                  "  upstream:\n    core:\n      repo: example.org/core\n      role: consumed")
+        desc = sdd_check.Descriptor.load(self.tmp)
+        self.assertEqual({"core": {"repo": "example.org/core", "role": "consumed"}},
+                         desc.upstream_relations())
+
+    def test_context_reads_files_and_lists_docs(self):
+        desc = sdd_check.Descriptor.load(self.tmp)
+        ctx = sdd_check.Context(self.tmp, desc, sdd_check.load_map(desc))
+        self.assertIn("REQ-FOUND-001", ctx.records_by_id)
+        self.assertIn("SPEC-ENV", ctx.read(self.tmp / SPEC_REL))
+        names = [ctx.rel(path) for path in ctx.docs_files()]
+        self.assertIn("docs/specifications/env.md", names)
+        self.assertNotIn("AGENTS.md", names)
+        self.assertIsNone(ctx.git("status", "--short"))
+
+    def test_records_carry_their_line_number(self):
+        desc = sdd_check.Descriptor.load(self.tmp)
+        records = sdd_check.load_map(desc)
+        self.assertEqual(1, len(records))
+        self.assertEqual(3, records[0].line)
+        self.assertEqual([], records[0].unknown_keys)
+        self.assertTrue(records[0].enforced())
+        self.assertEqual(["src/env", "tests/env_test.py"], records[0].evidence())
+
+
 if __name__ == "__main__":
     unittest.main()
