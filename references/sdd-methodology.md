@@ -119,7 +119,7 @@ of them.
 
 A `STRAND-NN` is an open architectural question that is scoped, named, and tracked but **not yet decided** — explicitly *not* a draft requirement. It resolves by: produce evidence (spike / benchmark / fit-gap) → write an ADR → amend the affected `REQ`s → close the strand with a backlink to the ADR. This is the formal home for "we don't know yet," which keeps unknowns out of the code.
 
-## 6. The two status axes
+## 6. Status — per document kind
 
 A requirement carries two status axes and they are tracked **separately** — conflating them is a common
 failure. **Spec stability** (`status`) says how settled the wording is; promotion to `stable` freezes the

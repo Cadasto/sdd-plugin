@@ -111,7 +111,7 @@ sdd:
 | `upstream` | The upstream relations this repository has: one scalar repo, or a map of named relations with `repo`, `role`, `authority` and `gap_drafts` (see [cross-repo-gap.md](cross-repo-gap.md)). |
 | `ground_truth` | The named "look it up, don't guess" source for domain facts. One source, or an ordered list consulted first to last; a local checkout is a cache, not the basis of a claim. |
 | `check.*` | The shared gate's configuration. See **The check block** below. |
-| `hooks.stop_nudge` | Whether the plugin's session-stop hook may nudge once when a session made no commit and leaves uncommitted changes. `true` by default. |
+| `hooks.stop_nudge` | Whether the plugin's session-stop nudge is enabled in this repository. `true` by default. |
 
 ### Profiles
 
@@ -119,7 +119,7 @@ sdd:
 files) and `paths.specifications` may name a **file** (one document that carries the normative sections
 and, outside them, informative narrative). `full` requires directories.
 
-> **The legacy forms stay valid.** A scalar `ground_truth` and a scalar `upstream` are read as before.
+> Legacy scalar `ground_truth` and scalar `upstream` remain valid.
 
 ### The check block
 
@@ -183,12 +183,14 @@ requirements:
 | `title` | yes | Short human label (mirrors the index row). |
 | `canonical` | yes | Link to the **single** spec section that owns this requirement's normative prose (`path#anchor`). |
 | `status` | yes | Spec stability — `draft` / `stable` / `deprecated`. `draft` is binding (see methodology §6). |
-| `implementation` | yes | Build status. Use the repo's chosen vocabulary consistently. |
-| `packages` | when landed | Source packages/modules that implement it. |
-| `tests` | when landed | Test files that assert it. |
+| `implementation` | yes | Build status, from the vocabulary in methodology §6 — `proposed` / `planned` / `in_progress` / `partial` / `landed` / `shipped` / `deferred`. The enforced values are `in_progress` / `partial` / `landed` / `shipped`. |
+| `packages` | when enforced | Source packages/modules that implement it. |
+| `tests` | when enforced | Test files that assert it. |
 | `probes` | optional | `PROBE-*` ids (conformance probes), if `use_probes`. |
-| `operations` | when landed | Runbook paths — the evidence an operations requirement has landed. |
+| `operations` | when enforced | Runbook paths — the evidence an operations requirement has landed. |
 | `draft_reason` | when draft | Why the wording is still `draft`. Required by the `draft-reason` family when the record is `status: draft` and enforced. |
+
+An enforced record owes at least one of `packages`, `tests` and `operations` — not all three.
 
 An unknown key on a record is reported as a warning, never an error; the retired `plans` key is one such warning.
 

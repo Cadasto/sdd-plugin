@@ -12,7 +12,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Added
 - References: `sdd-check.md` — the contract of the shared drift gate: families, severities, report format, exit codes, waivers, generated blocks, vendoring and the version pin.
 - References: `sdd-methodology.md` §3 the nine document kinds in three zones, §5 excluded areas, §6 per-kind status vocabularies, §10 the ground-truth resolution order and the cross-repo ask lifecycle, §13 the enforcement register.
-- References: `traceability-schema.md` — `profile`, `doc_kinds`, `excluded_areas`, `default_mode`, list-form `ground_truth`, map-form `upstream`, the `check:` block, `hooks.stop_nudge`, `operations` and `draft_reason` on a record, generated blocks.
+- References: `traceability-schema.md` — the descriptor's profile, kinds, excluded areas, default mode, upstream relations, `check:` and `hooks:` blocks; two new record fields; generated blocks.
 
 ### Changed
 - References: `artefact-prose.md` — the changelog-bullet and one-home rules are enforced by the gate's `changelog` and `one-home` families.

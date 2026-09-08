@@ -22,7 +22,15 @@ which extends the `changelog` family past `## [Unreleased]` to every section of 
 |---|---|
 | `0` | Ran; no errors. Warnings are allowed. |
 | `1` | Ran; at least one error. |
-| `2` | Could not run — the descriptor or the map is missing or cannot be parsed, or the map holds no records. The message names the file and the line. |
+| `2` | Could not configure itself, so nothing ran. |
+
+Exit 2 has two causes and no others: the descriptor is missing or cannot be parsed, or the command line is
+invalid — an unknown subcommand, or an unknown family in `--only`. The message names the file and the
+line, or the bad argument.
+
+A missing map, a map that cannot be parsed, and a map that yields no records are **not** exit 2. Each is a
+`map-schema` error, so the run exits 1, and every family that needs records is listed under `skipped:`
+with the reason `map unavailable`.
 
 Exit 2 is a failure of the gate itself; CI treats it as red, never as skipped.
 
@@ -156,6 +164,12 @@ requirement that is built and still `draft` owes a reason.
 A file is waived for one or more families by a comment anywhere in it:
 
 ```markdown
+<!-- sdd-check: allow <family>[, <family>] -->
+```
+
+For example:
+
+```markdown
 <!-- sdd-check: allow rfc2119, one-home -->
 ```
 
@@ -166,17 +180,10 @@ repository can see how many it carries and whether the number is going down.
 
 `generate` writes three blocks — `requirements-index`, `specifications-index` and `adr-index` — plus the
 `status:` and `implementation:` frontmatter lines of every requirement detail file. Each block sits
-between a pair of markers:
-
-```markdown
-<!-- sdd:generated requirements-index -->
-…table…
-<!-- /sdd:generated -->
-```
+between a pair of markers whose format is owned by [traceability-schema.md](traceability-schema.md) §4.
 
 `generate --verify` compares and writes nothing; the `generated` family makes the same comparison during
-`check`, so a hand edit between the markers fails the gate. The marker format is owned by
-[traceability-schema.md](traceability-schema.md) §4.
+`check`, so a hand edit between the markers fails the gate.
 
 ## Vendoring and the version pin
 
