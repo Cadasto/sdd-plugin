@@ -657,6 +657,9 @@ MALFORMED_RE = re.compile(r"\b(MUST to|are MUST|is MUST|MUST MUST|NOT NOT|SHOULD
 
 _SENTENCE_END_RE = re.compile(r"[.!?;](?=\s|$)")
 _LIST_ITEM_RE = re.compile(r"^(?:[-*+]\s|\d+[.)]\s)")
+_TASK_BOX_RE = re.compile(r"^\[[ xX]\]\s*")
+#: A bold label opens a field — ``**Implements:** REQ-…`` — so it is markup, not prose.
+_FIELD_LABEL_RE = re.compile(r"^\*\*[^*]+:\*\*\s*")
 _INLINE_LINK_RE = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
 _REFERENCE_LINK_RE = re.compile(r"\[([^\]]*)\]\[[^\]]*\]")
 _EDGE_UNDERSCORE_RE = re.compile(r"(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9])")
@@ -667,8 +670,10 @@ def sentences(text: str) -> List[Tuple[int, str]]:
 
     A sentence ends at ``.``, ``!``, ``?`` or ``;`` followed by whitespace or the end of the
     line. A blank line, a heading and the start of a list item also end the one being built,
-    so a title never runs into the paragraph beneath it. Fences, inline code, HTML comments
-    and the frontmatter are already blank, because the scan is :func:`strip_noncontent`.
+    so a title never runs into the paragraph beneath it. A bullet, a task box and a bold
+    field label are markup that introduces prose, so they are dropped rather than read as
+    words. Fences, inline code, HTML comments and the frontmatter are already blank, because
+    the scan is :func:`strip_noncontent`.
     """
     out: List[Tuple[int, str]] = []
     state = {"parts": [], "start": 0}
@@ -691,6 +696,10 @@ def sentences(text: str) -> List[Tuple[int, str]]:
             continue
         if _LIST_ITEM_RE.match(stripped):
             flush()
+            stripped = _TASK_BOX_RE.sub("", _LIST_ITEM_RE.sub("", stripped, 1), 1)
+        stripped = _FIELD_LABEL_RE.sub("", stripped, 1)
+        if not stripped:
+            continue
         position = 0
         for match in _SENTENCE_END_RE.finditer(stripped):
             chunk = stripped[position : match.end()].strip()
@@ -1958,6 +1967,58 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
         )
 
 
+#: A sentence shorter than this says too little to be a normative statement twice over.
+ONE_HOME_MIN_WORDS = 6
+
+
+def check_one_home(ctx: Context, report: "Report") -> None:
+    """A normative sentence lives in one specification section and nowhere else."""
+    level = ctx.level("one-home")
+    homes: Dict[str, List[Tuple[str, int]]] = {}
+    others: List[Path] = []
+    specifications = 0
+    for path in ctx.docs_files():
+        if _waived(ctx, report, "one-home", path):
+            continue
+        if doc_kind(ctx, path) != "specification":
+            others.append(path)
+            continue
+        specifications += 1
+        anchor = ctx.rel(path)
+        for lineno, sentence in keyword_sentences(ctx.read(path)):
+            normalised = normalise_sentence(sentence)
+            if len(normalised.split()) < ONE_HOME_MIN_WORDS:
+                continue
+            homes.setdefault(normalised, []).append((anchor, lineno))
+    if not specifications:
+        report.skip("one-home", "no specification document to own a normative sentence")
+        return
+    for places in homes.values():
+        if len(places) < 2:
+            continue
+        report.add(
+            "one-home",
+            level,
+            "%s:%d" % places[0],
+            "this normative sentence also stands at %s; a normative statement has one home"
+            % "; ".join("%s:%d" % place for place in places[1:]),
+        )
+    for path in others:
+        anchor = ctx.rel(path)
+        for lineno, sentence in sentences(ctx.read(path)):
+            normalised = normalise_sentence(sentence)
+            if len(normalised.split()) < ONE_HOME_MIN_WORDS:
+                continue
+            places = homes.get(normalised)
+            if places:
+                report.add(
+                    "one-home",
+                    level,
+                    "%s:%d" % (anchor, lineno),
+                    "duplicated normative prose: the specification owns this at %s:%d" % places[0],
+                )
+
+
 # --- family registry (later families are inserted above this banner) -------
 
 CHECKS = {
@@ -1969,6 +2030,7 @@ CHECKS = {
     "tree-to-map": check_tree_to_map,
     "doc-kinds": check_doc_kinds,
     "rfc2119": check_rfc2119,
+    "one-home": check_one_home,
     "draft-reason": check_draft_reason,
 }
 

@@ -54,6 +54,13 @@ class BaselineCase(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
+    def line_of(self, rel, needle):
+        """The 1-based line a fixture string sits on, so a test never hard-codes one."""
+        for index, line in enumerate((self.tmp / rel).read_text(encoding="utf-8").split("\n")):
+            if needle in line:
+                return index + 1
+        self.fail("fixture drift: %r not in %s" % (needle, rel))
+
     # --- run helpers -----------------------------------------------------
     def run_only(self, family):
         return sdd_check.run_check(self.tmp, only=[family], changelog_all=False)
@@ -720,6 +727,16 @@ class TestWaiverHelper(unittest.TestCase):
         text = "# Title\n\n<!-- sdd-check: allow rfc2119, one-home -->\n\nProse.\n"
         self.assertEqual({"rfc2119", "one-home"}, sdd_check.waivers(text))
 
+    def test_normalise_sentence_strips_markup_and_trailing_punctuation(self):
+        self.assertEqual(
+            "the service must read the config file",
+            sdd_check.normalise_sentence("The *service* **MUST** read the `[config](x.md)` file."),
+        )
+
+    def test_keyword_sentences_carry_their_line_and_skip_keyword_free_prose(self):
+        text = "# Title\n\nPlain prose here.\n\nThe gate MUST refuse the start.\n"
+        self.assertEqual([(5, "The gate MUST refuse the start.")], sdd_check.keyword_sentences(text))
+
     def test_waivers_of_a_document_without_one(self):
         self.assertEqual(set(), sdd_check.waivers("# Title\n\nProse.\n"))
 
@@ -830,6 +847,80 @@ class TestRfc2119Family(BaselineCase):
         report = self.run_only("rfc2119")
         self.assertIn("rfc2119", report.families_run)
         self.assertIn("§", report.families_skipped.get("rfc2119", ""))
+
+
+# ---------------------------------------------------------------------------
+# one-home
+# ---------------------------------------------------------------------------
+PARITY_REL = "docs/specifications/parity.md"
+SPEC_SENTENCE = "The service MUST refuse to start when a declared variable is absent."
+PARITY_HEAD = """---
+kind: specification
+spec: SPEC-PARITY
+status: draft
+mode: spec-first
+---
+
+# SPEC-PARITY — Parity
+
+## §1 — Parity
+
+**Implements:** REQ-FOUND-001
+
+"""
+
+
+class TestOneHomeFamily(BaselineCase):
+    def second_specification(self, body):
+        self.write(PARITY_REL, PARITY_HEAD + body)
+
+    def test_the_same_sentence_in_two_specifications(self):
+        self.second_specification(SPEC_SENTENCE + "\n")
+        finding = self.assert_finding(self.run_only("one-home"), "one home")
+        self.assertEqual(
+            "docs/specifications/env.md:%d" % self.line_of(SPEC_REL, SPEC_SENTENCE),
+            finding.anchor,
+        )
+        self.assertIn(
+            "%s:%d" % (PARITY_REL, self.line_of(PARITY_REL, SPEC_SENTENCE)), finding.message
+        )
+
+    def test_emphasis_and_a_missing_full_stop_still_duplicate(self):
+        self.second_specification(
+            "The service **MUST** refuse to start when a declared variable is absent\n"
+        )
+        self.assert_finding(self.run_only("one-home"), PARITY_REL)
+
+    def test_a_five_word_sentence_is_below_the_floor(self):
+        self.edit(SPEC_REL, SPEC_SENTENCE, "The gate MUST exit non-zero.")
+        self.second_specification("The gate MUST exit non-zero.\n")
+        self.assert_clean(self.run_only("one-home"))
+
+    def test_a_specification_sentence_copied_into_a_requirement(self):
+        self.edit(
+            REQ_REL,
+            "- A start with a declared variable absent is refused, and the refusal names the variable.",
+            "- " + SPEC_SENTENCE,
+        )
+        finding = self.assert_finding(self.run_only("one-home"), "duplicated normative prose")
+        self.assertEqual(
+            "%s:%d" % (REQ_REL, self.line_of(REQ_REL, SPEC_SENTENCE)), finding.anchor
+        )
+
+    def test_the_implements_marker_is_never_a_sentence(self):
+        self.second_specification(
+            "The two manifests MUST carry the same version at every release.\n"
+        )
+        self.assert_clean(self.run_only("one-home"))
+        for text in ((self.tmp / SPEC_REL).read_text(), (self.tmp / PARITY_REL).read_text()):
+            found = [s for _, s in sdd_check.sentences(text)]
+            self.assertNotIn("**Implements:** REQ-FOUND-001", found)
+
+    def test_a_repository_without_specifications_skips_the_family(self):
+        (self.tmp / SPEC_REL).unlink()
+        report = self.run_only("one-home")
+        self.assertIn("specification", report.families_skipped.get("one-home", ""))
+        self.assertNotIn("one-home", report.families_run)
 
 
 # ---------------------------------------------------------------------------
