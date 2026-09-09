@@ -558,7 +558,9 @@ status: done
 """
 
 
-class TestPlansFamily(BaselineCase):
+class PlansCase(BaselineCase):
+    """A baseline repository plus the git helpers the stale-plan rule needs."""
+
     def git(self, *args):
         subprocess.run(
             ["git", "-C", str(self.tmp)] + list(args),
@@ -577,6 +579,8 @@ class TestPlansFamily(BaselineCase):
         self.git("add", "-A")
         self.git("commit", "-q", "-m", message)
 
+
+class TestPlansFamily(PlansCase):
     def test_missing_mode(self):
         self.edit(PLAN_REL, "mode: spec-first\n", "")
         self.assert_finding(self.run_only("plans"), "mode")
@@ -952,7 +956,7 @@ class TestIndexSyncRules(BaselineCase):
         self.assert_finding(self.run_only("index-sync"), "Implementation", family="index-sync")
 
 
-class TestPlansRules(TestPlansFamily):
+class TestPlansRules(PlansCase):
     def test_mode_vocabulary(self):
         self.edit(PLAN_REL, "mode: spec-first", "mode: vibes")
         self.assert_finding(self.run_only("plans"), "mode", family="plans")
