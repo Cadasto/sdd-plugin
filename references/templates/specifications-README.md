@@ -17,6 +17,8 @@ Write and extend specs with `/sdd-specify`.
   **MAY** (optional). No keyword ⇒ informative.
 - **One canonical home** per requirement — the requirements index links here; prose is never duplicated.
 - **Stable § numbers** — cite as `SPEC-<NAME> §N`. Never renumber a published section.
+- **Mode** — `spec-first` (the spec leads) or `implementation-aligned` (code may lead, spec updated in the
+  same PR); a spec whose frontmatter names neither takes the descriptor's `default_mode`.
 - Specs contain **no** checkbox task lists, file paths, or PR summaries — those belong in plans.
 - The machine-readable [`traceability.yaml`](traceability.yaml) maps each `REQ` to its canonical section,
   packages, tests, and probes; the `spec-check` target validates it against the tree.

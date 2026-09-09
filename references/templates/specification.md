@@ -12,7 +12,8 @@ mode: spec-first         # spec-first | implementation-aligned
 
 > **Normative.** Uses RFC-2119 keywords: **MUST/SHALL** (absolute), **SHOULD** (strong, exceptions need a reason),
 > **MAY** (optional). Statements without a keyword are *informative*. Don't implement informative text as a
-> requirement; don't relax normative text into a suggestion.
+> requirement; don't relax normative text into a suggestion. Every numbered section carries at least one
+> keyword, or it is not normative and does not belong here.
 
 ## §1 — <section title>
 
@@ -24,7 +25,6 @@ mode: spec-first         # spec-first | implementation-aligned
 
 ## §2 — <section title>
 
-<The same for this section: prose stating what the system MUST, SHOULD or MAY do. Every
-numbered section carries at least one keyword, or it is not normative and does not belong here.>
+<The same for this section: prose stating what the system MUST, SHOULD or MAY do here.>
 
 **Implements:** <REQ-AREA-NNN>

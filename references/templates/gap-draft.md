@@ -1,7 +1,9 @@
 <!-- Template: a cross-repo gap draft — one capability this repository needs from an upstream it
      consumes. Filename: docs/<relation>-gap-drafts/<PREFIX>-GAP-NN-<slug>.md, numbered sequentially.
      Write it in the UPSTREAM's conventions and identifier style, so it drops straight into their
-     spec tree. One capability per draft. Move `state:` on as the upstream fate resolves. -->
+     spec tree — `## Ask`, `## Acceptance criteria` and `## Out of scope` are what is filed upstream,
+     the rationale is rewritten in their words, and `## Behaviour-preservation test` stays behind.
+     One capability per draft. Move `state:` on as the upstream fate resolves. -->
 ---
 kind: upstream
 id: <PREFIX>-GAP-NN
@@ -45,7 +47,7 @@ hypothetical — and no consumer named.>
 
 ## Behaviour-preservation test
 
-A dependency bump is split from adopting the new surface only while the workaround it replaces keeps
+A dependency bump may be split from adopting the new surface only while the workaround it replaces keeps
 producing the same answers. An unconsumed surface that fails this test does not get to wait.
 
 <State which side of that test this draft sits on, and what the local workaround is until it lands.>

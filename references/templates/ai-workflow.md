@@ -133,7 +133,7 @@ proposed correction. Verify before fixing; a correction that is wrong and applie
 | Spec-aware review into the ledger; panel prompts | `/sdd-review` (`--panel`) |
 | Work a review round: merge, verify, fix, resolve, re-request | `/sdd-triage` |
 | Code satisfies the `SPEC §`/`REQ` it cites (conformance) | `sdd-spec-conformance-reviewer` agent |
-| Traceability / drift / a REQ's context | `/sdd-trace` |
+| A REQ's context bundle; drift reported in session, not a build failure | `/sdd-trace` |
 | Regenerate the derived indexes and status lines | `sdd-check generate` |
 | Drift, links, prose lints | `<build_entrypoint> <spec_check_target>` (`sdd-check`) |
 | Close out the spec status, the requirement status, traceability, and the plan — in the implementing PR | `/sdd-archive` |
