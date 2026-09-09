@@ -489,7 +489,10 @@ class TestMapToTreeFamily(BaselineCase):
 # index-sync
 # ---------------------------------------------------------------------------
 INDEX_REL = "docs/requirements/README.md"
-INDEX_ROW = "| [REQ-FOUND-001](REQ-FOUND-001.md) | Environment boundary | Draft | shipped |"
+INDEX_ROW = (
+    "| [REQ-FOUND-001](REQ-FOUND-001.md) | Environment boundary | "
+    "[`SPEC-ENV §1`](../specifications/env.md#1--boundary-req-found-001) | Draft | shipped |"
+)
 SECOND_RECORD = (
     "  - id: REQ-FOUND-002\n"
     "    title: Second\n"
@@ -501,7 +504,7 @@ SECOND_RECORD = (
 
 class TestIndexSyncFamily(BaselineCase):
     def test_row_without_a_record(self):
-        self.edit(INDEX_REL, INDEX_ROW, INDEX_ROW + "\n| REQ-FOUND-002 | Second | Draft | proposed |")
+        self.edit(INDEX_REL, INDEX_ROW, INDEX_ROW + "\n| REQ-FOUND-002 | Second | — | Draft | proposed |")
         self.assert_finding(self.run_only("index-sync"), "missing from traceability")
 
     def test_record_without_a_row(self):
@@ -518,12 +521,20 @@ class TestIndexSyncFamily(BaselineCase):
         self.assert_finding(self.run_only("index-sync"), "detail file")
 
     def test_columns_are_found_by_header_not_position(self):
-        self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |", "| ID | Title | Impl. | Status |")
-        self.edit(INDEX_REL, "| Environment boundary | Draft | shipped |", "| Environment boundary | shipped | Draft |")
+        self.edit(
+            INDEX_REL,
+            "| ID | Title | Spec | Stability | Implementation |",
+            "| ID | Title | Spec | Impl. | Status |",
+        )
+        self.edit(
+            INDEX_REL,
+            "(../specifications/env.md#1--boundary-req-found-001) | Draft | shipped |",
+            "(../specifications/env.md#1--boundary-req-found-001) | shipped | Draft |",
+        )
         self.assert_clean(self.run_only("index-sync"))
 
     def test_index_with_no_req_rows(self):
-        self.edit(INDEX_REL, INDEX_ROW, "| none yet | — | — | — |")
+        self.edit(INDEX_REL, INDEX_ROW, "| none yet | — | — | — | — |")
         self.assert_finding(self.run_only("index-sync"), "zero rows")
 
     def test_specification_requirements_frontmatter_warns(self):
@@ -972,12 +983,12 @@ class TestLinksFamily(BaselineCase):
         self.assert_finding(self.run_only("links"), "no such file")
 
     def test_a_fragment_that_resolves_to_nothing(self):
-        self.edit(SPEC_INDEX_REL, "[SPEC-ENV](env.md)", "[SPEC-ENV](env.md#nope)")
+        self.edit(SPEC_INDEX_REL, "[`SPEC-ENV`](env.md)", "[`SPEC-ENV`](env.md#nope)")
         self.assert_finding(self.run_only("links"), "fragment")
 
     def test_a_fragment_that_resolves_to_a_heading(self):
         self.edit(
-            SPEC_INDEX_REL, "[SPEC-ENV](env.md)", "[SPEC-ENV](env.md#1--boundary-req-found-001)"
+            SPEC_INDEX_REL, "[`SPEC-ENV`](env.md)", "[`SPEC-ENV`](env.md#1--boundary-req-found-001)"
         )
         self.assert_clean(self.run_only("links"))
 
@@ -1314,13 +1325,15 @@ class TestCommandLine(BaselineCase):
         self.assertEqual("0.6.0", out.strip())
         self.assertEqual("0.6.0", sdd_check.__version__)
 
-    def test_stub_commands_are_honest(self):
-        for argv in (["generate", "--root", str(self.tmp)],
-                     ["context", "REQ-FOUND-001", "--root", str(self.tmp)],
-                     ["selftest", "--root", str(self.tmp)]):
-            code, out = self.run_main(argv)
-            self.assertEqual(2, code, out)
-            self.assertEqual("not implemented in this build", out.strip())
+    def test_generate_command_is_clean_on_a_current_baseline(self):
+        code, out = self.run_main(["generate", "--root", str(self.tmp)])
+        self.assertEqual(0, code, out)
+        self.assertEqual("", out.strip())
+
+    def test_generate_verify_command_is_clean_on_a_current_baseline(self):
+        code, out = self.run_main(["generate", "--verify", "--root", str(self.tmp)])
+        self.assertEqual(0, code, out)
+        self.assertEqual("", out.strip())
 
 
 # ---------------------------------------------------------------------------
@@ -1469,14 +1482,25 @@ class TestIndexSyncRules(BaselineCase):
         self.assert_finding(self.run_only("index-sync"), "Stability", family="index-sync")
 
     def test_one_named_column_and_one_positional(self):
-        self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |", "| ID | Title | Stability | Build |")
+        self.edit(
+            INDEX_REL,
+            "| ID | Title | Spec | Stability | Implementation |",
+            "| ID | Title | Spec | Stability | Build |",
+        )
         self.edit(INDEX_REL, "| Draft | shipped |", "| Draft | planned |")
         self.assert_finding(self.run_only("index-sync"), "Implementation", family="index-sync")
 
     def test_an_unnamed_axis_in_a_narrow_table_warns_instead_of_guessing(self):
-        self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |", "| ID | Title | Implementation |")
-        self.edit(INDEX_REL, "|---|---|---|---|", "|---|---|---|")
-        self.edit(INDEX_REL, "| Environment boundary | Draft | shipped |", "| Environment boundary | shipped |")
+        self.edit(
+            INDEX_REL, "| ID | Title | Spec | Stability | Implementation |", "| ID | Title | Implementation |"
+        )
+        self.edit(INDEX_REL, "|---|---|---|---|---|", "|---|---|---|")
+        self.edit(
+            INDEX_REL,
+            "| Environment boundary | [`SPEC-ENV §1`](../specifications/env.md#1--boundary-req-found-001) "
+            "| Draft | shipped |",
+            "| Environment boundary | shipped |",
+        )
         report = self.run_only("index-sync")
         self.assertEqual([], self.levelled(report, "ERROR"), report.render(self.tmp))
         finding = self.assert_finding(
@@ -1486,15 +1510,14 @@ class TestIndexSyncRules(BaselineCase):
         self.assertEqual("docs/requirements/README.md:11", finding.anchor)
 
     def test_the_five_column_template_shape_is_clean(self):
-        self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |",
-                  "| ID | Title | Spec | Stability | Implementation |")
-        self.edit(INDEX_REL, "|---|---|---|---|", "|---|---|---|---|---|")
-        self.edit(INDEX_REL, "| Environment boundary | Draft | shipped |",
-                  "| Environment boundary | `SPEC-ENV §1` | Draft | shipped |")
         self.assert_clean(self.run_only("index-sync"))
 
     def test_last_two_columns_when_no_header_matches(self):
-        self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |", "| ID | Title | Stage | Build |")
+        self.edit(
+            INDEX_REL,
+            "| ID | Title | Spec | Stability | Implementation |",
+            "| ID | Title | Spec | Stage | Build |",
+        )
         self.edit(INDEX_REL, "| Draft | shipped |", "| Draft | planned |")
         self.assert_finding(self.run_only("index-sync"), "Implementation", family="index-sync")
 
@@ -1589,6 +1612,96 @@ class TestTreeToMapUnderGit(GitCase):
         self.init_git()
         self.commit("baseline")
         self.assert_finding(self.run_only("tree-to-map"), "unknown identifier cited", level="WARN")
+
+
+# ---------------------------------------------------------------------------
+# Generators: the requirements-index, specifications-index and adr-index tables, and
+# the requirement detail-file status lines
+# ---------------------------------------------------------------------------
+EXPECTED_REQUIREMENTS_INDEX = (
+    "| ID | Title | Spec | Stability | Implementation |\n"
+    "|---|---|---|---|---|\n"
+    "| [REQ-FOUND-001](REQ-FOUND-001.md) | Environment boundary | "
+    "[`SPEC-ENV §1`](../specifications/env.md#1--boundary-req-found-001) | Draft | shipped |"
+)
+
+
+class TestGenerators(BaselineCase):
+    def ctx(self):
+        desc = sdd_check.Descriptor.load(self.tmp)
+        return sdd_check.Context(self.tmp, desc, sdd_check.load_map(desc))
+
+    def test_render_requirements_index_matches_the_fixture(self):
+        self.assertEqual(EXPECTED_REQUIREMENTS_INDEX, sdd_check.render_requirements_index(self.ctx()))
+
+    def test_id_cell_is_plain_when_the_detail_file_is_missing(self):
+        (self.tmp / REQ_REL).unlink()
+        rendered = sdd_check.render_requirements_index(self.ctx())
+        self.assertIn("| REQ-FOUND-001 | Environment boundary |", rendered)
+        self.assertNotIn("[REQ-FOUND-001]", rendered)
+
+    def test_generate_rewrites_stale_blocks_and_detail_frontmatter(self):
+        self.edit(INDEX_REL, "Draft | shipped |", "Landed | proposed |")
+        self.edit(REQ_REL, "status: draft", "status: stable")
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code)
+        self.assertIn("docs/requirements/README.md", written)
+        self.assertIn("docs/requirements/REQ-FOUND-001.md", written)
+        self.assertIn(EXPECTED_REQUIREMENTS_INDEX, (self.tmp / INDEX_REL).read_text(encoding="utf-8"))
+        self.assertIn("status: draft", (self.tmp / REQ_REL).read_text(encoding="utf-8"))
+        self.assertNotIn("status: stable", (self.tmp / REQ_REL).read_text(encoding="utf-8"))
+
+    def test_generate_a_second_time_writes_nothing(self):
+        self.edit(INDEX_REL, "Draft | shipped |", "Landed | proposed |")
+        sdd_check.generate(self.tmp, verify=False)
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code)
+        self.assertEqual([], written)
+
+    def test_generate_verify_reports_a_diff_when_stale_and_nothing_when_current(self):
+        self.edit(INDEX_REL, "Draft | shipped |", "Landed | proposed |")
+        code, diff = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(1, code)
+        self.assertTrue(any("Landed | proposed" in line for line in diff), diff)
+        sdd_check.generate(self.tmp, verify=False)
+        code, diff = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(0, code)
+        self.assertEqual([], diff)
+
+    def test_generate_reuses_checks_descriptor_failure_report(self):
+        (self.tmp / sdd_check.DESCRIPTOR_REL).unlink()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(2, code)
+        self.assertEqual(2, len(lines), lines)
+        self.assertTrue(lines[1].startswith("sdd-check: FAILED — "), lines[1])
+
+
+class TestGeneratedFamily(BaselineCase):
+    def test_hand_edited_cell_is_an_error(self):
+        self.edit(INDEX_REL, "Environment boundary", "Environment boundary, hand-edited")
+        self.assert_finding(self.run_only("generated"), "hand-edited or stale")
+
+    def test_unclosed_marker_is_an_error(self):
+        self.write(
+            "docs/requirements/orphan.md",
+            "---\nkind: reference\n---\n\n<!-- sdd:generated requirements-index -->\n\nno closing marker\n",
+        )
+        self.assert_finding(self.run_only("generated"), "unclosed")
+
+    def test_unknown_block_name_is_an_error(self):
+        self.write(
+            "docs/requirements/orphan.md",
+            "---\nkind: reference\n---\n\n<!-- sdd:generated plans-index -->\n\n<!-- /sdd:generated -->\n",
+        )
+        self.assert_finding(self.run_only("generated"), "unknown block")
+
+    def test_no_generated_blocks_anywhere_is_skipped(self):
+        self.write("docs/requirements/README.md", "---\nkind: guide\n---\n\n# Requirements\n")
+        self.write("docs/specifications/README.md", "---\nkind: guide\n---\n\n# Specifications\n")
+        self.write("docs/adr/README.md", "---\nkind: guide\n---\n\n# Decision records\n")
+        report = self.run_only("generated")
+        self.assertEqual("no generated blocks", report.families_skipped.get("generated"))
+        self.assertNotIn("generated", report.families_run)
 
 
 if __name__ == "__main__":

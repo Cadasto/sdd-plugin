@@ -11,14 +11,16 @@ itself (the descriptor is missing or unparseable, or the command line is invalid
 """
 
 import dataclasses
+import difflib
 import fnmatch
 import os
 import re
 import subprocess
 import sys
+import tempfile
 import urllib.parse
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -859,6 +861,18 @@ class Descriptor:
         if self.is_file_form(rel):
             return None
         return self.resolve(rel)
+
+    def specifications_index_path(self) -> Path:
+        rel = self.paths.get("specifications", DEFAULT_PATHS["specifications"])
+        if self.is_file_form(rel):
+            return self.resolve(rel)
+        return self.resolve(rel) / "README.md"
+
+    def adr_index_path(self) -> Path:
+        rel = self.paths.get("adr", DEFAULT_PATHS["adr"])
+        if self.is_file_form(rel):
+            return self.resolve(rel)
+        return self.resolve(rel) / "README.md"
 
     def specification_files(self) -> List[Path]:
         rel = self.paths.get("specifications", DEFAULT_PATHS["specifications"])
@@ -2259,6 +2273,52 @@ def check_changelog(ctx: Context, report: "Report") -> None:
             )
 
 
+def check_generated(ctx: Context, report: "Report") -> None:
+    """Every generated block in the tree equals what ``generate`` would write.
+
+    A hand edit inside the markers, an opening marker with no closing marker, and a
+    block name outside :data:`GENERATED_BLOCKS` are each an error; a repository with no
+    generated blocks anywhere has nothing for this family to check.
+    """
+    level = ctx.level("generated")
+    rendered = {
+        "requirements-index": render_requirements_index(ctx),
+        "specifications-index": render_specifications_index(ctx),
+        "adr-index": render_adr_index(ctx),
+    }
+    found_any = False
+    for path in _link_files(ctx):
+        text = ctx.read(path)
+        blocks = generated_blocks(text)
+        if not blocks:
+            continue
+        found_any = True
+        anchor = ctx.rel(path)
+        lines = text.split("\n")
+        for name, start, end in blocks:
+            if end == 0:
+                report.add(
+                    "generated", level, "%s:%d" % (anchor, start), "unclosed generated block '%s'" % name
+                )
+                continue
+            if name not in GENERATED_BLOCKS:
+                report.add(
+                    "generated", level, "%s:%d" % (anchor, start), "unknown block '%s'" % name
+                )
+                continue
+            expected = [""] + rendered[name].split("\n") + [""]
+            actual = lines[start:end - 1]
+            if actual != expected:
+                report.add(
+                    "generated",
+                    level,
+                    "%s:%d" % (anchor, start),
+                    "hand-edited or stale generated block — run sdd-check generate",
+                )
+    if not found_any:
+        report.skip("generated", "no generated blocks")
+
+
 def check_draft_reason(ctx: Context, report: "Report") -> None:
     """A requirement that is draft and built owes a reason for the wording."""
     level = ctx.level("draft-reason")
@@ -2286,6 +2346,7 @@ CHECKS = {
     "one-home": check_one_home,
     "links": check_links,
     "changelog": check_changelog,
+    "generated": check_generated,
     "draft-reason": check_draft_reason,
 }
 
@@ -2403,6 +2464,47 @@ class Report:
         return "\n".join(lines)
 
 
+def _load_descriptor(root: Path) -> Tuple[Optional[Descriptor], Optional[str]]:
+    """``(descriptor, None)``, or ``(None, message)`` in the words ``check`` itself uses."""
+    try:
+        return Descriptor.load(root), None
+    except FileNotFoundError:
+        return None, "%s: not found — run /sdd-scaffold to create it" % DESCRIPTOR_REL
+    except YamlError as exc:
+        return None, "%s: %s" % (exc.where(), exc.message)
+    except OSError as exc:
+        return None, "%s: cannot be read (%s)" % (DESCRIPTOR_REL, exc)
+
+
+def _load_records_or_report(desc: Descriptor, report: "Report") -> Tuple[List[Record], bool]:
+    """Load the traceability map, reporting exactly the ``map-schema`` finding ``check``
+    reports on the same failure. Returns ``(records, map_ok)``."""
+    try:
+        records = load_map(desc)
+    except FileNotFoundError:
+        report.add("map-schema", "ERROR", desc.traceability, "the traceability map is missing")
+        return [], False
+    except YamlError as exc:
+        report.add(
+            "map-schema",
+            "ERROR",
+            exc.where(),
+            "the traceability map does not parse: %s" % exc.message,
+        )
+        return [], False
+    except OSError as exc:
+        report.add(
+            "map-schema", "ERROR", desc.traceability, "the traceability map cannot be read (%s)" % exc
+        )
+        return [], False
+    if not records:
+        report.add(
+            "map-schema", "ERROR", desc.traceability, "the traceability map yields zero records"
+        )
+        return [], False
+    return records, True
+
+
 def run_check(root: Path, only: Optional[List[str]], changelog_all: bool) -> Report:
     """Run the enabled families against a repository and return the report."""
     root = Path(root)
@@ -2410,14 +2512,9 @@ def run_check(root: Path, only: Optional[List[str]], changelog_all: bool) -> Rep
         unknown = [name for name in only if name not in FAMILIES]
         if unknown:
             return Report.fatal("unknown family '%s' in --only" % unknown[0])
-    try:
-        desc = Descriptor.load(root)
-    except FileNotFoundError:
-        return Report.fatal("%s: not found — run /sdd-scaffold to create it" % DESCRIPTOR_REL)
-    except YamlError as exc:
-        return Report.fatal("%s: %s" % (exc.where(), exc.message))
-    except OSError as exc:
-        return Report.fatal("%s: cannot be read (%s)" % (DESCRIPTOR_REL, exc))
+    desc, message = _load_descriptor(root)
+    if message:
+        return Report.fatal(message)
 
     report = Report()
     report.profile = desc.profile
@@ -2434,31 +2531,7 @@ def run_check(root: Path, only: Optional[List[str]], changelog_all: bool) -> Rep
         else:
             planned.append(family)
 
-    records: List[Record] = []
-    map_ok = True
-    try:
-        records = load_map(desc)
-    except FileNotFoundError:
-        map_ok = False
-        report.add("map-schema", "ERROR", desc.traceability, "the traceability map is missing")
-    except YamlError as exc:
-        map_ok = False
-        report.add(
-            "map-schema",
-            "ERROR",
-            exc.where(),
-            "the traceability map does not parse: %s" % exc.message,
-        )
-    except OSError as exc:
-        map_ok = False
-        report.add(
-            "map-schema", "ERROR", desc.traceability, "the traceability map cannot be read (%s)" % exc
-        )
-    if map_ok and not records:
-        map_ok = False
-        report.add(
-            "map-schema", "ERROR", desc.traceability, "the traceability map yields zero records"
-        )
+    records, map_ok = _load_records_or_report(desc, report)
     report.record_count = len(records)
 
     ctx = Context(root, desc, records, changelog_all)
@@ -2477,28 +2550,315 @@ def run_check(root: Path, only: Optional[List[str]], changelog_all: bool) -> Rep
 
 
 # ---------------------------------------------------------------------------
-# Generators (stub — a later build writes the generated blocks)
+# Generators — the derived indexes and the requirement detail-file status lines
 # ---------------------------------------------------------------------------
+
+
+def _quiet_frontmatter(text: str) -> dict:
+    """The frontmatter mapping, or ``{}`` when it is absent or does not parse.
+
+    The generators read many documents besides the ones their own family owns; a parse
+    failure there is someone else's finding, not a reason for ``generate`` to crash.
+    """
+    try:
+        front, _ = frontmatter(text)
+    except YamlError:
+        return {}
+    return front if isinstance(front, dict) else {}
+
+
+def _relative_link(from_file: Path, to_file: Path, fragment: str = "") -> str:
+    """The target a link in ``from_file`` needs to reach ``to_file`` (optionally ``#fragment``)."""
+    rel = Path(os.path.relpath(str(to_file), start=str(Path(from_file).parent))).as_posix()
+    return "%s#%s" % (rel, fragment) if fragment else rel
+
+
+def _requirement_detail_file(ctx: Context, record_id: str) -> Optional[Path]:
+    """The requirement detail file a record's id names, or ``None`` when there is none."""
+    requirements_dir = ctx.desc.requirements_dir()
+    if requirements_dir is None or not requirements_dir.is_dir():
+        return None
+    matches = sorted(requirements_dir.glob("%s*.md" % record_id))
+    return matches[0] if matches else None
+
+
+def _heading_for_fragment(text: str, fragment: str) -> Optional[str]:
+    """The text of the heading a canonical ``#fragment`` names, however it is anchored."""
+    for _, _, title, slug in headings(text):
+        if slug == fragment:
+            return title
+    span = _anchor_span(text, fragment)
+    if span:
+        start, end = span
+        for lineno, _, title, _ in headings(text):
+            if start <= lineno < end:
+                return title
+    return None
+
+
+def _spec_cell(ctx: Context, index_path: Path, record: Record) -> str:
+    """The requirements-index Spec cell for one record: a code-styled link to its section."""
+    path_part, _, fragment = record.canonical.partition("#")
+    if not path_part:
+        return ""
+    target = ctx.desc.resolve(path_part)
+    if not target.is_file():
+        return ""
+    text = ctx.read(target)
+    front = _quiet_frontmatter(text)
+    spec_name = _as_str(front.get("spec")) or target.stem.upper()
+    heading_text = _heading_for_fragment(text, fragment) if fragment else None
+    if heading_text:
+        match = re.search(r"§\S+", heading_text)
+        label = "%s %s" % (spec_name, match.group(0) if match else heading_text)
+    else:
+        label = spec_name
+    return "[`%s`](%s)" % (label, _relative_link(index_path, target, fragment))
+
+
+def render_requirements_index(ctx: Context) -> str:
+    """The ``requirements-index`` generated table: one row per record, in map order."""
+    index_path = ctx.desc.requirements_index_path()
+    lines = ["| ID | Title | Spec | Stability | Implementation |", "|---|---|---|---|---|"]
+    for record in ctx.records:
+        if not record.id:
+            continue
+        detail = _requirement_detail_file(ctx, record.id)
+        if detail is not None:
+            id_cell = "[%s](%s)" % (record.id, _relative_link(index_path, detail))
+        else:
+            id_cell = record.id
+        lines.append(
+            "| %s | %s | %s | %s | %s |"
+            % (
+                id_cell,
+                record.title,
+                _spec_cell(ctx, index_path, record),
+                record.status.capitalize(),
+                record.implementation,
+            )
+        )
+    return "\n".join(lines)
+
+
+def render_specifications_index(ctx: Context) -> str:
+    """The ``specifications-index`` generated table: one row per specification document."""
+    desc = ctx.desc
+    index_path = desc.specifications_index_path()
+    lines = ["| Spec | Topic | Status | Mode |", "|---|---|---|---|"]
+    for path in desc.specification_files():
+        front = _quiet_frontmatter(ctx.read(path))
+        if _as_str(front.get("kind")) != "specification":
+            continue
+        spec_name = _as_str(front.get("spec")) or path.stem.upper()
+        title = ""
+        for _, level, text, _ in headings(ctx.read(path)):
+            if level == 1:
+                title = text
+                break
+        topic = title.split(" — ", 1)[1] if " — " in title else title
+        status = _as_str(front.get("status")).capitalize()
+        mode = _as_str(front.get("mode")) or desc.default_mode
+        lines.append(
+            "| [`%s`](%s) | %s | %s | %s |"
+            % (spec_name, _relative_link(index_path, path), topic, status, mode)
+        )
+    return "\n".join(lines)
+
+
+_ADR_NAME_RE = re.compile(r"^(ADR-|\d{4}-)")
+_TRACE_REF_RE = re.compile(r"^\s*-\s*(Resolves|Amends)\s*:\s*(.+?)\s*$", re.IGNORECASE)
+
+
+def _traceability_refs(text: str) -> str:
+    """The ``Resolves:`` / ``Amends:`` values an ADR body's Traceability list carries."""
+    span = section_slice(text, "traceability")
+    if span is None:
+        return "—"
+    start, end = span
+    lines = text.split("\n")
+    refs = []
+    for lineno in range(start, min(end, len(lines) + 1)):
+        match = _TRACE_REF_RE.match(lines[lineno - 1])
+        if match:
+            refs.append("%s: %s" % (match.group(1).capitalize(), match.group(2)))
+    return "; ".join(refs) if refs else "—"
+
+
+def render_adr_index(ctx: Context) -> str:
+    """The ``adr-index`` generated table: one row per ADR document, in path order."""
+    desc = ctx.desc
+    index_path = desc.adr_index_path()
+    lines = ["| ID | Title | Status | Date | Resolves / amends |", "|---|---|---|---|---|"]
+    adr_dir = desc.resolve(desc.paths.get("adr", DEFAULT_PATHS["adr"]))
+    if adr_dir.is_dir():
+        for path in sorted(adr_dir.glob("*.md")):
+            if not path.is_file() or not _ADR_NAME_RE.match(path.name):
+                continue
+            front = _quiet_frontmatter(ctx.read(path))
+            if not front:
+                continue
+            lines.append(
+                "| %s | %s | %s | %s | %s |"
+                % (
+                    _as_str(front.get("id")),
+                    _as_str(front.get("title")),
+                    _as_str(front.get("status")).capitalize(),
+                    _as_str(front.get("date")),
+                    _traceability_refs(ctx.read(path)),
+                )
+            )
+    return "\n".join(lines)
+
+
+_GENERATED_OPEN_RE = re.compile(r"^<!-- sdd:generated (\S+) -->$")
+
+
+def generated_blocks(text: str) -> List[Tuple[str, int, int]]:
+    """Every generated block as ``(name, opening marker line, closing marker line)``.
+
+    A block whose opening marker has no matching closing marker is reported with a
+    closing line of ``0``, so a caller can tell "malformed" from "well formed but stale"
+    without a second return shape.
+    """
+    lines = text.split("\n")
+    found: List[Tuple[str, int, int]] = []
+    index = 0
+    while index < len(lines):
+        match = _GENERATED_OPEN_RE.match(lines[index].strip())
+        if not match:
+            index += 1
+            continue
+        name = match.group(1)
+        start = index + 1
+        end = 0
+        probe = index + 1
+        while probe < len(lines):
+            if lines[probe].strip() == GENERATED_CLOSE:
+                end = probe + 1
+                break
+            probe += 1
+        found.append((name, start, end))
+        index = end if end else len(lines)
+    return found
+
+
+_STATUS_LINE_RE = "^(%s\\s*:\\s*)(\\S+)(\\s*(?:#.*)?)$"
+
+
+def _rewrite_status_lines(text: str, record: Record) -> str:
+    """Rewrite a requirement detail file's ``status:`` and ``implementation:`` values in
+    place, keeping an inline ``# comment`` and every other byte untouched."""
+    span = _frontmatter_span(text)
+    if span is None:
+        return text
+    open_line, after = span
+    lines = text.split("\n")
+    values = {"status": record.status, "implementation": record.implementation}
+    for index in range(open_line, after - 2):
+        for key, value in values.items():
+            match = re.match(_STATUS_LINE_RE % re.escape(key), lines[index])
+            if match:
+                lines[index] = "%s%s%s" % (match.group(1), value, match.group(3))
+                break
+    return "\n".join(lines)
+
+
+def _diff(anchor: str, before: List[str], after: List[str]) -> List[str]:
+    return list(
+        difflib.unified_diff(
+            before, after, fromfile="%s (current)" % anchor, tofile="%s (generated)" % anchor, lineterm=""
+        )
+    )
+
+
+def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
+    """Rewrite every generated block and requirement detail-file status line from the map.
+
+    Returns ``(exit code, lines)`` — the paths written when ``verify`` is false, or a
+    unified diff per stale block when it is true. A descriptor that is missing or does
+    not parse fails exactly as ``check`` fails it, and a map that will not load is
+    reported through the same ``map-schema`` finding ``check`` reports.
+    """
+    root = Path(root)
+    desc, message = _load_descriptor(root)
+    if message:
+        return 2, Report.fatal(message).render(root).split("\n")
+
+    report = Report()
+    report.profile = desc.profile
+    records, map_ok = _load_records_or_report(desc, report)
+    report.record_count = len(records)
+    if not map_ok:
+        report.mark_run("map-schema")
+        return report.exit_code(), report.render(root).split("\n")
+
+    ctx = Context(root, desc, records)
+    rendered = {
+        "requirements-index": render_requirements_index(ctx),
+        "specifications-index": render_specifications_index(ctx),
+        "adr-index": render_adr_index(ctx),
+    }
+
+    written: List[str] = []
+    diff_lines: List[str] = []
+    stale = False
+
+    for path in _link_files(ctx):
+        text = ctx.read(path)
+        known = [(n, s, e) for n, s, e in generated_blocks(text) if e and n in GENERATED_BLOCKS]
+        if not known:
+            continue
+        file_lines = text.split("\n")
+        changed = False
+        for name, start, end in sorted(known, key=lambda item: item[1], reverse=True):
+            new_content = [""] + rendered[name].split("\n") + [""]
+            current_content = file_lines[start:end - 1]
+            if current_content == new_content:
+                continue
+            changed = True
+            if verify:
+                stale = True
+                diff_lines.extend(_diff(ctx.rel(path), current_content, new_content))
+            else:
+                file_lines = file_lines[:start] + new_content + file_lines[end - 1 :]
+        if changed and not verify:
+            new_text = "\n".join(file_lines)
+            if new_text != text:
+                path.write_text(new_text, encoding="utf-8")
+                written.append(ctx.rel(path))
+
+    requirements_dir = desc.requirements_dir()
+    if requirements_dir is not None and requirements_dir.is_dir():
+        for record in ctx.records:
+            if not record.id:
+                continue
+            for detail in sorted(requirements_dir.glob("%s*.md" % record.id)):
+                text = ctx.read(detail)
+                new_text = _rewrite_status_lines(text, record)
+                if new_text == text:
+                    continue
+                if verify:
+                    stale = True
+                    diff_lines.extend(
+                        _diff(ctx.rel(detail), text.split("\n"), new_text.split("\n"))
+                    )
+                else:
+                    detail.write_text(new_text, encoding="utf-8")
+                    written.append(ctx.rel(detail))
+
+    if verify:
+        return (1 if stale else 0), diff_lines
+    return 0, written
 
 
 def run_generate(root: Path, only: Optional[List[str]], verify: bool) -> int:
-    print("not implemented in this build")
-    return 2
-
-
-def run_context(root: Path, requirement: str) -> int:
-    print("not implemented in this build")
-    return 2
-
-
-# ---------------------------------------------------------------------------
-# Selftest (stub — a later build runs the tool against the baseline fixture)
-# ---------------------------------------------------------------------------
-
-
-def run_selftest(root: Path) -> int:
-    print("not implemented in this build")
-    return 2
+    """CLI wiring for ``generate``. ``only`` is accepted for shape but unused: the three
+    generated blocks are not families, and are always regenerated together."""
+    code, lines = generate(root, verify)
+    for line in lines:
+        print(line)
+    return code
 
 
 #: The minimal passing repository the unit tests and the selftest build on.
@@ -2573,9 +2933,9 @@ Each row links to the requirement it names. The traceability map owns both statu
 
 <!-- sdd:generated requirements-index -->
 
-| ID | Title | Stability | Implementation |
-|---|---|---|---|
-| [REQ-FOUND-001](REQ-FOUND-001.md) | Environment boundary | Draft | shipped |
+| ID | Title | Spec | Stability | Implementation |
+|---|---|---|---|---|
+| [REQ-FOUND-001](REQ-FOUND-001.md) | Environment boundary | [`SPEC-ENV §1`](../specifications/env.md#1--boundary-req-found-001) | Draft | shipped |
 
 <!-- /sdd:generated -->
 """,
@@ -2614,9 +2974,9 @@ Each specification owns the normative prose for the requirements it lists.
 
 <!-- sdd:generated specifications-index -->
 
-| Specification | Status | Mode |
-|---|---|---|
-| [SPEC-ENV](env.md) | draft | spec-first |
+| Spec | Topic | Status | Mode |
+|---|---|---|---|
+| [`SPEC-ENV`](env.md) | Environment | Draft | spec-first |
 
 <!-- /sdd:generated -->
 """,
@@ -2660,8 +3020,8 @@ kind: guide
 
 <!-- sdd:generated adr-index -->
 
-| ADR | Title | Status |
-|---|---|---|
+| ID | Title | Status | Date | Resolves / amends |
+|---|---|---|---|---|
 
 <!-- /sdd:generated -->
 """,
@@ -2714,6 +3074,21 @@ def write_baseline(root: Path) -> None:
         path = root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
+
+
+def run_context(root: Path, requirement: str) -> int:
+    print("not implemented in this build")
+    return 2
+
+
+# ---------------------------------------------------------------------------
+# Selftest (stub — a later build runs the tool against the baseline fixture)
+# ---------------------------------------------------------------------------
+
+
+def run_selftest(root: Path) -> int:
+    print("not implemented in this build")
+    return 2
 
 
 # ---------------------------------------------------------------------------
