@@ -16,10 +16,13 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - References: `traceability-schema.md` — the descriptor's profile, kinds, excluded areas, default mode, upstream relations, `check:` and `hooks:` blocks; two new record fields; generated blocks.
 - Tools: `sdd-check` gains the five prose families — document kinds, RFC-2119 grammar and placement, one canonical home, links with fragments, and changelog bullets — with file-level waivers.
 - Tools: `sdd-check generate` writes the three index tables and the requirement status lines from one source; `context` prints a requirement's bundle; `selftest` proves every rule with a negative fixture.
+- Templates: `gap-draft.md` — the upstream cross-repo ask with its state lifecycle.
 
 ### Changed
 - References: `artefact-prose.md` — the changelog-bullet and one-home rules are enforced by the gate's `changelog` and `one-home` families.
 - References: `cross-repo-gap.md` — the `state:` lifecycle, the disclosure rule, the behaviour-preservation test, and the named `upstream` relations.
+- Templates: `sdd.yaml` carries the profile, document kinds, excluded areas, default mode, and the check and hooks blocks.
+- Templates: every emitted document declares its kind; the three index tables sit in generated blocks; `ci.md` names the gate and an optional upstream watcher.
 
 ## [0.5.1] - 2026-09-08
 
