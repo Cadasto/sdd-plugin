@@ -695,6 +695,12 @@ class TestDocKindsFamily(BaselineCase):
                    "---\nkind: upstream\nstatus: proposed\n---\n\n# Upstream note\n")
         self.assert_finding(self.run_only("doc-kinds"), "state:")
 
+    def test_upstream_state_outside_its_vocabulary(self):
+        self.write("docs/upstream/note.md",
+                   "---\nkind: upstream\nstate: bogus\n---\n\n# Upstream note\n")
+        finding = self.assert_finding(self.run_only("doc-kinds"), "state 'bogus' is not")
+        self.assertIn("landed-upstream", finding.message)
+
     def test_upstream_document_with_a_state_is_clean(self):
         self.write("docs/upstream/note.md",
                    "---\nkind: upstream\nstate: submitted\n---\n\n# Upstream note\n")
@@ -1034,6 +1040,15 @@ class TestLinksFamily(BaselineCase):
         finding = self.assert_finding(self.run_only("links"), "no such file")
         self.assertTrue(finding.anchor.startswith("AGENTS.md:"), finding.anchor)
 
+    def test_a_link_in_the_root_readme(self):
+        self.write("README.md", "# Project\n\nSee [x](docs/nope.md).\n")
+        finding = self.assert_finding(self.run_only("links"), "no such file")
+        self.assertTrue(finding.anchor.startswith("README.md:"), finding.anchor)
+
+    def test_a_target_that_resolves_outside_the_repository(self):
+        self.guide_link("../../etc/hosts")
+        self.assert_finding(self.run_only("links"), "target resolves outside the repository")
+
     def test_a_declared_path_outside_docs_is_scanned(self):
         (self.tmp / "docs/adr").rename(self.tmp / "decisions")
         self.edit(sdd_check.DESCRIPTOR_REL, "    adr: docs/adr", "    adr: decisions")
@@ -1120,6 +1135,10 @@ class TestChangelogFamily(BaselineCase):
     def test_a_continuation_line_belongs_to_its_bullet(self):
         self.bullet("- Tools: fixed the path.\n  Also fixed the name.")
         self.assert_finding(self.run_only("changelog"), "one sentence", level="WARN")
+
+    def test_an_indented_sub_bullet_is_not_folded_into_its_parent(self):
+        self.bullet("- Tools: the gate reads the descriptor.\n  - A sub-point. And another.")
+        self.assert_clean(self.run_only("changelog"))
 
     def test_an_older_section_is_left_alone_without_the_flag(self):
         self.bullet(CHANGELOG_BULLET + "\n" + OLDER_SECTION)

@@ -2062,6 +2062,15 @@ def _fragment_targets(text: str) -> set:
     return set(entry[3] for entry in headings(text)) | explicit_anchors(text)
 
 
+def _inside_root(ctx: Context, resolved: Path) -> bool:
+    """Whether a resolved target still sits inside the repository the gate is checking."""
+    root = os.path.abspath(str(ctx.root))
+    try:
+        return os.path.commonpath([os.path.abspath(str(resolved)), root]) == root
+    except ValueError:
+        return False
+
+
 def _link_files(ctx: Context) -> List[Path]:
     """Every document the links family reads: the docs tree, AGENTS.md and README.md."""
     found = list(ctx.docs_files())
@@ -2118,6 +2127,14 @@ def check_links(ctx: Context, report: "Report") -> None:
             fragment = urllib.parse.unquote(fragment)
             if rel_part:
                 resolved = Path(os.path.normpath(str(path.parent / rel_part)))
+                if not _inside_root(ctx, resolved):
+                    report.add(
+                        "links",
+                        level,
+                        where,
+                        "the target resolves outside the repository: %s" % rel_part,
+                    )
+                    continue
                 if not resolved.exists():
                     report.add("links", level, where, "no such file: %s" % rel_part)
                     continue
@@ -2146,12 +2163,18 @@ RATIONALE_CONNECTORS = (" because ", " so that ", " in order to ")
 CHANGELOG_MAX_TOKENS = 4
 
 _BULLET_RE = re.compile(r"^- +(.*)$")
+#: A nested bullet is a bullet of its own, so it ends the top-level one and is not linted.
+_NESTED_BULLET_RE = re.compile(r"^\s+[-*+]\s")
 _SECOND_SENTENCE_RE = re.compile(r"[.!?] +[A-Z]")
 _CODE_TOKEN_RE = re.compile(r"`[^`]+`")
 
 
 def _changelog_bullets(lines: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
-    """Every top-level bullet in a slice of a changelog, its continuation lines joined."""
+    """Every top-level bullet in a slice of a changelog, its continuation lines joined.
+
+    A nested bullet is a bullet in its own right, so it closes the one above it and is not
+    folded into it; the house rule is one flat line per bullet.
+    """
     found: List[Tuple[int, str]] = []
     open_at = 0
     parts: List[str] = []
@@ -2169,7 +2192,7 @@ def _changelog_bullets(lines: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
             open_at = lineno
             parts.append(bullet.group(1).strip())
             continue
-        if not stripped or _HEADING_RE.match(stripped):
+        if not stripped or _HEADING_RE.match(stripped) or _NESTED_BULLET_RE.match(line):
             flush()
             continue
         if parts:
