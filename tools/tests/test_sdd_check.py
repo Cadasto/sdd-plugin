@@ -924,6 +924,116 @@ class TestOneHomeFamily(BaselineCase):
 
 
 # ---------------------------------------------------------------------------
+# links
+# ---------------------------------------------------------------------------
+SPEC_INDEX_REL = "docs/specifications/README.md"
+
+
+class TestLinksFamily(BaselineCase):
+    def guide_link(self, target):
+        """Put one inline link into the guide at the top of docs/."""
+        self.edit(
+            GUIDE_REL,
+            "Write the specification first",
+            "See [x](%s). Write the specification first" % target,
+        )
+
+    def test_a_target_that_does_not_exist(self):
+        self.guide_link("../missing.md")
+        self.assert_finding(self.run_only("links"), "no such file")
+
+    def test_a_fragment_that_resolves_to_nothing(self):
+        self.edit(SPEC_INDEX_REL, "[SPEC-ENV](env.md)", "[SPEC-ENV](env.md#nope)")
+        self.assert_finding(self.run_only("links"), "fragment")
+
+    def test_a_fragment_that_resolves_to_a_heading(self):
+        self.edit(
+            SPEC_INDEX_REL, "[SPEC-ENV](env.md)", "[SPEC-ENV](env.md#1--boundary-req-found-001)"
+        )
+        self.assert_clean(self.run_only("links"))
+
+    def test_a_bare_fragment_in_the_same_file(self):
+        self.guide_link("#development-process")
+        self.assert_clean(self.run_only("links"))
+
+    def test_a_bare_fragment_that_resolves_to_nothing(self):
+        self.guide_link("#zone")
+        self.assert_finding(self.run_only("links"), "fragment")
+
+    def test_an_explicit_anchor_counts_as_a_fragment(self):
+        self.edit(GUIDE_REL, "# Development process", '<a id="legacy-zone"></a>\n\n# Development process')
+        self.guide_link("#legacy-zone")
+        self.assert_clean(self.run_only("links"))
+
+    def test_a_host_absolute_target(self):
+        self.guide_link("/etc/hosts")
+        self.assert_finding(self.run_only("links"), "host-absolute")
+
+    def test_schemes_and_protocol_relative_targets_are_skipped(self):
+        self.edit(
+            GUIDE_REL,
+            "Write the specification first",
+            "See [a](https://example.org/x), [b](mailto:someone@example.org) and "
+            "[c](//cdn.example.org/x.js). Write the specification first",
+        )
+        self.assert_clean(self.run_only("links"))
+
+    def test_a_link_inside_a_fenced_block_is_skipped(self):
+        self.edit(
+            GUIDE_REL,
+            "Write the specification first",
+            "```\nSee [x](../missing.md).\n```\n\nWrite the specification first",
+        )
+        self.assert_clean(self.run_only("links"))
+
+    def test_a_reference_definition_is_checked(self):
+        self.edit(
+            SPEC_INDEX_REL, "# Specifications", "# Specifications\n\n[spec]: env.md#missing"
+        )
+        self.assert_finding(self.run_only("links"), "fragment")
+
+    def test_a_link_in_the_root_agents_file(self):
+        self.edit(
+            "AGENTS.md", "docs/development-process.md", "docs/no-such-process.md"
+        )
+        finding = self.assert_finding(self.run_only("links"), "no such file")
+        self.assertTrue(finding.anchor.startswith("AGENTS.md:"), finding.anchor)
+
+    def test_a_declared_path_outside_docs_is_scanned(self):
+        (self.tmp / "docs/adr").rename(self.tmp / "decisions")
+        self.edit(sdd_check.DESCRIPTOR_REL, "    adr: docs/adr", "    adr: decisions")
+        self.edit("decisions/README.md", "# Decision records", "# Decision records\n\n[x](gone.md)")
+        finding = self.assert_finding(self.run_only("links"), "no such file")
+        self.assertTrue(finding.anchor.startswith("decisions/README.md:"), finding.anchor)
+
+    def test_an_exclusion_glob_skips_the_file_and_is_printed(self):
+        self.edit(PLAN_REL, "## Tasks", "## Tasks\n\n[x](gone.md)")
+        self.assert_finding(self.run_only("links"), "no such file")
+        self.edit(sdd_check.DESCRIPTOR_REL, "      exclude: []", '      exclude: ["docs/plans/**"]')
+        report = self.run_only("links")
+        self.assert_clean(report)
+        self.assertEqual(["docs/plans/**"], report.link_exclusions)
+        self.assertIn("link exclusions: docs/plans/**", report.render(self.tmp).split("\n"))
+
+    def test_a_percent_encoded_space_is_decoded(self):
+        self.write("docs/a file.md", "---\nkind: guide\n---\n\n# A file\n")
+        self.guide_link("a%20file.md")
+        self.assert_clean(self.run_only("links"))
+
+    def test_a_percent_encoded_target_that_does_not_exist(self):
+        self.guide_link("no%20file.md")
+        self.assert_finding(self.run_only("links"), "no such file: no file.md")
+
+    def test_a_repository_with_no_document_skips_the_family(self):
+        for path in sorted((self.tmp / "docs").rglob("*.md")):
+            path.unlink()
+        (self.tmp / "AGENTS.md").unlink()
+        report = self.run_only("links")
+        self.assertIn("links", report.families_skipped)
+        self.assertNotIn("links", report.families_run)
+
+
+# ---------------------------------------------------------------------------
 # The report and the command line
 # ---------------------------------------------------------------------------
 class TestReport(BaselineCase):

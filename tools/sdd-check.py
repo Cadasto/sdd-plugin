@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.parse
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -2019,6 +2020,102 @@ def check_one_home(ctx: Context, report: "Report") -> None:
                 )
 
 
+#: A target that opens with one of these leaves the repository, so the gate cannot follow it.
+LINK_SCHEMES = ("http:", "https:", "mailto:", "ftp:", "tel:", "data:")
+
+_INLINE_TARGET_RE = re.compile(r"""\]\(\s*<?([^)<>\s]*)>?(?:\s+["'][^)]*)?\s*\)""")
+_REFERENCE_DEFINITION_RE = re.compile(r"^ {0,3}\[([^\]]+)\]:\s*<?([^\s>]+)>?")
+
+
+def _link_targets(text: str) -> List[Tuple[int, str]]:
+    """Every inline-link target and reference definition, as ``(line, target)``."""
+    found: List[Tuple[int, str]] = []
+    for lineno, line in strip_noncontent(text):
+        definition = _REFERENCE_DEFINITION_RE.match(line)
+        if definition:
+            found.append((lineno, definition.group(2)))
+        for match in _INLINE_TARGET_RE.finditer(line):
+            found.append((lineno, match.group(1)))
+    return found
+
+
+def _fragment_targets(text: str) -> set:
+    """Every name a ``#fragment`` may resolve to: heading slugs and explicit anchors."""
+    return set(entry[3] for entry in headings(text)) | explicit_anchors(text)
+
+
+def _link_files(ctx: Context) -> List[Path]:
+    """Every document the links family reads: the docs tree, AGENTS.md and README.md."""
+    found = list(ctx.docs_files())
+    seen = set(str(path) for path in found)
+    for name in ("AGENTS.md", "README.md"):
+        path = ctx.root / name
+        if path.is_file() and str(path) not in seen:
+            seen.add(str(path))
+            found.append(path)
+    return found
+
+
+def check_links(ctx: Context, report: "Report") -> None:
+    """Every link that stays inside the repository resolves onto a file and a fragment."""
+    desc = ctx.desc
+    level = ctx.level("links")
+    report.link_exclusions = list(desc.links_exclude)
+    paths = _link_files(ctx)
+    if not paths:
+        report.skip("links", "no markdown documents")
+        return
+    kept = [
+        path
+        for path in paths
+        if not any(fnmatch.fnmatch(ctx.rel(path), glob) for glob in desc.links_exclude)
+    ]
+    if not kept:
+        report.skip("links", "every document is excluded by check.links.exclude")
+        return
+    for path in kept:
+        anchor = ctx.rel(path)
+        for lineno, raw in _link_targets(ctx.read(path)):
+            target = raw.strip()
+            if not target:
+                continue
+            lowered = target.lower()
+            if lowered.startswith("//") or any(lowered.startswith(s) for s in LINK_SCHEMES):
+                continue
+            where = "%s:%d" % (anchor, lineno)
+            if target.startswith("/"):
+                report.add(
+                    "links",
+                    level,
+                    where,
+                    "a host-absolute target resolves to nothing in a repository: %s" % target,
+                )
+                continue
+            rel_part, _, fragment = target.partition("#")
+            rel_part = urllib.parse.unquote(rel_part)
+            fragment = urllib.parse.unquote(fragment)
+            if rel_part:
+                resolved = Path(os.path.normpath(str(path.parent / rel_part)))
+                if not resolved.exists():
+                    report.add("links", level, where, "no such file: %s" % rel_part)
+                    continue
+                if not fragment or resolved.suffix != ".md":
+                    continue
+                text = ctx.read(resolved)
+            else:
+                if not fragment:
+                    continue
+                text = ctx.read(path)
+            if fragment not in _fragment_targets(text):
+                report.add(
+                    "links",
+                    level,
+                    where,
+                    "the fragment '#%s' matches no heading slug and no explicit anchor in %s"
+                    % (fragment, rel_part or path.name),
+                )
+
+
 # --- family registry (later families are inserted above this banner) -------
 
 CHECKS = {
@@ -2031,6 +2128,7 @@ CHECKS = {
     "doc-kinds": check_doc_kinds,
     "rfc2119": check_rfc2119,
     "one-home": check_one_home,
+    "links": check_links,
     "draft-reason": check_draft_reason,
 }
 
