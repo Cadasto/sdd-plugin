@@ -85,7 +85,6 @@ DEFAULT_KINDS = (
     "upstream",
 )
 NORMATIVE_KINDS = ("requirement", "specification", "adr", "plan")
-INFORMATIVE_KINDS = ("guide", "analysis", "operations", "reference")
 
 #: The frontmatter key and the vocabulary each kind's status axis is checked against.
 KIND_VOCABULARY = {
@@ -1132,7 +1131,12 @@ def doc_kind(ctx: Context, path) -> Optional[str]:
 
 
 def kind_zone(kind: str) -> str:
-    """``normative``, ``upstream`` or ``informative``. A kind a repository adds is informative."""
+    """The zone a kind sits in: ``normative``, ``upstream`` or ``informative``.
+
+    Any kind that is neither one of the four normative kinds nor ``upstream`` is
+    informative, so a kind a repository adds to ``doc_kinds`` joins the informative zone
+    and carries no status axis.
+    """
     if kind in NORMATIVE_KINDS:
         return "normative"
     if kind == "upstream":
@@ -1801,19 +1805,6 @@ def check_tree_to_map(ctx: Context, report: "Report") -> None:
                     )
 
 
-def check_draft_reason(ctx: Context, report: "Report") -> None:
-    """A requirement that is draft and built owes a reason for the wording."""
-    level = ctx.level("draft-reason")
-    for record in ctx.records:
-        if record.status == "draft" and record.enforced() and not record.draft_reason:
-            report.add(
-                "draft-reason",
-                level,
-                record.id or ctx.desc.traceability,
-                "%s is draft and enforced, so it owes a draft_reason" % record.id,
-            )
-
-
 def check_doc_kinds(ctx: Context, report: "Report") -> None:
     """Every document declares a known kind and carries the status axis that kind owns."""
     desc = ctx.desc
@@ -2087,7 +2078,6 @@ def check_links(ctx: Context, report: "Report") -> None:
     """Every link that stays inside the repository resolves onto a file and a fragment."""
     desc = ctx.desc
     level = ctx.level("links")
-    report.link_exclusions = list(desc.links_exclude)
     paths = _link_files(ctx)
     if not paths:
         report.skip("links", "no markdown documents")
@@ -2266,6 +2256,19 @@ def check_changelog(ctx: Context, report: "Report") -> None:
                 where,
                 "%d backticked names make this an inventory; the budget is %d"
                 % (len(tokens), CHANGELOG_MAX_TOKENS),
+            )
+
+
+def check_draft_reason(ctx: Context, report: "Report") -> None:
+    """A requirement that is draft and built owes a reason for the wording."""
+    level = ctx.level("draft-reason")
+    for record in ctx.records:
+        if record.status == "draft" and record.enforced() and not record.draft_reason:
+            report.add(
+                "draft-reason",
+                level,
+                record.id or ctx.desc.traceability,
+                "%s is draft and enforced, so it owes a draft_reason" % record.id,
             )
 
 

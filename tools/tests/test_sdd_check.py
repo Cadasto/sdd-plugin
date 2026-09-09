@@ -734,12 +734,20 @@ class TestDocKindsFamily(BaselineCase):
 
 
 # ---------------------------------------------------------------------------
-# waivers
+# rfc2119
 # ---------------------------------------------------------------------------
-class TestWaiverHelper(unittest.TestCase):
+GUIDE_REL = "docs/development-process.md"
+REQ_REL = "docs/requirements/REQ-FOUND-001.md"
+NORMATIVE_SENTENCE = "The service MUST refuse a start with a declared variable absent."
+
+
+class TestProseHelpers(unittest.TestCase):
     def test_waivers_names_every_family_in_the_comment(self):
         text = "# Title\n\n<!-- sdd-check: allow rfc2119, one-home -->\n\nProse.\n"
         self.assertEqual({"rfc2119", "one-home"}, sdd_check.waivers(text))
+
+    def test_waivers_of_a_document_without_one(self):
+        self.assertEqual(set(), sdd_check.waivers("# Title\n\nProse.\n"))
 
     def test_normalise_sentence_strips_markup_and_trailing_punctuation(self):
         self.assertEqual(
@@ -751,19 +759,6 @@ class TestWaiverHelper(unittest.TestCase):
         text = "# Title\n\nPlain prose here.\n\nThe gate MUST refuse the start.\n"
         self.assertEqual([(5, "The gate MUST refuse the start.")], sdd_check.keyword_sentences(text))
 
-    def test_waivers_of_a_document_without_one(self):
-        self.assertEqual(set(), sdd_check.waivers("# Title\n\nProse.\n"))
-
-
-# ---------------------------------------------------------------------------
-# rfc2119
-# ---------------------------------------------------------------------------
-GUIDE_REL = "docs/development-process.md"
-REQ_REL = "docs/requirements/REQ-FOUND-001.md"
-NORMATIVE_SENTENCE = "The service MUST refuse a start with a declared variable absent."
-
-
-class TestProseHelpers(unittest.TestCase):
     def test_keyword_re_matches_whole_upper_case_words(self):
         found = sdd_check.KEYWORD_RE.findall(
             "MUST MUST NOT SHALL SHALL NOT SHOULD SHOULD NOT REQUIRED RECOMMENDED MAY OPTIONAL"
@@ -776,13 +771,6 @@ class TestProseHelpers(unittest.TestCase):
 
     def test_keyword_re_ignores_a_longer_word_and_lower_case(self):
         self.assertEqual([], sdd_check.KEYWORD_RE.findall("MAYBE must MUSTARD shall"))
-
-    def test_waivers_names_every_family_in_the_comment(self):
-        text = "# Title\n\n<!-- sdd-check: allow rfc2119, one-home -->\n\nProse.\n"
-        self.assertEqual({"rfc2119", "one-home"}, sdd_check.waivers(text))
-
-    def test_waivers_of_a_document_without_one(self):
-        self.assertEqual(set(), sdd_check.waivers("# Title\n\nProse.\n"))
 
 
 class TestRfc2119Family(BaselineCase):
