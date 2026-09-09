@@ -15,6 +15,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - References: `sdd-methodology.md` §3 the nine document kinds in three zones, §5 excluded areas, §6 per-kind status vocabularies, §10 the ground-truth resolution order and the cross-repo ask lifecycle, §13 the enforcement register.
 - References: `traceability-schema.md` — the descriptor's profile, kinds, excluded areas, default mode, upstream relations, `check:` and `hooks:` blocks; two new record fields; generated blocks.
 - Tools: `sdd-check` gains the five prose families — document kinds, RFC-2119 grammar and placement, one canonical home, links with fragments, and changelog bullets — with file-level waivers.
+- Tools: `sdd-check generate` writes the three index tables and the requirement status lines from one source; `context` prints a requirement's bundle; `selftest` proves every rule with a negative fixture.
 
 ### Changed
 - References: `artefact-prose.md` — the changelog-bullet and one-home rules are enforced by the gate's `changelog` and `one-home` families.

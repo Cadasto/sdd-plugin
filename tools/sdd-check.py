@@ -3600,6 +3600,12 @@ USAGE = """usage: sdd-check [check|generate|context|selftest] [options]
   context <REQ> [--root DIR]
   selftest [--root DIR]
   --version
+
+sdd-check is the shared drift gate. It is one Python file, vendored into a repository by
+/sdd-scaffold and run by the spec-check build target, so CI needs no plugin. It checks
+the traceability chain in both directions, lints the prose rules that can be checked
+mechanically, regenerates the derived indexes, prints a requirement's context bundle,
+and tests itself.
 """
 
 
