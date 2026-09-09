@@ -1930,6 +1930,17 @@ class TestContextBundle(BaselineCase):
         self.assertIn("traceability map is missing", out)
         self.assertNotIn("no record", out)
 
+    def test_index_row_matches_on_identifier_boundary_not_substring(self):
+        self.edit(
+            INDEX_REL,
+            "| [REQ-FOUND-001]",
+            "| REQ-FOUND-0010 | Other | — | Draft | proposed |\n| [REQ-FOUND-001]",
+        )
+        row = sdd_check._index_row(self.ctx(), "REQ-FOUND-001")
+        self.assertIsNotNone(row)
+        self.assertIn("REQ-FOUND-001]", row)
+        self.assertNotIn("REQ-FOUND-0010", row)
+
     def test_an_unparseable_map_is_reported_as_map_schema_not_no_record(self):
         self.edit(MAP_REL, "requirements:", "requirements:\n\tbroken: true")
         buffer = io.StringIO()

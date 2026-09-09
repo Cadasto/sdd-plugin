@@ -2742,7 +2742,11 @@ def _expected_block(ctx: Context, name: str, home: Path) -> List[str]:
     return [""] + _RENDERERS[name](ctx, home).split("\n") + [""]
 
 
-_GENERATED_OPEN_RE = re.compile(r"^<!-- sdd:generated (\S+) -->$")
+#: Derived from GENERATED_OPEN itself, so the marker text has one source, not two.
+_GENERATED_OPEN_PREFIX, _GENERATED_OPEN_SUFFIX = GENERATED_OPEN.split("%s")
+_GENERATED_OPEN_RE = re.compile(
+    "^%s(\\S+)%s$" % (re.escape(_GENERATED_OPEN_PREFIX), re.escape(_GENERATED_OPEN_SUFFIX))
+)
 
 
 def generated_blocks(text: str) -> List[Tuple[str, int, int]]:
@@ -2904,6 +2908,11 @@ def run_generate(root: Path, verify: bool) -> int:
         print(line)
     return code
 
+
+# ---------------------------------------------------------------------------
+# The baseline fixture — the minimal passing repository the unit tests and the
+# selftest share, one source for both
+# ---------------------------------------------------------------------------
 
 #: The minimal passing repository the unit tests and the selftest build on.
 _BASELINE_FILES = {
@@ -3141,8 +3150,9 @@ def _index_row(ctx: Context, req_id: str) -> Optional[str]:
         return None
     text = ctx.read(index_path)
     lines = text.split("\n")
+    pattern = _identifier_re(req_id)
     for lineno, _header, cells in table_rows(text):
-        if any(req_id in cell for cell in cells):
+        if any(pattern.search(cell) for cell in cells):
             return lines[lineno - 1].strip()
     return None
 
@@ -3254,21 +3264,25 @@ def _open_strands(ctx: Context, req_id: str) -> Optional[str]:
 
 def context_bundle(ctx: Context, req_id: str) -> str:
     """A requirement's context bundle: index row, record, canonical section, acceptance
-    criteria, plans, citing tests and open strands — sdd-methodology.md §10."""
+    criteria, plans, citing tests and open strands — sdd-methodology.md §10.
+
+    :data:`_CONTEXT_HEADINGS` is the one home for the heading order; this just supplies
+    each heading's content.
+    """
     record = ctx.records_by_id.get(req_id)
-    sections = [
-        ("Index row", _index_row(ctx, req_id)),
-        ("Traceability record", _record_dump(record) if record else None),
-        ("Canonical section", _canonical_section(ctx, record) if record else None),
-        ("Acceptance criteria", _acceptance_criteria(ctx, req_id)),
-        ("Plans", _plans_for(ctx, req_id)),
-        ("Tests citing it", _tests_citing(ctx, req_id)),
-        ("Open strands", _open_strands(ctx, req_id)),
-    ]
+    content = {
+        "Index row": _index_row(ctx, req_id),
+        "Traceability record": _record_dump(record) if record else None,
+        "Canonical section": _canonical_section(ctx, record) if record else None,
+        "Acceptance criteria": _acceptance_criteria(ctx, req_id),
+        "Plans": _plans_for(ctx, req_id),
+        "Tests citing it": _tests_citing(ctx, req_id),
+        "Open strands": _open_strands(ctx, req_id),
+    }
     out: List[str] = []
-    for title, content in sections:
+    for title in _CONTEXT_HEADINGS:
         out.append(title)
-        out.append(content if content else "none")
+        out.append(content[title] if content[title] else "none")
         out.append("")
     return "\n".join(out).rstrip("\n")
 
