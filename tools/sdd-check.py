@@ -100,8 +100,6 @@ DEFAULT_TEST_GLOBS = (
 ROOT_PRUNED = ("docs",)
 #: These are pruned wherever they sit.
 NESTED_PRUNED = (".git", "vendor", "node_modules")
-#: The directories `tree-to-map` never walks (the contract's four).
-PRUNED_DIRS = ROOT_PRUNED + NESTED_PRUNED
 
 GENERATED_BLOCKS = ("requirements-index", "specifications-index", "adr-index")
 GENERATED_OPEN = "<!-- sdd:generated %s -->"
@@ -299,7 +297,7 @@ class _YamlParser:
             last = index + 1
         while self.i < len(self.tokens) and self.tokens[self.i][2] <= last:
             self.i += 1
-        body = list(collected)
+        body = collected
         while body and not body[-1].strip():
             body.pop()
         if not body:
@@ -1236,31 +1234,50 @@ def _cell_text(cell: str) -> str:
     return cell.replace("`", "").replace("*", "").strip()
 
 
-def _index_columns(header: List[str], cells: List[str]) -> Tuple[Optional[str], Optional[str]]:
-    """The stability and implementation cells: found by header text, else by position.
+def _index_columns(header: List[str]) -> Tuple[Optional[int], Optional[int], List[str]]:
+    """``(stability column, implementation column, the axes the table names no column for)``.
 
-    The fallback applies per column, so a table that names one of the two and leaves the
-    other unnamed still compares both.
+    An axis is found by header text. An axis the header does not name falls back to its
+    position — second-to-last for stability, last for implementation — but only where the
+    table has room for both axes beside the identifier and the title, and only onto a column
+    the other axis has not already claimed. A narrower table is reported, never guessed at:
+    comparing a title cell against a status vocabulary is a finding about nothing.
     """
     stability = None
     implementation = None
     for index, name in enumerate(header):
-        if index >= len(cells):
-            break
         lowered = _cell_text(name).lower()
-        if lowered in _STABILITY_HEADERS:
+        if lowered in _STABILITY_HEADERS and stability is None:
             stability = index
-        elif lowered in _IMPLEMENTATION_HEADERS:
+        elif lowered in _IMPLEMENTATION_HEADERS and implementation is None:
             implementation = index
-    if len(cells) >= 2:
-        if stability is None and implementation != len(cells) - 2:
-            stability = len(cells) - 2
-        if implementation is None and stability != len(cells) - 1:
-            implementation = len(cells) - 1
-    return (
-        cells[stability] if stability is not None else None,
-        cells[implementation] if implementation is not None else None,
-    )
+    width = len(header)
+    unnamed: List[str] = []
+    if stability is None:
+        candidate = width - 2
+        if width >= 4 and candidate != implementation:
+            stability = candidate
+        else:
+            unnamed.append("Stability")
+    if implementation is None:
+        candidate = width - 1
+        if width >= 4 and candidate != stability:
+            implementation = candidate
+        else:
+            unnamed.append("Implementation")
+    return stability, implementation, unnamed
+
+
+def _index_tables(text: str):
+    """Every pipe table as ``(header line, header cells, [(line, row cells)])``."""
+    tables: List[Tuple[int, List[str], List[Tuple[int, List[str]]]]] = []
+    previous = None
+    for lineno, header, cells in table_rows(text):
+        if previous is None or lineno != previous + 1:
+            tables.append((lineno - 2, header, []))
+        tables[-1][2].append((lineno, cells))
+        previous = lineno
+    return tables
 
 
 def check_index_sync(ctx: Context, report: "Report") -> None:
@@ -1274,17 +1291,39 @@ def check_index_sync(ctx: Context, report: "Report") -> None:
         return
     pattern = desc.req_pattern()
     rows = []
-    for lineno, header, cells in table_rows(ctx.read(index_path)):
-        identifier = None
-        for cell in cells:
-            match = pattern.search(cell)
-            if match:
-                identifier = match.group(0)
-                break
-        if identifier is None:
-            continue
-        stability, implementation = _index_columns(header, cells)
-        rows.append((lineno, identifier, stability, implementation))
+    unnamed_axes: List[Tuple[int, str]] = []
+    for header_line, header, table in _index_tables(ctx.read(index_path)):
+        stability, implementation, unnamed = _index_columns(header)
+        carries_ids = False
+        for lineno, cells in table:
+            identifier = None
+            for cell in cells:
+                match = pattern.search(cell)
+                if match:
+                    identifier = match.group(0)
+                    break
+            if identifier is None:
+                continue
+            carries_ids = True
+            rows.append(
+                (
+                    lineno,
+                    identifier,
+                    cells[stability] if stability is not None and stability < len(cells) else None,
+                    cells[implementation]
+                    if implementation is not None and implementation < len(cells)
+                    else None,
+                )
+            )
+        if carries_ids:
+            unnamed_axes.extend((header_line, axis) for axis in unnamed)
+    for header_line, axis in unnamed_axes:
+        report.add(
+            "index-sync",
+            "WARN",
+            "%s:%d" % (index_rel, header_line),
+            "the index table names no %s column" % axis,
+        )
     if not rows:
         report.add(
             "index-sync",
@@ -1520,6 +1559,45 @@ def _walk_code(ctx: Context, roots: List[Path], skip: set):
                     yield path
 
 
+def _is_pruned(rel: str, skip: set) -> bool:
+    """Whether a repository-relative path sits inside a pruned or documented directory."""
+    parts = rel.split("/")
+    if any(part in NESTED_PRUNED for part in parts):
+        return True
+    prefix = ""
+    for part in parts:
+        prefix = part if not prefix else prefix + "/" + part
+        if prefix in skip:
+            return True
+    return False
+
+
+def _code_files(ctx: Context, roots: List[Path], skip: set) -> List[Path]:
+    """The candidate files, from git where the repository is a work tree.
+
+    Git knows what the repository keeps and what it ignores, so a scratch directory a
+    developer never committed is not read as code. Without git the whole tree is walked,
+    because the gate would rather read too much than quietly miss a citation.
+    """
+    listing = ctx.git("ls-files", "--cached", "--others", "--exclude-standard", "-z")
+    if listing is None:
+        return list(_walk_code(ctx, roots, skip))
+    root_rels = [ctx.rel(root) for root in roots]
+    found: List[Path] = []
+    seen = set()
+    for rel in listing.split("\0"):
+        if not rel or rel in seen or _is_pruned(rel, skip):
+            continue
+        under = any(
+            base in ("", ".") or rel == base or rel.startswith(base + "/") for base in root_rels
+        )
+        if not under:
+            continue
+        seen.add(rel)
+        found.append(ctx.root / rel)
+    return sorted(found)
+
+
 def check_tree_to_map(ctx: Context, report: "Report") -> None:
     """Every identifier the code cites names a record, and a test names a tested record."""
     desc = ctx.desc
@@ -1541,7 +1619,7 @@ def check_tree_to_map(ctx: Context, report: "Report") -> None:
     skip = set(Path(rel).as_posix() for rel in desc.paths.values())
     skip.update(ROOT_PRUNED)
     skip.add(Path(desc.traceability).as_posix())
-    for path in _walk_code(ctx, roots, skip):
+    for path in _code_files(ctx, roots, skip):
         try:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):

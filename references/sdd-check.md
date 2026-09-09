@@ -111,7 +111,7 @@ Default severity `error`. Enforces §9 (finished in place, swept at the release)
 
 ### tree-to-map
 
-- `tree-to-map` — under `check.code_roots` (default: the repository minus `docs/`, `.git/`, `vendor/`, `node_modules/`, the descriptor's `paths.*`), every token matching the repository's `REQ` pattern names a record (else error `unknown identifier cited`); a test file (a `check.test_globs` match) citing a `REQ` whose record lists no `tests` → warn.
+- `tree-to-map` — under `check.code_roots` (default: the repository minus `docs/`, `.git/`, `vendor/`, `node_modules/`, the descriptor's `paths.*`), every token matching the repository's `REQ` pattern names a record (else error `unknown identifier cited`); a test file (a `check.test_globs` match) citing a `REQ` whose record lists no `tests` → warn. Files are those git tracks or does not ignore; without git, the whole tree.
 
 Default severity `warn`. Enforces §5 (a published id is never invented or reused) and §8 (the chain runs both ways).
 

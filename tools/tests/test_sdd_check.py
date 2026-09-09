@@ -558,8 +558,8 @@ status: done
 """
 
 
-class PlansCase(BaselineCase):
-    """A baseline repository plus the git helpers the stale-plan rule needs."""
+class GitCase(BaselineCase):
+    """A baseline repository plus the helpers that turn it into a git work tree."""
 
     def git(self, *args):
         subprocess.run(
@@ -580,7 +580,7 @@ class PlansCase(BaselineCase):
         self.git("commit", "-q", "-m", message)
 
 
-class TestPlansFamily(PlansCase):
+class TestPlansFamily(GitCase):
     def test_missing_mode(self):
         self.edit(PLAN_REL, "mode: spec-first\n", "")
         self.assert_finding(self.run_only("plans"), "mode")
@@ -950,13 +950,33 @@ class TestIndexSyncRules(BaselineCase):
         self.edit(INDEX_REL, "| Draft | shipped |", "| Draft | planned |")
         self.assert_finding(self.run_only("index-sync"), "Implementation", family="index-sync")
 
+    def test_an_unnamed_axis_in_a_narrow_table_warns_instead_of_guessing(self):
+        self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |", "| ID | Title | Implementation |")
+        self.edit(INDEX_REL, "|---|---|---|---|", "|---|---|---|")
+        self.edit(INDEX_REL, "| Environment boundary | Draft | shipped |", "| Environment boundary | shipped |")
+        report = self.run_only("index-sync")
+        self.assertEqual([], self.levelled(report, "ERROR"), report.render(self.tmp))
+        finding = self.assert_finding(
+            report, "the index table names no Stability column", level="WARN"
+        )
+        self.assertEqual("index-sync", finding.family)
+        self.assertEqual("docs/requirements/README.md:11", finding.anchor)
+
+    def test_the_five_column_template_shape_is_clean(self):
+        self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |",
+                  "| ID | Title | Spec | Stability | Implementation |")
+        self.edit(INDEX_REL, "|---|---|---|---|", "|---|---|---|---|---|")
+        self.edit(INDEX_REL, "| Environment boundary | Draft | shipped |",
+                  "| Environment boundary | `SPEC-ENV §1` | Draft | shipped |")
+        self.assert_clean(self.run_only("index-sync"))
+
     def test_last_two_columns_when_no_header_matches(self):
         self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |", "| ID | Title | Stage | Build |")
         self.edit(INDEX_REL, "| Draft | shipped |", "| Draft | planned |")
         self.assert_finding(self.run_only("index-sync"), "Implementation", family="index-sync")
 
 
-class TestPlansRules(PlansCase):
+class TestPlansRules(GitCase):
     def test_mode_vocabulary(self):
         self.edit(PLAN_REL, "mode: spec-first", "mode: vibes")
         self.assert_finding(self.run_only("plans"), "mode", family="plans")
@@ -1031,6 +1051,21 @@ class TestMapUnavailable(BaselineCase):
         self.assert_finding(report, "traceability map is missing", family="map-schema")
         self.assertEqual(["map-schema"], report.families_run)
         self.assertEqual("map unavailable", report.families_skipped.get("tree-to-map"))
+
+
+class TestTreeToMapUnderGit(GitCase):
+    def test_an_ignored_directory_is_not_scanned(self):
+        self.write(".gitignore", "scratch/\n")
+        self.write("scratch/note.py", "# REQ-FOUND-077\n")
+        self.init_git()
+        self.commit("baseline")
+        self.assert_clean(self.run_only("tree-to-map"))
+
+    def test_an_untracked_file_that_is_not_ignored_is_scanned(self):
+        self.write("scratch/note.py", "# REQ-FOUND-077\n")
+        self.init_git()
+        self.commit("baseline")
+        self.assert_finding(self.run_only("tree-to-map"), "unknown identifier cited", level="WARN")
 
 
 if __name__ == "__main__":
