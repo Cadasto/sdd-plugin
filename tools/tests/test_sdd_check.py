@@ -1920,6 +1920,26 @@ class TestContextBundle(BaselineCase):
         self.assertEqual(2, code)
         self.assertIn("no record", buffer.getvalue())
 
+    def test_a_missing_map_is_reported_as_map_schema_not_no_record(self):
+        (self.tmp / MAP_REL).unlink()
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = sdd_check.run_context(self.tmp, "REQ-FOUND-001")
+        self.assertEqual(1, code)
+        out = buffer.getvalue()
+        self.assertIn("traceability map is missing", out)
+        self.assertNotIn("no record", out)
+
+    def test_an_unparseable_map_is_reported_as_map_schema_not_no_record(self):
+        self.edit(MAP_REL, "requirements:", "requirements:\n\tbroken: true")
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = sdd_check.run_context(self.tmp, "REQ-FOUND-001")
+        self.assertEqual(1, code)
+        out = buffer.getvalue()
+        self.assertIn("does not parse", out)
+        self.assertNotIn("no record", out)
+
 
 # ---------------------------------------------------------------------------
 # The built-in selftest

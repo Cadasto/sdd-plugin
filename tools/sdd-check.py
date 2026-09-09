@@ -3274,16 +3274,26 @@ def context_bundle(ctx: Context, req_id: str) -> str:
 
 
 def run_context(root: Path, requirement: str) -> int:
-    """CLI wiring for ``context <REQ>``."""
+    """CLI wiring for ``context <REQ>``.
+
+    A missing or unparseable descriptor fails exactly as ``check`` fails it (exit 2). A
+    map that will not load is reported through the same ``map-schema`` finding
+    ``generate`` reports (exit 1) — that is a configuration failure, not "no such
+    requirement". Only a real unknown id, with the map loaded, is `no record` (exit 2).
+    """
     root = Path(root)
     desc, message = _load_descriptor(root)
     if message:
         print(Report.fatal(message).render(root))
         return 2
-    try:
-        records = load_map(desc)
-    except (FileNotFoundError, YamlError, OSError):
-        records = []
+    report = Report()
+    report.profile = desc.profile
+    records, map_ok = _load_records_or_report(desc, report)
+    if not map_ok:
+        report.record_count = len(records)
+        report.mark_run("map-schema")
+        print(report.render(root))
+        return report.exit_code()
     ctx = Context(root, desc, records)
     if requirement not in ctx.records_by_id:
         print("sdd-check: FAILED — no record for %s" % requirement)
