@@ -948,6 +948,41 @@ class TestEffectiveKindFallback(BaselineCase):
 
 
 # ---------------------------------------------------------------------------
+# The registry model: paths.requirements and paths.specifications can coincide (a
+# shared directory, or a single-file requirements index beside the specifications)
+# ---------------------------------------------------------------------------
+class TestRegistryModelLocationFallback(BaselineCase):
+    def test_specifications_wins_when_requirements_names_the_same_directory(self):
+        self.edit(
+            sdd_check.DESCRIPTOR_REL,
+            "requirements: docs/requirements",
+            "requirements: docs/specifications",
+        )
+        self.edit(SPEC_REL, "kind: specification\n", "")
+        report = sdd_check.run_check(self.tmp, only=["rfc2119"], changelog_all=False)
+        self.assertIn("rfc2119", report.families_run)
+        self.assert_clean(report)
+
+    def test_lightweight_registry_file_infers_requirement_a_spec_beside_it_does_not(self):
+        self.write(
+            "docs/requirements.md",
+            "# Requirements\n\nThe service MUST accept configuration.\n",
+        )
+        self.edit(
+            sdd_check.DESCRIPTOR_REL,
+            "requirements: docs/requirements",
+            "requirements: docs/requirements.md",
+        )
+        self.edit(SPEC_REL, "kind: specification\n", "")
+        report = sdd_check.run_check(self.tmp, only=["rfc2119"], changelog_all=False)
+        self.assert_finding(report, "does not belong in a requirement document")
+        # The kind-less specification, in its own directory, must not also be pulled
+        # into the "requirement" classification just because a registry file exists.
+        spec_hits = [f for f in report.findings if f.anchor.startswith(SPEC_REL)]
+        self.assertEqual([], spec_hits, report.render(self.tmp))
+
+
+# ---------------------------------------------------------------------------
 # one-home
 # ---------------------------------------------------------------------------
 PARITY_REL = "docs/specifications/parity.md"

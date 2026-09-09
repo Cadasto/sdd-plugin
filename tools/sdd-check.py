@@ -1160,8 +1160,8 @@ def kind_zone(kind: str) -> str:
 
 #: Where a document lives implies its kind when its frontmatter declares none.
 _LOCATION_KIND = (
-    ("requirements", "requirement"),
     ("specifications", "specification"),
+    ("requirements", "requirement"),
     ("adr", "adr"),
     ("plans", "plan"),
 )
@@ -1172,6 +1172,13 @@ def effective_kind(ctx: Context, path) -> str:
     ``kind:``, or — when it declares none — the kind implied by which ``paths.*`` it
     sits under (otherwise ``guide``). ``doc-kinds`` keeps reading :func:`doc_kind`
     directly, so a missing declaration is still reported at its own severity.
+
+    ``specifications`` is checked before ``requirements``: in a registry-model
+    repository, where ``paths.requirements`` names a single file and the requirements
+    live in the same directory as the specifications (or ``paths.requirements`` and
+    ``paths.specifications`` name the same directory outright), a kind-less document is
+    a specification, never a requirement — only the registry file itself, matched
+    exactly, ever infers ``requirement``.
     """
     kind = doc_kind(ctx, path)
     if kind:
