@@ -67,6 +67,9 @@ families that did not, each with its reason:
 families run: …; skipped: <family> (<reason>)
 ```
 
+Every family some file waives adds a line `waived: <family> (<n> files)` straight after it, so a waiver
+can never hide silently.
+
 When `check.links.exclude` is non-empty, one more line follows, so an exclusion can never hide silently:
 
 ```
