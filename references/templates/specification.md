@@ -24,6 +24,7 @@ mode: spec-first         # spec-first | implementation-aligned
 
 ## §2 — <section title>
 
-<…>
+<The same for this section: prose stating what the system MUST, SHOULD or MAY do. Every
+numbered section carries at least one keyword, or it is not normative and does not belong here.>
 
 **Implements:** <REQ-AREA-NNN>
