@@ -1335,6 +1335,17 @@ class TestCommandLine(BaselineCase):
         self.assertEqual(0, code, out)
         self.assertEqual("", out.strip())
 
+    def test_context_command_prints_the_bundle(self):
+        code, out = self.run_main(["context", "REQ-FOUND-001", "--root", str(self.tmp)])
+        self.assertEqual(0, code, out)
+        self.assertIn("Index row", out)
+        self.assertIn("tests/env_test.py", out)
+
+    def test_context_command_unknown_id_returns_two(self):
+        code, out = self.run_main(["context", "REQ-FOUND-999", "--root", str(self.tmp)])
+        self.assertEqual(2, code, out)
+        self.assertIn("no record", out)
+
 
 # ---------------------------------------------------------------------------
 # The interfaces later builds call
@@ -1702,6 +1713,41 @@ class TestGeneratedFamily(BaselineCase):
         report = self.run_only("generated")
         self.assertEqual("no generated blocks", report.families_skipped.get("generated"))
         self.assertNotIn("generated", report.families_run)
+
+
+# ---------------------------------------------------------------------------
+# The context bundle
+# ---------------------------------------------------------------------------
+class TestContextBundle(BaselineCase):
+    def ctx(self):
+        desc = sdd_check.Descriptor.load(self.tmp)
+        return sdd_check.Context(self.tmp, desc, sdd_check.load_map(desc))
+
+    def test_bundle_headings_are_in_order_with_content(self):
+        bundle = sdd_check.context_bundle(self.ctx(), "REQ-FOUND-001")
+        headings = [
+            "Index row",
+            "Traceability record",
+            "Canonical section",
+            "Acceptance criteria",
+            "Plans",
+            "Tests citing it",
+            "Open strands",
+        ]
+        positions = [bundle.index(heading) for heading in headings]
+        self.assertEqual(positions, sorted(positions), bundle)
+        self.assertIn("**Implements:** REQ-FOUND-001", bundle)
+        self.assertIn("A start with every declared variable set is accepted.", bundle)
+        self.assertIn("docs/plans/2026-01-01-env.md: done", bundle)
+        self.assertIn("tests/env_test.py", bundle)
+        self.assertIn("Open strands\nnone", bundle)
+
+    def test_unknown_id_returns_two_via_run_context(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = sdd_check.run_context(self.tmp, "REQ-FOUND-999")
+        self.assertEqual(2, code)
+        self.assertIn("no record", buffer.getvalue())
 
 
 if __name__ == "__main__":

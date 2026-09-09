@@ -3076,9 +3076,176 @@ def write_baseline(root: Path) -> None:
         path.write_text(text, encoding="utf-8")
 
 
+# ---------------------------------------------------------------------------
+# Context bundle — sdd-methodology.md §10
+# ---------------------------------------------------------------------------
+
+_CONTEXT_HEADINGS = (
+    "Index row",
+    "Traceability record",
+    "Canonical section",
+    "Acceptance criteria",
+    "Plans",
+    "Tests citing it",
+    "Open strands",
+)
+
+
+def _index_row(ctx: Context, req_id: str) -> Optional[str]:
+    index_path = ctx.desc.requirements_index_path()
+    if not index_path.is_file():
+        return None
+    text = ctx.read(index_path)
+    lines = text.split("\n")
+    for lineno, _header, cells in table_rows(text):
+        if any(req_id in cell for cell in cells):
+            return lines[lineno - 1].strip()
+    return None
+
+
+def _record_dump(record: Record) -> str:
+    lines = [
+        "id: %s" % record.id,
+        "title: %s" % record.title,
+        "canonical: %s" % record.canonical,
+        "status: %s" % record.status,
+        "implementation: %s" % record.implementation,
+    ]
+    for key in ("packages", "tests", "probes", "operations"):
+        value = getattr(record, key)
+        if value:
+            lines.append("%s: %s" % (key, ", ".join(value)))
+    if record.draft_reason:
+        lines.append("draft_reason: %s" % record.draft_reason)
+    return "\n".join(lines)
+
+
+def _canonical_section(ctx: Context, record: Record) -> Optional[str]:
+    if not record.canonical:
+        return None
+    path_part, _, fragment = record.canonical.partition("#")
+    if not path_part:
+        return None
+    target = ctx.desc.resolve(path_part)
+    if not target.is_file():
+        return None
+    text = ctx.read(target)
+    span = section_slice(text, fragment) if fragment else None
+    if span is None and fragment:
+        span = _anchor_span(text, fragment)
+    if span is None:
+        return None
+    start, end = span
+    lines = text.split("\n")
+    end = min(end, len(lines) + 1)
+    body = "\n".join(lines[start - 1 : end - 1]).strip("\n")
+    return "%s\n\n%s" % (ctx.rel(target), body) if body else ctx.rel(target)
+
+
+def _acceptance_criteria(ctx: Context, req_id: str) -> Optional[str]:
+    detail = _requirement_detail_file(ctx, req_id)
+    if detail is None:
+        return None
+    text = ctx.read(detail)
+    span = section_slice(text, "acceptance-criteria")
+    if span is None:
+        return None
+    start, end = span
+    lines = text.split("\n")
+    end = min(end, len(lines) + 1)
+    content = "\n".join(lines[start:end - 1]).strip("\n")
+    return content or None
+
+
+def _plans_for(ctx: Context, req_id: str) -> Optional[str]:
+    desc = ctx.desc
+    plans_dir = desc.resolve(desc.paths.get("plans", "docs/plans"))
+    if not plans_dir.is_dir():
+        return None
+    found = []
+    for path in sorted(plans_dir.rglob("*.md")):
+        if path.name == "_template.md" or not path.is_file():
+            continue
+        front = _quiet_frontmatter(ctx.read(path))
+        implements = [_as_str(item) for item in _as_list(front.get("implements"))]
+        if req_id in implements:
+            found.append("%s: %s" % (ctx.rel(path), _as_str(front.get("status")) or "unknown"))
+    return "\n".join(found) if found else None
+
+
+def _tests_citing(ctx: Context, req_id: str) -> Optional[str]:
+    desc = ctx.desc
+    roots: List[Path] = []
+    for rel in desc.code_roots:
+        target = desc.resolve(rel)
+        if target.exists():
+            roots.append(target)
+    if not desc.code_roots:
+        roots = [ctx.root]
+    skip = set(Path(rel).as_posix() for rel in desc.paths.values())
+    skip.update(ROOT_PRUNED)
+    skip.add(Path(desc.traceability).as_posix())
+    pattern = _identifier_re(req_id)
+    found = []
+    for path in _code_files(ctx, roots, skip):
+        if not any(fnmatch.fnmatch(path.name, glob) for glob in desc.test_globs):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if pattern.search(text):
+            found.append(ctx.rel(path))
+    return "\n".join(sorted(set(found))) if found else None
+
+
+def _open_strands(ctx: Context, req_id: str) -> Optional[str]:
+    found = []
+    for path in ctx.desc.specification_files():
+        for lineno, line in enumerate(ctx.read(path).split("\n"), 1):
+            if "STRAND-" in line and req_id in line:
+                found.append("%s:%d: %s" % (ctx.rel(path), lineno, line.strip()))
+    return "\n".join(found) if found else None
+
+
+def context_bundle(ctx: Context, req_id: str) -> str:
+    """A requirement's context bundle: index row, record, canonical section, acceptance
+    criteria, plans, citing tests and open strands — sdd-methodology.md §10."""
+    record = ctx.records_by_id.get(req_id)
+    sections = [
+        ("Index row", _index_row(ctx, req_id)),
+        ("Traceability record", _record_dump(record) if record else None),
+        ("Canonical section", _canonical_section(ctx, record) if record else None),
+        ("Acceptance criteria", _acceptance_criteria(ctx, req_id)),
+        ("Plans", _plans_for(ctx, req_id)),
+        ("Tests citing it", _tests_citing(ctx, req_id)),
+        ("Open strands", _open_strands(ctx, req_id)),
+    ]
+    out: List[str] = []
+    for title, content in sections:
+        out.append(title)
+        out.append(content if content else "none")
+        out.append("")
+    return "\n".join(out).rstrip("\n")
+
+
 def run_context(root: Path, requirement: str) -> int:
-    print("not implemented in this build")
-    return 2
+    """CLI wiring for ``context <REQ>``."""
+    root = Path(root)
+    desc, message = _load_descriptor(root)
+    if message:
+        print(Report.fatal(message).render(root))
+        return 2
+    try:
+        records = load_map(desc)
+    except (FileNotFoundError, YamlError, OSError):
+        records = []
+    ctx = Context(root, desc, records)
+    if requirement not in ctx.records_by_id:
+        print("sdd-check: FAILED — no record for %s" % requirement)
+        return 2
+    print(context_bundle(ctx, requirement))
+    return 0
 
 
 # ---------------------------------------------------------------------------
