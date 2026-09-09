@@ -444,13 +444,40 @@ class TestMapToTreeFamily(BaselineCase):
         self.assert_finding(self.run_only("map-to-tree"), "anchor")
 
     def test_implements_marker_outside_the_section(self):
+        # The slug is derived by lower-casing the heading, so swapping the case of the
+        # parenthetical id keeps the anchor resolving to the same section while taking
+        # the heading itself out of contention for the (case-sensitive) back-edge match.
+        self.edit(SPEC_REL, "(REQ-FOUND-001)", "(req-found-001)")
         self.edit(SPEC_REL, "**Implements:** REQ-FOUND-001\n\n", "")
-        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)",
-                  "## §1 — Boundary (REQ-FOUND-001)\n\nNo marker here.\n\n## §2 — Later\n\n**Implements:** REQ-FOUND-001")
+        self.edit(SPEC_REL, "## §1 — Boundary (req-found-001)",
+                  "## §1 — Boundary (req-found-001)\n\nNo marker here.\n\n## §2 — Later\n\n**Implements:** REQ-FOUND-001")
         self.assert_finding(self.run_only("map-to-tree"), "Implements")
 
     def test_implements_marker_matches_on_identifier_boundary(self):
+        self.edit(SPEC_REL, "(REQ-FOUND-001)", "(req-found-001)")
         self.edit(SPEC_REL, "**Implements:** REQ-FOUND-001", "**Implements:** REQ-FOUND-0011")
+        self.assert_finding(self.run_only("map-to-tree"), "Implements")
+
+    def test_heading_naming_the_identifier_with_no_marker_is_clean(self):
+        # Route the canonical anchor through an explicit <a id> so the heading text can be
+        # replaced freely without also having to keep the GitHub slug in step.
+        self.edit(SPEC_REL, "**Implements:** REQ-FOUND-001\n\n", "")
+        self.edit(MAP_REL, "#1--boundary-req-found-001", "#legacy-boundary")
+        self.edit(
+            SPEC_REL,
+            "## §1 — Boundary (REQ-FOUND-001)",
+            '<a id="legacy-boundary"></a>\n\n### REQ-FOUND-001 — Boundary',
+        )
+        self.assert_clean(self.run_only("map-to-tree"))
+
+    def test_heading_naming_a_similar_id_still_requires_the_marker(self):
+        self.edit(SPEC_REL, "**Implements:** REQ-FOUND-001\n\n", "")
+        self.edit(MAP_REL, "#1--boundary-req-found-001", "#legacy-boundary")
+        self.edit(
+            SPEC_REL,
+            "## §1 — Boundary (REQ-FOUND-001)",
+            '<a id="legacy-boundary"></a>\n\n### REQ-FOUND-0010 — Other',
+        )
         self.assert_finding(self.run_only("map-to-tree"), "Implements")
 
     def test_missing_package_path(self):
@@ -1454,6 +1481,10 @@ class TestMapToTreeRules(BaselineCase):
         self.edit(MAP_REL, "#1--boundary-req-found-001", "#legacy-boundary")
 
     def move_the_marker_into_a_later_section(self):
+        # Neutralize the id's case in the §1 heading too, so the heading-names-the-
+        # identifier back-edge (case-sensitive) doesn't paper over the marker having
+        # moved out of the section — the anchor still resolves the same slug either way.
+        self.edit(SPEC_REL, "(REQ-FOUND-001)", "(req-found-001)")
         self.edit(SPEC_REL, "**Implements:** REQ-FOUND-001\n\n", "")
         path = self.tmp / SPEC_REL
         path.write_text(path.read_text() + "\n## §2 — Later\n\n**Implements:** REQ-FOUND-001\n")

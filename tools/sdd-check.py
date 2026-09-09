@@ -1321,9 +1321,14 @@ def _anchor_span(text: str, fragment: str) -> Optional[Tuple[int, int]]:
 
 
 def _implements_marker(text: str, span: Tuple[int, int], identifier: str) -> bool:
+    """Whether the section's back-edge to ``identifier`` is present: an explicit
+    ``**Implements:**`` line inside the section, or the identifier named — on an
+    identifier-boundary match — in the section's own heading text."""
     pattern = _identifier_re(identifier)
     start, end = span
     for lineno, line in _content_lines(text, False):
+        if lineno == start and pattern.search(line):
+            return True
         if start <= lineno < end and "**Implements:**" in line and pattern.search(line):
             return True
     return False
@@ -3476,7 +3481,13 @@ SELFTEST_CASES: Tuple[SelftestCase, ...] = (
     ),
     SelftestCase(
         "implements-marker-missing",
-        _mutate_edit("docs/specifications/env.md", "**Implements:** REQ-FOUND-001\n\n", ""),
+        _mutate_all(
+            # The baseline heading names the id too (a valid back-edge on its own), so
+            # neutralize its case first — the slug (lower-cased already) still resolves
+            # the same section, but the case-sensitive heading match no longer fires.
+            _mutate_edit("docs/specifications/env.md", "(REQ-FOUND-001)", "(req-found-001)"),
+            _mutate_edit("docs/specifications/env.md", "**Implements:** REQ-FOUND-001\n\n", ""),
+        ),
         _finding_check("map-to-tree", "carries no '**Implements:**"),
     ),
     SelftestCase(
