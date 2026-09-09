@@ -881,7 +881,12 @@ class Descriptor:
             return [target] if target.is_file() else []
         if not target.is_dir():
             return []
-        return sorted(p for p in target.rglob("*.md") if p.is_file())
+        # `_template.md` is the copy /sdd-scaffold leaves for the author to fill in. It
+        # declares `kind: specification` but names no specification, so it is not one —
+        # the same basename `check_plans` and `_plans_for` skip.
+        return sorted(
+            p for p in target.rglob("*.md") if p.name != "_template.md" and p.is_file()
+        )
 
     def docs_roots(self) -> List[Path]:
         roots = [self.root / "docs"]
@@ -1781,6 +1786,20 @@ def _is_pruned(rel: str, skip: set) -> bool:
     return False
 
 
+def _code_skip_set(desc: "Descriptor") -> set:
+    """What a code scan never reads: the documents, the map, and the vendored gate.
+
+    The gate is a vendored artefact, not this repository's code, so the identifiers in
+    its own baseline fixture are not citations this repository has to answer for.
+    """
+    skip = set(Path(rel).as_posix() for rel in desc.paths.values())
+    skip.update(ROOT_PRUNED)
+    skip.add(Path(desc.traceability).as_posix())
+    if desc.script:
+        skip.add(Path(desc.script).as_posix())
+    return skip
+
+
 def _code_files(ctx: Context, roots: List[Path], skip: set) -> List[Path]:
     """The candidate files, from git where the repository is a work tree.
 
@@ -1825,9 +1844,7 @@ def check_tree_to_map(ctx: Context, report: "Report") -> None:
             )
     if not desc.code_roots:
         roots = [ctx.root]
-    skip = set(Path(rel).as_posix() for rel in desc.paths.values())
-    skip.update(ROOT_PRUNED)
-    skip.add(Path(desc.traceability).as_posix())
+    skip = _code_skip_set(desc)
     for path in _code_files(ctx, roots, skip):
         try:
             text = path.read_text(encoding="utf-8")
@@ -3289,9 +3306,7 @@ def _tests_citing(ctx: Context, req_id: str) -> Optional[str]:
             roots.append(target)
     if not desc.code_roots:
         roots = [ctx.root]
-    skip = set(Path(rel).as_posix() for rel in desc.paths.values())
-    skip.update(ROOT_PRUNED)
-    skip.add(Path(desc.traceability).as_posix())
+    skip = _code_skip_set(desc)
     pattern = _identifier_re(req_id)
     found = []
     for path in _code_files(ctx, roots, skip):

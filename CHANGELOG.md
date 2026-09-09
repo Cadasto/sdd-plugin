@@ -24,6 +24,9 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Templates: `sdd.yaml` carries the profile, document kinds, excluded areas, default mode, and the check and hooks blocks.
 - Templates: every emitted document declares its kind; the three index tables sit in generated blocks; `ci.md` names the gate and an optional upstream watcher.
 
+### Fixed
+- Tools: the generated specifications index skips the specification template, and a vendored gate is no longer scanned as this repository's own code.
+
 ## [0.5.1] - 2026-09-08
 
 ### Changed

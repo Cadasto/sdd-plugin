@@ -695,6 +695,15 @@ class TestTreeToMapFamily(BaselineCase):
         self.write("docs/notes.md", "---\nkind: analysis\n---\n\n# Notes\n\nREQ-FOUND-077 was considered.\n")
         self.assert_clean(self.run_only("tree-to-map"))
 
+    def test_the_vendored_gate_is_not_scanned_as_this_repositorys_code(self):
+        # check.script names scripts/sdd-check.py; the gate's own fixtures cite ids that
+        # belong to no record here, and they are not this repository's citations.
+        self.write("scripts/sdd-check.py", "# fixture: REQ-FOUND-077\n")
+        self.assert_clean(self.run_only("tree-to-map"))
+        # can-fail control: the very same text anywhere else is still reported.
+        self.write("scripts/helper.py", "# fixture: REQ-FOUND-077\n")
+        self.assert_finding(self.run_only("tree-to-map"), "unknown identifier cited", level="WARN")
+
 
 class TestDraftReasonFamily(BaselineCase):
     def test_off_by_default(self):
@@ -1965,6 +1974,20 @@ class TestAdrIndexRendering(BaselineCase):
         self.assertEqual(["| — | — | — | — | — |"], rows)
 
 
+SPEC_TEMPLATE = """---
+kind: specification
+spec: <SPEC-NAME>
+status: draft
+mode: spec-first
+---
+
+# <SPEC-NAME> — <topic>
+
+## §1 — <section title>
+
+<RFC-2119 normative prose stating how the system MUST/SHOULD/MAY behave.>
+"""
+
 SPEC_NO_MODE = """---
 kind: specification
 status: draft
@@ -1996,6 +2019,16 @@ class TestSpecificationsIndexRendering(BaselineCase):
         # docs/specifications/README.md is `kind: guide` and must not appear at all.
         self.assertFalse(any("README" in row for row in rows))
         self.assertEqual(2, len(rows))
+
+    def test_the_specification_template_is_not_a_row(self):
+        # /sdd-scaffold copies the specification template to _template.md, and it correctly
+        # declares `kind: specification`. It is a template, not a spec, so it gets no row.
+        self.write("docs/specifications/_template.md", SPEC_TEMPLATE)
+        rendered = sdd_check.render_specifications_index(self.ctx())
+        rows = rendered.split("\n")[2:]
+        self.assertEqual(
+            ["| [`SPEC-ENV`](env.md) | Environment | Draft | spec-first |"], rows
+        )
 
 
 # ---------------------------------------------------------------------------
