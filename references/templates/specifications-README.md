@@ -1,3 +1,9 @@
+---
+kind: guide
+---
+
+<!-- sdd-check: allow rfc2119 -->
+
 # Specifications — normative behaviour
 
 The **how must it behave** layer. Topic specs carry RFC-2119 normative prose with stable section numbers;
@@ -17,6 +23,12 @@ Write and extend specs with `/sdd-specify`.
 
 ## Topic specs
 
-| Spec | Topic | Status |
-|------|-------|--------|
-| `<SPEC-NAME>` | <topic> | Draft |
+The table below is generated from the specification documents by `sdd-check generate`. Never hand-edit it.
+
+<!-- sdd:generated specifications-index -->
+
+| Spec | Topic | Status | Mode |
+|---|---|---|---|
+| `<SPEC-NAME>` | <topic> | Draft | spec-first |
+
+<!-- /sdd:generated -->

@@ -1,3 +1,7 @@
+---
+kind: guide
+---
+
 # Requirements — capability index
 
 The registry of **what** this system must deliver. One row per `REQ-*`. This index **links** to each
@@ -15,6 +19,12 @@ These are tracked **separately**: a `Draft` requirement is authoritative even wh
 
 ## Index
 
+The table below is generated from the traceability map by `sdd-check generate`. Never hand-edit it.
+
+<!-- sdd:generated requirements-index -->
+
 | ID | Title | Spec | Stability | Implementation |
-|----|-------|------|-----------|----------------|
+|---|---|---|---|---|
 | <REQ-FOUND-001> | <capability> | `<SPEC-NAME §N>` | Draft | proposed |
+
+<!-- /sdd:generated -->
