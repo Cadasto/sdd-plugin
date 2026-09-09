@@ -28,6 +28,9 @@ Exit 2 has two causes and no others: the descriptor is missing or cannot be pars
 invalid — an unknown subcommand, or an unknown family in `--only`. The message names the file and the
 line, or the bad argument.
 
+When the tool exits 2 the report is the first line followed by `sdd-check: FAILED — <message>`, with no
+finding lines and no family lines, because no family ran.
+
 A missing map, a map that cannot be parsed, and a map that yields no records are **not** exit 2. Each is a
 `map-schema` error, so the run exits 1, and every family that needs records is listed under `skipped:`
 with the reason `map unavailable`.
