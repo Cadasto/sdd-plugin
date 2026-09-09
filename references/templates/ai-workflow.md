@@ -1,3 +1,7 @@
+---
+kind: guide
+---
+
 # AI workflow — the agent loop
 
 What an AI agent does when working a change in this repo. Read [AGENTS.md](../AGENTS.md) and
@@ -14,6 +18,8 @@ pipeline — plan, workers, review, triage, close-out — is run by the `/sdd-*`
    and any irreversible decision as an ADR. Assign ids; wire traceability. (Never read normative prose out
    of the index — follow to the canonical spec.)
 2. Look up ground truth before editing — the source named in .sdd.yaml (ground_truth); never guess.
+   For a requirement already in the map, `sdd-check context <REQ>` prints its bundle: index row, record,
+   canonical section, acceptance criteria, plans, tests and open strands.
 3. Deliver: /sdd-deliver — dispatch preconditions, the plan on the branch, workers per task, the per-task
    gate, the in-branch review into round 0 of the ledger, the draft PR.
 4. Don't decide open questions in code — surface a STRAND or record an ADR (/sdd-specify), or ask.
@@ -128,5 +134,7 @@ proposed correction. Verify before fixing; a correction that is wrong and applie
 | Work a review round: merge, verify, fix, resolve, re-request | `/sdd-triage` |
 | Code satisfies the `SPEC §`/`REQ` it cites (conformance) | `sdd-spec-conformance-reviewer` agent |
 | Traceability / drift / a REQ's context | `/sdd-trace` |
+| Regenerate the derived indexes and status lines | `sdd-check generate` |
+| Drift, links, prose lints | `<build_entrypoint> <spec_check_target>` (`sdd-check`) |
 | Close out the spec status, the requirement status, traceability, and the plan — in the implementing PR | `/sdd-archive` |
 | Sweep finished plans at a version bump | `/sdd-finalize` |
