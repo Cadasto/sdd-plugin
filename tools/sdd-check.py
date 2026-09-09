@@ -96,8 +96,12 @@ DEFAULT_TEST_GLOBS = (
     "*_test.rs",
 )
 
-#: Directories `tree-to-map` never walks.
-PRUNED_DIRS = (".git", "vendor", "node_modules", "__pycache__", ".venv", "venv", "docs")
+#: `docs` is pruned at the repository root only; a nested directory named `docs` is code.
+ROOT_PRUNED = ("docs",)
+#: These are pruned wherever they sit.
+NESTED_PRUNED = (".git", "vendor", "node_modules")
+#: The directories `tree-to-map` never walks (the contract's four).
+PRUNED_DIRS = ROOT_PRUNED + NESTED_PRUNED
 
 GENERATED_BLOCKS = ("requirements-index", "specifications-index", "adr-index")
 GENERATED_OPEN = "<!-- sdd:generated %s -->"
@@ -435,11 +439,8 @@ def slugify(heading: str) -> str:
     return "".join(kept).replace(" ", "-")
 
 
-def frontmatter(text: str) -> Tuple[Optional[dict], int]:
-    """Return ``(mapping, line after the closing '---')``, or ``(None, 0)``.
-
-    The block opens on line 1 or right after a leading HTML comment block.
-    """
+def _frontmatter_span(text: str) -> Optional[Tuple[int, int]]:
+    """``(line of the opening '---', line after the closing '---')``, or ``None``."""
     lines = text.split("\n")
     index = 0
     in_comment = False
@@ -460,30 +461,38 @@ def frontmatter(text: str) -> Tuple[Optional[dict], int]:
             continue
         break
     if index >= len(lines) or lines[index].strip() != "---":
-        return None, 0
-    close = None
+        return None
     for probe in range(index + 1, len(lines)):
         if lines[probe].strip() == "---":
-            close = probe
-            break
-    if close is None:
+            return index + 1, probe + 2
+    return None
+
+
+def frontmatter(text: str) -> Tuple[Optional[dict], int]:
+    """Return ``(mapping, line after the closing '---')``, or ``(None, 0)`` when absent.
+
+    The block opens on line 1 or right after a leading HTML comment block. A block that is
+    present but does not parse raises :class:`YamlError` — absent and malformed are not the
+    same thing, and a gate that treats them alike hides the defect.
+    """
+    span = _frontmatter_span(text)
+    if span is None:
         return None, 0
-    body = "\n".join(lines[index + 1 : close])
-    try:
-        parsed = load_yaml(body, source="frontmatter")
-    except YamlError:
-        return None, 0
+    open_line, after = span
+    body = "\n".join(text.split("\n")[open_line : after - 2])
+    parsed = load_yaml(body, source="frontmatter")
     if parsed is None:
         parsed = {}
     if not isinstance(parsed, dict):
-        return None, 0
-    return parsed, close + 2
+        raise YamlError("the frontmatter is not a mapping", open_line, "frontmatter")
+    return parsed, after
 
 
 def _content_lines(text: str, blank_code_spans: bool) -> List[Tuple[int, str]]:
     """Every line with fences, HTML comments and frontmatter blanked, numbers kept."""
     lines = text.split("\n")
-    _, after = frontmatter(text)
+    span = _frontmatter_span(text)
+    after = span[1] if span else 0
     out: List[Tuple[int, str]] = []
     fence = None
     in_comment = False
@@ -547,19 +556,24 @@ def explicit_anchors(text: str) -> set:
     return set(_ANCHOR_RE.findall(text))
 
 
+def _heading_span(
+    found: List[Tuple[int, int, str, str]], index: int, total: int
+) -> Tuple[int, int]:
+    """The half-open span of one heading: from it to the next heading of the same or higher level."""
+    lineno, level = found[index][0], found[index][1]
+    for later_line, later_level, _, _ in found[index + 1 :]:
+        if later_level <= level:
+            return lineno, later_line
+    return lineno, total + 1
+
+
 def section_slice(text: str, slug: str) -> Optional[Tuple[int, int]]:
     """The half-open line span ``[start, end)`` of the section a heading slug opens."""
     found = headings(text)
     total = len(text.split("\n"))
-    for index, (lineno, level, _, heading_slug) in enumerate(found):
-        if heading_slug != slug:
-            continue
-        end = total + 1
-        for later_line, later_level, _, _ in found[index + 1 :]:
-            if later_level <= level:
-                end = later_line
-                break
-        return lineno, end
+    for index, entry in enumerate(found):
+        if entry[3] == slug:
+            return _heading_span(found, index, total)
     return None
 
 
@@ -968,7 +982,22 @@ class Context:
 # ---------------------------------------------------------------------------
 
 
-def check_descriptor(ctx: Context, report) -> None:
+def _frontmatter_of(ctx: Context, report: "Report", family: str, path: Path):
+    """``(mapping, reported)`` — the frontmatter, or ``None`` with a parse failure reported."""
+    try:
+        front, _ = frontmatter(ctx.read(path))
+    except YamlError as exc:
+        report.add(
+            family,
+            ctx.level(family),
+            ctx.rel(path),
+            "frontmatter does not parse: %s" % exc.message,
+        )
+        return None, True
+    return front, False
+
+
+def check_descriptor(ctx: Context, report: "Report") -> None:
     """The descriptor is internally consistent and matches the tree and the tool."""
     desc = ctx.desc
     level = ctx.level("descriptor")
@@ -1018,12 +1047,14 @@ def check_descriptor(ctx: Context, report) -> None:
             add("check.families.%s: '%s' is not error | warn | off" % (family, value))
     if desc.default_mode not in MODES:
         add("default_mode: '%s' is not %s" % (desc.default_mode, " | ".join(MODES)))
-    unknown_kinds = [k for k in desc.doc_kinds if k not in DEFAULT_KINDS]
-    if unknown_kinds:
-        add("doc_kinds: '%s' is outside the kind vocabulary" % ", ".join(sorted(unknown_kinds)))
+    # A repository may extend doc_kinds; an extra kind is read as informative. The four
+    # normative kinds carry status vocabularies, so they cannot be dropped.
+    missing_kinds = [kind for kind in NORMATIVE_KINDS if kind not in desc.doc_kinds]
+    if missing_kinds:
+        add("doc_kinds must keep the normative kinds; missing: %s" % ", ".join(missing_kinds))
 
 
-def check_map_schema(ctx: Context, report) -> None:
+def check_map_schema(ctx: Context, report: "Report") -> None:
     """Every record carries the fields the schema requires, with values in vocabulary."""
     desc = ctx.desc
     level = ctx.level("map-schema")
@@ -1088,14 +1119,6 @@ def _identifier_re(identifier: str) -> "re.Pattern":
     return re.compile(r"(?<![0-9A-Za-z_-])%s(?![0-9A-Za-z_-])" % re.escape(identifier))
 
 
-def _heading_span(found: List[Tuple[int, int, str, str]], index: int, total: int) -> Tuple[int, int]:
-    lineno, level = found[index][0], found[index][1]
-    for later_line, later_level, _, _ in found[index + 1 :]:
-        if later_level <= level:
-            return lineno, later_line
-    return lineno, total + 1
-
-
 def _anchor_span(text: str, fragment: str) -> Optional[Tuple[int, int]]:
     """The section an explicit ``<a id="…">`` sits in."""
     if fragment not in explicit_anchors(text):
@@ -1109,6 +1132,14 @@ def _anchor_span(text: str, fragment: str) -> Optional[Tuple[int, int]]:
     if not anchor_line:
         return None
     found = headings(text)
+    # An anchor that sits immediately above a heading names that heading's section.
+    for index, entry in enumerate(found):
+        if entry[0] <= anchor_line:
+            continue
+        between = range(anchor_line + 1, entry[0])
+        if all(not lines[number - 1].strip() for number in between):
+            return _heading_span(found, index, len(lines))
+        break
     enclosing = None
     for index, entry in enumerate(found):
         if entry[0] <= anchor_line:
@@ -1140,7 +1171,7 @@ def _probe_catalogue_ids(ctx: Context) -> Optional[set]:
     return found
 
 
-def check_map_to_tree(ctx: Context, report) -> None:
+def check_map_to_tree(ctx: Context, report: "Report") -> None:
     """Every record resolves onto the tree: canonical section, evidence paths, probes."""
     desc = ctx.desc
     level = ctx.level("map-to-tree")
@@ -1180,7 +1211,10 @@ def check_map_to_tree(ctx: Context, report) -> None:
                 if not target.exists():
                     add("missing %s path: %s" % (key, rel))
                 elif not target.is_file():
-                    add("a %s entry must be a file, not a directory: %s" % (key, rel))
+                    article = "an" if key[0] in "aeiou" else "a"
+                    add(
+                        "%s %s entry must be a file, not a directory: %s" % (article, key, rel)
+                    )
         for probe in record.probes:
             if catalogue is not None:
                 if probe not in catalogue:
@@ -1203,7 +1237,11 @@ def _cell_text(cell: str) -> str:
 
 
 def _index_columns(header: List[str], cells: List[str]) -> Tuple[Optional[str], Optional[str]]:
-    """The stability and implementation cells, found by header text, else the last two."""
+    """The stability and implementation cells: found by header text, else by position.
+
+    The fallback applies per column, so a table that names one of the two and leaves the
+    other unnamed still compares both.
+    """
     stability = None
     implementation = None
     for index, name in enumerate(header):
@@ -1211,15 +1249,21 @@ def _index_columns(header: List[str], cells: List[str]) -> Tuple[Optional[str], 
             break
         lowered = _cell_text(name).lower()
         if lowered in _STABILITY_HEADERS:
-            stability = cells[index]
+            stability = index
         elif lowered in _IMPLEMENTATION_HEADERS:
-            implementation = cells[index]
-    if stability is None and implementation is None and len(cells) >= 2:
-        stability, implementation = cells[-2], cells[-1]
-    return stability, implementation
+            implementation = index
+    if len(cells) >= 2:
+        if stability is None and implementation != len(cells) - 2:
+            stability = len(cells) - 2
+        if implementation is None and stability != len(cells) - 1:
+            implementation = len(cells) - 1
+    return (
+        cells[stability] if stability is not None else None,
+        cells[implementation] if implementation is not None else None,
+    )
 
 
-def check_index_sync(ctx: Context, report) -> None:
+def check_index_sync(ctx: Context, report: "Report") -> None:
     """The requirements index, the detail files and the map agree on both status axes."""
     desc = ctx.desc
     level = ctx.level("index-sync")
@@ -1304,15 +1348,16 @@ def check_index_sync(ctx: Context, report) -> None:
             if not record.id:
                 continue
             for detail in sorted(requirements_dir.glob("%s*.md" % record.id)):
-                front, _ = frontmatter(ctx.read(detail))
                 detail_rel = ctx.rel(detail)
+                front, reported = _frontmatter_of(ctx, report, "index-sync", detail)
                 if front is None:
-                    report.add(
-                        "index-sync",
-                        level,
-                        detail_rel,
-                        "%s: the detail file carries no frontmatter" % record.id,
-                    )
+                    if not reported:
+                        report.add(
+                            "index-sync",
+                            level,
+                            detail_rel,
+                            "%s: the detail file carries no frontmatter" % record.id,
+                        )
                     continue
                 for key, expected in (
                     ("status", record.status),
@@ -1329,7 +1374,7 @@ def check_index_sync(ctx: Context, report) -> None:
                         )
 
     for spec in desc.specification_files():
-        front, _ = frontmatter(ctx.read(spec))
+        front, _ = _frontmatter_of(ctx, report, "index-sync", spec)
         if not front or "requirements" not in front:
             continue
         declared = set(_as_str(item) for item in _as_list(front.get("requirements")))
@@ -1367,24 +1412,26 @@ def _newest_tag_commit(ctx: Context) -> Tuple[Optional[str], str]:
     return commit.strip(), ""
 
 
-def check_plans(ctx: Context, report) -> None:
+def check_plans(ctx: Context, report: "Report") -> None:
     """Every plan carries its four frontmatter keys, and a finished plan is swept."""
     desc = ctx.desc
     level = ctx.level("plans")
     plans_dir = desc.resolve(desc.paths.get("plans", "docs/plans"))
     if not plans_dir.is_dir():
+        report.skip("plans", "no plans directory")
         return
     tag_commit, skip_reason = _newest_tag_commit(ctx)
     if skip_reason:
-        report.families_skipped["plans"] = skip_reason
+        report.skip("plans", skip_reason, partial=True)
     pattern = desc.req_pattern()
     for path in sorted(plans_dir.rglob("*.md")):
         if path.name == "_template.md" or not path.is_file():
             continue
         anchor = ctx.rel(path)
-        front, _ = frontmatter(ctx.read(path))
+        front, reported = _frontmatter_of(ctx, report, "plans", path)
         if front is None:
-            report.add("plans", level, anchor, "the plan carries no frontmatter")
+            if not reported:
+                report.add("plans", level, anchor, "the plan carries no frontmatter")
             continue
         for key in ("plan", "implements", "mode", "status"):
             if front.get(key) in (None, "", []):
@@ -1453,7 +1500,8 @@ def check_plans(ctx: Context, report) -> None:
 
 
 def _walk_code(ctx: Context, roots: List[Path], skip: set):
-    """Every readable text file under the code roots, docs and the usual noise pruned."""
+    """Every file under the code roots. The only exclusions are the pruned directories,
+    the descriptor's own document paths, and a file that does not decode as UTF-8."""
     for root in roots:
         if not root.is_dir():
             if root.is_file():
@@ -1464,34 +1512,34 @@ def _walk_code(ctx: Context, roots: List[Path], skip: set):
             dirnames[:] = sorted(
                 name
                 for name in dirnames
-                if name not in PRUNED_DIRS
-                and not name.startswith(".")
-                and ctx.rel(here / name) not in skip
+                if name not in NESTED_PRUNED and ctx.rel(here / name) not in skip
             )
             for name in sorted(filenames):
-                if name.startswith("."):
-                    continue
                 path = here / name
-                if ctx.rel(path) in skip:
-                    continue
-                try:
-                    if path.stat().st_size > 512 * 1024:
-                        continue
-                except OSError:
-                    continue
-                yield path
+                if ctx.rel(path) not in skip:
+                    yield path
 
 
-def check_tree_to_map(ctx: Context, report) -> None:
+def check_tree_to_map(ctx: Context, report: "Report") -> None:
     """Every identifier the code cites names a record, and a test names a tested record."""
     desc = ctx.desc
     level = ctx.level("tree-to-map")
     pattern = re.compile(
         r"(?<![0-9A-Za-z_-])(%s)(?![0-9A-Za-z_-])" % desc.req_pattern().pattern
     )
-    roots = [desc.resolve(rel) for rel in desc.code_roots] or [ctx.root]
+    roots: List[Path] = []
+    for rel in desc.code_roots:
+        target = desc.resolve(rel)
+        if target.exists():
+            roots.append(target)
+        else:
+            report.add(
+                "tree-to-map", level, DESCRIPTOR_REL, "code root does not exist: %s" % rel
+            )
+    if not desc.code_roots:
+        roots = [ctx.root]
     skip = set(Path(rel).as_posix() for rel in desc.paths.values())
-    skip.add("docs")
+    skip.update(ROOT_PRUNED)
     skip.add(Path(desc.traceability).as_posix())
     for path in _walk_code(ctx, roots, skip):
         try:
@@ -1522,7 +1570,7 @@ def check_tree_to_map(ctx: Context, report) -> None:
                     )
 
 
-def check_draft_reason(ctx: Context, report) -> None:
+def check_draft_reason(ctx: Context, report: "Report") -> None:
     """A requirement that is draft and built owes a reason for the wording."""
     level = ctx.level("draft-reason")
     for record in ctx.records:
@@ -1570,6 +1618,9 @@ class Report:
         self.findings: List[Finding] = []
         self.families_run: List[str] = []
         self.families_skipped: Dict[str, str] = {}
+        #: The families that ran nothing at all, as opposed to one skipped rule.
+        self.fully_skipped = set()
+        #: Waived file per family, filled by the prose lints a later build adds.
         self.waived: Dict[str, List[str]] = {}
         self.link_exclusions: List[str] = []
         self.record_count = 0
@@ -1585,6 +1636,20 @@ class Report:
 
     def add(self, family: str, level: str, anchor: str, message: str) -> None:
         self.findings.append(Finding(family, level, anchor, message))
+
+    def skip(self, family: str, reason: str, partial: bool = False) -> None:
+        """Record that a family did not run, or — with ``partial`` — that one rule did not."""
+        self.families_skipped[family] = reason
+        if not partial:
+            self.fully_skipped.add(family)
+
+    def mark_run(self, family: str) -> None:
+        """Record that a family ran, keeping the list in FAMILIES order."""
+        self.families_skipped.pop(family, None)
+        self.fully_skipped.discard(family)
+        if family not in self.families_run:
+            self.families_run.append(family)
+            self.families_run.sort(key=FAMILIES.index)
 
     def errors(self) -> int:
         return len([f for f in self.findings if f.level == "ERROR"])
@@ -1603,11 +1668,11 @@ class Report:
 
     def render(self, root) -> str:
         if self.fatal_message is not None:
+            # Exit 2: nothing ran, so there are no finding lines and no family lines.
             return "\n".join(
                 [
                     "sdd-check %s · %s" % (__version__, root),
                     "sdd-check: FAILED — %s" % self.fatal_message,
-                    "families run: none; skipped: all (the tool could not configure itself)",
                 ]
             )
         lines = [
@@ -1663,11 +1728,11 @@ def run_check(root: Path, only: Optional[List[str]], changelog_all: bool) -> Rep
     planned: List[str] = []
     for family in FAMILIES:
         if desc.severity(family) == "off":
-            report.families_skipped[family] = "off"
+            report.skip(family, "off")
         elif only is not None and family not in only:
-            report.families_skipped[family] = "not selected"
+            report.skip(family, "not selected")
         elif family not in CHECKS:
-            report.families_skipped[family] = "not implemented in this build"
+            report.skip(family, "not implemented in this build")
         else:
             planned.append(family)
 
@@ -1701,10 +1766,15 @@ def run_check(root: Path, only: Optional[List[str]], changelog_all: bool) -> Rep
     ctx = Context(root, desc, records, changelog_all)
     for family in planned:
         if not map_ok and family in RECORD_FAMILIES:
-            report.families_skipped[family] = "map unavailable"
+            report.skip(family, "map unavailable")
             continue
         CHECKS[family](ctx, report)
-        report.families_run.append(family)
+        if family not in report.fully_skipped:
+            report.families_run.append(family)
+    if not map_ok:
+        # The map failure is a map-schema finding whatever the configuration says, so the
+        # summary has to show map-schema as a family that ran.
+        report.mark_run("map-schema")
     return report
 
 
@@ -1922,7 +1992,7 @@ Write the specification first, then the code, then the tests that cite the requi
 """,
     "src/env/__init__.py": "",
     "tests/env_test.py": '''def test_req_found_001_boundary():
-    """The service refuses to start when a declared variable is absent."""
+    """REQ-FOUND-001: the service refuses to start when a declared variable is absent."""
     assert True
 ''',
     "CHANGELOG.md": """# Changelog

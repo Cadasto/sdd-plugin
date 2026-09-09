@@ -61,8 +61,12 @@ class BaselineCase(unittest.TestCase):
     def levelled(self, report, level):
         return [f for f in report.findings if f.level == level]
 
-    def assert_finding(self, report, fragment, level="ERROR"):
-        hits = [f for f in self.levelled(report, level) if fragment in f.message]
+    def assert_finding(self, report, fragment, level="ERROR", family=None):
+        hits = [
+            f
+            for f in self.levelled(report, level)
+            if fragment in f.message and (family is None or f.family == family)
+        ]
         self.assertTrue(
             hits,
             "no %s finding containing %r\n%s" % (level, fragment, report.render(self.tmp)),
@@ -745,6 +749,16 @@ class TestCommandLine(BaselineCase):
         self.assertEqual(1, code, out)
         self.assertIn("sdd-check: FAILED", out)
 
+    def test_exit_two_report_is_two_lines(self):
+        (self.tmp / sdd_check.DESCRIPTOR_REL).unlink()
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        lines = report.render(self.tmp).split("\n")
+        self.assertEqual(2, len(lines), lines)
+        self.assertTrue(lines[0].startswith("sdd-check 0.6.0 · "), lines[0])
+        self.assertTrue(lines[1].startswith("sdd-check: FAILED — "), lines[1])
+        self.assertIn("docs/.sdd.yaml", lines[1])
+        self.assertEqual(2, report.exit_code())
+
     def test_missing_descriptor_returns_two(self):
         (self.tmp / sdd_check.DESCRIPTOR_REL).unlink()
         code, out = self.run_main(["check", "--root", str(self.tmp)])
@@ -828,6 +842,191 @@ class TestInterfaces(BaselineCase):
         self.assertEqual([], records[0].unknown_keys)
         self.assertTrue(records[0].enforced())
         self.assertEqual(["src/env", "tests/env_test.py"], records[0].evidence())
+
+
+# ---------------------------------------------------------------------------
+# Rules the first build shipped without a test
+# ---------------------------------------------------------------------------
+class TestDescriptorRules(BaselineCase):
+    def test_flat_numeric_declares_no_areas(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "req_style: area-prefixed", "req_style: flat-numeric")
+        self.assert_finding(self.run_only("descriptor"), "req_areas", family="descriptor")
+
+    def test_declared_path_must_exist(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "adr: docs/adr", "adr: docs/decisions")
+        self.assert_finding(self.run_only("descriptor"), "does not exist", family="descriptor")
+
+    def test_traceability_path_must_exist(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "traceability: docs/specifications/traceability.yaml",
+                  "traceability: docs/specifications/nope.yaml")
+        self.assert_finding(self.run_only("descriptor"), "traceability", family="descriptor")
+
+    def test_default_mode_vocabulary(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "default_mode: spec-first", "default_mode: guessing")
+        self.assert_finding(self.run_only("descriptor"), "default_mode", family="descriptor")
+
+    def test_doc_kinds_may_be_extended(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "reference, upstream]", "reference, upstream, benchmark]")
+        self.assert_clean(self.run_only("descriptor"))
+
+    def test_doc_kinds_must_keep_the_normative_kinds(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "specification, adr, plan, guide", "specification, adr, guide")
+        self.assert_finding(self.run_only("descriptor"), "plan", family="descriptor")
+
+
+class TestMapSchemaRules(BaselineCase):
+    def test_id_style_mismatch(self):
+        self.edit(MAP_REL, "id: REQ-FOUND-001", "id: REQ-001")
+        self.assert_finding(self.run_only("map-schema"), "style", family="map-schema")
+
+    def test_required_field_missing(self):
+        self.edit(MAP_REL, "    title: Environment boundary\n", "")
+        self.assert_finding(self.run_only("map-schema"), "title is required", family="map-schema")
+
+    def test_status_vocabulary(self):
+        self.edit(MAP_REL, "    status: draft", "    status: rough")
+        self.assert_finding(self.run_only("map-schema"), "status", family="map-schema")
+
+    def test_list_field_that_is_not_a_list(self):
+        self.edit(MAP_REL, "    packages:\n      - src/env\n", "    packages: src/env\n")
+        self.assert_finding(self.run_only("map-schema"), "must be a list of strings", family="map-schema")
+
+
+class TestMapToTreeRules(BaselineCase):
+    def anchor_above_the_section(self):
+        self.edit(SPEC_REL, "## §1 — Boundary", '<a id="legacy-boundary"></a>\n\n## §1 — Boundary')
+        self.edit(MAP_REL, "#1--boundary-req-found-001", "#legacy-boundary")
+
+    def move_the_marker_into_a_later_section(self):
+        self.edit(SPEC_REL, "**Implements:** REQ-FOUND-001\n\n", "")
+        path = self.tmp / SPEC_REL
+        path.write_text(path.read_text() + "\n## §2 — Later\n\n**Implements:** REQ-FOUND-001\n")
+
+    def test_anchor_above_a_heading_slices_that_heading(self):
+        self.anchor_above_the_section()
+        self.assert_clean(self.run_only("map-to-tree"))
+
+    def test_anchor_above_a_heading_does_not_reach_the_next_section(self):
+        self.anchor_above_the_section()
+        self.move_the_marker_into_a_later_section()
+        self.assert_finding(self.run_only("map-to-tree"), "Implements", family="map-to-tree")
+
+    def test_anchor_inside_a_section_uses_that_section(self):
+        self.edit(SPEC_REL, "**Implements:** REQ-FOUND-001",
+                  '<a id="legacy-boundary"></a>\n\n**Implements:** REQ-FOUND-001')
+        self.edit(MAP_REL, "#1--boundary-req-found-001", "#legacy-boundary")
+        self.assert_clean(self.run_only("map-to-tree"))
+
+    def test_missing_tests_path(self):
+        self.edit(MAP_REL, "      - tests/env_test.py", "      - tests/nope.py")
+        self.assert_finding(self.run_only("map-to-tree"), "missing tests path", family="map-to-tree")
+
+    def test_missing_operations_path(self):
+        self.edit(MAP_REL, "    tests:", "    operations:\n      - docs/operations/nope.md\n    tests:")
+        self.assert_finding(self.run_only("map-to-tree"), "missing operations path", family="map-to-tree")
+
+    def test_operations_entry_must_be_a_file(self):
+        self.edit(MAP_REL, "    tests:", "    operations:\n      - docs\n    tests:")
+        finding = self.assert_finding(self.run_only("map-to-tree"), "must be a file", family="map-to-tree")
+        self.assertIn("an operations entry", finding.message)
+
+    def test_probe_resolved_by_a_citing_test(self):
+        self.edit(MAP_REL, "    tests:", "    probes:\n      - PROBE-001\n    tests:")
+        self.edit("tests/env_test.py", "REQ-FOUND-001", "REQ-FOUND-001 / PROBE-001")
+        self.assert_clean(self.run_only("map-to-tree"))
+
+
+class TestIndexSyncRules(BaselineCase):
+    def test_stability_cell_disagrees(self):
+        self.edit(INDEX_REL, "| Draft | shipped |", "| Stable | shipped |")
+        self.assert_finding(self.run_only("index-sync"), "Stability", family="index-sync")
+
+    def test_one_named_column_and_one_positional(self):
+        self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |", "| ID | Title | Stability | Build |")
+        self.edit(INDEX_REL, "| Draft | shipped |", "| Draft | planned |")
+        self.assert_finding(self.run_only("index-sync"), "Implementation", family="index-sync")
+
+    def test_last_two_columns_when_no_header_matches(self):
+        self.edit(INDEX_REL, "| ID | Title | Stability | Implementation |", "| ID | Title | Stage | Build |")
+        self.edit(INDEX_REL, "| Draft | shipped |", "| Draft | planned |")
+        self.assert_finding(self.run_only("index-sync"), "Implementation", family="index-sync")
+
+
+class TestPlansRules(TestPlansFamily):
+    def test_mode_vocabulary(self):
+        self.edit(PLAN_REL, "mode: spec-first", "mode: vibes")
+        self.assert_finding(self.run_only("plans"), "mode", family="plans")
+
+    def test_missing_plans_directory_skips_the_family(self):
+        (self.tmp / PLAN_REL).unlink()
+        (self.tmp / "docs/plans").rmdir()
+        report = self.run_only("plans")
+        self.assertEqual("no plans directory", report.families_skipped.get("plans"))
+        self.assertNotIn("plans", report.families_run)
+
+    def test_a_repository_without_a_tag_skips_the_stale_rule(self):
+        self.init_git()
+        self.commit("baseline")
+        report = self.run_only("plans")
+        self.assertEqual("stale-plan rule needs a release tag", report.families_skipped.get("plans"))
+        self.assertIn("plans", report.families_run)
+
+    def test_an_uncommitted_finished_plan_is_noted(self):
+        (self.tmp / PLAN_REL).unlink()
+        self.init_git()
+        self.commit("baseline")
+        self.git("tag", "v1.0.0")
+        self.write("docs/plans/2026-02-02-later.md", LATER_PLAN)
+        report = self.run_only("plans")
+        self.assert_clean(report)
+        notes = [f for f in self.levelled(report, "NOTE") if "not committed" in f.message]
+        self.assertTrue(notes, report.render(self.tmp))
+
+    def test_unparseable_frontmatter_is_named(self):
+        self.write("docs/plans/2026-03-03-broken.md",
+                   "---\nplan: 2026-03-03-broken\n\timplements: [REQ-FOUND-001]\n---\n\n# Broken\n")
+        self.assert_finding(self.run_only("plans"), "frontmatter does not parse", family="plans")
+
+
+class TestTreeToMapRules(BaselineCase):
+    def test_the_baseline_test_file_cites_its_requirement(self):
+        self.assertIn("REQ-FOUND-001", (self.tmp / "tests/env_test.py").read_text())
+        self.assert_clean(self.run_only("tree-to-map"))
+        self.edit(MAP_REL, "    tests:\n      - tests/env_test.py\n", "")
+        self.assert_finding(self.run_only("tree-to-map"), "lists no tests", level="WARN")
+
+    def test_missing_code_root_is_reported(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "code_roots: []", "code_roots: [src, nowhere]")
+        self.assert_finding(self.run_only("tree-to-map"), "code root does not exist", level="WARN")
+
+    def test_dot_files_are_scanned(self):
+        self.write("src/.hidden.py", "# REQ-FOUND-077\n")
+        self.assert_finding(self.run_only("tree-to-map"), "unknown identifier cited", level="WARN")
+
+    def test_a_nested_docs_directory_is_scanned(self):
+        self.write("src/docs/note.txt", "REQ-FOUND-077\n")
+        self.assert_finding(self.run_only("tree-to-map"), "unknown identifier cited", level="WARN")
+
+    def test_a_file_that_is_not_utf8_is_skipped(self):
+        (self.tmp / "src/env/blob.bin").write_bytes(b"\xff\xfe REQ-FOUND-077 \x00\x01")
+        self.assert_clean(self.run_only("tree-to-map"))
+
+
+class TestMapUnavailable(BaselineCase):
+    def test_map_schema_reports_even_when_it_is_off(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "map-schema: error", "map-schema: off")
+        (self.tmp / MAP_REL).unlink()
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assert_finding(report, "traceability map is missing", family="map-schema")
+        self.assertIn("map-schema", report.families_run)
+        self.assertNotIn("map-schema", report.families_skipped)
+
+    def test_map_schema_reports_even_when_it_is_not_selected(self):
+        (self.tmp / MAP_REL).unlink()
+        report = sdd_check.run_check(self.tmp, only=["tree-to-map"], changelog_all=False)
+        self.assert_finding(report, "traceability map is missing", family="map-schema")
+        self.assertEqual(["map-schema"], report.families_run)
+        self.assertEqual("map unavailable", report.families_skipped.get("tree-to-map"))
 
 
 if __name__ == "__main__":
