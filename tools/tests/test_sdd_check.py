@@ -1756,6 +1756,112 @@ class TestGeneratedFamily(BaselineCase):
 
 
 # ---------------------------------------------------------------------------
+# render_adr_index and render_specifications_index directly
+# ---------------------------------------------------------------------------
+ADR_WITH_REFS = """---
+id: ADR-0001
+title: Use a single YAML subset
+status: accepted
+date: 2026-01-01
+---
+
+# ADR-0001 — Use a single YAML subset
+
+## Traceability
+
+- Resolves: ADR-0000
+- Amends: ADR-0002
+"""
+
+ADR_BARE = """---
+id: ADR-0002
+title: Vendor the tool as one file
+status: proposed
+date: 2026-01-02
+---
+
+# ADR-0002 — Vendor the tool as one file
+
+No traceability section here.
+"""
+
+ADR_NO_TITLE = """---
+id: ADR-0003
+status: superseded
+date: 2026-01-03
+---
+
+# Untitled decision
+"""
+
+ADR_NO_FRONTMATTER = """# Not even frontmatter
+
+Just prose, no opening `---`.
+"""
+
+
+class TestAdrIndexRendering(BaselineCase):
+    def ctx(self):
+        desc = sdd_check.Descriptor.load(self.tmp)
+        return sdd_check.Context(self.tmp, desc, sdd_check.load_map(desc))
+
+    def test_exact_rows_for_refs_bare_and_missing_title(self):
+        self.write("docs/adr/ADR-0001-yaml.md", ADR_WITH_REFS)
+        self.write("docs/adr/ADR-0002-vendor.md", ADR_BARE)
+        self.write("docs/adr/ADR-0003-untitled.md", ADR_NO_TITLE)
+        rendered = sdd_check.render_adr_index(self.ctx())
+        rows = rendered.split("\n")[2:]
+        self.assertEqual(
+            [
+                "| ADR-0001 | Use a single YAML subset | Accepted | 2026-01-01 | "
+                "Resolves: ADR-0000; Amends: ADR-0002 |",
+                "| ADR-0002 | Vendor the tool as one file | Proposed | 2026-01-02 | — |",
+                "| ADR-0003 | — | Superseded | 2026-01-03 | — |",
+            ],
+            rows,
+        )
+
+    def test_an_adr_with_no_frontmatter_at_all_still_gets_a_row(self):
+        self.write("docs/adr/ADR-0004-bare.md", ADR_NO_FRONTMATTER)
+        rendered = sdd_check.render_adr_index(self.ctx())
+        rows = rendered.split("\n")[2:]
+        self.assertEqual(["| — | — | — | — | — |"], rows)
+
+
+SPEC_NO_MODE = """---
+kind: specification
+status: draft
+requirements: []
+---
+
+# OTHER
+
+No em-dash in this heading, and no mode: key.
+"""
+
+
+class TestSpecificationsIndexRendering(BaselineCase):
+    def ctx(self):
+        desc = sdd_check.Descriptor.load(self.tmp)
+        return sdd_check.Context(self.tmp, desc, sdd_check.load_map(desc))
+
+    def test_topic_splits_on_em_dash_kind_is_filtered_and_mode_falls_back(self):
+        self.write("docs/specifications/other.md", SPEC_NO_MODE)
+        rendered = sdd_check.render_specifications_index(self.ctx())
+        rows = rendered.split("\n")[2:]
+        # env.md: kind: specification, H1 "SPEC-ENV — Environment" -> Topic "Environment".
+        self.assertIn(
+            "| [`SPEC-ENV`](env.md) | Environment | Draft | spec-first |", rows
+        )
+        # other.md: no `spec:` key -> file stem upper-cased; no em-dash -> whole H1 is the
+        # Topic; no `mode:` key -> the descriptor's default_mode.
+        self.assertIn("| [`OTHER`](other.md) | OTHER | Draft | spec-first |", rows)
+        # docs/specifications/README.md is `kind: guide` and must not appear at all.
+        self.assertFalse(any("README" in row for row in rows))
+        self.assertEqual(2, len(rows))
+
+
+# ---------------------------------------------------------------------------
 # The context bundle
 # ---------------------------------------------------------------------------
 class TestContextBundle(BaselineCase):

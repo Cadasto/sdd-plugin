@@ -2704,16 +2704,23 @@ def render_adr_index(ctx: Context, home: Optional[Path] = None) -> str:
         for path in sorted(adr_dir.glob("*.md")):
             if not path.is_file() or not _ADR_NAME_RE.match(path.name):
                 continue
+            # Absent or unparseable frontmatter is still a decision record: a row with
+            # `—` placeholders, never a silently omitted line.
             front = _quiet_frontmatter(ctx.read(path))
-            if not front:
-                continue
+
+            def cell(key, capitalize=False):
+                value = _as_str(front.get(key))
+                if not value:
+                    return "—"
+                return value.capitalize() if capitalize else value
+
             lines.append(
                 "| %s | %s | %s | %s | %s |"
                 % (
-                    _as_str(front.get("id")),
-                    _as_str(front.get("title")),
-                    _as_str(front.get("status")).capitalize(),
-                    _as_str(front.get("date")),
+                    cell("id"),
+                    cell("title"),
+                    cell("status", capitalize=True),
+                    cell("date"),
                     _traceability_refs(ctx.read(path)),
                 )
             )
