@@ -1822,9 +1822,11 @@ def check_doc_kinds(ctx: Context, report: "Report") -> None:
     if not paths:
         report.skip("doc-kinds", "no markdown documents")
         return
+    examined = 0
     for path in paths:
         if _waived(ctx, report, "doc-kinds", path):
             continue
+        examined += 1
         anchor = ctx.rel(path)
         front, reported = _frontmatter_of(ctx, report, "doc-kinds", path)
         if front is None:
@@ -1876,6 +1878,8 @@ def check_doc_kinds(ctx: Context, report: "Report") -> None:
                 anchor,
                 "an informative kind carries no status axis, so status: does not belong here",
             )
+    if not examined:
+        report.skip("doc-kinds", "every document is waived")
 
 
 def _spec_sections(report: "Report", anchor: str, text: str) -> bool:
@@ -1936,12 +1940,16 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
         report.skip("rfc2119", "no markdown documents")
         return
     sectionless: List[str] = []
+    examined = 0
+    unkinded = 0
     for path in paths:
         if _waived(ctx, report, "rfc2119", path):
             continue
         kind = doc_kind(ctx, path)
         if not kind:
+            unkinded += 1
             continue
+        examined += 1
         anchor = ctx.rel(path)
         text = ctx.read(path)
         if kind == "specification":
@@ -1960,6 +1968,13 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
                 "the RFC-2119 keyword %s does not belong in a %s document; the specification "
                 "owns the normative prose" % (", ".join(sorted(set(words))), kind),
             )
+    if not examined:
+        # A family that read no document did not run, whatever the reason.
+        report.skip(
+            "rfc2119",
+            "no document declares a kind" if unkinded else "every document is waived",
+        )
+        return
     if sectionless:
         report.skip(
             "rfc2119",
@@ -1991,6 +2006,9 @@ def check_one_home(ctx: Context, report: "Report") -> None:
             if len(normalised.split()) < ONE_HOME_MIN_WORDS:
                 continue
             homes.setdefault(normalised, []).append((anchor, lineno))
+    if not specifications and not others:
+        report.skip("one-home", "every document is waived")
+        return
     if not specifications:
         report.skip("one-home", "no specification document to own a normative sentence")
         return
@@ -2073,7 +2091,11 @@ def check_links(ctx: Context, report: "Report") -> None:
     if not kept:
         report.skip("links", "every document is excluded by check.links.exclude")
         return
+    examined = 0
     for path in kept:
+        if _waived(ctx, report, "links", path):
+            continue
+        examined += 1
         anchor = ctx.rel(path)
         for lineno, raw in _link_targets(ctx.read(path)):
             target = raw.strip()
@@ -2114,6 +2136,8 @@ def check_links(ctx: Context, report: "Report") -> None:
                     "the fragment '#%s' matches no heading slug and no explicit anchor in %s"
                     % (fragment, rel_part or path.name),
                 )
+    if not examined:
+        report.skip("links", "every document is waived")
 
 
 #: A bullet that argues its case belongs in the commit body, not in the changelog.
@@ -2162,6 +2186,9 @@ def check_changelog(ctx: Context, report: "Report") -> None:
     path = desc.resolve(rel)
     if not path.is_file():
         report.add("changelog", "ERROR", rel, "check.changelog.path names no file: %s" % rel)
+        return
+    if _waived(ctx, report, "changelog", path):
+        report.skip("changelog", "the changelog is waived")
         return
     text = ctx.read(path)
     found = headings(text)

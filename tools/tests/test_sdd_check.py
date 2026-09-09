@@ -713,6 +713,14 @@ class TestDocKindsFamily(BaselineCase):
         self.write("docs/plans/_template.md", "# Plan template\n\nFill this in.\n")
         self.assert_finding(self.run_only("doc-kinds"), "no kind", level="WARN")
 
+    def test_every_document_waived_is_not_a_family_that_ran(self):
+        for path in sorted((self.tmp / "docs").rglob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            path.write_text("<!-- sdd-check: allow doc-kinds -->\n" + text, encoding="utf-8")
+        report = self.run_only("doc-kinds")
+        self.assertEqual("every document is waived", report.families_skipped.get("doc-kinds"))
+        self.assertNotIn("doc-kinds", report.families_run)
+
     def test_frontmatter_after_a_leading_html_comment_is_accepted(self):
         self.write("docs/notes.md",
                    "<!-- generated: do not edit -->\n---\nkind: guide\n---\n\n# Notes\n")
@@ -842,6 +850,25 @@ class TestRfc2119Family(BaselineCase):
                    "---\nkind: guide\n---\n\n# Notes\n\nMAYBE the service refuses the start.\n")
         self.assert_clean(self.run_only("rfc2119"))
 
+    def test_no_document_declares_a_kind(self):
+        for path in sorted((self.tmp / "docs").rglob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            path.write_text(
+                "\n".join(l for l in text.split("\n") if not l.startswith("kind:")),
+                encoding="utf-8",
+            )
+        report = self.run_only("rfc2119")
+        self.assertEqual("no document declares a kind", report.families_skipped.get("rfc2119"))
+        self.assertNotIn("rfc2119", report.families_run)
+
+    def test_every_document_waived_is_not_a_family_that_ran(self):
+        for path in sorted((self.tmp / "docs").rglob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            path.write_text("<!-- sdd-check: allow rfc2119 -->\n" + text, encoding="utf-8")
+        report = self.run_only("rfc2119")
+        self.assertEqual("every document is waived", report.families_skipped.get("rfc2119"))
+        self.assertNotIn("rfc2119", report.families_run)
+
     def test_a_specification_without_sections_skips_that_rule(self):
         self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary")
         report = self.run_only("rfc2119")
@@ -915,6 +942,14 @@ class TestOneHomeFamily(BaselineCase):
         for text in ((self.tmp / SPEC_REL).read_text(), (self.tmp / PARITY_REL).read_text()):
             found = [s for _, s in sdd_check.sentences(text)]
             self.assertNotIn("**Implements:** REQ-FOUND-001", found)
+
+    def test_every_document_waived_is_not_a_family_that_ran(self):
+        for path in sorted((self.tmp / "docs").rglob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            path.write_text("<!-- sdd-check: allow one-home -->\n" + text, encoding="utf-8")
+        report = self.run_only("one-home")
+        self.assertEqual("every document is waived", report.families_skipped.get("one-home"))
+        self.assertNotIn("one-home", report.families_run)
 
     def test_a_repository_without_specifications_skips_the_family(self):
         (self.tmp / SPEC_REL).unlink()
@@ -1024,6 +1059,24 @@ class TestLinksFamily(BaselineCase):
         self.guide_link("no%20file.md")
         self.assert_finding(self.run_only("links"), "no such file: no file.md")
 
+    def test_a_waived_document_is_skipped_and_counted(self):
+        self.edit(
+            GUIDE_REL, "# Development process",
+            "<!-- sdd-check: allow links -->\n\n# Development process",
+        )
+        self.guide_link("../missing.md")
+        report = self.run_only("links")
+        self.assert_clean(report)
+        self.assertEqual([GUIDE_REL], report.waived["links"])
+
+    def test_every_document_waived_is_not_a_family_that_ran(self):
+        for path in sorted((self.tmp / "docs").rglob("*.md")) + [self.tmp / "AGENTS.md"]:
+            text = path.read_text(encoding="utf-8")
+            path.write_text("<!-- sdd-check: allow links -->\n" + text, encoding="utf-8")
+        report = self.run_only("links")
+        self.assertEqual("every document is waived", report.families_skipped.get("links"))
+        self.assertNotIn("links", report.families_run)
+
     def test_a_repository_with_no_document_skips_the_family(self):
         for path in sorted((self.tmp / "docs").rglob("*.md")):
             path.unlink()
@@ -1092,6 +1145,14 @@ class TestChangelogFamily(BaselineCase):
     def test_a_changelog_path_that_names_no_file(self):
         self.edit(sdd_check.DESCRIPTOR_REL, "      path: CHANGELOG.md", "      path: docs/CHANGELOG.md")
         self.assert_finding(self.run_only("changelog"), "docs/CHANGELOG.md")
+
+    def test_a_waived_changelog_is_skipped_and_counted(self):
+        self.edit(CHANGELOG_REL, "# Changelog", "# Changelog\n\n<!-- sdd-check: allow changelog -->")
+        self.bullet("- Tools: fixed the path. Also fixed the name.")
+        report = self.run_only("changelog")
+        self.assert_clean(report)
+        self.assertEqual([CHANGELOG_REL], report.waived["changelog"])
+        self.assertNotIn("changelog", report.families_run)
 
     def test_an_unreleased_section_without_a_bullet_skips_the_rules(self):
         self.bullet("")
