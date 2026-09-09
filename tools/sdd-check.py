@@ -261,6 +261,10 @@ class _YamlParser:
     def _value(self, text: str, indent: int, lineno: int):
         if text in _BLOCK_SCALAR:
             return self._block_scalar(text, indent, lineno)
+        if text.startswith("#"):
+            # A comment after a key that opens a block ("families:  # error | warn | off").
+            # The value is the block below, not the comment.
+            text = ""
         if text == "":
             nxt = self.tokens[self.i] if self.i < len(self.tokens) else None
             if nxt is None:
@@ -291,7 +295,7 @@ class _YamlParser:
             last = index + 1
         while self.i < len(self.tokens) and self.tokens[self.i][2] <= last:
             self.i += 1
-        body = [line for line in collected]
+        body = list(collected)
         while body and not body[-1].strip():
             body.pop()
         if not body:
@@ -317,8 +321,6 @@ class _YamlParser:
         return out.rstrip("\n") + "\n"
 
     def _scalar(self, text: str, lineno: int):
-        if text.startswith("#"):
-            return None
         if text[0] in "\"'":
             quote = text[0]
             end = text.find(quote, 1)
@@ -352,15 +354,12 @@ class _YamlParser:
         return text
 
     def _inline_list(self, text: str, lineno: int) -> list:
-        end = text.rfind("]")
-        if end == -1:
-            self.fail("an unterminated inline list", lineno)
-        body = text[1:end]
         items: List[Tuple[str, bool]] = []
         current = ""
         quote = ""
         quoted = False
-        for char in body:
+        closed = -1
+        for position, char in enumerate(text[1:], 1):
             if quote:
                 if char == quote:
                     quote = ""
@@ -371,17 +370,27 @@ class _YamlParser:
                 quote = char
                 quoted = True
                 continue
+            if char == "]":
+                closed = position
+                break
+            if char == "[":
+                self.fail("a nested inline list is not supported", lineno)
+            if char == "{":
+                self.fail("a flow mapping is not supported", lineno)
             if char == ",":
                 if current.strip() or quoted:
                     items.append((current.strip(), quoted))
                 current = ""
                 quoted = False
                 continue
-            if char == "{":
-                self.fail("a flow mapping is not supported", lineno)
             current += char
+        if closed == -1:
+            self.fail("an unterminated inline list", lineno)
         if current.strip() or quoted:
             items.append((current.strip(), quoted))
+        rest = text[closed + 1 :].strip()
+        if rest and not rest.startswith("#"):
+            self.fail("trailing content after an inline list", lineno)
         out: List[object] = []
         for token, was_quoted in items:
             if was_quoted:

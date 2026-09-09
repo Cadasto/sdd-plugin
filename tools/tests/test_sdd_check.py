@@ -19,6 +19,20 @@ sdd_check = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(sdd_check)
 
 
+def yaml_blocks(text):
+    """Every ```yaml fenced block in a markdown document, in order."""
+    blocks, current, inside = [], [], False
+    for line in text.split("\n"):
+        if not inside and line.strip() == "```yaml":
+            inside, current = True, []
+        elif inside and line.strip() == "```":
+            blocks.append("\n".join(current))
+            inside = False
+        elif inside:
+            current.append(line)
+    return blocks
+
+
 class BaselineCase(unittest.TestCase):
     """A fresh baseline repository per test."""
 
@@ -131,6 +145,46 @@ class TestYamlSubset(unittest.TestCase):
             {"yes_": True, "no_": False, "n": 42, "neg": -7, "quoted": "0.6.0", "ver": "0.6.0"},
             sdd_check.load_yaml(text),
         )
+
+    def test_comment_after_a_key_that_opens_a_mapping(self):
+        text = "check:\n  families:   # error | warn | off\n    descriptor: error\n    links: warn\n"
+        self.assertEqual(
+            {"check": {"families": {"descriptor": "error", "links": "warn"}}},
+            sdd_check.load_yaml(text),
+        )
+
+    def test_comment_after_a_key_that_opens_a_sequence(self):
+        text = "probes:                # optional (use_probes)\n  - PROBE-031\n  - PROBE-073\n"
+        self.assertEqual({"probes": ["PROBE-031", "PROBE-073"]}, sdd_check.load_yaml(text))
+
+    def test_inline_list_followed_by_a_comment_carrying_brackets(self):
+        text = "worker_skills: []      # skills named in the brief, e.g. [go-coding:go-testing]\n"
+        self.assertEqual({"worker_skills": []}, sdd_check.load_yaml(text))
+
+    def test_trailing_content_after_an_inline_list_is_refused(self):
+        self.assertEqual(1, self._error_line("globs: [a, b] and more\n"))
+
+    def test_every_yaml_sample_in_the_schema_reference_loads(self):
+        reference = TOOLS_DIR.parent / "references" / "traceability-schema.md"
+        blocks = yaml_blocks(reference.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(blocks), 3, "the schema reference carries no YAML samples")
+        for index, block in enumerate(blocks):
+            with self.subTest(block=index):
+                if block.lstrip().startswith("---"):
+                    mapping, _ = sdd_check.frontmatter(block)
+                    self.assertIsInstance(mapping, dict)
+                else:
+                    self.assertIsInstance(sdd_check.load_yaml(block), dict)
+        descriptor = sdd_check.load_yaml(blocks[0])["sdd"]
+        self.assertEqual("full", descriptor["profile"])
+        self.assertEqual("error", descriptor["check"]["families"]["descriptor"])
+        self.assertEqual("off", descriptor["check"]["families"]["draft-reason"])
+        self.assertEqual([], descriptor["agents"]["worker_skills"])
+        self.assertEqual(["claude", "cursor"], descriptor["agents"]["review_panel"]["full"])
+        record = sdd_check.load_yaml(blocks[1])["requirements"][0]
+        self.assertEqual("REQ-040", record["id"])
+        self.assertEqual(["PROBE-031", "PROBE-073"], record["probes"])
+        self.assertEqual("docs/specifications/auth.md#token-refresh-req-040", record["canonical"])
 
     def _error_line(self, text):
         with self.assertRaises(sdd_check.YamlError) as caught:
