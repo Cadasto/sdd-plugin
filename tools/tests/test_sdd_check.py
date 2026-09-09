@@ -1346,6 +1346,11 @@ class TestCommandLine(BaselineCase):
         self.assertEqual(2, code, out)
         self.assertIn("no record", out)
 
+    def test_selftest_command_returns_zero(self):
+        code, out = self.run_main(["selftest", "--root", str(self.tmp)])
+        self.assertEqual(0, code, out)
+        self.assertIn("selftest: OK", out)
+
 
 # ---------------------------------------------------------------------------
 # The interfaces later builds call
@@ -1748,6 +1753,30 @@ class TestContextBundle(BaselineCase):
             code = sdd_check.run_context(self.tmp, "REQ-FOUND-999")
         self.assertEqual(2, code)
         self.assertIn("no record", buffer.getvalue())
+
+
+# ---------------------------------------------------------------------------
+# The built-in selftest
+# ---------------------------------------------------------------------------
+class TestSelftest(unittest.TestCase):
+    def test_selftest_returns_zero(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = sdd_check.selftest()
+        self.assertEqual(0, code, buffer.getvalue())
+        self.assertIn("selftest: OK", buffer.getvalue())
+
+    def test_selftest_is_mutation_detectable(self):
+        original = sdd_check.CHECKS["links"]
+        sdd_check.CHECKS["links"] = lambda ctx, report: None
+        try:
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = sdd_check.selftest()
+        finally:
+            sdd_check.CHECKS["links"] = original
+        self.assertEqual(1, code)
+        self.assertIn("FAIL link-dead", buffer.getvalue())
 
 
 if __name__ == "__main__":

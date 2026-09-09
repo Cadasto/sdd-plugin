@@ -3249,13 +3249,342 @@ def run_context(root: Path, requirement: str) -> int:
 
 
 # ---------------------------------------------------------------------------
-# Selftest (stub — a later build runs the tool against the baseline fixture)
+# Selftest — runs the tool against the baseline fixture it carries, both clean and
+# mutated one rule at a time
 # ---------------------------------------------------------------------------
 
 
+@dataclasses.dataclass
+class SelftestCase:
+    name: str
+    mutate: Callable[[Path], None]
+    check: Callable[["Report", Path], Optional[str]]
+
+
+def _mutate_edit(rel: str, old: str, new: str) -> Callable[[Path], None]:
+    def apply(root: Path) -> None:
+        path = root / rel
+        text = path.read_text(encoding="utf-8")
+        if old not in text:
+            raise AssertionError("selftest fixture drift: %r not in %s" % (old, rel))
+        path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+    return apply
+
+
+def _mutate_write(rel: str, text: str) -> Callable[[Path], None]:
+    def apply(root: Path) -> None:
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    return apply
+
+
+def _mutate_all(*mutations: Callable[[Path], None]) -> Callable[[Path], None]:
+    def apply(root: Path) -> None:
+        for mutation in mutations:
+            mutation(root)
+
+    return apply
+
+
+def _finding_check(family: str, fragment: str) -> Callable[["Report", Path], Optional[str]]:
+    def check(report: "Report", root: Path) -> Optional[str]:
+        hits = [f for f in report.findings if f.family == family and fragment in f.message]
+        if hits:
+            return None
+        return "no %s finding containing %r" % (family, fragment)
+
+    return check
+
+
+_DEAD_LINK_DOC = """---
+kind: reference
+---
+
+# Selftest dead link
+
+See [dead](nope-does-not-exist.md) for detail.
+"""
+
+
+def _check_link_in_every_paths_dir(report: "Report", root: Path) -> Optional[str]:
+    missing = []
+    for rel in (
+        "docs/requirements/_selftest-link-check.md",
+        "docs/specifications/_selftest-link-check.md",
+        "docs/adr/_selftest-link-check.md",
+        "docs/plans/_selftest-link-check.md",
+    ):
+        hits = [
+            f
+            for f in report.findings
+            if f.family == "links" and "no such file" in f.message and f.anchor.startswith(rel)
+        ]
+        if not hits:
+            missing.append(rel)
+    if missing:
+        return "no dead-link finding for %s" % ", ".join(missing)
+    return None
+
+
+def _check_link_exclusion_printed(report: "Report", root: Path) -> Optional[str]:
+    rendered = report.render(root)
+    if "link exclusions:" not in rendered:
+        return "no 'link exclusions:' line in the report"
+    if "docs/specifications/*.md" not in rendered:
+        return "the report does not name the configured exclusion"
+    return None
+
+
+SELFTEST_CASES: Tuple[SelftestCase, ...] = (
+    SelftestCase(
+        "descriptor-version-pin",
+        _mutate_edit("docs/.sdd.yaml", '    version: "0.6.0"', '    version: "0.5.0"'),
+        _finding_check("descriptor", "does not equal the tool's version"),
+    ),
+    SelftestCase(
+        "map-empty",
+        _mutate_write(
+            "docs/specifications/traceability.yaml",
+            "# traceability.yaml — the machine-readable REQ to spec to code to test map.\n"
+            "requirements: []\n",
+        ),
+        _finding_check("map-schema", "zero records"),
+    ),
+    SelftestCase(
+        "map-duplicate-id",
+        _mutate_edit(
+            "docs/specifications/traceability.yaml",
+            "      - tests/env_test.py\n",
+            "      - tests/env_test.py\n"
+            "  - id: REQ-FOUND-001\n"
+            "    title: Duplicate\n"
+            "    canonical: docs/specifications/env.md#1--boundary-req-found-001\n"
+            "    status: draft\n"
+            "    implementation: shipped\n",
+        ),
+        _finding_check("map-schema", "duplicate id"),
+    ),
+    SelftestCase(
+        "map-excluded-area",
+        _mutate_edit(
+            "docs/specifications/traceability.yaml", "id: REQ-FOUND-001", "id: REQ-BENCH-001"
+        ),
+        _finding_check("map-schema", "excluded area"),
+    ),
+    SelftestCase(
+        "canonical-anchor-missing",
+        _mutate_edit(
+            "docs/specifications/traceability.yaml",
+            "docs/specifications/env.md#1--boundary-req-found-001",
+            "docs/specifications/env.md#nonexistent-anchor",
+        ),
+        _finding_check("map-to-tree", "resolves to no heading slug and no explicit anchor"),
+    ),
+    SelftestCase(
+        "implements-marker-missing",
+        _mutate_edit("docs/specifications/env.md", "**Implements:** REQ-FOUND-001\n\n", ""),
+        _finding_check("map-to-tree", "carries no '**Implements:**"),
+    ),
+    SelftestCase(
+        "package-path-missing",
+        _mutate_edit(
+            "docs/specifications/traceability.yaml", "      - src/env", "      - src/nonexistent"
+        ),
+        _finding_check("map-to-tree", "missing package path"),
+    ),
+    SelftestCase(
+        "no-evidence",
+        _mutate_edit(
+            "docs/specifications/traceability.yaml",
+            "    packages:\n      - src/env\n    tests:\n      - tests/env_test.py\n",
+            "",
+        ),
+        _finding_check("map-to-tree", "carries no evidence"),
+    ),
+    SelftestCase(
+        "index-row-orphan",
+        _mutate_edit(
+            "docs/requirements/README.md",
+            "| Environment boundary |",
+            "| Environment boundary |\n"
+            "| REQ-FOUND-002 | Orphan | — | Draft | shipped |",
+        ),
+        _finding_check("index-sync", "missing from traceability"),
+    ),
+    SelftestCase(
+        "index-impl-mismatch",
+        _mutate_edit(
+            "docs/requirements/README.md", "Draft | shipped |", "Draft | landed |"
+        ),
+        _finding_check("index-sync", "does not equal the record implementation"),
+    ),
+    SelftestCase(
+        "detail-file-mismatch",
+        _mutate_edit("docs/requirements/REQ-FOUND-001.md", "status: draft", "status: stable"),
+        _finding_check("index-sync", "the detail file says"),
+    ),
+    SelftestCase(
+        "plan-frontmatter-missing",
+        _mutate_edit("docs/plans/2026-01-01-env.md", "mode: spec-first\n", ""),
+        _finding_check("plans", "is required"),
+    ),
+    SelftestCase(
+        "plan-unknown-req",
+        _mutate_edit(
+            "docs/plans/2026-01-01-env.md",
+            "implements: [REQ-FOUND-001]",
+            "implements: [REQ-FOUND-999]",
+        ),
+        _finding_check("plans", "no record"),
+    ),
+    SelftestCase(
+        "doc-kind-missing",
+        _mutate_edit("docs/development-process.md", "kind: guide\n", ""),
+        _finding_check("doc-kinds", "declares no kind"),
+    ),
+    SelftestCase(
+        "upstream-uses-status",
+        _mutate_edit(
+            "docs/development-process.md", "kind: guide", "kind: upstream\nstatus: proposed"
+        ),
+        _finding_check("doc-kinds", "never status"),
+    ),
+    SelftestCase(
+        "rfc2119-in-requirement",
+        _mutate_edit(
+            "docs/requirements/REQ-FOUND-001.md",
+            "The service reads its configuration from the environment when it starts.",
+            "The service MUST read its configuration from the environment when it starts.",
+        ),
+        _finding_check("rfc2119", "does not belong in a requirement document"),
+    ),
+    SelftestCase(
+        "rfc2119-malformed",
+        _mutate_edit(
+            "docs/specifications/env.md",
+            "The service MUST refuse to start when a declared variable is absent.\n",
+            "The service MUST refuse to start when a declared variable is absent.\n\n"
+            "The clause MUST to apply.\n",
+        ),
+        _finding_check("rfc2119", "malformed RFC-2119 form"),
+    ),
+    SelftestCase(
+        "one-home-duplicate",
+        _mutate_edit(
+            "docs/specifications/env.md",
+            "The service MUST refuse to start when a declared variable is absent.\n",
+            "The service MUST refuse to start when a declared variable is absent.\n\n"
+            "The service MUST read every declared variable from the environment when it starts.\n",
+        ),
+        _finding_check("one-home", "a normative statement has one home"),
+    ),
+    SelftestCase(
+        "link-dead",
+        _mutate_edit(
+            "AGENTS.md",
+            "Read [the development process](docs/development-process.md) before changing anything here.\n",
+            "Read [the development process](docs/development-process.md) before changing anything here.\n"
+            "\nSee [missing](docs/does-not-exist.md) for more.\n",
+        ),
+        _finding_check("links", "no such file"),
+    ),
+    SelftestCase(
+        "link-fragment-dead",
+        _mutate_edit(
+            "AGENTS.md",
+            "Read [the development process](docs/development-process.md) before changing anything here.\n",
+            "Read [the development process](docs/development-process.md) before changing anything here.\n"
+            "\nSee [bad anchor](docs/development-process.md#nonexistent) for more.\n",
+        ),
+        _finding_check("links", "matches no heading slug"),
+    ),
+    SelftestCase(
+        "link-in-every-paths-dir",
+        _mutate_all(
+            _mutate_write("docs/requirements/_selftest-link-check.md", _DEAD_LINK_DOC),
+            _mutate_write("docs/specifications/_selftest-link-check.md", _DEAD_LINK_DOC),
+            _mutate_write("docs/adr/_selftest-link-check.md", _DEAD_LINK_DOC),
+            _mutate_write("docs/plans/_selftest-link-check.md", _DEAD_LINK_DOC),
+        ),
+        _check_link_in_every_paths_dir,
+    ),
+    SelftestCase(
+        "link-exclusion-printed",
+        _mutate_edit(
+            "docs/.sdd.yaml", "      exclude: []", '      exclude: ["docs/specifications/*.md"]'
+        ),
+        _check_link_exclusion_printed,
+    ),
+    SelftestCase(
+        "changelog-too-long",
+        _mutate_edit(
+            "CHANGELOG.md",
+            "- Config: the service reads every declared variable from the environment when it starts.\n",
+            "- Config: the service reads every single one of the many declared configuration "
+            "variables from the surrounding process environment when it starts up normally, in "
+            "the exact order they were originally declared in the descriptor, and it refuses to "
+            "start otherwise.\n",
+        ),
+        _finding_check("changelog", "the budget is"),
+    ),
+    SelftestCase(
+        "generated-hand-edit",
+        _mutate_edit(
+            "docs/requirements/README.md", "Environment boundary", "Environment boundary, hand-edited"
+        ),
+        _finding_check("generated", "hand-edited or stale"),
+    ),
+    SelftestCase(
+        "unknown-req-cited-in-code",
+        _mutate_write("src/env/extra.py", "# implements REQ-FOUND-099\n"),
+        _finding_check("tree-to-map", "unknown identifier cited"),
+    ),
+)
+
+
+def selftest() -> int:
+    """Run the tool against the baseline fixture it carries: clean, then one mutation
+    per rule, printing ``PASS``/``FAIL`` per case."""
+    with tempfile.TemporaryDirectory() as holder:
+        base_root = Path(holder)
+        write_baseline(base_root)
+        baseline_report = run_check(base_root, only=None, changelog_all=False)
+    loud = [f for f in baseline_report.findings if f.level in ("ERROR", "WARN")]
+    if loud or baseline_report.exit_code() != 0:
+        print("selftest: the baseline fixture is not clean")
+        for finding in loud:
+            print("  [%s] %s %s: %s" % (finding.family, finding.level, finding.anchor, finding.message))
+        return 1
+
+    failed: List[str] = []
+    for case in SELFTEST_CASES:
+        with tempfile.TemporaryDirectory() as holder:
+            root = Path(holder)
+            write_baseline(root)
+            case.mutate(root)
+            report = run_check(root, only=None, changelog_all=False)
+            reason = case.check(report, root)
+        if reason is None:
+            print("PASS %s" % case.name)
+        else:
+            print("FAIL %s — %s" % (case.name, reason))
+            failed.append(case.name)
+
+    total = len(SELFTEST_CASES)
+    if failed:
+        print("selftest: FAILED — %d of %d" % (len(failed), total))
+        return 1
+    print("selftest: OK — %d cases" % total)
+    return 0
+
+
 def run_selftest(root: Path) -> int:
-    print("not implemented in this build")
-    return 2
+    """CLI wiring for ``selftest``. ``root`` is accepted for shape but unused: the
+    selftest always builds and mutates its own baseline fixture, never the caller's tree."""
+    return selftest()
 
 
 # ---------------------------------------------------------------------------
