@@ -3406,6 +3406,29 @@ def _check_link_exclusion_printed(report: "Report", root: Path) -> Optional[str]
     return None
 
 
+def _mutate_git_commit_and_tag(root: Path) -> None:
+    """Turn ``root`` into its own separate git repository: one commit (which carries the
+    baseline's already-``done`` plan) and a tag on top of it — the stale-plan rule's
+    positive fixture. Never touches the baseline used for the clean-run assertion or any
+    other case's fixture; each case already gets a fresh temporary directory."""
+
+    def git(*args):
+        subprocess.run(
+            ["git", "-C", str(root)] + list(args),
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    git("init", "-q")
+    git("config", "user.email", "selftest@example.invalid")
+    git("config", "user.name", "sdd-check selftest")
+    git("config", "commit.gpgsign", "false")
+    git("add", "-A")
+    git("commit", "-q", "-m", "baseline")
+    git("tag", "v1.0.0")
+
+
 SELFTEST_CASES: Tuple[SelftestCase, ...] = (
     SelftestCase(
         "descriptor-version-pin",
@@ -3609,6 +3632,16 @@ SELFTEST_CASES: Tuple[SelftestCase, ...] = (
         "unknown-req-cited-in-code",
         _mutate_write("src/env/extra.py", "# implements REQ-FOUND-099\n"),
         _finding_check("tree-to-map", "unknown identifier cited"),
+    ),
+    SelftestCase(
+        "draft-reason-missing",
+        _mutate_edit("docs/.sdd.yaml", "draft-reason: off", "draft-reason: warn"),
+        _finding_check("draft-reason", "owes a draft_reason"),
+    ),
+    SelftestCase(
+        "plan-stale-after-tag",
+        _mutate_git_commit_and_tag,
+        _finding_check("plans", "predates the latest release tag"),
     ),
 )
 
