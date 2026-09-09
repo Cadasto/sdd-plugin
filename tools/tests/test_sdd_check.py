@@ -1667,6 +1667,31 @@ class TestGenerators(BaselineCase):
         self.assertIn("status: draft", (self.tmp / REQ_REL).read_text(encoding="utf-8"))
         self.assertNotIn("status: stable", (self.tmp / REQ_REL).read_text(encoding="utf-8"))
 
+    def test_generate_preserves_an_inline_comment_and_every_other_byte(self):
+        original = (self.tmp / REQ_REL).read_text(encoding="utf-8")
+        modified = original.replace(
+            "status: draft\n", "status: draft  # under review\n"
+        ).replace(
+            "implementation: shipped\n", "implementation: shipped  # verified in prod\n"
+        )
+        self.assertNotEqual(original, modified, "fixture drift: nothing to comment on")
+        self.write(REQ_REL, modified)
+        self.edit(MAP_REL, "status: draft", "status: stable")
+        self.edit(MAP_REL, "implementation: shipped", "implementation: landed")
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        self.assertIn(REQ_REL, written)
+        rewritten = (self.tmp / REQ_REL).read_text(encoding="utf-8")
+        expected = modified.replace(
+            "status: draft  # under review", "status: stable  # under review"
+        ).replace(
+            "implementation: shipped  # verified in prod",
+            "implementation: landed  # verified in prod",
+        )
+        # Every byte outside the two value tokens is untouched — not just "the comments
+        # survived", the whole file diffs only at the two rewritten words.
+        self.assertEqual(expected, rewritten)
+
     def test_generate_a_second_time_writes_nothing(self):
         self.edit(INDEX_REL, "Draft | shipped |", "Landed | proposed |")
         sdd_check.generate(self.tmp, verify=False)
