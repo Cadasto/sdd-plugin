@@ -1691,6 +1691,41 @@ class TestGenerators(BaselineCase):
         self.assertEqual(2, len(lines), lines)
         self.assertTrue(lines[1].startswith("sdd-check: FAILED — "), lines[1])
 
+    def test_a_block_in_agents_md_links_relative_to_its_own_home(self):
+        agents = (self.tmp / "AGENTS.md").read_text(encoding="utf-8")
+        self.write(
+            "AGENTS.md",
+            agents + "\n<!-- sdd:generated requirements-index -->\n\n<!-- /sdd:generated -->\n",
+        )
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        self.assertIn("AGENTS.md", written)
+        text = (self.tmp / "AGENTS.md").read_text(encoding="utf-8")
+        self.assertIn("[REQ-FOUND-001](docs/requirements/REQ-FOUND-001.md)", text)
+        self.assertIn("docs/specifications/env.md#1--boundary-req-found-001", text)
+        report = sdd_check.run_check(self.tmp, only=["links", "generated"], changelog_all=False)
+        self.assert_clean(report)
+
+    def test_generate_reports_a_skipped_unclosed_block_and_exits_one(self):
+        self.write(
+            "docs/requirements/orphan.md",
+            "---\nkind: reference\n---\n\n<!-- sdd:generated requirements-index -->\n\nno close\n",
+        )
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(
+            any("unclosed generated block" in line for line in lines), lines
+        )
+
+    def test_generate_reports_a_skipped_unknown_block_and_exits_one(self):
+        self.write(
+            "docs/requirements/orphan.md",
+            "---\nkind: reference\n---\n\n<!-- sdd:generated plans-index -->\n\n<!-- /sdd:generated -->\n",
+        )
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any("unknown block" in line for line in lines), lines)
+
 
 class TestGeneratedFamily(BaselineCase):
     def test_hand_edited_cell_is_an_error(self):

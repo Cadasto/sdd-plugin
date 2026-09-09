@@ -2281,11 +2281,6 @@ def check_generated(ctx: Context, report: "Report") -> None:
     generated blocks anywhere has nothing for this family to check.
     """
     level = ctx.level("generated")
-    rendered = {
-        "requirements-index": render_requirements_index(ctx),
-        "specifications-index": render_specifications_index(ctx),
-        "adr-index": render_adr_index(ctx),
-    }
     found_any = False
     for path in _link_files(ctx):
         text = ctx.read(path)
@@ -2306,7 +2301,7 @@ def check_generated(ctx: Context, report: "Report") -> None:
                     "generated", level, "%s:%d" % (anchor, start), "unknown block '%s'" % name
                 )
                 continue
-            expected = [""] + rendered[name].split("\n") + [""]
+            expected = _expected_block(ctx, name, path)
             actual = lines[start:end - 1]
             if actual != expected:
                 report.add(
@@ -2616,16 +2611,21 @@ def _spec_cell(ctx: Context, index_path: Path, record: Record) -> str:
     return "[`%s`](%s)" % (label, _relative_link(index_path, target, fragment))
 
 
-def render_requirements_index(ctx: Context) -> str:
-    """The ``requirements-index`` generated table: one row per record, in map order."""
-    index_path = ctx.desc.requirements_index_path()
+def render_requirements_index(ctx: Context, home: Optional[Path] = None) -> str:
+    """The ``requirements-index`` generated table: one row per record, in map order.
+
+    ``home`` is the file the block will sit in; links are relative to it. It defaults to
+    the canonical requirements-index path, so a direct call (a test, or a block that
+    really does sit at the canonical location) needs nothing extra.
+    """
+    home = home if home is not None else ctx.desc.requirements_index_path()
     lines = ["| ID | Title | Spec | Stability | Implementation |", "|---|---|---|---|---|"]
     for record in ctx.records:
         if not record.id:
             continue
         detail = _requirement_detail_file(ctx, record.id)
         if detail is not None:
-            id_cell = "[%s](%s)" % (record.id, _relative_link(index_path, detail))
+            id_cell = "[%s](%s)" % (record.id, _relative_link(home, detail))
         else:
             id_cell = record.id
         lines.append(
@@ -2633,7 +2633,7 @@ def render_requirements_index(ctx: Context) -> str:
             % (
                 id_cell,
                 record.title,
-                _spec_cell(ctx, index_path, record),
+                _spec_cell(ctx, home, record),
                 record.status.capitalize(),
                 record.implementation,
             )
@@ -2641,10 +2641,14 @@ def render_requirements_index(ctx: Context) -> str:
     return "\n".join(lines)
 
 
-def render_specifications_index(ctx: Context) -> str:
-    """The ``specifications-index`` generated table: one row per specification document."""
+def render_specifications_index(ctx: Context, home: Optional[Path] = None) -> str:
+    """The ``specifications-index`` generated table: one row per specification document.
+
+    ``home`` is the file the block will sit in; links are relative to it (see
+    :func:`render_requirements_index`).
+    """
     desc = ctx.desc
-    index_path = desc.specifications_index_path()
+    home = home if home is not None else desc.specifications_index_path()
     lines = ["| Spec | Topic | Status | Mode |", "|---|---|---|---|"]
     for path in desc.specification_files():
         front = _quiet_frontmatter(ctx.read(path))
@@ -2661,7 +2665,7 @@ def render_specifications_index(ctx: Context) -> str:
         mode = _as_str(front.get("mode")) or desc.default_mode
         lines.append(
             "| [`%s`](%s) | %s | %s | %s |"
-            % (spec_name, _relative_link(index_path, path), topic, status, mode)
+            % (spec_name, _relative_link(home, path), topic, status, mode)
         )
     return "\n".join(lines)
 
@@ -2685,10 +2689,15 @@ def _traceability_refs(text: str) -> str:
     return "; ".join(refs) if refs else "—"
 
 
-def render_adr_index(ctx: Context) -> str:
-    """The ``adr-index`` generated table: one row per ADR document, in path order."""
+def render_adr_index(ctx: Context, home: Optional[Path] = None) -> str:
+    """The ``adr-index`` generated table: one row per ADR document, in path order.
+
+    ``home`` is accepted for the same reason the other two renderers take it (see
+    :func:`render_requirements_index`); the table carries no links today, but a future
+    one is written relative to it rather than to the canonical path.
+    """
     desc = ctx.desc
-    index_path = desc.adr_index_path()
+    home = home if home is not None else desc.adr_index_path()
     lines = ["| ID | Title | Status | Date | Resolves / amends |", "|---|---|---|---|---|"]
     adr_dir = desc.resolve(desc.paths.get("adr", DEFAULT_PATHS["adr"]))
     if adr_dir.is_dir():
@@ -2709,6 +2718,21 @@ def render_adr_index(ctx: Context) -> str:
                 )
             )
     return "\n".join(lines)
+
+
+#: One renderer per known block name, each ``(ctx, home) -> str``.
+_RENDERERS = {
+    "requirements-index": render_requirements_index,
+    "specifications-index": render_specifications_index,
+    "adr-index": render_adr_index,
+}
+
+
+def _expected_block(ctx: Context, name: str, home: Path) -> List[str]:
+    """The lines a generated block holds when current: one blank line, the table, one
+    blank line — the padding convention ``generate`` writes and ``check_generated``
+    verifies, in one place so the two can never drift apart."""
+    return [""] + _RENDERERS[name](ctx, home).split("\n") + [""]
 
 
 _GENERATED_OPEN_RE = re.compile(r"^<!-- sdd:generated (\S+) -->$")
@@ -2787,6 +2811,7 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
 
     report = Report()
     report.profile = desc.profile
+    report.link_exclusions = list(desc.links_exclude)
     records, map_ok = _load_records_or_report(desc, report)
     report.record_count = len(records)
     if not map_ok:
@@ -2794,25 +2819,37 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
         return report.exit_code(), report.render(root).split("\n")
 
     ctx = Context(root, desc, records)
-    rendered = {
-        "requirements-index": render_requirements_index(ctx),
-        "specifications-index": render_specifications_index(ctx),
-        "adr-index": render_adr_index(ctx),
-    }
 
     written: List[str] = []
     diff_lines: List[str] = []
+    messages: List[str] = []
     stale = False
+    skipped = False
 
     for path in _link_files(ctx):
         text = ctx.read(path)
-        known = [(n, s, e) for n, s, e in generated_blocks(text) if e and n in GENERATED_BLOCKS]
+        blocks = generated_blocks(text)
+        if not blocks:
+            continue
+        anchor = ctx.rel(path)
+        for name, start, end in blocks:
+            if end == 0:
+                messages.append(
+                    "%s:%d: skipped — unclosed generated block '%s'" % (anchor, start, name)
+                )
+                skipped = True
+            elif name not in GENERATED_BLOCKS:
+                messages.append(
+                    "%s:%d: skipped — unknown block '%s'" % (anchor, start, name)
+                )
+                skipped = True
+        known = [(n, s, e) for n, s, e in blocks if e and n in GENERATED_BLOCKS]
         if not known:
             continue
         file_lines = text.split("\n")
         changed = False
         for name, start, end in sorted(known, key=lambda item: item[1], reverse=True):
-            new_content = [""] + rendered[name].split("\n") + [""]
+            new_content = _expected_block(ctx, name, path)
             current_content = file_lines[start:end - 1]
             if current_content == new_content:
                 continue
@@ -2848,13 +2885,13 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
                     written.append(ctx.rel(detail))
 
     if verify:
-        return (1 if stale else 0), diff_lines
-    return 0, written
+        return (1 if (stale or skipped) else 0), messages + diff_lines
+    return (1 if skipped else 0), messages + written
 
 
-def run_generate(root: Path, only: Optional[List[str]], verify: bool) -> int:
-    """CLI wiring for ``generate``. ``only`` is accepted for shape but unused: the three
-    generated blocks are not families, and are always regenerated together."""
+def run_generate(root: Path, verify: bool) -> int:
+    """CLI wiring for ``generate``. The three generated blocks are not families and are
+    always regenerated together, so there is no ``--only`` for this command."""
     code, lines = generate(root, verify)
     for line in lines:
         print(line)
@@ -3596,7 +3633,7 @@ COMMANDS = ("check", "generate", "context", "selftest")
 USAGE = """usage: sdd-check [check|generate|context|selftest] [options]
 
   check [--root DIR] [--only fam[,fam]] [--changelog-all]
-  generate [--root DIR] [--only fam[,fam]] [--verify]
+  generate [--root DIR] [--verify]
   context <REQ> [--root DIR]
   selftest [--root DIR]
   --version
@@ -3666,7 +3703,7 @@ def main(argv=None) -> int:
         index += 1
 
     if command == "generate":
-        return run_generate(root, only, verify)
+        return run_generate(root, verify)
     if command == "context":
         if len(positional) != 1:
             print("sdd-check: context takes exactly one requirement id")
