@@ -165,7 +165,7 @@ requirements:
     title: Token refresh
     canonical: docs/specifications/auth.md#token-refresh-req-040
     status: draft               # spec stability:   draft | stable | deprecated
-    implementation: landed      # build status:     planned | partial | landed   (or proposed | in_progress | shipped | deferred)
+    implementation: landed      # build status:     proposed | planned | in_progress | partial | landed | shipped | deferred
     packages:
       - internal/auth/refresh
     probes:                     # optional (use_probes)
