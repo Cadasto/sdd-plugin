@@ -668,6 +668,63 @@ class TestDraftReasonFamily(BaselineCase):
 
 
 # ---------------------------------------------------------------------------
+# doc-kinds
+# ---------------------------------------------------------------------------
+class TestDocKindsFamily(BaselineCase):
+    def test_document_without_frontmatter(self):
+        self.write("docs/notes.md", "# Notes\n\nProse.\n")
+        self.assert_finding(self.run_only("doc-kinds"), "no kind", level="WARN")
+
+    def test_kind_outside_the_declared_vocabulary(self):
+        self.write("docs/notes.md", "---\nkind: memo\n---\n\n# Notes\n")
+        self.assert_finding(self.run_only("doc-kinds"), "not declared in doc_kinds", level="WARN")
+
+    def test_plan_status_outside_its_vocabulary(self):
+        self.edit(PLAN_REL, "status: done", "status: pending")
+        self.assert_finding(self.run_only("doc-kinds"), "status")
+
+    def test_upstream_document_uses_state_not_status(self):
+        self.write("docs/upstream/note.md",
+                   "---\nkind: upstream\nstatus: proposed\n---\n\n# Upstream note\n")
+        self.assert_finding(self.run_only("doc-kinds"), "state:")
+
+    def test_upstream_document_with_a_state_is_clean(self):
+        self.write("docs/upstream/note.md",
+                   "---\nkind: upstream\nstate: submitted\n---\n\n# Upstream note\n")
+        self.assert_clean(self.run_only("doc-kinds"))
+
+    def test_informative_kind_carrying_a_status(self):
+        self.edit("docs/development-process.md", "kind: guide", "kind: guide\nstatus: draft")
+        self.assert_finding(self.run_only("doc-kinds"), "informative", level="WARN")
+
+    def test_severity_override_turns_the_missing_kind_into_an_error(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "doc-kinds: warn", "doc-kinds: error")
+        self.write("docs/notes.md", "# Notes\n\nProse.\n")
+        self.assert_finding(self.run_only("doc-kinds"), "no kind")
+
+    def test_a_template_file_is_checked(self):
+        self.write("docs/plans/_template.md", "# Plan template\n\nFill this in.\n")
+        self.assert_finding(self.run_only("doc-kinds"), "no kind", level="WARN")
+
+    def test_frontmatter_after_a_leading_html_comment_is_accepted(self):
+        self.write("docs/notes.md",
+                   "<!-- generated: do not edit -->\n---\nkind: guide\n---\n\n# Notes\n")
+        self.assert_clean(self.run_only("doc-kinds"))
+
+
+# ---------------------------------------------------------------------------
+# waivers
+# ---------------------------------------------------------------------------
+class TestWaiverHelper(unittest.TestCase):
+    def test_waivers_names_every_family_in_the_comment(self):
+        text = "# Title\n\n<!-- sdd-check: allow rfc2119, one-home -->\n\nProse.\n"
+        self.assertEqual({"rfc2119", "one-home"}, sdd_check.waivers(text))
+
+    def test_waivers_of_a_document_without_one(self):
+        self.assertEqual(set(), sdd_check.waivers("# Title\n\nProse.\n"))
+
+
+# ---------------------------------------------------------------------------
 # The report and the command line
 # ---------------------------------------------------------------------------
 class TestReport(BaselineCase):
@@ -706,6 +763,23 @@ class TestReport(BaselineCase):
         self.assertIn("draft-reason (off)", rendered)
         for family, reason in report.families_skipped.items():
             self.assertIn("%s (%s)" % (family, reason), rendered)
+
+    def test_waived_families_are_counted_in_the_summary(self):
+        self.write(
+            "docs/notes.md",
+            "<!-- sdd-check: allow doc-kinds -->\n\n# Notes\n\nProse with no frontmatter.\n",
+        )
+        report = self.run_only("doc-kinds")
+        self.assert_clean(report)
+        self.assertEqual(["docs/notes.md"], report.waived["doc-kinds"])
+        lines = report.render(self.tmp).split("\n")
+        self.assertIn("waived: doc-kinds (1 files)", lines)
+        families_at = [i for i, l in enumerate(lines) if l.startswith("families run: ")][0]
+        self.assertEqual(families_at + 1, lines.index("waived: doc-kinds (1 files)"))
+
+    def test_no_waiver_line_when_nothing_is_waived(self):
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assertNotIn("waived:", report.render(self.tmp))
 
     def test_link_exclusions_are_printed_when_set(self):
         self.edit(sdd_check.DESCRIPTOR_REL, "      exclude: []", '      exclude: ["docs/vendor/**"]')

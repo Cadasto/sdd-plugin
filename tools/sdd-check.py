@@ -86,6 +86,15 @@ DEFAULT_KINDS = (
 NORMATIVE_KINDS = ("requirement", "specification", "adr", "plan")
 INFORMATIVE_KINDS = ("guide", "analysis", "operations", "reference")
 
+#: The frontmatter key and the vocabulary each kind's status axis is checked against.
+KIND_VOCABULARY = {
+    "requirement": ("status", STATUS),
+    "specification": ("status", STATUS),
+    "adr": ("status", ADR_STATUS),
+    "plan": ("status", PLAN_STATUS),
+    "upstream": ("state", UPSTREAM_STATE),
+}
+
 DEFAULT_TEST_GLOBS = (
     "*_test.go",
     "test_*.py",
@@ -616,6 +625,20 @@ def _split_cells(line: str) -> List[str]:
     return [cell.strip() for cell in stripped.split("|")]
 
 
+_WAIVER_RE = re.compile(r"<!--\s*sdd-check:\s*allow\s+([^>]*?)\s*-->")
+
+
+def waivers(text: str) -> set:
+    """Every family named in an ``<!-- sdd-check: allow a, b -->`` comment in a file."""
+    named = set()
+    for match in _WAIVER_RE.finditer(text):
+        for name in match.group(1).split(","):
+            token = name.strip()
+            if token:
+                named.add(token)
+    return named
+
+
 # ---------------------------------------------------------------------------
 # Descriptor
 # ---------------------------------------------------------------------------
@@ -993,6 +1016,38 @@ def _frontmatter_of(ctx: Context, report: "Report", family: str, path: Path):
         )
         return None, True
     return front, False
+
+
+def doc_kind(ctx: Context, path) -> Optional[str]:
+    """The ``kind:`` a document declares, or ``None`` when it declares none.
+
+    A quiet reader: a frontmatter block that does not parse is not a kind, and the family
+    that owns the file reports the parse failure through :func:`_frontmatter_of`.
+    """
+    try:
+        front, _ = frontmatter(ctx.read(path))
+    except YamlError:
+        return None
+    if not isinstance(front, dict):
+        return None
+    return _as_str(front.get("kind")) or None
+
+
+def kind_zone(kind: str) -> str:
+    """``normative``, ``upstream`` or ``informative``. A kind a repository adds is informative."""
+    if kind in NORMATIVE_KINDS:
+        return "normative"
+    if kind == "upstream":
+        return "upstream"
+    return "informative"
+
+
+def _waived(ctx: Context, report: "Report", family: str, path) -> bool:
+    """Whether a file waives one family, recording the waiver so the summary can count it."""
+    if family not in waivers(ctx.read(path)):
+        return False
+    report.waived.setdefault(family, []).append(ctx.rel(path))
+    return True
 
 
 def check_descriptor(ctx: Context, report: "Report") -> None:
@@ -1661,6 +1716,70 @@ def check_draft_reason(ctx: Context, report: "Report") -> None:
             )
 
 
+def check_doc_kinds(ctx: Context, report: "Report") -> None:
+    """Every document declares a known kind and carries the status axis that kind owns."""
+    desc = ctx.desc
+    level = ctx.level("doc-kinds")
+    paths = ctx.docs_files()
+    if not paths:
+        report.skip("doc-kinds", "no markdown documents")
+        return
+    for path in paths:
+        if _waived(ctx, report, "doc-kinds", path):
+            continue
+        anchor = ctx.rel(path)
+        front, reported = _frontmatter_of(ctx, report, "doc-kinds", path)
+        if front is None:
+            if not reported:
+                report.add("doc-kinds", level, anchor, "the frontmatter declares no kind")
+            continue
+        kind = _as_str(front.get("kind"))
+        if not kind:
+            report.add("doc-kinds", level, anchor, "the frontmatter declares no kind")
+            continue
+        if kind not in desc.doc_kinds:
+            report.add(
+                "doc-kinds", level, anchor, "kind '%s' is not declared in doc_kinds" % kind
+            )
+            continue
+        zone = kind_zone(kind)
+        if zone == "upstream":
+            if front.get("state") is None and front.get("status") is None:
+                continue
+            if front.get("status") is not None:
+                report.add(
+                    "doc-kinds",
+                    "ERROR",
+                    anchor,
+                    "an upstream document names its axis state:, never status:",
+                )
+            state = _as_str(front.get("state"))
+            if state and state not in UPSTREAM_STATE:
+                report.add(
+                    "doc-kinds",
+                    "ERROR",
+                    anchor,
+                    "state '%s' is not %s" % (state, " | ".join(UPSTREAM_STATE)),
+                )
+        elif zone == "normative":
+            key, vocabulary = KIND_VOCABULARY[kind]
+            value = _as_str(front.get(key))
+            if value and value not in vocabulary:
+                report.add(
+                    "doc-kinds",
+                    "ERROR",
+                    anchor,
+                    "%s '%s' is not %s" % (key, value, " | ".join(vocabulary)),
+                )
+        elif front.get("status") is not None:
+            report.add(
+                "doc-kinds",
+                "WARN",
+                anchor,
+                "an informative kind carries no status axis, so status: does not belong here",
+            )
+
+
 # --- family registry (later families are inserted above this banner) -------
 
 CHECKS = {
@@ -1670,6 +1789,7 @@ CHECKS = {
     "index-sync": check_index_sync,
     "plans": check_plans,
     "tree-to-map": check_tree_to_map,
+    "doc-kinds": check_doc_kinds,
     "draft-reason": check_draft_reason,
 }
 
@@ -1778,6 +1898,10 @@ class Report:
             "families run: %s; skipped: %s"
             % (", ".join(self.families_run) or "none", "; ".join(skipped) or "none")
         )
+        for family in FAMILIES:
+            waived = self.waived.get(family)
+            if waived:
+                lines.append("waived: %s (%d files)" % (family, len(waived)))
         if self.link_exclusions:
             lines.append("link exclusions: %s" % ", ".join(self.link_exclusions))
         return "\n".join(lines)
