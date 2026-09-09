@@ -2116,6 +2116,109 @@ def check_links(ctx: Context, report: "Report") -> None:
                 )
 
 
+#: A bullet that argues its case belongs in the commit body, not in the changelog.
+RATIONALE_CONNECTORS = (" because ", " so that ", " in order to ")
+#: More backticked names than this is an inventory, not a change.
+CHANGELOG_MAX_TOKENS = 4
+
+_BULLET_RE = re.compile(r"^- +(.*)$")
+_SECOND_SENTENCE_RE = re.compile(r"[.!?] +[A-Z]")
+_CODE_TOKEN_RE = re.compile(r"`[^`]+`")
+
+
+def _changelog_bullets(lines: List[Tuple[int, str]]) -> List[Tuple[int, str]]:
+    """Every top-level bullet in a slice of a changelog, its continuation lines joined."""
+    found: List[Tuple[int, str]] = []
+    open_at = 0
+    parts: List[str] = []
+
+    def flush():
+        if parts:
+            found.append((open_at, " ".join(parts).strip()))
+        del parts[:]
+
+    for lineno, line in lines:
+        stripped = line.strip()
+        bullet = _BULLET_RE.match(line)
+        if bullet:
+            flush()
+            open_at = lineno
+            parts.append(bullet.group(1).strip())
+            continue
+        if not stripped or _HEADING_RE.match(stripped):
+            flush()
+            continue
+        if parts:
+            parts.append(stripped)
+    flush()
+    return found
+
+
+def check_changelog(ctx: Context, report: "Report") -> None:
+    """Every changelog bullet is one short sentence that states the change and stops."""
+    desc = ctx.desc
+    level = ctx.level("changelog")
+    rel = desc.changelog_path
+    path = desc.resolve(rel)
+    if not path.is_file():
+        report.add("changelog", "ERROR", rel, "check.changelog.path names no file: %s" % rel)
+        return
+    text = ctx.read(path)
+    found = headings(text)
+    total = len(text.split("\n"))
+    content = _content_lines(text, False)
+    sections = [
+        (index, entry) for index, entry in enumerate(found) if entry[2].strip().startswith("[")
+    ]
+    unreleased = [
+        pair for pair in sections if pair[1][2].strip().lower().startswith("[unreleased]")
+    ]
+    if not unreleased:
+        report.add("changelog", "NOTE", rel, "no Unreleased section to lint")
+    chosen = sections if ctx.changelog_all else unreleased
+    bullets: List[Tuple[int, str]] = []
+    for index, _entry in chosen:
+        start, end = _heading_span(found, index, total)
+        bullets.extend(
+            _changelog_bullets([pair for pair in content if start < pair[0] < end])
+        )
+    if not bullets:
+        report.skip("changelog", "no bullet to lint in the section", partial=True)
+        return
+    for lineno, bullet in bullets:
+        where = "%s:%d" % (rel, lineno)
+        words = len(bullet.split())
+        if words > desc.changelog_max_words:
+            report.add(
+                "changelog",
+                level,
+                where,
+                "the bullet runs to %d words; the budget is %d words"
+                % (words, desc.changelog_max_words),
+            )
+        if _SECOND_SENTENCE_RE.search(bullet):
+            report.add("changelog", level, where, "a bullet is one sentence, and this is two")
+        for connector in RATIONALE_CONNECTORS:
+            if connector in bullet:
+                report.add(
+                    "changelog",
+                    level,
+                    where,
+                    "'%s' is rationale; the bullet states the change and stops"
+                    % connector.strip(),
+                )
+                break
+        tokens = _CODE_TOKEN_RE.findall(bullet)
+        if len(tokens) > CHANGELOG_MAX_TOKENS:
+            report.add(
+                "changelog",
+                level,
+                where,
+                "%d backticked names make this an inventory; the budget is %d"
+                % (len(tokens), CHANGELOG_MAX_TOKENS),
+            )
+
+
 # --- family registry (later families are inserted above this banner) -------
 
 CHECKS = {
@@ -2129,6 +2232,7 @@ CHECKS = {
     "rfc2119": check_rfc2119,
     "one-home": check_one_home,
     "links": check_links,
+    "changelog": check_changelog,
     "draft-reason": check_draft_reason,
 }
 

@@ -1034,6 +1034,73 @@ class TestLinksFamily(BaselineCase):
 
 
 # ---------------------------------------------------------------------------
+# changelog
+# ---------------------------------------------------------------------------
+CHANGELOG_REL = "CHANGELOG.md"
+CHANGELOG_BULLET = (
+    "- Config: the service reads every declared variable from the environment when it starts."
+)
+OLDER_SECTION = "\n## [0.1.0] - 2026-01-01\n\n### Added\n- Tools: fixed the path. Also fixed the name.\n"
+
+
+class TestChangelogFamily(BaselineCase):
+    def bullet(self, text):
+        self.edit(CHANGELOG_REL, CHANGELOG_BULLET, text)
+
+    def test_a_bullet_over_the_word_budget(self):
+        self.bullet("- Tools: " + " ".join(["word"] * 40))
+        finding = self.assert_finding(self.run_only("changelog"), "words", level="WARN")
+        self.assertTrue(finding.anchor.startswith("CHANGELOG.md:"), finding.anchor)
+
+    def test_a_bullet_with_a_second_sentence(self):
+        self.bullet("- Tools: fixed the path. Also fixed the name.")
+        self.assert_finding(self.run_only("changelog"), "one sentence", level="WARN")
+
+    def test_a_bullet_that_argues_its_case(self):
+        self.bullet("- Tools: the gate reads the descriptor because the old path rotted.")
+        self.assert_finding(self.run_only("changelog"), "rationale", level="WARN")
+
+    def test_a_bullet_that_is_an_inventory(self):
+        self.bullet("- Tools: `a`, `b`, `c`, `d` and `e` are added.")
+        self.assert_finding(self.run_only("changelog"), "inventory", level="WARN")
+
+    def test_a_continuation_line_belongs_to_its_bullet(self):
+        self.bullet("- Tools: fixed the path.\n  Also fixed the name.")
+        self.assert_finding(self.run_only("changelog"), "one sentence", level="WARN")
+
+    def test_an_older_section_is_left_alone_without_the_flag(self):
+        self.bullet(CHANGELOG_BULLET + "\n" + OLDER_SECTION)
+        self.assert_clean(self.run_only("changelog"))
+
+    def test_an_older_section_is_linted_with_the_flag(self):
+        self.bullet(CHANGELOG_BULLET + "\n" + OLDER_SECTION)
+        report = sdd_check.run_check(self.tmp, only=["changelog"], changelog_all=True)
+        self.assert_finding(report, "one sentence", level="WARN")
+
+    def test_no_unreleased_section_is_a_note_and_the_family_still_ran(self):
+        self.edit(CHANGELOG_REL, "## [Unreleased]", "## [0.1.0] - 2026-01-01")
+        report = self.run_only("changelog")
+        self.assert_finding(report, "no Unreleased section", level="NOTE")
+        self.assertIn("changelog", report.families_run)
+        self.assertEqual(0, report.exit_code())
+
+    def test_a_wider_budget_lifts_the_word_count(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "      max_words: 35", "      max_words: 50")
+        self.bullet("- Tools: " + " ".join(["word"] * 40))
+        self.assert_clean(self.run_only("changelog"))
+
+    def test_a_changelog_path_that_names_no_file(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "      path: CHANGELOG.md", "      path: docs/CHANGELOG.md")
+        self.assert_finding(self.run_only("changelog"), "docs/CHANGELOG.md")
+
+    def test_an_unreleased_section_without_a_bullet_skips_the_rules(self):
+        self.bullet("")
+        report = self.run_only("changelog")
+        self.assertIn("changelog", report.families_run)
+        self.assertIn("bullet", report.families_skipped.get("changelog", ""))
+
+
+# ---------------------------------------------------------------------------
 # The report and the command line
 # ---------------------------------------------------------------------------
 class TestReport(BaselineCase):
