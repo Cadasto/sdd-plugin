@@ -882,7 +882,7 @@ class TestRfc2119Family(BaselineCase):
                    "---\nkind: guide\n---\n\n# Notes\n\nMAYBE the service refuses the start.\n")
         self.assert_clean(self.run_only("rfc2119"))
 
-    def test_no_document_declares_a_kind(self):
+    def test_no_declared_kind_falls_back_to_location_and_stays_clean(self):
         for path in sorted((self.tmp / "docs").rglob("*.md")):
             text = path.read_text(encoding="utf-8")
             path.write_text(
@@ -890,8 +890,9 @@ class TestRfc2119Family(BaselineCase):
                 encoding="utf-8",
             )
         report = self.run_only("rfc2119")
-        self.assertEqual("no document declares a kind", report.families_skipped.get("rfc2119"))
-        self.assertNotIn("rfc2119", report.families_run)
+        self.assertIn("rfc2119", report.families_run)
+        self.assertNotIn("rfc2119", report.families_skipped)
+        self.assert_clean(report)
 
     def test_every_document_waived_is_not_a_family_that_ran(self):
         for path in sorted((self.tmp / "docs").rglob("*.md")):
@@ -906,6 +907,44 @@ class TestRfc2119Family(BaselineCase):
         report = self.run_only("rfc2119")
         self.assertIn("rfc2119", report.families_run)
         self.assertIn("§", report.families_skipped.get("rfc2119", ""))
+
+
+# ---------------------------------------------------------------------------
+# A document with no declared kind takes its kind from its location
+# ---------------------------------------------------------------------------
+class TestEffectiveKindFallback(BaselineCase):
+    def strip_all_kinds(self):
+        for path in sorted((self.tmp / "docs").rglob("*.md")):
+            text = path.read_text(encoding="utf-8")
+            path.write_text(
+                "\n".join(l for l in text.split("\n") if not l.startswith("kind:")),
+                encoding="utf-8",
+            )
+
+    def test_one_home_also_runs_and_stays_clean(self):
+        self.strip_all_kinds()
+        report = sdd_check.run_check(self.tmp, only=["one-home"], changelog_all=False)
+        self.assertIn("one-home", report.families_run)
+        self.assertNotIn("one-home", report.families_skipped)
+        self.assert_clean(report)
+
+    def test_a_keyword_in_the_now_kindless_requirement_file_still_errors(self):
+        self.strip_all_kinds()
+        self.edit(
+            REQ_REL,
+            "The service reads its configuration from the environment when it starts.",
+            "The service MUST read its configuration from the environment when it starts.",
+        )
+        self.assert_finding(
+            self.run_only("rfc2119"), "does not belong in a requirement document"
+        )
+
+    def test_doc_kinds_still_warns_for_every_stripped_file(self):
+        self.strip_all_kinds()
+        report = self.run_only("doc-kinds")
+        findings = [f for f in report.findings if "declares no kind" in f.message]
+        stripped = [str(p) for p in sorted((self.tmp / "docs").rglob("*.md"))]
+        self.assertEqual(len(stripped), len(findings), report.render(self.tmp))
 
 
 # ---------------------------------------------------------------------------

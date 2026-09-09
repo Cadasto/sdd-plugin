@@ -120,7 +120,7 @@ Default severity `warn`. Enforces §5 (a published id is never invented or reuse
 
 ### doc-kinds
 
-- `doc-kinds` — every `*.md` under `docs/` (and under any `paths.*` outside it) has frontmatter opening on line 1 or right after a leading HTML comment block, with `kind:` in `doc_kinds` (missing or unknown → the family's severity); a normative kind's `status`/`state` value is in that kind's vocabulary (error); a `kind: upstream` document uses `state:` and not `status:` (error); an informative kind carrying `status:` → warn.
+- `doc-kinds` — every `*.md` under `docs/` (and under any `paths.*` outside it) has frontmatter opening on line 1 or right after a leading HTML comment block, with `kind:` in `doc_kinds` (missing or unknown → the family's severity); a normative kind's `status`/`state` value is in that kind's vocabulary (error); a `kind: upstream` document uses `state:` and not `status:` (error); an informative kind carrying `status:` → warn. A document that declares no kind is treated, for the other families, as the kind its location implies — `paths.requirements` → requirement, `paths.specifications` → specification, `paths.adr` → adr, `paths.plans` → plan, otherwise guide — while `doc-kinds` still reports the missing declaration.
 
 Default severity `warn`. Enforces §3 (the kinds and their zones) and §6 (the per-kind vocabularies).
 

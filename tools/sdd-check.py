@@ -1158,6 +1158,32 @@ def kind_zone(kind: str) -> str:
     return "informative"
 
 
+#: Where a document lives implies its kind when its frontmatter declares none.
+_LOCATION_KIND = (
+    ("requirements", "requirement"),
+    ("specifications", "specification"),
+    ("adr", "adr"),
+    ("plans", "plan"),
+)
+
+
+def effective_kind(ctx: Context, path) -> str:
+    """The kind every family but ``doc-kinds`` treats a document as: its own declared
+    ``kind:``, or — when it declares none — the kind implied by which ``paths.*`` it
+    sits under (otherwise ``guide``). ``doc-kinds`` keeps reading :func:`doc_kind`
+    directly, so a missing declaration is still reported at its own severity.
+    """
+    kind = doc_kind(ctx, path)
+    if kind:
+        return kind
+    rel = ctx.rel(path)
+    for key, implied in _LOCATION_KIND:
+        configured = Path(ctx.desc.paths.get(key, DEFAULT_PATHS.get(key, ""))).as_posix()
+        if configured and (rel == configured or rel.startswith(configured + "/")):
+            return implied
+    return "guide"
+
+
 def _waived(ctx: Context, report: "Report", family: str, path) -> bool:
     """Whether a file waives one family, recording the waiver so the summary can count it."""
     if family not in waivers(ctx.read(path)):
@@ -1951,14 +1977,13 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
         return
     sectionless: List[str] = []
     examined = 0
-    unkinded = 0
     for path in paths:
         if _waived(ctx, report, "rfc2119", path):
             continue
-        kind = doc_kind(ctx, path)
-        if not kind:
-            unkinded += 1
-            continue
+        # A document that declares no kind is read as the kind its location implies, so
+        # the rule still applies to it; `doc-kinds` is the family that reports the
+        # missing declaration.
+        kind = effective_kind(ctx, path)
         examined += 1
         anchor = ctx.rel(path)
         text = ctx.read(path)
@@ -1979,11 +2004,10 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
                 "owns the normative prose" % (", ".join(sorted(set(words))), kind),
             )
     if not examined:
-        # A family that read no document did not run, whatever the reason.
-        report.skip(
-            "rfc2119",
-            "no document declares a kind" if unkinded else "every document is waived",
-        )
+        # A family that read no document did not run, whatever the reason. Every
+        # document resolves to an effective kind now (its own, or its location's), so
+        # the only way here is every document being waived.
+        report.skip("rfc2119", "every document is waived")
         return
     if sectionless:
         report.skip(
@@ -2006,7 +2030,7 @@ def check_one_home(ctx: Context, report: "Report") -> None:
     for path in ctx.docs_files():
         if _waived(ctx, report, "one-home", path):
             continue
-        if doc_kind(ctx, path) != "specification":
+        if effective_kind(ctx, path) != "specification":
             others.append(path)
             continue
         specifications += 1
