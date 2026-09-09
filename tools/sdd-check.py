@@ -1878,10 +1878,10 @@ def check_doc_kinds(ctx: Context, report: "Report") -> None:
             )
 
 
-def _spec_sections(ctx: Context, report: "Report", anchor: str, text: str) -> bool:
+def _spec_sections(report: "Report", anchor: str, text: str) -> bool:
     """Warn on every ``§`` section with no keyword. ``False`` when the document has none."""
     found = headings(text)
-    marked = [index for index, entry in enumerate(found) if "\u00a7" in entry[2]]
+    marked = [index for index, entry in enumerate(found) if "§" in entry[2]]
     if not marked:
         return False
     total = len(text.split("\n"))
@@ -1901,9 +1901,9 @@ def _spec_sections(ctx: Context, report: "Report", anchor: str, text: str) -> bo
     return True
 
 
-def _in_specification(ctx: Context, report: "Report", anchor: str, text: str) -> bool:
+def _specification_rules(report: "Report", anchor: str, text: str) -> bool:
     """The three rules that apply inside a specification. ``False`` when it has no section."""
-    has_sections = _spec_sections(ctx, report, anchor, text)
+    has_sections = _spec_sections(report, anchor, text)
     for lineno, line in strip_noncontent(text):
         malformed = MALFORMED_RE.search(line)
         if malformed:
@@ -1945,7 +1945,7 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
         anchor = ctx.rel(path)
         text = ctx.read(path)
         if kind == "specification":
-            if not _in_specification(ctx, report, anchor, text):
+            if not _specification_rules(report, anchor, text):
                 sectionless.append(anchor)
             continue
         at = "ERROR" if kind in RFC2119_CITING_KINDS else level
@@ -1963,7 +1963,7 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
     if sectionless:
         report.skip(
             "rfc2119",
-            "the \u00a7 section rule found no section in %s" % ", ".join(sectionless),
+            "the § section rule found no section in %s" % ", ".join(sectionless),
             partial=True,
         )
 
