@@ -2021,6 +2021,23 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
 ONE_HOME_MIN_WORDS = 6
 
 
+#: A line whose content, once notional leading list/quote markers are gone, opens with
+#: a blockquote marker.
+_BLOCKQUOTE_RE = re.compile(r"^\s*>")
+
+
+def _blank_blockquotes(text: str) -> str:
+    """``text`` with every blockquoted line blanked (line count unchanged, so callers
+    that track line numbers still get the right ones).
+
+    A blockquote is a note, not a normative statement, so ``one-home`` must not read one
+    as a sentence — quoting a specification's own wording to explain it would otherwise
+    read as a second, duplicate home for it. ``rfc2119`` keeps reading blockquotes as
+    ordinary prose; only the sentence extraction ``one-home`` uses is filtered.
+    """
+    return "\n".join("" if _BLOCKQUOTE_RE.match(line) else line for line in text.split("\n"))
+
+
 def check_one_home(ctx: Context, report: "Report") -> None:
     """A normative sentence lives in one specification section and nowhere else."""
     level = ctx.level("one-home")
@@ -2035,7 +2052,7 @@ def check_one_home(ctx: Context, report: "Report") -> None:
             continue
         specifications += 1
         anchor = ctx.rel(path)
-        for lineno, sentence in keyword_sentences(ctx.read(path)):
+        for lineno, sentence in keyword_sentences(_blank_blockquotes(ctx.read(path))):
             normalised = normalise_sentence(sentence)
             if len(normalised.split()) < ONE_HOME_MIN_WORDS:
                 continue
@@ -2058,7 +2075,7 @@ def check_one_home(ctx: Context, report: "Report") -> None:
         )
     for path in others:
         anchor = ctx.rel(path)
-        for lineno, sentence in sentences(ctx.read(path)):
+        for lineno, sentence in sentences(_blank_blockquotes(ctx.read(path))):
             normalised = normalise_sentence(sentence)
             if len(normalised.split()) < ONE_HOME_MIN_WORDS:
                 continue

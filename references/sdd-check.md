@@ -134,7 +134,7 @@ Enforces §4 (keyword discipline) and §3 (the zones).
 
 ### one-home
 
-- `one-home` — every keyword sentence in a specification kind, normalised (lower-case; markdown emphasis, code ticks and link syntax stripped; whitespace collapsed; trailing punctuation dropped; at least six words), appears once across all specification documents (error, both locations named); the same normalised sentence found in any non-specification document → error `duplicated normative prose`.
+- `one-home` — every keyword sentence in a specification kind, normalised (lower-case; markdown emphasis, code ticks and link syntax stripped; whitespace collapsed; trailing punctuation dropped; at least six words), appears once across all specification documents (error, both locations named); the same normalised sentence found in any non-specification document → error `duplicated normative prose`. Blockquoted lines (`>`) are notes and are not sentences for this family.
 
 Default severity `error`. Enforces §5 (the single canonical home), §11 (duplicated normative prose) and
 [artefact-prose.md](artefact-prose.md).

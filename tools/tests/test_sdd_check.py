@@ -989,6 +989,13 @@ class TestOneHomeFamily(BaselineCase):
         )
         self.assert_finding(self.run_only("one-home"), PARITY_REL)
 
+    def test_the_same_sentence_in_a_blockquote_is_not_duplicated(self):
+        # A blockquoted copy — quoting the specification to explain it — is a note, not
+        # a second home for the sentence, in either document.
+        self.edit(SPEC_REL, SPEC_SENTENCE, "> " + SPEC_SENTENCE)
+        self.second_specification("> " + SPEC_SENTENCE + "\n")
+        self.assert_clean(self.run_only("one-home"))
+
     def test_a_five_word_sentence_is_below_the_floor(self):
         self.edit(SPEC_REL, SPEC_SENTENCE, "The gate MUST exit non-zero.")
         self.second_specification("The gate MUST exit non-zero.\n")
