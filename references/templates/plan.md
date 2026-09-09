@@ -5,6 +5,7 @@
      /sdd-finalize deletes done and abandoned plans at the next version bump. Postponed plans
      are never deleted. -->
 ---
+kind: plan
 plan: <YYYY-MM-DD-slug>
 implements: [<REQ-AREA-NNN>, <SPEC-NAME §N>]
 mode: spec-first         # spec-first | implementation-aligned

@@ -2,6 +2,7 @@
      Normative prose ONLY: RFC-2119 keywords, stable § numbers. No task lists, no file paths, no PR summaries.
      Single canonical home: each requirement's normative prose lives in exactly one § here. -->
 ---
+kind: specification
 spec: <SPEC-NAME>
 status: draft            # draft | stable | deprecated   (draft is binding now)
 mode: spec-first         # spec-first | implementation-aligned

@@ -1,6 +1,7 @@
 <!-- Template: an Architecture Decision Record. Authored by /sdd-specify.
      ONE irreversible decision per ADR. Long flows and schema DDL belong in specs, not here. -->
 ---
+kind: adr
 id: <ADR-NNNN>
 title: <decision title>
 status: proposed         # proposed | accepted | superseded | deprecated
@@ -11,7 +12,7 @@ date: <YYYY-MM-DD>
 
 ## Status
 
-<proposed | accepted | superseded by ADR-NNNN>  <!-- An ADR MUST be `accepted` before code depends on it. -->
+<proposed | accepted | superseded by ADR-NNNN>  <!-- An ADR is `accepted` before code depends on it. -->
 
 ## Context
 
