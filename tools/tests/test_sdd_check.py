@@ -725,6 +725,114 @@ class TestWaiverHelper(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# rfc2119
+# ---------------------------------------------------------------------------
+GUIDE_REL = "docs/development-process.md"
+REQ_REL = "docs/requirements/REQ-FOUND-001.md"
+NORMATIVE_SENTENCE = "The service MUST refuse a start with a declared variable absent."
+
+
+class TestProseHelpers(unittest.TestCase):
+    def test_keyword_re_matches_whole_upper_case_words(self):
+        found = sdd_check.KEYWORD_RE.findall(
+            "MUST MUST NOT SHALL SHALL NOT SHOULD SHOULD NOT REQUIRED RECOMMENDED MAY OPTIONAL"
+        )
+        self.assertEqual(
+            ["MUST", "MUST NOT", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT",
+             "REQUIRED", "RECOMMENDED", "MAY", "OPTIONAL"],
+            found,
+        )
+
+    def test_keyword_re_ignores_a_longer_word_and_lower_case(self):
+        self.assertEqual([], sdd_check.KEYWORD_RE.findall("MAYBE must MUSTARD shall"))
+
+    def test_waivers_names_every_family_in_the_comment(self):
+        text = "# Title\n\n<!-- sdd-check: allow rfc2119, one-home -->\n\nProse.\n"
+        self.assertEqual({"rfc2119", "one-home"}, sdd_check.waivers(text))
+
+    def test_waivers_of_a_document_without_one(self):
+        self.assertEqual(set(), sdd_check.waivers("# Title\n\nProse.\n"))
+
+
+class TestRfc2119Family(BaselineCase):
+    def test_keyword_in_a_requirement(self):
+        self.edit(REQ_REL, "- A start with every declared variable set is accepted.",
+                  "- " + NORMATIVE_SENTENCE)
+        self.assert_finding(self.run_only("rfc2119"), "RFC-2119")
+
+    def test_keyword_in_a_plan(self):
+        self.edit(PLAN_REL, "- [x] Read the declared variables when the service starts.",
+                  "- [x] " + NORMATIVE_SENTENCE)
+        self.assert_finding(self.run_only("rfc2119"), "RFC-2119")
+
+    def test_keyword_in_an_adr(self):
+        self.write("docs/adr/ADR-001-environment.md",
+                   "---\nkind: adr\nstatus: accepted\n---\n\n# ADR-001 — Environment\n\n"
+                   + NORMATIVE_SENTENCE + "\n")
+        self.assert_finding(self.run_only("rfc2119"), "RFC-2119")
+
+    def test_keyword_in_a_reference(self):
+        self.write("docs/reference/variables.md",
+                   "---\nkind: reference\n---\n\n# Variables\n\n" + NORMATIVE_SENTENCE + "\n")
+        self.assert_finding(self.run_only("rfc2119"), "RFC-2119")
+
+    def test_keyword_in_a_guide_warns_by_default(self):
+        self.edit(GUIDE_REL, "Write the specification first",
+                  NORMATIVE_SENTENCE + " Write the specification first")
+        self.assert_finding(self.run_only("rfc2119"), "RFC-2119", level="WARN")
+
+    def test_keyword_in_a_guide_errors_when_the_family_is_error(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "rfc2119: warn", "rfc2119: error")
+        self.edit(GUIDE_REL, "Write the specification first",
+                  NORMATIVE_SENTENCE + " Write the specification first")
+        self.assert_finding(self.run_only("rfc2119"), "RFC-2119")
+
+    def test_a_waived_guide_is_skipped_and_counted(self):
+        self.edit(GUIDE_REL, "# Development process",
+                  "<!-- sdd-check: allow rfc2119 -->\n\n# Development process")
+        self.edit(GUIDE_REL, "Write the specification first",
+                  NORMATIVE_SENTENCE + " Write the specification first")
+        report = self.run_only("rfc2119")
+        self.assert_clean(report)
+        self.assertIn(GUIDE_REL, report.waived["rfc2119"])
+
+    def test_specification_section_without_a_keyword(self):
+        self.edit(SPEC_REL, "The service MUST refuse to start when a declared variable is absent.\n",
+                  "The service MUST refuse to start when a declared variable is absent.\n"
+                  "\n## §2 — Parity\n\nThe two manifests carry the same version.\n")
+        self.assert_finding(self.run_only("rfc2119"), "no RFC-2119 keyword", level="WARN")
+
+    def test_lower_case_modal_in_a_keyword_free_sentence(self):
+        self.edit(SPEC_REL, "This document owns how the service reads its environment.",
+                  "This document owns how the service reads its environment.\n\n"
+                  "The gate must exit non-zero.")
+        self.assert_finding(self.run_only("rfc2119"), "lower-case", level="WARN")
+
+    def test_malformed_keyword_form(self):
+        self.edit(SPEC_REL, "The service MUST refuse to start when a declared variable is absent.",
+                  "The refusal is MUST when a declared variable is absent.")
+        self.assert_finding(self.run_only("rfc2119"), "malformed")
+
+    def test_keywords_outside_prose_are_not_counted(self):
+        self.write("docs/notes.md",
+                   "---\nkind: guide\nnote: MUST\n---\n\n# Notes\n\n"
+                   "A fenced block:\n\n```\nThe service MUST refuse.\n```\n\n"
+                   "An inline `MUST` span.\n\n<!-- MUST in a comment -->\n")
+        self.assert_clean(self.run_only("rfc2119"))
+
+    def test_maybe_is_not_a_keyword(self):
+        self.write("docs/notes.md",
+                   "---\nkind: guide\n---\n\n# Notes\n\nMAYBE the service refuses the start.\n")
+        self.assert_clean(self.run_only("rfc2119"))
+
+    def test_a_specification_without_sections_skips_that_rule(self):
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary")
+        report = self.run_only("rfc2119")
+        self.assertIn("rfc2119", report.families_run)
+        self.assertIn("§", report.families_skipped.get("rfc2119", ""))
+
+
+# ---------------------------------------------------------------------------
 # The report and the command line
 # ---------------------------------------------------------------------------
 class TestReport(BaselineCase):
@@ -778,8 +886,13 @@ class TestReport(BaselineCase):
         self.assertEqual(families_at + 1, lines.index("waived: doc-kinds (1 files)"))
 
     def test_no_waiver_line_when_nothing_is_waived(self):
+        # Nothing in the baseline waives doc-kinds, so that family prints no waiver line.
+        self.assertNotIn("waived:", self.run_only("doc-kinds").render(self.tmp))
+
+    def test_the_baseline_waiver_is_named_in_a_full_run(self):
         report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
-        self.assertNotIn("waived:", report.render(self.tmp))
+        self.assertIn("waived: rfc2119 (1 files)", report.render(self.tmp).split("\n"))
+        self.assertEqual(["docs/specifications/README.md"], report.waived["rfc2119"])
 
     def test_link_exclusions_are_printed_when_set(self):
         self.edit(sdd_check.DESCRIPTOR_REL, "      exclude: []", '      exclude: ["docs/vendor/**"]')

@@ -95,6 +95,10 @@ KIND_VOCABULARY = {
     "upstream": ("state", UPSTREAM_STATE),
 }
 
+#: A keyword in one of these kinds is an error whatever the family's severity: each one
+#: cites the specification, so a binding word there is a second source of truth.
+RFC2119_CITING_KINDS = ("requirement", "adr", "plan", "reference")
+
 DEFAULT_TEST_GLOBS = (
     "*_test.go",
     "test_*.py",
@@ -637,6 +641,90 @@ def waivers(text: str) -> set:
             if token:
                 named.add(token)
     return named
+
+
+#: Every RFC-2119 keyword as a whole upper-case word. The ``NOT`` forms come first so the
+#: longer one wins, and the word boundary keeps ``MAY`` out of ``MAYBE``.
+KEYWORD_RE = re.compile(
+    r"\b(MUST NOT|MUST|SHALL NOT|SHALL|SHOULD NOT|SHOULD|REQUIRED|RECOMMENDED|MAY|OPTIONAL)\b"
+)
+
+#: A modal in lower case binds nothing, which in a specification is the defect.
+LOWER_MODAL_RE = re.compile(r"\b(must|shall|should|may not)\b")
+
+#: Grammar a keyword cannot have: it is a verb, never a noun, and never doubled.
+MALFORMED_RE = re.compile(r"\b(MUST to|are MUST|is MUST|MUST MUST|NOT NOT|SHOULD MUST)\b")
+
+_SENTENCE_END_RE = re.compile(r"[.!?;](?=\s|$)")
+_LIST_ITEM_RE = re.compile(r"^(?:[-*+]\s|\d+[.)]\s)")
+_INLINE_LINK_RE = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+_REFERENCE_LINK_RE = re.compile(r"\[([^\]]*)\]\[[^\]]*\]")
+_EDGE_UNDERSCORE_RE = re.compile(r"(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9])")
+
+
+def sentences(text: str) -> List[Tuple[int, str]]:
+    """Every prose sentence, as ``(the line it starts on, the sentence)``.
+
+    A sentence ends at ``.``, ``!``, ``?`` or ``;`` followed by whitespace or the end of the
+    line. A blank line, a heading and the start of a list item also end the one being built,
+    so a title never runs into the paragraph beneath it. Fences, inline code, HTML comments
+    and the frontmatter are already blank, because the scan is :func:`strip_noncontent`.
+    """
+    out: List[Tuple[int, str]] = []
+    state = {"parts": [], "start": 0}
+
+    def flush():
+        joined = " ".join(part for part in state["parts"] if part).strip()
+        if joined:
+            out.append((state["start"], joined))
+        state["parts"] = []
+        state["start"] = 0
+
+    def open_at(lineno):
+        if not state["parts"]:
+            state["start"] = lineno
+
+    for lineno, line in strip_noncontent(text):
+        stripped = line.strip()
+        if not stripped or _HEADING_RE.match(stripped):
+            flush()
+            continue
+        if _LIST_ITEM_RE.match(stripped):
+            flush()
+        position = 0
+        for match in _SENTENCE_END_RE.finditer(stripped):
+            chunk = stripped[position : match.end()].strip()
+            position = match.end()
+            open_at(lineno)
+            if chunk:
+                state["parts"].append(chunk)
+            flush()
+        tail = stripped[position:].strip()
+        if tail:
+            open_at(lineno)
+            state["parts"].append(tail)
+    flush()
+    return out
+
+
+def keyword_sentences(text: str) -> List[Tuple[int, str]]:
+    """The sentences that carry at least one RFC-2119 keyword."""
+    return [pair for pair in sentences(text) if KEYWORD_RE.search(pair[1])]
+
+
+def normalise_sentence(sentence: str) -> str:
+    """One sentence reduced to what it says, so two wordings of it compare equal.
+
+    Lower case; link and image syntax replaced by the text a reader sees; code ticks and
+    emphasis markers dropped; runs of whitespace collapsed; trailing punctuation removed.
+    """
+    text = _INLINE_LINK_RE.sub(r"\1", sentence)
+    text = _REFERENCE_LINK_RE.sub(r"\1", text)
+    text = text.replace("`", "")
+    text = _EDGE_UNDERSCORE_RE.sub("", text)
+    text = re.sub(r"[*~]+", "", text)
+    text = re.sub(r"\s+", " ", text).strip().lower()
+    return text.rstrip(" .,;:!?")
 
 
 # ---------------------------------------------------------------------------
@@ -1780,6 +1868,96 @@ def check_doc_kinds(ctx: Context, report: "Report") -> None:
             )
 
 
+def _spec_sections(ctx: Context, report: "Report", anchor: str, text: str) -> bool:
+    """Warn on every ``§`` section with no keyword. ``False`` when the document has none."""
+    found = headings(text)
+    marked = [index for index, entry in enumerate(found) if "\u00a7" in entry[2]]
+    if not marked:
+        return False
+    total = len(text.split("\n"))
+    content = strip_noncontent(text)
+    for index in marked:
+        start, end = _heading_span(found, index, total)
+        carries = any(
+            KEYWORD_RE.search(line) for lineno, line in content if start < lineno < end
+        )
+        if not carries:
+            report.add(
+                "rfc2119",
+                "WARN",
+                "%s:%d" % (anchor, found[index][0]),
+                "the section '%s' is normative and carries no RFC-2119 keyword" % found[index][2],
+            )
+    return True
+
+
+def _in_specification(ctx: Context, report: "Report", anchor: str, text: str) -> bool:
+    """The three rules that apply inside a specification. ``False`` when it has no section."""
+    has_sections = _spec_sections(ctx, report, anchor, text)
+    for lineno, line in strip_noncontent(text):
+        malformed = MALFORMED_RE.search(line)
+        if malformed:
+            report.add(
+                "rfc2119",
+                "ERROR",
+                "%s:%d" % (anchor, lineno),
+                "'%s' is a malformed RFC-2119 form" % malformed.group(0),
+            )
+    for lineno, sentence in sentences(text):
+        if KEYWORD_RE.search(sentence):
+            continue
+        modal = LOWER_MODAL_RE.search(sentence)
+        if modal:
+            report.add(
+                "rfc2119",
+                "WARN",
+                "%s:%d" % (anchor, lineno),
+                "the lower-case modal '%s' binds nothing here; write the keyword in upper case"
+                % modal.group(0),
+            )
+    return has_sections
+
+
+def check_rfc2119(ctx: Context, report: "Report") -> None:
+    """A keyword binds only where the specification says so, and it is well formed."""
+    level = ctx.level("rfc2119")
+    paths = ctx.docs_files()
+    if not paths:
+        report.skip("rfc2119", "no markdown documents")
+        return
+    sectionless: List[str] = []
+    for path in paths:
+        if _waived(ctx, report, "rfc2119", path):
+            continue
+        kind = doc_kind(ctx, path)
+        if not kind:
+            continue
+        anchor = ctx.rel(path)
+        text = ctx.read(path)
+        if kind == "specification":
+            if not _in_specification(ctx, report, anchor, text):
+                sectionless.append(anchor)
+            continue
+        at = "ERROR" if kind in RFC2119_CITING_KINDS else level
+        for lineno, line in strip_noncontent(text):
+            words = KEYWORD_RE.findall(line)
+            if not words:
+                continue
+            report.add(
+                "rfc2119",
+                at,
+                "%s:%d" % (anchor, lineno),
+                "the RFC-2119 keyword %s does not belong in a %s document; the specification "
+                "owns the normative prose" % (", ".join(sorted(set(words))), kind),
+            )
+    if sectionless:
+        report.skip(
+            "rfc2119",
+            "the \u00a7 section rule found no section in %s" % ", ".join(sectionless),
+            partial=True,
+        )
+
+
 # --- family registry (later families are inserted above this banner) -------
 
 CHECKS = {
@@ -1790,6 +1968,7 @@ CHECKS = {
     "plans": check_plans,
     "tree-to-map": check_tree_to_map,
     "doc-kinds": check_doc_kinds,
+    "rfc2119": check_rfc2119,
     "draft-reason": check_draft_reason,
 }
 
