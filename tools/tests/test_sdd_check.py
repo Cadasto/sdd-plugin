@@ -157,6 +157,22 @@ class TestYamlSubset(unittest.TestCase):
             sdd_check.load_yaml(text),
         )
 
+    def test_null_keyword_is_none_in_both_block_and_inline_form(self):
+        # AI2: the block scalar and each inline-list item share one coercion table, so
+        # `null`/`~` yield the same Python value in both forms.
+        text = "value: null\nother: ~\nglobs: [a, null, ~, b]\n"
+        self.assertEqual(
+            {"value": None, "other": None, "globs": ["a", None, None, "b"]},
+            sdd_check.load_yaml(text),
+        )
+
+    def test_inline_list_item_containing_a_hash_is_not_mistaken_for_a_comment(self):
+        # M7: `_scalar` used to strip everything from the first " #" onward before
+        # `_inline_list` ever saw the line, so a quoted item containing " #" truncated
+        # the list and failed as unterminated. An inline list is now parsed whole.
+        text = 'globs: ["a # b", c]   # a real trailing comment\n'
+        self.assertEqual({"globs": ["a # b", "c"]}, sdd_check.load_yaml(text))
+
     def test_comment_after_a_key_that_opens_a_mapping(self):
         text = "check:\n  families:   # error | warn | off\n    descriptor: error\n    links: warn\n"
         self.assertEqual(

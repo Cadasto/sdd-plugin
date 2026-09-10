@@ -147,6 +147,26 @@ _BLOCK_SCALAR = ("|", "|-", "|+", ">", ">-", ">+")
 _INT_RE = re.compile(r"^-?\d+$")
 
 
+def _coerce_plain_scalar(token: str):
+    """The typed value a plain (unquoted) scalar token carries: ``None``, a bool, an
+    int, or the token itself.
+
+    The one coercion table the block scalar form and each inline-list item share, so
+    the two forms cannot drift apart on which literals they recognise — a hand-written
+    parser that silently produced the wrong value for one of them would be worse than
+    one that failed loudly.
+    """
+    if token in ("null", "~"):
+        return None
+    if token in ("true", "True", "TRUE"):
+        return True
+    if token in ("false", "False", "FALSE"):
+        return False
+    if _INT_RE.match(token):
+        return int(token)
+    return token
+
+
 class _YamlParser:
     """Recursive descent over pre-tokenised lines ``(indent, content, lineno)``."""
 
@@ -344,6 +364,12 @@ class _YamlParser:
             if end == -1:
                 self.fail("an unterminated quoted scalar", lineno)
             return text[1:end]
+        if text[0] == "[":
+            # An inline list is parsed whole, before any comment-stripping: a `#`
+            # inside one of its own quoted items is not a trailing comment, and
+            # cutting the line there would truncate the list before it ever reaches
+            # `_inline_list` (which already ignores a genuine trailing comment itself).
+            return self._inline_list(text, lineno)
         cut = text.find(" #")
         if cut != -1:
             text = text[:cut].rstrip()
@@ -358,17 +384,7 @@ class _YamlParser:
             self.fail("a tag is not supported", lineno)
         if first == "{":
             self.fail("a flow mapping is not supported", lineno)
-        if first == "[":
-            return self._inline_list(text, lineno)
-        if text in ("null", "~"):
-            return None
-        if text in ("true", "True", "TRUE"):
-            return True
-        if text in ("false", "False", "FALSE"):
-            return False
-        if _INT_RE.match(text):
-            return int(text)
-        return text
+        return _coerce_plain_scalar(text)
 
     def _inline_list(self, text: str, lineno: int) -> list:
         items: List[Tuple[str, bool]] = []
@@ -416,14 +432,8 @@ class _YamlParser:
                 self.fail("an anchor is not supported", lineno)
             elif token[0] == "*":
                 self.fail("an alias is not supported", lineno)
-            elif token in ("true", "True", "TRUE"):
-                out.append(True)
-            elif token in ("false", "False", "FALSE"):
-                out.append(False)
-            elif _INT_RE.match(token):
-                out.append(int(token))
             else:
-                out.append(token)
+                out.append(_coerce_plain_scalar(token))
         return out
 
 
