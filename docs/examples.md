@@ -92,6 +92,14 @@ Run a whole-repo traceability audit before we tag the release.
 
 That dispatches the `sdd-traceability-auditor` agent in its own context and returns a ranked report. Nothing is edited.
 
+`/sdd-trace REQ-AUTH-001` gets its bundle from the vendored gate. The same bundle, from a shell rather than a skill:
+
+```text
+python3 scripts/sdd-check.py context REQ-AUTH-001
+```
+
+Useful in CI, or any script that wants a requirement's context without a session running.
+
 ## Check code against the spec it cites
 
 ```text
@@ -158,6 +166,14 @@ sdd:
 ```
 
 Workers load those skills from their brief; the reviewer sits on the per-task gate and on the review panel in both lanes. If the repository has a code-index tool, name it in `docs/ai-workflow.md` § Orchestration — workers query it before grepping, and the orchestrator uses it to anchor reviewer briefs. The same shape holds for any language; the values are the repository's.
+
+## Upgrade a repository already on 0.5.x
+
+```text
+/sdd-scaffold --upgrade
+```
+
+Re-vendors `tools/sdd-check.py` if the plugin ships a newer copy than `check.version` pins, fills in any descriptor key the 0.6.0 shape adds, wraps a hand-written index table in the generated-block markers without dropping a row, and adds `kind:` to any document that lacks one. When a hand-written index row has no matching record in `traceability.yaml`, `--upgrade` stops and names it rather than guessing or dropping it — capture the requirement with `/sdd-specify` first, then run `--upgrade` again. Full procedure: [docs/upgrading.md](upgrading.md).
 
 ## Sweep plans at a release
 
