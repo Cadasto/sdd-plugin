@@ -1469,6 +1469,28 @@ class TestCommandLine(BaselineCase):
         self.assertEqual("0.6.0", out.strip())
         self.assertEqual("0.6.0", sdd_check.__version__)
 
+    def test_only_on_generate_returns_two(self):
+        # M1: --only is common to the command line but only `check` honours it; the
+        # other commands must reject it with exit 2 rather than silently ignore it.
+        code, out = self.run_main(["generate", "--root", str(self.tmp), "--only", "links"])
+        self.assertEqual(2, code, out)
+        self.assertIn("--only", out)
+        self.assertIn("generate", out)
+
+    def test_only_on_context_returns_two(self):
+        code, out = self.run_main(
+            ["context", "REQ-FOUND-001", "--root", str(self.tmp), "--only", "links"]
+        )
+        self.assertEqual(2, code, out)
+        self.assertIn("--only", out)
+        self.assertIn("context", out)
+
+    def test_only_on_selftest_returns_two(self):
+        code, out = self.run_main(["selftest", "--root", str(self.tmp), "--only", "links"])
+        self.assertEqual(2, code, out)
+        self.assertIn("--only", out)
+        self.assertIn("selftest", out)
+
     def test_generate_command_is_clean_on_a_current_baseline(self):
         code, out = self.run_main(["generate", "--root", str(self.tmp)])
         self.assertEqual(0, code, out)

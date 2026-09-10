@@ -3871,6 +3871,10 @@ def main(argv=None) -> int:
             positional.append(arg)
         index += 1
 
+    if only is not None and command != "check":
+        print("sdd-check: --only applies to 'check' only, not '%s'" % command)
+        return 2
+
     if command == "generate":
         return run_generate(root, verify)
     if command == "context":
