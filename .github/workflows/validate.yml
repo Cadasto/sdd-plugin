@@ -8,13 +8,18 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # The tool claims Python 3.9 compatibility; test the floor as well as current 3.x.
+        python-version: ['3.9', '3.x']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: ${{ matrix.python-version }}
       # CI is strict and deterministic: Python is guaranteed here, so run the
       # validator directly (the scripts/validate.sh graceful skip is for local use).
       - run: python3 scripts/validate.py
       - run: python3 -m unittest discover -s tools/tests -v
       - run: python3 tools/sdd-check.py selftest
+      - run: bash scripts/hooks-test.sh

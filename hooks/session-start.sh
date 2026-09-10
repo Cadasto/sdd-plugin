@@ -6,10 +6,10 @@
 # skipped — when it isn't (see tmo() below). The script ALWAYS exits 0, so a missing or slow tool
 # prints nothing rather than blocking the session.
 #
-# Host-aware output. Claude Code sends a payload carrying "hook_event_name" and adds plain stdout to
-# the context. Cursor sends a payload without it and injects only a JSON object on stdout —
-# {"additional_context": "<text>"} — ignoring plain text. A manual run (stdin is a terminal, or the
-# payload is empty) prints plain text.
+# Host-aware output. Claude Code adds plain stdout to the context. Cursor injects only a JSON object
+# on stdout — {"additional_context": "<text>"} — ignoring plain text. The two are told apart by a
+# positive marker (Cursor's payload carries "workspace_roots"/"cursor_version"; both carry
+# "hook_event_name"). A manual run (stdin is a terminal, or the payload is empty) prints plain text.
 #
 # Shared state with hooks/session-stop.sh: STATE_DIR below, keyed on the working directory plus a
 # session identifier when the host payload provides one. Claude Code's payload always carries
@@ -66,9 +66,17 @@ desc_get() {
       ind = match($0, /[^[:space:]]/)
       if (ind == 0) next                       # blank line: still inside the block
       if (ind <= inb) { inb = 0; next }        # dedented: the block ended
-      if ($1 == (key ":")) {
-        v = $2
-        gsub(/^"|"$/, "", v)
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      if (index(line, key ":") == 1) {
+        v = substr(line, length(key) + 2)      # everything after "key:"
+        sub(/^[[:space:]]+/, "", v)            # leading space
+        sub(/[[:space:]]+#.*$/, "", v)         # a trailing " # comment"
+        sub(/[[:space:]]+$/, "", v)            # trailing space
+        q = sprintf("%c", 39)                  # a single quote, without writing one here
+        gsub("^\"|\"$", "", v)               # surrounding double quotes
+        gsub("^" q "|" q "$", "", v)           # or single quotes
+        sub(/\/+$/, "", v)                    # a trailing slash
         print v
         exit
       }
@@ -87,11 +95,14 @@ is_sdd_repo() {
 payload=""
 [ -t 0 ] || payload="$(cat 2>/dev/null)"
 
+# Detect the host on a POSITIVE marker, never the absence of one: a Cursor payload also
+# carries "hook_event_name", so keying Claude on that field alone misclassifies Cursor.
+# Cursor's payload carries "workspace_roots" and "cursor_version"; Claude Code's does not.
 host=plain
 if [ -n "$payload" ]; then
   case "$payload" in
-    *'"hook_event_name"'*) host=claude ;;
-    *)                     host=cursor ;;
+    *'"workspace_roots"'*|*'"cursor_version"'*) host=cursor ;;
+    *'"hook_event_name"'*)                      host=claude ;;
   esac
 fi
 
@@ -168,6 +179,7 @@ if is_sdd_repo; then
     plan_list=""
     for f in "$plans_dir"/*.md; do
       [ -f "$f" ] || continue
+      case "$f" in *_template.md) continue ;; esac   # the scaffold's stub is not an active plan
       head -n 40 "$f" | grep -qE '^status:[[:space:]]*active([[:space:]]|$)' || continue
       total=$((total + 1))
       [ "$listed" -lt 5 ] || continue
@@ -190,7 +202,9 @@ if is_sdd_repo; then
 
   # 3. Open pull requests, only when the forge CLI is installed and answers. Numbers are printed as
   # `PR <n>`; any failure, timeout or unexpected payload prints nothing.
-  if have gh; then
+  # Only when a home for gh's own state exists: with HOME and XDG_STATE_HOME both unset, gh
+  # writes its device-id under the current directory — i.e. into the repository being opened.
+  if have gh && { [ -n "${HOME:-}" ] || [ -n "${XDG_STATE_HOME:-}" ]; }; then
     pj="$(tmo 3 gh pr list --state open --limit 5 --json number,title,isDraft 2>/dev/null)"
     case "${pj:-}" in
       \[*)
@@ -202,7 +216,9 @@ if is_sdd_repo; then
           [ -n "$num" ] || continue
           ttl="$(printf '%s' "$rec" | sed -n 's/.*"title":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
           draft=""
-          case "$rec" in *'"isDraft":'*[Tt]rue*) draft=" (draft)" ;; esac
+          if printf '%s' "$rec" | grep -qE '"isDraft"[[:space:]]*:[[:space:]]*true'; then
+            draft=" (draft)"
+          fi
           entry="PR $num"
           [ -n "$ttl" ] && entry="$entry $ttl"
           entry="$entry$draft"

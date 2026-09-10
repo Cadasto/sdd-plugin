@@ -32,14 +32,17 @@ have() { command -v "$1" >/dev/null 2>&1; }
 [ -f docs/.sdd.yaml ] || exit 0
 
 # Per-repository opt-out.
-grep -qE '^\s*stop_nudge:\s*false' docs/.sdd.yaml && exit 0
+grep -qE "^[[:space:]]*stop_nudge:[[:space:]]*[\"']?false" docs/.sdd.yaml && exit 0
 
-# The host's payload. Claude Code carries "hook_event_name"; Cursor does not.
+# The host's payload. Detect on a positive marker: a Cursor payload also carries
+# "hook_event_name", so it is told apart by "workspace_roots" / "cursor_version". A
+# manual run (no payload) stays plain and takes the followup-message path, not exit 2.
 payload=""
 [ -t 0 ] || payload="$(cat 2>/dev/null)"
-host=cursor
+host=plain
 case "$payload" in
-  *'"hook_event_name"'*) host=claude ;;
+  *'"workspace_roots"'*|*'"cursor_version"'*) host=cursor ;;
+  *'"hook_event_name"'*)                      host=claude ;;
 esac
 
 # Claude Code's payload carries "session_id" on every hook; folded into the key so it matches the one
@@ -55,17 +58,24 @@ key="$(printf '%s' "$key_src" | cksum 2>/dev/null | cut -d' ' -f1)"
 # Already nudged in this session: the second stop passes.
 [ -f "$STATE_DIR/$key.nudged" ] && exit 0
 
-# Defensive: the host says it is re-running the stop hook after a nudge.
-case "$payload" in
-  *'"stop_hook_active"'*[Tt]rue*) exit 0 ;;
-esac
+# Defensive: the host says it is re-running the stop hook after a nudge. Anchored to the
+# value, so a branch or PR named "...true..." elsewhere in the payload cannot trip it.
+if printf '%s' "$payload" | grep -qE '"stop_hook_active"[[:space:]]*:[[:space:]]*true'; then
+  exit 0
+fi
 
 have git || exit 0
-git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
+# Time-limit git when `timeout` is installed; run it plainly when it is not. A slow tree
+# (a network mount, a huge worktree) must not let the stop hook run past the host's budget.
+tmo() {
+  _limit="$1"; shift
+  if have timeout; then timeout "$_limit" "$@"; else "$@"; fi
+}
+tmo 5 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
 
 start="$(cat "$STATE_DIR/$key.head" 2>/dev/null)"
-head="$(git rev-parse HEAD 2>/dev/null)"
-dirty="$(git status --porcelain 2>/dev/null | wc -l | tr -d '[:space:]')"
+head="$(tmo 5 git rev-parse HEAD 2>/dev/null)"
+dirty="$(tmo 5 git status --porcelain 2>/dev/null | wc -l | tr -d '[:space:]')"
 
 # No recorded starting point, or HEAD moved: a commit was made (or the session start was never seen).
 [ -n "$start" ] || exit 0
@@ -74,7 +84,9 @@ dirty="$(git status --porcelain 2>/dev/null | wc -l | tr -d '[:space:]')"
 # Nothing uncommitted: there is nothing to record.
 [ "$dirty" -eq 0 ] && exit 0
 
-: > "$STATE_DIR/$key.nudged" 2>/dev/null
+# One-shot: emit the nudge only once we have recorded that we did. If the marker cannot be
+# written, degrade to silence rather than nudging on every stop.
+: > "$STATE_DIR/$key.nudged" 2>/dev/null || exit 0
 
 msg="This session made no commit and leaves $dirty uncommitted change(s). Record progress before stopping: commit the work, or update the plan's Notes or the PR ledger, or say why not. This nudge fires once; stopping again passes."
 

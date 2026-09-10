@@ -9,12 +9,14 @@
     ],
     "afterFileEdit": [
       {
-        "command": "bash hooks/spec-edit-reminder.sh"
+        "command": "bash hooks/spec-edit-reminder.sh",
+        "timeout": 20
       }
     ],
     "stop": [
       {
-        "command": "bash hooks/session-stop.sh"
+        "command": "bash hooks/session-stop.sh",
+        "timeout": 10
       }
     ]
   }

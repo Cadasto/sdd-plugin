@@ -27,4 +27,11 @@ if [ -z "$py" ]; then
   exit 0
 fi
 
-exec "$py" "$here/validate.py" "$@"
+"$py" "$here/validate.py" "$@" || exit $?
+
+# The hook behaviour tests need only bash and git, not Python. Skip gracefully without git.
+if command -v git >/dev/null 2>&1; then
+  bash "$here/hooks-test.sh" || exit $?
+else
+  echo "WARNING: git not found — skipping hook behaviour tests (scripts/hooks-test.sh)." >&2
+fi

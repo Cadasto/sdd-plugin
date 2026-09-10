@@ -45,9 +45,17 @@ desc_get() {
       ind = match($0, /[^[:space:]]/)
       if (ind == 0) next                       # blank line: still inside the block
       if (ind <= inb) { inb = 0; next }        # dedented: the block ended
-      if ($1 == (key ":")) {
-        v = $2
-        gsub(/^"|"$/, "", v)
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      if (index(line, key ":") == 1) {
+        v = substr(line, length(key) + 2)      # everything after "key:"
+        sub(/^[[:space:]]+/, "", v)            # leading space
+        sub(/[[:space:]]+#.*$/, "", v)         # a trailing " # comment"
+        sub(/[[:space:]]+$/, "", v)            # trailing space
+        q = sprintf("%c", 39)                  # a single quote, without writing one here
+        gsub("^\"|\"$", "", v)               # surrounding double quotes
+        gsub("^" q "|" q "$", "", v)           # or single quotes
+        sub(/\/+$/, "", v)                    # a trailing slash
         print v
         exit
       }
@@ -69,13 +77,13 @@ trace_file="$(desc_get sdd traceability)"
 case "$f" in
   *"$trace_file"|*docs/.sdd.yaml)
     echo "› Edited the SDD descriptor / traceability map — run /sdd-trace to confirm the map still matches the tree (the spec-check gate), then \`sdd-check generate\` (or \`/sdd-trace\`), so the index and the status lines follow the map." ;;
-  *"$req_dir"/*)
+  *"$req_dir"/*|*"$req_dir")
     echo "› Edited a requirement — keep it to capability + acceptance + out-of-scope (no file paths or how-to); link to its single canonical spec section; update traceability.yaml, then \`sdd-check generate\` (or \`/sdd-trace\`), so the index and the status lines follow the map." ;;
-  *"$spec_dir"/*)
+  *"$spec_dir"/*|*"$spec_dir")
     echo "› Edited a spec — one canonical home (no duplicated normative prose), explicit RFC-2119 force (MUST/SHOULD/MAY), stable § anchors; update traceability.yaml. Then /sdd-trace." ;;
-  *"$adr_dir"/*)
+  *"$adr_dir"/*|*"$adr_dir")
     echo "› Edited an ADR — one decision per record; cite the STRAND it resolves and the REQs it amends; it must be Accepted before code depends on it." ;;
-  *"$plans_dir"/*)
+  *"$plans_dir"/*|*"$plans_dir")
     echo "› Edited a plan — it must cite the REQ/SPEC § it implements and add no new normative rules; close it with /sdd-archive in the same PR once the feature lands and /sdd-trace is clean." ;;
   *) : ;;
 esac
