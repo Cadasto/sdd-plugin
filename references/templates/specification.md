@@ -17,13 +17,18 @@ mode: spec-first         # spec-first | implementation-aligned
 
 ## §1 — <section title>
 
-<!-- Stable section anchor: id="section-title-req-area-nnn". Never renumber a published §. -->
+<a id="section-title-req-area-nnn"></a>
+<!-- Stable section anchor. Replace the id with this section's own slug and REQ id — never renumber a
+     published §; the id, once cited by a canonical: field, is permanent. -->
 
 <RFC-2119 normative prose stating how the system MUST/SHOULD/MAY behave.>
 
 **Implements:** <REQ-AREA-NNN>
 
 ## §2 — <section title>
+
+<a id="section-2-title-req-area-nnn"></a>
+<!-- Stable section anchor — see §1. -->
 
 <The same for this section: prose stating what the system MUST, SHOULD or MAY do here.>
 
