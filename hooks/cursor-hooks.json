@@ -10,6 +10,11 @@
       {
         "command": "bash hooks/spec-edit-reminder.sh"
       }
+    ],
+    "stop": [
+      {
+        "command": "bash hooks/session-stop.sh"
+      }
     ]
   }
 }

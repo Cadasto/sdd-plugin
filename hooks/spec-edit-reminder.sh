@@ -3,6 +3,9 @@
 # descriptor is edited, print a short reminder to keep the traceability chain in sync. Advisory and
 # read-only — it never blocks an edit and ALWAYS exits 0.
 #
+# Cursor's `afterFileEdit` hook has no output channel, so the reminder cannot reach the agent there;
+# the registration is kept because it is harmless.
+#
 # File-path resolution, in order:
 #   1. $CLAUDE_FILE_PATH          — set by Claude Code for Write/Edit hooks (fast path).
 #   2. tool payload JSON on stdin — Claude (`tool_input.file_path`) or Cursor `afterFileEdit`
@@ -25,9 +28,9 @@ fi
 
 case "$f" in
   *docs/specifications/traceability.yaml|*docs/.sdd.yaml)
-    echo "› Edited the SDD descriptor / traceability map — run /sdd-trace to confirm the map still matches the tree (the spec-check gate)." ;;
+    echo "› Edited the SDD descriptor / traceability map — run /sdd-trace to confirm the map still matches the tree (the spec-check gate), then \`sdd-check generate\` (or \`/sdd-trace\`), so the index and the status lines follow the map." ;;
   *docs/requirements/*)
-    echo "› Edited a requirement — keep it to capability + acceptance + out-of-scope (no file paths or how-to); link to its single canonical spec section; update traceability.yaml. Then /sdd-trace." ;;
+    echo "› Edited a requirement — keep it to capability + acceptance + out-of-scope (no file paths or how-to); link to its single canonical spec section; update traceability.yaml, then \`sdd-check generate\` (or \`/sdd-trace\`), so the index and the status lines follow the map." ;;
   *docs/specifications/*)
     echo "› Edited a spec — one canonical home (no duplicated normative prose), explicit RFC-2119 force (MUST/SHOULD/MAY), stable § anchors; update traceability.yaml. Then /sdd-trace." ;;
   *docs/adr/*)
