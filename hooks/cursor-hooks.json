@@ -3,7 +3,8 @@
   "hooks": {
     "sessionStart": [
       {
-        "command": "bash hooks/session-start.sh"
+        "command": "bash hooks/session-start.sh",
+        "timeout": 30
       }
     ],
     "afterFileEdit": [
