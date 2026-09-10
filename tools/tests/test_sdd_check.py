@@ -496,6 +496,21 @@ class TestMapToTreeFamily(BaselineCase):
         )
         self.assert_finding(self.run_only("map-to-tree"), "Implements")
 
+    def test_back_edge_message_names_both_the_marker_and_the_heading_form(self):
+        # M4: the heading form (the section's own heading names the identifier) is
+        # equally accepted since Task 4's ruling, so the finding must name both — an
+        # author reading only the old wording would "fix" the marker and stay broken.
+        self.edit(SPEC_REL, "**Implements:** REQ-FOUND-001\n\n", "")
+        self.edit(MAP_REL, "#1--boundary-req-found-001", "#legacy-boundary")
+        self.edit(
+            SPEC_REL,
+            "## §1 — Boundary (REQ-FOUND-001)",
+            '<a id="legacy-boundary"></a>\n\n### REQ-FOUND-0010 — Other',
+        )
+        finding = self.assert_finding(self.run_only("map-to-tree"), "Implements")
+        self.assertIn("**Implements:**", finding.message)
+        self.assertIn("heading", finding.message)
+
     def test_missing_package_path(self):
         self.edit(MAP_REL, "      - src/env\n", "      - src/nowhere\n")
         self.assert_finding(self.run_only("map-to-tree"), "missing package path")

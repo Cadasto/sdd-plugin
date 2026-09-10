@@ -1442,8 +1442,9 @@ def check_map_to_tree(ctx: Context, report: "Report") -> None:
                     )
                 elif record.id and not _implements_marker(text, span, record.id):
                     add(
-                        "the section at '#%s' carries no '**Implements:** %s' line"
-                        % (fragment, record.id)
+                        "the section at '#%s' carries no '**Implements:** %s' line and "
+                        "its heading does not name %s either"
+                        % (fragment, record.id, record.id)
                     )
         for rel in record.packages:
             if not desc.resolve(rel).exists():
