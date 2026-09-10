@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # SessionStart hook (host-agnostic): when a Spec-Driven Development repository is detected, print one
 # context line plus the available /sdd-* surface, then a short orientation — branch and tree state,
-# active plans, open pull requests, and the drift-gate verdict. Every external command is optional,
-# guarded and time-limited, and the script ALWAYS exits 0, so a missing or slow tool prints nothing
-# rather than blocking the session.
+# active plans, open pull requests, and the drift-gate verdict. Every external command is optional and
+# guarded; each is time-limited when the `timeout` binary is on PATH, and still runs — untimed, not
+# skipped — when it isn't (see tmo() below). The script ALWAYS exits 0, so a missing or slow tool
+# prints nothing rather than blocking the session.
 #
 # Host-aware output. Claude Code sends a payload carrying "hook_event_name" and adds plain stdout to
 # the context. Cursor sends a payload without it and injects only a JSON object on stdout —
