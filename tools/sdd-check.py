@@ -791,6 +791,54 @@ def _top_level_key_line(text: str, key: str) -> int:
     return 1
 
 
+def _reject_escaping_paths(root: Path, data: dict, text: str) -> None:
+    """Reject a path-bearing descriptor key that points outside the repository.
+
+    ``generate`` writes through ``paths.*``, ``traceability`` and the ``check.*`` paths; an
+    absolute path, or one that climbs out with ``..``, would let a write land outside the
+    tree the gate governs. The check is lexical — a symlink the maintainer put in their own
+    tree is theirs to write through — and runs before any read or write, so a bad path fails
+    the load the way a missing descriptor does rather than mid-generate.
+    """
+    root_abs = os.path.abspath(str(root))
+
+    def check(rel, key):
+        rel = _as_str(rel)
+        if not rel:
+            return
+        anchor = _top_level_key_line(text, key.split(".")[0])
+        if os.path.isabs(rel):
+            raise YamlError(
+                "%s must be a path inside the repository, not the absolute '%s'" % (key, rel),
+                anchor,
+                DESCRIPTOR_REL,
+            )
+        target = os.path.abspath(os.path.join(root_abs, rel))
+        try:
+            inside = os.path.commonpath([target, root_abs]) == root_abs
+        except ValueError:
+            inside = False
+        if not inside:
+            raise YamlError(
+                "%s escapes the repository: '%s'" % (key, rel), anchor, DESCRIPTOR_REL
+            )
+
+    paths = data.get("paths")
+    if isinstance(paths, dict):
+        for pkey, pval in paths.items():
+            check(pval, "paths.%s" % _as_str(pkey))
+    check(data.get("traceability"), "traceability")
+    check_block = data.get("check")
+    if isinstance(check_block, dict):
+        check(check_block.get("script"), "check.script")
+        changelog = check_block.get("changelog")
+        if isinstance(changelog, dict):
+            check(changelog.get("path"), "check.changelog.path")
+        for croot in _as_list(check_block.get("code_roots")):
+            check(croot, "check.code_roots")
+        check(check_block.get("probes_catalogue"), "check.probes_catalogue")
+
+
 class Descriptor:
     """`docs/.sdd.yaml`, with a default for every key the schema gives one."""
 
@@ -851,7 +899,10 @@ class Descriptor:
         path = Path(root) / DESCRIPTOR_REL
         if not path.is_file():
             raise FileNotFoundError(DESCRIPTOR_REL)
-        text = path.read_text(encoding="utf-8", errors="replace")
+        # utf-8-sig, not utf-8: a byte-order mark (Windows editors, PowerShell redirection)
+        # would otherwise survive on the first key — `﻿sdd` — the unwrap would miss it,
+        # and every field would silently fall back to its default.
+        text = path.read_text(encoding="utf-8-sig", errors="replace")
         data = load_yaml(text, source=DESCRIPTOR_REL)
         if isinstance(data, dict) and "sdd" in data:
             sdd = data["sdd"]
@@ -869,6 +920,7 @@ class Descriptor:
             data = sdd
         if not isinstance(data, dict):
             raise YamlError("the descriptor is not a mapping", 1, DESCRIPTOR_REL)
+        _reject_escaping_paths(Path(root), data, text)
         return cls(Path(root), data)
 
     # -- derived ----------------------------------------------------------
@@ -1034,7 +1086,7 @@ def load_map(desc: Descriptor) -> List[Record]:
     path = desc.resolve(desc.traceability)
     if not path.is_file():
         raise FileNotFoundError(desc.traceability)
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
     data = load_yaml(text, source=desc.traceability)
     entries = data.get("requirements") if isinstance(data, dict) else None
     if not isinstance(entries, list):
@@ -1044,8 +1096,14 @@ def load_map(desc: Descriptor) -> List[Record]:
     for index, entry in enumerate(entries):
         lineno = numbers[index] if index < len(numbers) else 0
         if not isinstance(entry, dict):
-            records.append(Record(line=lineno))
-            continue
+            # Fail closed: a non-mapping item (a lone scalar in the list, a stray `-`)
+            # would otherwise become an id-less Record, keep the list non-empty, and let
+            # `generate` rewrite every index block from records that have nothing in them.
+            raise YamlError(
+                "requirements item %d is not a mapping" % (index + 1),
+                lineno or _top_level_key_line(text, "requirements"),
+                desc.traceability,
+            )
         record = Record(line=lineno, raw=entry)
         record.id = _as_str(entry.get("id"))
         record.title = _as_str(entry.get("title"))
@@ -1100,7 +1158,7 @@ class Context:
         key = str(self.abs(path))
         if key not in self._texts:
             try:
-                self._texts[key] = Path(key).read_text(encoding="utf-8", errors="replace")
+                self._texts[key] = Path(key).read_text(encoding="utf-8-sig", errors="replace")
             except OSError:
                 self._texts[key] = ""
         return self._texts[key]
@@ -1543,6 +1601,18 @@ def _index_tables(text: str):
     return tables
 
 
+def _detail_files(requirements_dir: Path, record_id: str) -> List[Path]:
+    """The detail files a record's id owns: ``<id>.md`` and ``<id>-*.md``, never a longer
+    id that merely shares the prefix. A plain ``glob(id + "*")`` lets ``REQ-FOUND-001`` claim
+    ``REQ-FOUND-0011.md`` and write one record's status into another's file."""
+    prefix = record_id + "-"
+    return [
+        path
+        for path in sorted(requirements_dir.glob(record_id + "*.md"))
+        if path.stem == record_id or path.stem.startswith(prefix)
+    ]
+
+
 def check_index_sync(ctx: Context, report: "Report") -> None:
     """The requirements index, the detail files and the map agree on both status axes."""
     desc = ctx.desc
@@ -1649,7 +1719,7 @@ def check_index_sync(ctx: Context, report: "Report") -> None:
         for record in ctx.records:
             if not record.id:
                 continue
-            for detail in sorted(requirements_dir.glob("%s*.md" % record.id)):
+            for detail in _detail_files(requirements_dir, record.id):
                 detail_rel = ctx.rel(detail)
                 front, reported = _frontmatter_of(ctx, report, "index-sync", detail)
                 if front is None:
@@ -2697,7 +2767,7 @@ def _requirement_detail_file(ctx: Context, record_id: str) -> Optional[Path]:
     requirements_dir = ctx.desc.requirements_dir()
     if requirements_dir is None or not requirements_dir.is_dir():
         return None
-    matches = sorted(requirements_dir.glob("%s*.md" % record_id))
+    matches = _detail_files(requirements_dir, record_id)
     return matches[0] if matches else None
 
 
@@ -2938,13 +3008,61 @@ def _diff(anchor: str, before: List[str], after: List[str]) -> List[str]:
     )
 
 
+def _row_key(name: str, desc: "Descriptor", cells: List[str]) -> str:
+    """The identity of an index row for drop detection: the REQ id in a requirements row,
+    otherwise the first cell's text."""
+    if not cells:
+        return ""
+    if name == "requirements-index":
+        pattern = desc.req_pattern()
+        for cell in cells:
+            text = _cell_text(cell)
+            if pattern.fullmatch(text):
+                return text
+    return _cell_text(cells[0])
+
+
+def _protected_row_keys(
+    name: str, desc: "Descriptor", content: List[str]
+) -> List[Tuple[str, int]]:
+    """Every hand-authored row key a block carries, with its line within the block. A
+    placeholder row (``<...>``) is not a real row and is not protected, so a fresh scaffold
+    can still generate its first table over the template's placeholders."""
+    keys: List[Tuple[str, int]] = []
+    for lineno, _header, cells in table_rows("\n".join(content)):
+        key = _row_key(name, desc, cells)
+        if key and "<" not in key and ">" not in key:
+            keys.append((key, lineno))
+    return keys
+
+
+def _dropped_rows(name: str, desc: "Descriptor", current: List[str], new: List[str]) -> List[str]:
+    """The keys of rows the current block carries that the regenerated block would not —
+    a hand-written row with no record in the map."""
+    new_keys = {key for key, _ in _protected_row_keys(name, desc, new)}
+    return [key for key, _ in _protected_row_keys(name, desc, current) if key not in new_keys]
+
+
+def _write_preserving_eol(path: Path, new_text: str) -> None:
+    """Write ``new_text`` (which uses ``\n``) keeping the file's existing line terminator,
+    so regenerating one row never rewrites every line ending in the file."""
+    try:
+        crlf = b"\r\n" in path.read_bytes()
+    except OSError:
+        crlf = False
+    with open(path, "w", encoding="utf-8", newline="\r\n" if crlf else "\n") as handle:
+        handle.write(new_text)
+
+
 def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
     """Rewrite every generated block and requirement detail-file status line from the map.
 
     Returns ``(exit code, lines)`` — the paths written when ``verify`` is false, or a
-    unified diff per stale block when it is true. A descriptor that is missing or does
-    not parse fails exactly as ``check`` fails it, and a map that will not load is
-    reported through the same ``map-schema`` finding ``check`` reports.
+    unified diff per stale block when it is true. Two guarantees make a non-``--verify`` run
+    safe to script: the map is validated write-free first (a ``map-schema`` error aborts with
+    no write), and a hand-written index row with no record in the map is refused, not deleted
+    — the whole run writes nothing when any row would vanish. A descriptor that is missing or
+    does not parse fails exactly as ``check`` fails it.
     """
     root = Path(root)
     desc, message = _load_descriptor(root)
@@ -2962,9 +3080,21 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
 
     ctx = Context(root, desc, records)
 
-    written: List[str] = []
-    diff_lines: List[str] = []
+    # Write-free preflight: never rewrite a document from a map that fails its own schema.
+    # Forced to ERROR whatever the configured severity — write-safety is not a knob.
+    preflight = Report()
+    check_map_schema(ctx, preflight)
+    schema_problems = [f for f in preflight.findings if f.level in ("ERROR", "WARN")]
+    if schema_problems:
+        for finding in schema_problems:
+            report.add("map-schema", "ERROR", finding.anchor, finding.message)
+        report.mark_run("map-schema")
+        return report.exit_code(), report.render(root).split("\n")
+
     messages: List[str] = []
+    diff_lines: List[str] = []
+    refusals: List[str] = []
+    new_texts: Dict[Path, str] = {}
     stale = False
     skipped = False
 
@@ -2996,39 +3126,49 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
             if current_content == new_content:
                 continue
             changed = True
+            for key in _dropped_rows(name, desc, current_content, new_content):
+                refusals.append(
+                    "%s: refused — row %s has no record in the map; nothing written" % (anchor, key)
+                )
             if verify:
                 stale = True
-                diff_lines.extend(_diff(ctx.rel(path), current_content, new_content))
+                diff_lines.extend(_diff(anchor, current_content, new_content))
             else:
                 file_lines = file_lines[:start] + new_content + file_lines[end - 1 :]
         if changed and not verify:
-            new_text = "\n".join(file_lines)
-            if new_text != text:
-                path.write_text(new_text, encoding="utf-8")
-                written.append(ctx.rel(path))
+            candidate = "\n".join(file_lines)
+            if candidate != text:
+                new_texts[path] = candidate
 
     requirements_dir = desc.requirements_dir()
     if requirements_dir is not None and requirements_dir.is_dir():
         for record in ctx.records:
             if not record.id:
                 continue
-            for detail in sorted(requirements_dir.glob("%s*.md" % record.id)):
-                text = ctx.read(detail)
-                new_text = _rewrite_status_lines(text, record)
-                if new_text == text:
+            for detail in _detail_files(requirements_dir, record.id):
+                base = new_texts.get(detail, ctx.read(detail))
+                updated = _rewrite_status_lines(base, record)
+                if updated == base:
                     continue
                 if verify:
                     stale = True
                     diff_lines.extend(
-                        _diff(ctx.rel(detail), text.split("\n"), new_text.split("\n"))
+                        _diff(ctx.rel(detail), base.split("\n"), updated.split("\n"))
                     )
                 else:
-                    detail.write_text(new_text, encoding="utf-8")
-                    written.append(ctx.rel(detail))
+                    new_texts[detail] = updated
 
     if verify:
         return (1 if (stale or skipped) else 0), messages + diff_lines
-    return (1 if skipped else 0), messages + written
+    if refusals:
+        # A dropped row is data loss: abort the whole run, write nothing, name every row.
+        return 1, messages + refusals
+    written: List[str] = []
+    for path in new_texts:
+        _write_preserving_eol(path, new_texts[path])
+        ctx._texts[str(ctx.abs(path))] = new_texts[path]
+        written.append(ctx.rel(path))
+    return (1 if skipped else 0), messages + sorted(written)
 
 
 def run_generate(root: Path, verify: bool) -> int:

@@ -22,6 +22,5 @@ The table below is generated from the decision records by `sdd-check generate`. 
 
 | ID | Title | Status | Date | Resolves / amends |
 |---|---|---|---|---|
-| <ADR-0001> | <decision title> | proposed | <YYYY-MM-DD> | <STRAND-NN> · <REQ-AREA-NNN> |
 
 <!-- /sdd:generated -->

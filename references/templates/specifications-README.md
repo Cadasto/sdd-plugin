@@ -31,6 +31,5 @@ The table below is generated from the specification documents by `sdd-check gene
 
 | Spec | Topic | Status | Mode |
 |---|---|---|---|
-| `<SPEC-NAME>` | <topic> | Draft | spec-first |
 
 <!-- /sdd:generated -->

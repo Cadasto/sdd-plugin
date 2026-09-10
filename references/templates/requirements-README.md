@@ -27,6 +27,5 @@ The table below is generated from the traceability map by `sdd-check generate`. 
 
 | ID | Title | Spec | Stability | Implementation |
 |---|---|---|---|---|
-| <REQ-FOUND-001> | <capability> | `<SPEC-NAME §N>` | Draft | proposed |
 
 <!-- /sdd:generated -->

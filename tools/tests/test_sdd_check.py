@@ -2033,6 +2033,110 @@ class TestGenerators(BaselineCase):
         self.assertEqual(expected, rewritten)
 
 
+class TestGenerateSafety(BaselineCase):
+    """generate's write-safety guarantees: containment, a write-free schema preflight,
+    refusal to drop a hand-written row, exact id matching, one write per file, and
+    line-ending preservation."""
+
+    def _add_orphan_row(self):
+        self.edit(
+            INDEX_REL,
+            "| [REQ-FOUND-001](REQ-FOUND-001.md)",
+            "| [REQ-FOUND-002](REQ-FOUND-002.md) | Second | "
+            "[`SPEC-ENV \u00a71`](../specifications/env.md#1--boundary-req-found-001) | "
+            "Draft | shipped |\n| [REQ-FOUND-001](REQ-FOUND-001.md)",
+        )
+
+    def test_an_absolute_path_key_is_exit_two(self):
+        self.edit("docs/.sdd.yaml", "    adr: docs/adr", "    adr: /tmp/escape")
+        code = sdd_check.run_generate(self.tmp, verify=False)
+        self.assertEqual(2, code)
+
+    def test_a_parent_traversal_path_fails_the_load_and_names_the_key(self):
+        self.edit("docs/.sdd.yaml", "    adr: docs/adr", "    adr: ../outside")
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assertEqual(2, report.exit_code())
+        self.assertIn("escapes the repository", report.render(self.tmp))
+
+    def test_a_scalar_requirements_item_fails_the_load_and_writes_nothing(self):
+        self.edit(MAP_REL, "requirements:\n  - id: REQ-FOUND-001",
+                  "requirements:\n  - REQ-FOUND-999\n  - id: REQ-FOUND-001")
+        before = (self.tmp / INDEX_REL).read_bytes()
+        report = sdd_check.run_check(self.tmp, only=["map-schema"], changelog_all=False)
+        self.assert_finding(report, "is not a mapping", family="map-schema")
+        code, _ = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code)
+        self.assertEqual(before, (self.tmp / INDEX_REL).read_bytes())
+
+    def test_generate_fails_closed_on_an_out_of_vocabulary_status_and_writes_nothing(self):
+        self.edit(MAP_REL, "status: draft", "status: typo")
+        index_before = (self.tmp / INDEX_REL).read_bytes()
+        detail_before = (self.tmp / REQ_REL).read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertEqual(index_before, (self.tmp / INDEX_REL).read_bytes())
+        self.assertEqual(detail_before, (self.tmp / REQ_REL).read_bytes())
+
+    def test_generate_refuses_to_drop_a_hand_written_row_and_writes_nothing(self):
+        self._add_orphan_row()
+        before = (self.tmp / INDEX_REL).read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any("REQ-FOUND-002" in line and "refused" in line for line in lines), lines)
+        self.assertEqual(before, (self.tmp / INDEX_REL).read_bytes())
+
+    def test_a_reformatted_but_present_row_is_not_a_drop(self):
+        # Can-fail control: a value change on an existing row is regenerated, not refused.
+        self.edit(INDEX_REL, "Draft | shipped |", "Landed | proposed |")
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        self.assertIn(INDEX_REL, written)
+
+    def test_a_placeholder_row_is_not_protected(self):
+        desc = sdd_check.Descriptor.load(self.tmp)
+        current = ["| <REQ-FOUND-001> | x | y | Draft | shipped |"]
+        self.assertEqual([], sdd_check._dropped_rows("requirements-index", desc, current, []))
+
+    def test_detail_files_match_the_id_exactly_or_with_a_dash_suffix(self):
+        self.write("docs/requirements/REQ-FOUND-0011.md", "---\nkind: requirement\nstatus: draft\nimplementation: shipped\n---\n")
+        desc = sdd_check.Descriptor.load(self.tmp)
+        found = [p.name for p in sdd_check._detail_files(desc.requirements_dir(), "REQ-FOUND-001")]
+        self.assertIn("REQ-FOUND-001.md", found)
+        self.assertNotIn("REQ-FOUND-0011.md", found)
+
+    def test_generate_writes_a_detail_file_once_when_it_holds_a_block_and_a_stale_status(self):
+        detail = (self.tmp / REQ_REL).read_text(encoding="utf-8")
+        self.write(REQ_REL, detail + "\n<!-- sdd:generated requirements-index -->\n\n<!-- /sdd:generated -->\n")
+        self.edit(REQ_REL, "status: draft", "status: stable")
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        self.assertEqual(1, written.count(REQ_REL), written)
+        text = (self.tmp / REQ_REL).read_text(encoding="utf-8")
+        self.assertIn("status: draft", text)
+        self.assertIn("[REQ-FOUND-001](REQ-FOUND-001.md)", text)
+        code, diff = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(0, code, diff)
+
+    def test_generate_preserves_crlf_line_endings(self):
+        # Make the block stale and store it CRLF, without round-tripping through read_text
+        # (which would normalise the endings before generate ever runs).
+        text = (self.tmp / INDEX_REL).read_text(encoding="utf-8").replace(
+            "Draft | shipped |", "Landed | proposed |"
+        )
+        (self.tmp / INDEX_REL).write_bytes(text.replace("\n", "\r\n").encode("utf-8"))
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        raw = (self.tmp / INDEX_REL).read_bytes()
+        self.assertIn(b"\r\n", raw)
+        self.assertNotIn(b"\n", raw.replace(b"\r\n", b""))
+
+    def test_a_bom_on_the_descriptor_is_ignored(self):
+        path = self.tmp / sdd_check.DESCRIPTOR_REL
+        path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+        report = sdd_check.run_check(self.tmp, only=["descriptor"], changelog_all=False)
+        self.assert_clean(report)
+
+
 class TestGeneratedFamily(BaselineCase):
     def test_hand_edited_cell_is_an_error(self):
         self.edit(INDEX_REL, "Environment boundary", "Environment boundary, hand-edited")
