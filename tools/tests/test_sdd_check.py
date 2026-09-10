@@ -134,6 +134,25 @@ class TestYamlSubset(unittest.TestCase):
             sdd_check.load_yaml(text),
         )
 
+    def test_a_duplicate_key_is_a_parse_error_with_its_line(self):
+        with self.assertRaises(sdd_check.YamlError) as caught:
+            sdd_check.load_yaml("a: 1\nb: 2\na: 3\n")
+        self.assertIn("duplicate key 'a'", caught.exception.message)
+        self.assertEqual(3, caught.exception.line)
+
+    def test_a_doubled_single_quote_is_one_quote(self):
+        self.assertEqual({"k": "Don't panic"}, sdd_check.load_yaml("k: 'Don''t panic'\n"))
+
+    def test_a_backslash_escaped_double_quote_is_kept(self):
+        self.assertEqual({"k": 'a "b" c'}, sdd_check.load_yaml('k: "a \\"b\\" c"\n'))
+
+    def test_text_after_a_closing_quote_is_a_parse_error(self):
+        with self.assertRaises(sdd_check.YamlError):
+            sdd_check.load_yaml('k: "foo" bar\n')
+
+    def test_a_comment_after_a_closing_quote_is_allowed(self):
+        self.assertEqual({"k": "foo"}, sdd_check.load_yaml('k: "foo"   # note\n'))
+
     def test_inline_list_quoted_and_unquoted_with_comment(self):
         text = "globs: [a, \"b c\", 'd']   # a trailing comment\nempty: []\n"
         self.assertEqual({"globs": ["a", "b c", "d"], "empty": []}, sdd_check.load_yaml(text))
@@ -1777,6 +1796,10 @@ class TestPlansRules(GitCase):
         self.edit(PLAN_REL, "mode: spec-first", "mode: vibes")
         self.assert_finding(self.run_only("plans"), "mode", family="plans")
 
+    def test_a_scalar_implements_is_checked_like_a_list(self):
+        self.edit(PLAN_REL, "implements: [REQ-FOUND-001]", "implements: REQ-FOUND-009")
+        self.assert_finding(self.run_only("plans"), "REQ-FOUND-009", family="plans")
+
     def test_missing_plans_directory_skips_the_family(self):
         (self.tmp / PLAN_REL).unlink()
         (self.tmp / "docs/plans").rmdir()
@@ -2141,6 +2164,14 @@ class TestGenerateSafety(BaselineCase):
         code, written = sdd_check.generate(self.tmp, verify=False)
         self.assertNotIn("docs/guide.md", written)
         self.assertEqual(before, (self.tmp / "docs/guide.md").read_bytes())
+
+    def test_a_wrong_shape_links_block_does_not_crash(self):
+        self.edit("docs/.sdd.yaml", "    links:\n      exclude: []", '    links: ["docs/*"]')
+        # Any command used to traceback with AttributeError; now it runs.
+        report = sdd_check.run_check(self.tmp, only=["links"], changelog_all=False)
+        self.assertIn("links", report.families_run)
+        code, _ = sdd_check.generate(self.tmp, verify=True)
+        self.assertIn(code, (0, 1))
 
     def test_a_bom_on_the_descriptor_is_ignored(self):
         path = self.tmp / sdd_check.DESCRIPTOR_REL

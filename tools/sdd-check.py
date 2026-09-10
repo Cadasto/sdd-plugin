@@ -231,6 +231,11 @@ class _YamlParser:
             if content == "-" or content.startswith("- "):
                 self.fail("a sequence item where a 'key: value' was expected", lineno)
             key, value_text = self._split_key(content, lineno)
+            if key in result:
+                # Last-wins is exactly the silent-wrong-value failure this parser exists to
+                # avoid: two `status:` lines, or two `links:` blocks, and the second quietly
+                # decides the outcome. YAML 1.2 requires unique keys; fail, naming the line.
+                self.fail("duplicate key '%s'" % key, lineno)
             self.i += 1
             result[key] = self._value(value_text, indent, lineno)
         return result
@@ -357,13 +362,45 @@ class _YamlParser:
             return out + "\n"
         return out.rstrip("\n") + "\n"
 
+    def _read_quoted(self, text: str, lineno: int) -> Tuple[str, str]:
+        """Parse the quoted scalar at ``text[0]`` and return ``(value, remainder)``. A single
+        quote inside a single-quoted string is written ``''``; ``\\"`` and ``\\\\`` are the only
+        escapes honoured inside a double-quoted string, every other backslash kept literally,
+        so a Windows path in single quotes survives."""
+        quote = text[0]
+        out: List[str] = []
+        i = 1
+        n = len(text)
+        while i < n:
+            ch = text[i]
+            if quote == "'":
+                if ch == "'":
+                    if i + 1 < n and text[i + 1] == "'":
+                        out.append("'")
+                        i += 2
+                        continue
+                    return "".join(out), text[i + 1 :]
+                out.append(ch)
+                i += 1
+                continue
+            if ch == "\\" and i + 1 < n and text[i + 1] in '"\\':
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if ch == quote:
+                return "".join(out), text[i + 1 :]
+            out.append(ch)
+            i += 1
+        self.fail("an unterminated quoted scalar", lineno)
+
     def _scalar(self, text: str, lineno: int):
         if text[0] in "\"'":
-            quote = text[0]
-            end = text.find(quote, 1)
-            if end == -1:
-                self.fail("an unterminated quoted scalar", lineno)
-            return text[1:end]
+            value, rest = self._read_quoted(text, lineno)
+            rest = rest.strip()
+            if rest and not rest.startswith("#"):
+                # Silently dropping `bar` from `"foo" bar` is the wrong-value trap again.
+                self.fail("text after a closing quote", lineno)
+            return value
         if text[0] == "[":
             # An inline list is parsed whole, before any comment-stripping: a `#`
             # inside one of its own quoted items is not a trailing comment, and
@@ -898,7 +935,8 @@ class Descriptor:
         self.script = _as_str(self.check.get("script"), "scripts/sdd-check.py")
         self.check_version = _as_str(self.check.get("version"), "")
         links = self.check.get("links")
-        self.links_exclude = [_as_str(g) for g in _as_list((links or {}).get("exclude"))]
+        links = links if isinstance(links, dict) else {}
+        self.links_exclude = [_as_str(g) for g in _as_list(links.get("exclude"))]
         changelog = self.check.get("changelog")
         changelog = changelog if isinstance(changelog, dict) else {}
         self.changelog_path = _as_str(changelog.get("path"), "CHANGELOG.md")
@@ -1846,7 +1884,12 @@ def check_plans(ctx: Context, report: "Report") -> None:
         if mode and mode not in MODES:
             report.add("plans", level, anchor, "mode '%s' is not %s" % (mode, " | ".join(MODES)))
         implemented: List[Record] = []
-        for item in _as_list(front.get("implements")):
+        implements_value = front.get("implements")
+        # A scalar `implements: REQ-X` is a common slip; without this it would reach
+        # `_as_list` as [] and be checked against nothing, so a wrong id would pass.
+        if isinstance(implements_value, str):
+            implements_value = [implements_value]
+        for item in _as_list(implements_value):
             token = _as_str(item)
             if not token.startswith("REQ-"):
                 continue
