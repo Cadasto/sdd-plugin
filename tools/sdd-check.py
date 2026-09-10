@@ -2878,7 +2878,11 @@ def generated_blocks(text: str) -> List[Tuple[str, int, int]]:
 
     A block whose opening marker has no matching closing marker is reported with a
     closing line of ``0``, so a caller can tell "malformed" from "well formed but stale"
-    without a second return shape.
+    without a second return shape. The closing-marker scan stops the moment another
+    opening marker is encountered, so an opener is unclosed the instant no closer
+    appears before either the next opener or end of file — it can never annex a later
+    block's closer. The scan resumes right there, so a well-formed block that follows
+    an unclosed one is still found and generated normally.
     """
     lines = text.split("\n")
     found: List[Tuple[str, int, int]] = []
@@ -2893,12 +2897,15 @@ def generated_blocks(text: str) -> List[Tuple[str, int, int]]:
         end = 0
         probe = index + 1
         while probe < len(lines):
-            if lines[probe].strip() == GENERATED_CLOSE:
+            stripped = lines[probe].strip()
+            if stripped == GENERATED_CLOSE:
                 end = probe + 1
+                break
+            if _GENERATED_OPEN_RE.match(stripped):
                 break
             probe += 1
         found.append((name, start, end))
-        index = end if end else len(lines)
+        index = end if end else probe
     return found
 
 

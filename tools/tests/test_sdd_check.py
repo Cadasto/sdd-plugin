@@ -1989,6 +1989,49 @@ class TestGenerators(BaselineCase):
         self.assertEqual(1, code, lines)
         self.assertTrue(any("unknown block" in line for line in lines), lines)
 
+    def test_generate_regenerates_a_well_formed_block_that_follows_an_unclosed_opener(
+        self,
+    ):
+        # I1 regression: an opener with no closer used to annex the next block's
+        # closer, so `generate` would overwrite everything in between — the heading and
+        # the whole second block — silently, at exit 0. The fix must leave that span
+        # untouched and still generate the second block from its own real closer.
+        orphan = (
+            "---\nkind: reference\n---\n\n"
+            "<!-- sdd:generated requirements-index -->\n\n"
+            "stale requirements content that is never closed\n\n"
+            "## An important heading\n\n"
+            "<!-- sdd:generated adr-index -->\n\n"
+            "stale adr content, not yet the real table\n\n"
+            "<!-- /sdd:generated -->\n"
+        )
+        self.write("docs/requirements/orphan.md", orphan)
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        # Exit 1: the first opener is genuinely unclosed and stays skipped — that part
+        # of the contract does not change. What must change is *what else* happens.
+        self.assertEqual(1, code, written)
+        self.assertTrue(
+            any("unclosed generated block 'requirements-index'" in line for line in written),
+            written,
+        )
+        self.assertIn("docs/requirements/orphan.md", written)
+        rewritten = (self.tmp / "docs/requirements/orphan.md").read_text(encoding="utf-8")
+        # The heading and the unclosed opener's own stale content survive byte-for-byte
+        # — the destructive bug would have deleted them along with the marker between.
+        self.assertIn("stale requirements content that is never closed", rewritten)
+        self.assertIn("## An important heading", rewritten)
+        self.assertIn("<!-- sdd:generated requirements-index -->", rewritten)
+        # And the second block is genuinely regenerated from the map, not left stale
+        # and not merged into the first — assert the whole file's bytes, not just that
+        # exit code and a substring look right.
+        expected = orphan.replace(
+            "\n\nstale adr content, not yet the real table\n\n<!-- /sdd:generated -->",
+            "\n\n| ID | Title | Status | Date | Resolves / amends |\n"
+            "|---|---|---|---|---|\n\n<!-- /sdd:generated -->",
+        )
+        self.assertNotEqual(orphan, expected, "fixture drift: nothing to regenerate")
+        self.assertEqual(expected, rewritten)
+
 
 class TestGeneratedFamily(BaselineCase):
     def test_hand_edited_cell_is_an_error(self):
@@ -2016,6 +2059,116 @@ class TestGeneratedFamily(BaselineCase):
         report = self.run_only("generated")
         self.assertEqual("no generated blocks", report.families_skipped.get("generated"))
         self.assertNotIn("generated", report.families_run)
+
+    def test_an_unclosed_opener_before_a_well_formed_block_names_only_the_opener(self):
+        # I1: the unclosed opener must be reported by name, and the well-formed block
+        # that follows it must be seen and judged on its own merits — never silently
+        # annexed into the first block's (nonexistent) span. Its content here matches
+        # the map exactly, so a correctly-scanning tool raises nothing about it at all.
+        self.write(
+            "docs/requirements/orphan.md",
+            "---\nkind: reference\n---\n\n"
+            "<!-- sdd:generated requirements-index -->\n\n"
+            "stale requirements content that is never closed\n\n"
+            "## An important heading\n\n"
+            "<!-- sdd:generated adr-index -->\n\n"
+            "| ID | Title | Status | Date | Resolves / amends |\n"
+            "|---|---|---|---|---|\n\n"
+            "<!-- /sdd:generated -->\n",
+        )
+        report = self.run_only("generated")
+        self.assert_finding(report, "unclosed generated block 'requirements-index'")
+        self.assertFalse(
+            any("adr-index" in f.message for f in report.findings),
+            report.render(self.tmp),
+        )
+
+
+# ---------------------------------------------------------------------------
+# generated_blocks(): the closing-marker scan must stop at the next opening marker,
+# not run past it looking for a closer that belongs to a later block (I1)
+# ---------------------------------------------------------------------------
+UNCLOSED_THEN_WELL_FORMED = "\n".join(
+    [
+        "line one",  # 1
+        "line two",  # 2
+        "<!-- sdd:generated requirements-index -->",  # 3 — opens, never closes
+        "",  # 4
+        "some stale content",  # 5
+        "",  # 6
+        "",  # 7
+        "## An important heading",  # 8
+        "",  # 9
+        "<!-- sdd:generated adr-index -->",  # 10 — a second, well-formed block
+        "",  # 11
+        "| ID | Title | Status | Date | Resolves / amends |",  # 12
+        "|---|---|---|---|---|",  # 13
+        "",  # 14
+        "<!-- /sdd:generated -->",  # 15
+    ]
+)
+
+
+class TestGeneratedBlocksScan(unittest.TestCase):
+    """``generated_blocks()`` in isolation, independent of ``check``/``generate``."""
+
+    def test_an_unclosed_opener_followed_by_a_well_formed_block(self):
+        # The exact reproduction from the regression finding. The bug paired the
+        # unclosed opener at line 3 with the *second* block's closer at line 15 and
+        # returned exactly one (wrong) entry: ('requirements-index', 3, 15) — hiding
+        # the real adr-index block entirely. Fixed, each block stands on its own: the
+        # first is unclosed (end 0) and the second is the only well-formed one.
+        self.assertEqual(
+            [("requirements-index", 3, 0), ("adr-index", 10, 15)],
+            sdd_check.generated_blocks(UNCLOSED_THEN_WELL_FORMED),
+        )
+
+    def test_an_unclosed_opener_with_nothing_after_it(self):
+        text = "# Doc\n\n<!-- sdd:generated requirements-index -->\n\ntrailing prose, never closed\n"
+        self.assertEqual(
+            [("requirements-index", 3, 0)],
+            sdd_check.generated_blocks(text),
+        )
+
+    def test_two_consecutive_unclosed_openers(self):
+        text = "\n".join(
+            [
+                "<!-- sdd:generated requirements-index -->",
+                "",
+                "stale",
+                "",
+                "<!-- sdd:generated adr-index -->",
+                "",
+                "also stale, also never closed",
+            ]
+        )
+        self.assertEqual(
+            [("requirements-index", 1, 0), ("adr-index", 5, 0)],
+            sdd_check.generated_blocks(text),
+        )
+
+    def test_a_closing_marker_is_still_found_normally_when_one_exists(self):
+        # Regression guard: two back-to-back well-formed blocks must each be paired
+        # with their own (nearer) closer, not just the unclosed case.
+        text = "\n".join(
+            [
+                "<!-- sdd:generated requirements-index -->",
+                "",
+                "content",
+                "",
+                "<!-- /sdd:generated -->",
+                "",
+                "<!-- sdd:generated adr-index -->",
+                "",
+                "more content",
+                "",
+                "<!-- /sdd:generated -->",
+            ]
+        )
+        self.assertEqual(
+            [("requirements-index", 1, 5), ("adr-index", 7, 11)],
+            sdd_check.generated_blocks(text),
+        )
 
 
 # ---------------------------------------------------------------------------
