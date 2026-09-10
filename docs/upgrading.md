@@ -19,9 +19,11 @@ earlier one having actually run, not just been read.
    default) and set `check.version` — now that the `check:` block exists to hold it — to match the
    copy's own `__version__`. Until both are true, `spec-check` cannot pass: a missing script means
    the build target has nothing to run, and a version mismatch fails the `descriptor` family
-   outright.
-3. **Declare a `kind:` on every document.** `--upgrade` writes it into every document it emits or
-   recognises; a hand-written document it doesn't touch needs one frontmatter line added by hand —
+   outright. If the repository has no `CHANGELOG.md`, create one with a `# Changelog` heading and a
+   blank `## [Unreleased]` section — `check.changelog.path` names a hard error when the file is absent.
+3. **Declare a `kind:` on every document.** `--upgrade` writes it into the ten scaffold-owned files it
+   emits (the process docs, the three index READMEs, the four `_template.md` stubs); a hand-written
+   document it doesn't touch needs one frontmatter line added by hand —
    `kind: requirement` (or `specification`, `adr`, `plan`, `guide`, `analysis`, `operations`,
    `reference`, `upstream`). `--upgrade` never writes `kind:` into a document it doesn't touch: the
    location fallback (a document under `paths.specifications` is read as a specification, and so on for
@@ -69,24 +71,20 @@ earlier one having actually run, not just been read.
    table, `<!-- sdd:generated specifications-index -->` … `<!-- /sdd:generated -->` around the
    specifications table, and `<!-- sdd:generated adr-index -->` … `<!-- /sdd:generated -->` around
    the ADR table — or let `--upgrade` wrap all three for you.
-8. **Run `sdd-check generate --verify` before the real `generate` — required, not optional.** A table
-   just wrapped in markers, or a document `--upgrade` just emitted, holds placeholder content that
-   doesn't yet match what `generate` would write from the map, so running `check` first would fail the
-   `generated` family on that mismatch every time — but that is not why `--verify` comes first. `--verify`
-   reports what would change and writes nothing. Read its diff in full, one block at a time: a row that
-   appears in the current content with no corresponding row in the generated content is a hand-written row
-   `traceability.yaml` carries no record for — reformatting a row is not this; only a row that disappears
-   entirely counts. **If the diff drops even one such row, anywhere in any block, stop here. Do not run the
-   real `generate`.** Running it anyway is what destroys the row: `generate` rewrites each block from the
-   map alone, so a row the map has never heard of is silently gone — exit 0, no warning, nothing to undo.
-   Capture the missing requirement with `/sdd-specify` first, or delete the stale row by hand if it
-   genuinely no longer belongs, then re-run `generate --verify` and confirm the diff drops nothing before
-   running the real `sdd-check generate`. Only once every hand-written row is represented in the map does
-   `generate` populate every marker block and each requirement's `status`/`implementation` frontmatter, and
-   only then does `check` have something real to verify.
-9. **A row `--upgrade` can't match to a map record stops the run instead of being guessed at or
-   overwritten.** Capture the missing requirement with `/sdd-specify` first — or delete the stale
-   row by hand if it no longer belongs — then re-run `--upgrade`.
+8. **Run `sdd-check generate --verify` before the real `generate`.** A table just wrapped in markers
+   holds content that doesn't yet match what `generate` would write from the map, so `--verify` exits 1
+   on that staleness — expected here; read the diff, not the exit code. A row in the current content with
+   no matching row in the generated content is a row `generate` would drop. Diagnose it by block: a
+   requirements row with no `REQ-` record in `traceability.yaml`; a specifications row whose file is
+   missing under `paths.specifications` or whose kind is not `specification`; an adr row whose file is
+   missing or is named outside `^(ADR-|\d{4}-)`. Capture the missing record (`/sdd-specify` for a
+   requirement) or delete the stale row by hand if it no longer belongs, then re-run. Once every row is
+   represented, `generate` populates every marker block and each requirement's `status`/`implementation`
+   frontmatter, and `check` has something real to verify.
+9. **`generate` never overwrites a row it cannot match to a record.** The tool refuses on its own: the
+   real `generate` writes nothing while any hand-written row would vanish, and names each one. This is a
+   guarantee, not a discipline you have to remember — step 8 is the preview that tells you which record to
+   capture or which stale row to remove.
 10. **An RFC-2119 keyword outside `docs/specifications/` is now linted.** `MUST`, `SHOULD`, `MAY`,
     and the rest are binding words with no traceability chain to enforce them anywhere but a spec.
     The gate errors on one in a `requirement`, `adr`, `plan` or `reference` document; in `guide`,
