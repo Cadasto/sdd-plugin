@@ -39,6 +39,7 @@ repositories had to invent. Moving a repository from 0.5.x is described in `docs
 
 ### Fixed
 - Tools: the generated specifications index skips the specification template, and a vendored gate is no longer scanned as this repository's own code.
+- Tools: the gate's contract, its hooks, and the by-hand upgrade path now match what `sdd-check` actually enforces, with no crash on a missing `HOME` and no silent data loss.
 
 ## [0.5.1] - 2026-09-08
 
