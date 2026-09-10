@@ -50,6 +50,6 @@ A design note is **input narrative, not the source of truth.** Extract its norma
 
 ## Reference
 
-- `references/sdd-methodology.md` — §3 document kinds & boundaries, §4 RFC-2119, §5 identifiers & single canonical home, §6 status axes.
+- `references/sdd-methodology.md` — §3 document kinds & boundaries, §4 RFC-2119, §5 identifiers & single canonical home, §6 status per document kind.
 - `references/sdd-check.md` — what `generate` writes and what the `map-schema`/`index-sync` families check.
 - `references/templates/{requirement,specification,adr}.md` · `references/traceability-schema.md` · `references/cross-repo-gap.md`.
