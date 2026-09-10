@@ -2,7 +2,7 @@
 name: sdd-archive
 description: This skill should be used when the user asks to "close out the plan", "mark the plan done", "mark the requirement shipped", or "this feature is done, close it out". Flips the plan status to done in place and sets the SPEC §, REQ, traceability, and PR-body surfaces inside the implementing PR. Not for deleting finished plans at a release (sdd-finalize), the drift check (sdd-trace), or review (sdd-review).
 argument-hint: "<plan file or REQ to close out>"
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+allowed-tools: Read, Edit, Bash, Glob, Grep
 ---
 
 # Archive — the SDD close-out, in place

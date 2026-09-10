@@ -2,7 +2,7 @@
 name: sdd-specify
 description: This skill should be used when the user asks to "add a requirement", "write, extend, or amend a spec", "make this behaviour normative", "record an ADR", or "resolve a STRAND". Authors the REQ, the RFC-2119 SPEC §, and the ADR, assigning identifiers and wiring traceability. Not for planning and building (sdd-deliver) or a drift audit (sdd-trace).
 argument-hint: "<capability, behaviour, or decision to record> [REQ-id]"
-allowed-tools: Read, Write, Edit, Glob, Grep
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 # Specify — the SDD definition layer
