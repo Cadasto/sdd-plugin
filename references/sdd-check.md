@@ -2,6 +2,8 @@
 
 `sdd-check` is the shared drift gate. It is one Python file, vendored into a repository by `/sdd-scaffold` and run by the `spec-check` build target, so CI needs no plugin. It checks the traceability chain in both directions, lints the prose rules that can be checked mechanically, regenerates the derived indexes, prints a requirement's context bundle, and tests itself.
 
+Nothing installs an `sdd-check` executable. Throughout this document `sdd-check <cmd>` is shorthand for `python3 <check.script> <cmd> --root .`, where `<check.script>` is the vendored copy the descriptor names (`docs/.sdd.yaml` → `check.script`). A repository that has not vendored the gate runs `/sdd-scaffold --upgrade` first — the plugin's own copy fails the version pin by construction.
+
 ## Commands
 
 | Command | What it does |
@@ -37,6 +39,9 @@ one line only, not a report.
 A missing map, a map that cannot be parsed, and a map that yields no records are **not** exit 2. Each is a
 `map-schema` error, so the run exits 1, and every family that needs records is listed under `skipped:`
 with the reason `map unavailable`.
+
+A run in which no family ran is exit 2 as well: with every family `off`, or `--only` naming an off family,
+the tool verified nothing, which is a configuration failure rather than a clean pass.
 
 Exit 2 is a failure of the gate itself; CI treats it as red, never as skipped.
 
@@ -185,8 +190,10 @@ example of this syntax: the comment waives whatever file holds it, fenced or not
 demonstrating the pattern with a real name waives itself for that family. Use the `<family>` placeholder
 shown above, even in prose that walks through the syntax.
 
-The waiver covers that file and only the families it names. Every waiver is counted in the summary, so a
-repository can see how many it carries and whether the number is going down.
+The waiver covers that file and only the families it names. Five families honour a waiver — `doc-kinds`,
+`rfc2119`, `one-home`, `links` and `changelog`; a waiver naming any other family has no effect. Every
+honoured waiver is counted in the summary, so a repository can see how many it carries and whether the
+number is going down.
 
 ## Generated blocks
 
@@ -196,7 +203,13 @@ between a pair of markers whose format is owned by [traceability-schema.md](trac
 block's links resolve relative to the file holding the block, not to the block's canonical home — the same
 index wrapped into two different files links each row from where it actually sits. An opening marker with
 no closing one, or a block name outside the three known names, is skipped rather than written; `generate`
-exits 1 and names each block it skipped, by file, line and reason.
+exits 1 and names each block it skipped, by file, line and reason. A marker pair quoted inside a fenced
+code block is not a live block; it is neither flagged nor rewritten.
+
+Two guarantees make a non-`--verify` run safe to script. `generate` validates the map write-free first: an
+out-of-vocabulary or malformed record aborts the run with nothing written. And it refuses to delete a
+hand-written index row that has no record in the map — the whole run writes nothing and names each such
+row. Capture the record with `/sdd-specify`, or delete the stale row by hand, then rerun.
 
 A kind-less document under `paths.specifications` still becomes a row in the generated specifications
 index: `generate` reads the kind the document's location implies, the same fallback `doc-kinds` reports
@@ -219,10 +232,10 @@ file, set `check.version`, run the gate.
 
 ## Selftest
 
-`sdd-check selftest` runs the tool against fixtures it carries itself and reports pass or fail per rule.
-The bar is: one positive control and one negative fixture per rule; a rule without a fixture is not
-shipped. The positive control proves the rule accepts clean input; the negative fixture proves the rule
-actually fails when the defect is there. A check that cannot fail is not a check.
+`sdd-check selftest` runs the tool against fixtures it carries itself. The bar is one clean baseline as the
+positive control plus a negative fixture for each family; the per-rule coverage lives in `tools/tests/`.
+The clean baseline proves the families accept clean input; each negative fixture proves a family actually
+fails when the defect is there. A check that cannot fail is not a check.
 
 ## What a green run does not prove
 

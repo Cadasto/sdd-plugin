@@ -9,7 +9,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
-The rules Phase 1 stated are now enforced: one vendored, versioned, self-testing gate —
+The rules 0.5.0 stated are now enforced: one vendored, versioned, self-testing gate —
 `sdd-check` — checks the chain in both directions, lints the prose rules that can be checked
 mechanically, and generates every derived index from one source. The descriptor covers the shapes
 repositories had to invent. Moving a repository from 0.5.x is described in `docs/upgrading.md`.
@@ -20,7 +20,7 @@ repositories had to invent. Moving a repository from 0.5.x is described in `docs
 - References: `sdd-methodology.md` §3 the nine document kinds in three zones, §5 excluded areas, §6 per-kind status vocabularies, §10 the ground-truth resolution order and the cross-repo ask lifecycle, §13 the enforcement register.
 - References: `traceability-schema.md` — the descriptor's profile, kinds, excluded areas, default mode, upstream relations, `check:` and `hooks:` blocks; two new record fields; generated blocks.
 - Tools: `sdd-check` gains the five prose families — document kinds, RFC-2119 grammar and placement, one canonical home, links with fragments, and changelog bullets — with file-level waivers.
-- Tools: `sdd-check generate` writes the three index tables and the requirement status lines from one source; `context` prints a requirement's bundle; `selftest` proves every rule with a negative fixture.
+- Tools: `sdd-check generate` writes the three index tables and the requirement status lines from one source; `context` prints a requirement's bundle; `selftest` proves each family with a negative fixture.
 - Templates: `gap-draft.md` — the upstream cross-repo ask with its state lifecycle.
 - Hooks: `session-stop.sh` — a one-shot nudge when a session made no commit and leaves uncommitted changes, registered on both hosts; opt out with `hooks.stop_nudge: false`.
 
@@ -39,7 +39,12 @@ repositories had to invent. Moving a repository from 0.5.x is described in `docs
 
 ### Fixed
 - Tools: the generated specifications index skips the specification template, and a vendored gate is no longer scanned as this repository's own code.
-- Tools: the gate's contract, its hooks, and the by-hand upgrade path now match what `sdd-check` actually enforces, with no crash on a missing `HOME` and no silent data loss.
+- Tools: `generate` refuses to drop a hand-written index row, runs a write-free `map-schema` preflight, rejects a `paths.*` outside the repository, and preserves a file's line endings.
+- Tools: the markdown scan closes a fence only on a run of its own length and ignores a marker quoted inside a fence.
+- Tools: the YAML subset rejects a duplicate key and text after a closing quote, and honours the doubled-quote and backslash escapes.
+- Tools: a run in which no family ran exits 2; `--verify` and `--changelog-all` are rejected on the wrong command.
+- Hooks: Cursor is detected by a positive payload marker; `desc_get` reads quoted and trailing-slash paths; the stop nudge fires once and never writes into the repository.
+- Scripts: `hooks-test.sh` exercises the hook scripts in `validate.sh` and CI; CI also tests the Python 3.9 floor.
 
 ## [0.5.1] - 2026-09-08
 
