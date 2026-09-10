@@ -3,9 +3,28 @@
 # Fires ONCE per session when the session made no commit and leaves uncommitted changes in an
 # SDD repository; the second stop passes. Claude Code: exit 2 + the reason on stderr. Cursor: a
 # followup_message on stdout, exit 0. Opt out per repo: `hooks: { stop_nudge: false }` in docs/.sdd.yaml.
+#
+# Shared state with hooks/session-start.sh: STATE_DIR and the key below must resolve the same way in
+# both scripts. The key folds in a session identifier when the host payload provides one (Claude Code's
+# always does — "session_id"), so concurrent sessions in one repository don't share a HEAD baseline or
+# spend each other's nudge; a host whose payload carries no such field falls back to the working
+# directory alone (pre-existing behaviour, not a regression).
 set -u
 
-STATE_DIR="${CLAUDE_PLUGIN_DATA:-${XDG_STATE_HOME:-$HOME/.local/state}/sdd}"
+# Resolve the shared state directory without tripping `set -u` on an unset $HOME — see the matching
+# comment in hooks/session-start.sh. A degrade to no state (and so no nudge) is correct; a crash is not.
+state_dir() {
+  if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
+    printf '%s' "$CLAUDE_PLUGIN_DATA"
+  elif [ -n "${XDG_STATE_HOME:-}" ]; then
+    printf '%s/sdd' "$XDG_STATE_HOME"
+  elif [ -n "${HOME:-}" ]; then
+    printf '%s/.local/state/sdd' "$HOME"
+  else
+    printf '%s/sdd-state-%s' "${TMPDIR:-/tmp}" "$(id -u 2>/dev/null || printf nouid)"
+  fi
+}
+STATE_DIR="$(state_dir)"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
@@ -23,7 +42,14 @@ case "$payload" in
   *'"hook_event_name"'*) host=claude ;;
 esac
 
-key="$(printf '%s' "$PWD" | cksum 2>/dev/null | cut -d' ' -f1)"
+# Claude Code's payload carries "session_id" on every hook; folded into the key so it matches the one
+# hooks/session-start.sh wrote for this session. Empty on a host whose payload carries no such field.
+sid="$(printf '%s' "$payload" \
+       | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' \
+       | head -n1 | sed -E 's/.*"([^"]*)"$/\1/')"
+key_src="$PWD"
+[ -n "$sid" ] && key_src="$PWD:$sid"
+key="$(printf '%s' "$key_src" | cksum 2>/dev/null | cut -d' ' -f1)"
 [ -n "$key" ] || exit 0
 
 # Already nudged in this session: the second stop passes.

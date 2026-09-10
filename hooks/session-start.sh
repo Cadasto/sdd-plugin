@@ -11,11 +11,31 @@
 # {"additional_context": "<text>"} — ignoring plain text. A manual run (stdin is a terminal, or the
 # payload is empty) prints plain text.
 #
-# Shared state with hooks/session-stop.sh: STATE_DIR below, keyed on the working directory. This hook
-# records HEAD as it found it and clears any nudge left by an earlier session.
+# Shared state with hooks/session-stop.sh: STATE_DIR below, keyed on the working directory plus a
+# session identifier when the host payload provides one. Claude Code's payload always carries
+# "session_id", so concurrent Claude Code sessions in the same repository get separate keys; a host
+# whose payload carries no such field falls back to the working directory alone, so concurrent
+# sessions there still share one key (pre-existing behaviour, not a regression). This hook records
+# HEAD as it found it and clears any nudge left by an earlier session.
 set -u
 
-STATE_DIR="${CLAUDE_PLUGIN_DATA:-${XDG_STATE_HOME:-$HOME/.local/state}/sdd}"
+# Resolve the shared state directory without tripping `set -u` on an unset $HOME: prefer
+# CLAUDE_PLUGIN_DATA, then XDG_STATE_HOME, then $HOME/.local/state, then a per-user temp fallback so a
+# minimal or stripped environment still gets working state (and therefore the nudge) rather than a
+# crash. Every write below this point stays guarded, so a still-unwritable fallback degrades to no
+# state rather than an error.
+state_dir() {
+  if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
+    printf '%s' "$CLAUDE_PLUGIN_DATA"
+  elif [ -n "${XDG_STATE_HOME:-}" ]; then
+    printf '%s/sdd' "$XDG_STATE_HOME"
+  elif [ -n "${HOME:-}" ]; then
+    printf '%s/.local/state/sdd' "$HOME"
+  else
+    printf '%s/sdd-state-%s' "${TMPDIR:-/tmp}" "$(id -u 2>/dev/null || printf nouid)"
+  fi
+}
+STATE_DIR="$(state_dir)"
 
 nl='
 '
@@ -81,6 +101,13 @@ src="$(printf '%s' "$payload" \
        | grep -oE '"source"[[:space:]]*:[[:space:]]*"[^"]*"' \
        | head -n1 | sed -E 's/.*"([^"]*)"$/\1/')"
 : "$src"
+
+# Claude Code's payload carries "session_id" on every hook; folded into the state key below (step 5)
+# so concurrent sessions in one repository do not share a HEAD baseline. Empty on a host whose payload
+# does not carry the field — see the STATE_DIR comment above for what that falls back to.
+sid="$(printf '%s' "$payload" \
+       | grep -oE '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' \
+       | head -n1 | sed -E 's/.*"([^"]*)"$/\1/')"
 
 emit() {
   [ -n "$1" ] || return 0
@@ -201,7 +228,9 @@ EOF
   fi
 
   # 5. Record HEAD as this session found it, and clear any nudge a previous session left behind.
-  key="$(printf '%s' "$PWD" | cksum 2>/dev/null | cut -d' ' -f1)"
+  key_src="$PWD"
+  [ -n "$sid" ] && key_src="$PWD:$sid"
+  key="$(printf '%s' "$key_src" | cksum 2>/dev/null | cut -d' ' -f1)"
   if [ -n "$key" ] && mkdir -p "$STATE_DIR" 2>/dev/null; then
     if have git && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
       git rev-parse HEAD 2>/dev/null > "$STATE_DIR/$key.head"
