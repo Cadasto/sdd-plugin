@@ -514,8 +514,21 @@ def frontmatter(text: str) -> Tuple[Optional[dict], int]:
     return parsed, after
 
 
-def _content_lines(text: str, blank_code_spans: bool) -> List[Tuple[int, str]]:
-    """Every line with fences, HTML comments and frontmatter blanked, numbers kept."""
+def _closes_fence(line: str, fence: str) -> bool:
+    """Whether ``line`` closes a code fence opened by ``fence``: a leading run of the same
+    fence character at least as long as the opener."""
+    stripped = line.strip()
+    run = len(stripped) - len(stripped.lstrip(fence[0]))
+    return run >= len(fence)
+
+
+def _content_lines(
+    text: str, blank_code_spans: bool, keep_comments: bool = False
+) -> List[Tuple[int, str]]:
+    """Every line with fences and frontmatter blanked, numbers kept. HTML comments are
+    blanked too unless ``keep_comments`` is set — the generated-block scan keeps them, since
+    its own markers are comments, and relies on fence blanking alone to hide a marker quoted
+    inside a fenced example."""
     lines = text.split("\n")
     span = _frontmatter_span(text)
     after = span[1] if span else 0
@@ -537,13 +550,21 @@ def _content_lines(text: str, blank_code_spans: bool) -> List[Tuple[int, str]]:
             in_comment = False
         if fence is not None:
             out.append((lineno, ""))
-            if line.lstrip().startswith(fence):
+            # Close only on a run of the same fence character at least as long as the
+            # opener (CommonMark): a ``` line must not close a ```` block, or a marker
+            # quoted inside the longer fence would leak out as live content.
+            if _closes_fence(line, fence):
                 fence = None
             continue
         match = _FENCE_RE.match(line.lstrip())
         if match:
-            fence = match.group(1)[:3]
+            fence = match.group(1)
             out.append((lineno, ""))
+            continue
+        if keep_comments:
+            if blank_code_spans:
+                line = _CODE_SPAN_RE.sub(lambda m: " " * len(m.group(0)), line)
+            out.append((lineno, line))
             continue
         while True:
             open_at = line.find("<!--")
@@ -2954,7 +2975,10 @@ def generated_blocks(text: str) -> List[Tuple[str, int, int]]:
     block's closer. The scan resumes right there, so a well-formed block that follows
     an unclosed one is still found and generated normally.
     """
-    lines = text.split("\n")
+    # Match markers on a fence-blanked view (comments kept, fences blanked), so a marker
+    # pair quoted inside a fenced example is not mistaken for a live block. Line numbers
+    # are preserved, so the indices still address the raw text every caller slices.
+    lines = [line for _lineno, line in _content_lines(text, False, keep_comments=True)]
     found: List[Tuple[str, int, int]] = []
     index = 0
     while index < len(lines):

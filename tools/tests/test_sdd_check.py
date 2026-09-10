@@ -2130,6 +2130,18 @@ class TestGenerateSafety(BaselineCase):
         self.assertIn(b"\r\n", raw)
         self.assertNotIn(b"\n", raw.replace(b"\r\n", b""))
 
+    def test_generate_leaves_a_fenced_marker_example_untouched(self):
+        guide = (
+            "---\nkind: guide\n---\n\n# How markers work\n\n"
+            "```markdown\n<!-- sdd:generated requirements-index -->\n\n"
+            "<!-- /sdd:generated -->\n```\n"
+        )
+        self.write("docs/guide.md", guide)
+        before = (self.tmp / "docs/guide.md").read_bytes()
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertNotIn("docs/guide.md", written)
+        self.assertEqual(before, (self.tmp / "docs/guide.md").read_bytes())
+
     def test_a_bom_on_the_descriptor_is_ignored(self):
         path = self.tmp / sdd_check.DESCRIPTOR_REL
         path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
@@ -2226,6 +2238,38 @@ class TestGeneratedBlocksScan(unittest.TestCase):
             [("requirements-index", 3, 0), ("adr-index", 10, 15)],
             sdd_check.generated_blocks(UNCLOSED_THEN_WELL_FORMED),
         )
+
+    def test_a_marker_pair_inside_a_fence_is_not_a_block(self):
+        # The schema reference documents the marker syntax by quoting it inside a fenced
+        # code block; that example must never be seen as a live block and overwritten.
+        text = "\n".join(
+            [
+                "# Guide",
+                "",
+                "```markdown",
+                "<!-- sdd:generated requirements-index -->",
+                "| ID |",
+                "<!-- /sdd:generated -->",
+                "```",
+                "",
+                "prose after the fence",
+            ]
+        )
+        self.assertEqual([], sdd_check.generated_blocks(text))
+
+    def test_a_four_backtick_fence_is_not_closed_by_a_three_backtick_line(self):
+        # The inner ``` line must not close the ```` fence, or the marker after it leaks
+        # out as a live block.
+        text = "\n".join(
+            [
+                "````markdown",
+                "```",
+                "<!-- sdd:generated adr-index -->",
+                "<!-- /sdd:generated -->",
+                "````",
+            ]
+        )
+        self.assertEqual([], sdd_check.generated_blocks(text))
 
     def test_an_unclosed_opener_with_nothing_after_it(self):
         text = "# Doc\n\n<!-- sdd:generated requirements-index -->\n\ntrailing prose, never closed\n"
