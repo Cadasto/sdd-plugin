@@ -448,6 +448,9 @@ def load_yaml(text: str, *, source: str = "<yaml>"):
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 _ANCHOR_RE = re.compile(r"<a\s+(?:id|name)\s*=\s*[\"']([^\"']+)[\"']", re.IGNORECASE)
+_ANCHOR_TAG_RE = re.compile(
+    r"<a\s+(?:id|name)\s*=\s*[\"'][^\"']+[\"']\s*/?>\s*(?:</a>)?", re.IGNORECASE
+)
 _FENCE_RE = re.compile(r"^(```+|~~~+)")
 _CODE_SPAN_RE = re.compile(r"(`+)(.+?)\1")
 
@@ -1375,14 +1378,19 @@ def _anchor_span(text: str, fragment: str) -> Optional[Tuple[int, int]]:
     if not anchor_line:
         return None
     found = headings(text)
-    # An anchor that sits immediately above a heading names that heading's section.
-    for index, entry in enumerate(found):
-        if entry[0] <= anchor_line:
-            continue
-        between = range(anchor_line + 1, entry[0])
-        if all(not lines[number - 1].strip() for number in between):
-            return _heading_span(found, index, len(lines))
-        break
+    # An anchor that sits alone — nothing on its own line but the tag — and immediately
+    # above a heading names that heading's section. An anchor line carrying trailing
+    # prose is not a floating label for the next heading; it is content of whatever
+    # section encloses it, so it falls through to the enclosing-section lookup below.
+    anchor_bare = not _ANCHOR_TAG_RE.sub("", lines[anchor_line - 1]).strip()
+    if anchor_bare:
+        for index, entry in enumerate(found):
+            if entry[0] <= anchor_line:
+                continue
+            between = range(anchor_line + 1, entry[0])
+            if all(not lines[number - 1].strip() for number in between):
+                return _heading_span(found, index, len(lines))
+            break
     enclosing = None
     for index, entry in enumerate(found):
         if entry[0] <= anchor_line:

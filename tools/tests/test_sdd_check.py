@@ -300,6 +300,17 @@ class TestMarkdownHelpers(unittest.TestCase):
             {"legacy-boundary", "older-boundary"}, sdd_check.explicit_anchors(SAMPLE_DOC)
         )
 
+    def test_anchor_span_requires_a_bare_anchor_line_to_name_the_next_heading(self):
+        # M8: an anchor line carrying nothing but the tag names the heading right below
+        # it (through a run of blank lines).
+        bare = '# Title\n\n<a id="legacy"></a>\n\n## Section\n\nBody.\n'
+        self.assertEqual((5, 9), sdd_check._anchor_span(bare, "legacy"))
+
+        # An anchor line with trailing prose is not a floating label for "## Section"
+        # any more — it is content of the section that encloses it ("# Title" here).
+        prose = '# Title\n\n<a id="legacy"></a> Some trailing prose.\n\n## Section\n\nBody.\n'
+        self.assertEqual((1, 9), sdd_check._anchor_span(prose, "legacy"))
+
     def test_section_slice_stops_at_same_level_not_deeper(self):
         span = sdd_check.section_slice(SAMPLE_DOC, "1--environment-boundary-req-found-001")
         self.assertIsNotNone(span)
