@@ -2668,7 +2668,13 @@ class Report:
     def exit_code(self) -> int:
         if self.fatal_message is not None:
             return 2
-        return 1 if self.errors() else 0
+        if self.errors():
+            return 1
+        # A run in which no family ran verified nothing — every family off, or --only naming
+        # an off family. That is a configuration failure, not a clean pass.
+        if not self.families_run:
+            return 2
+        return 0
 
     def _ordered(self) -> List[Finding]:
         order = {name: index for index, name in enumerate(FAMILIES)}
@@ -4119,6 +4125,12 @@ def main(argv=None) -> int:
 
     if only is not None and command != "check":
         print("sdd-check: --only applies to 'check' only, not '%s'" % command)
+        return 2
+    if verify and command != "generate":
+        print("sdd-check: --verify applies to 'generate' only, not '%s'" % command)
+        return 2
+    if changelog_all and command != "check":
+        print("sdd-check: --changelog-all applies to 'check' only, not '%s'" % command)
         return 2
 
     if command == "generate":

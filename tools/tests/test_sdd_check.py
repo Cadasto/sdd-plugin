@@ -1469,8 +1469,13 @@ class TestReport(BaselineCase):
 
     def test_note_never_changes_the_exit_code(self):
         report = sdd_check.Report()
+        report.mark_run("plans")
         report.add("plans", "NOTE", "docs/plans/x.md", "a note")
         self.assertEqual(0, report.exit_code())
+
+    def test_a_run_in_which_no_family_ran_is_not_exit_zero(self):
+        report = sdd_check.Report()
+        self.assertEqual(2, report.exit_code())
 
 
 class TestCommandLine(BaselineCase):
@@ -1528,6 +1533,21 @@ class TestCommandLine(BaselineCase):
         code, out = self.run_main(["check", "--root", str(self.tmp), "--only", "links,nope"])
         self.assertEqual(2, code, out)
         self.assertIn("unknown family", out)
+
+    def test_only_an_off_family_verifies_nothing_and_returns_two(self):
+        code, out = self.run_main(["check", "--root", str(self.tmp), "--only", "draft-reason"])
+        self.assertEqual(2, code, out)
+        self.assertIn("families run: none", out)
+
+    def test_verify_on_check_returns_two(self):
+        code, out = self.run_main(["check", "--root", str(self.tmp), "--verify"])
+        self.assertEqual(2, code, out)
+        self.assertIn("--verify", out)
+
+    def test_changelog_all_on_generate_returns_two(self):
+        code, out = self.run_main(["generate", "--root", str(self.tmp), "--changelog-all"])
+        self.assertEqual(2, code, out)
+        self.assertIn("--changelog-all", out)
 
     def test_unknown_command_returns_two(self):
         code, out = self.run_main(["frobnicate"])
