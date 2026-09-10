@@ -2721,9 +2721,9 @@ def render_specifications_index(ctx: Context, home: Optional[Path] = None) -> st
     home = home if home is not None else desc.specifications_index_path()
     lines = ["| Spec | Topic | Status | Mode |", "|---|---|---|---|"]
     for path in desc.specification_files():
-        front = _quiet_frontmatter(ctx.read(path))
-        if _as_str(front.get("kind")) != "specification":
+        if effective_kind(ctx, path) != "specification":
             continue
+        front = _quiet_frontmatter(ctx.read(path))
         spec_name = _as_str(front.get("spec")) or path.stem.upper()
         title = ""
         for _, level, text, _ in headings(ctx.read(path)):

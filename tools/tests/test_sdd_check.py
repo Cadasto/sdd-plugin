@@ -2020,6 +2020,20 @@ class TestSpecificationsIndexRendering(BaselineCase):
         self.assertFalse(any("README" in row for row in rows))
         self.assertEqual(2, len(rows))
 
+    def test_a_kindless_specification_under_paths_specifications_still_gets_a_row(self):
+        # M2: a document with no declared `kind:` at all still resolves to "specification"
+        # through the location fallback (`effective_kind`) — the exact shape `--upgrade`
+        # leaves an unmigrated content file in. Filtering on the declared `kind:` alone
+        # would drop it from the generated index.
+        self.write(
+            "docs/specifications/other.md",
+            "# OTHER — Untitled\n\nNo frontmatter at all: no kind, no status.\n",
+        )
+        rendered = sdd_check.render_specifications_index(self.ctx())
+        rows = rendered.split("\n")[2:]
+        self.assertTrue(any(row.startswith("| [`OTHER`]") for row in rows), rendered)
+        self.assertEqual(2, len(rows))
+
     def test_the_specification_template_is_not_a_row(self):
         # /sdd-scaffold copies the specification template to _template.md, and it correctly
         # declares `kind: specification`. It is a template, not a spec, so it gets no row.
