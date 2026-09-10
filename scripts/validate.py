@@ -12,7 +12,13 @@ Checks:
   * SKILL.md / agent / command frontmatter — required keys, and ``name`` matching the
     directory/filename. Agents MUST declare a grant — ``tools:`` (allowlist) or
     ``disallowedTools:`` (denylist) — and never ``allowed-tools:``, which Claude Code
-    silently ignores so the agent inherits *all* tools (both flagged as errors).
+    silently ignores so the agent inherits *all* tools (both flagged as errors);
+  * every relative link in a ``*.md`` file resolves, and a ``#fragment`` on a ``.md`` target
+    resolves to a heading slug or an explicit anchor (``references/templates/`` excluded —
+    its links resolve once ``sdd-scaffold`` copies it into a consuming repo, not from here);
+  * retired vocabulary does not reappear outside ``CHANGELOG.md`` and ``docs/upgrading.md``;
+  * the vendored gate's version, the template's pinned ``check.version``, and both manifests'
+    ``version`` agree, and the gate script is executable.
 
 This plugin has no MCP backend, so there is intentionally no ``.mcp.json`` check.
 
@@ -179,6 +185,167 @@ def validate_hook_scripts():
             err(f"{sh.relative_to(ROOT)}: hook script is not executable (chmod +x)")
 
 
+# Directories the link and retired-vocabulary scans below skip: version control internals, this
+# plan's own gitignored working area, a JS-tooling convention this repo doesn't use, and compiled
+# Python caches (never text, never worth opening).
+SCAN_EXCLUDE_DIR_NAMES = {".git", ".superpowers", "node_modules", "__pycache__"}
+
+# references/templates/ holds documents `sdd-scaffold` copies into a consuming repo's docs/ tree;
+# their relative links resolve from THAT destination, not from where this repository stores the
+# template — e.g. `ai-workflow.md` links `../AGENTS.md`, correct once scaffolded to
+# `docs/ai-workflow.md`, dead here. The templates' own links are covered by the gate's own
+# `links` family once scaffolded, so this validator skips the directory instead of mis-flagging it.
+TEMPLATES_DIR = ROOT / "references" / "templates"
+
+FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
+INLINE_CODE_RE = re.compile(r"`[^`\n]*`")
+LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
+HEADING_RE = re.compile(r"^(?:#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$", re.MULTILINE)
+ANCHOR_RE = re.compile(r'<a\s[^>]*(?:id|name)="([^"]+)"', re.IGNORECASE)
+
+
+def _scanned_files(pattern):
+    """Every file under ROOT matching `pattern`, skipping SCAN_EXCLUDE_DIR_NAMES."""
+    for p in sorted(ROOT.rglob(pattern)):
+        if not p.is_file():
+            continue
+        if set(p.relative_to(ROOT).parts) & SCAN_EXCLUDE_DIR_NAMES:
+            continue
+        yield p
+
+
+def _github_slug(heading: str) -> str:
+    """The GitHub heading-anchor rule this project documents in references/sdd-check.md: lower-
+    case; drop characters outside letters, digits, space, hyphen, underscore; spaces to hyphens;
+    no run-collapsing (kept local — the tool that also implements this is a vendorable artefact,
+    not something this validator imports)."""
+    heading = heading.strip().lower()
+    heading = re.sub(r"[^a-z0-9 \-_]", "", heading)
+    return heading.replace(" ", "-")
+
+
+def _anchors_in(path: Path):
+    """Heading slugs and explicit `<a id=…>` / `<a name=…>` anchors available as link targets
+    inside one Markdown file."""
+    try:
+        text = path.read_text()
+    except OSError:
+        return None
+    slugs = {_github_slug(m.group(1)) for m in HEADING_RE.finditer(text)}
+    slugs.update(m.group(1) for m in ANCHOR_RE.finditer(text))
+    return slugs
+
+
+def validate_links():
+    """Every relative link target in a `*.md` file must exist; a `#fragment` on a `.md` target
+    must resolve to a heading slug or an explicit anchor in that file. Fenced and inline code are
+    skipped so a code sample's literal `[...]( ...)` text is never mistaken for a real link;
+    external (http(s)/mailto/tel) links are out of scope. references/templates/ is excluded —
+    see TEMPLATES_DIR above for why."""
+    anchor_cache = {}
+
+    for md in _scanned_files("*.md"):
+        if TEMPLATES_DIR in md.parents:
+            continue
+        rel = md.relative_to(ROOT)
+        text = INLINE_CODE_RE.sub("", FENCE_RE.sub("", md.read_text()))
+        for m in LINK_RE.finditer(text):
+            target = m.group(1).strip()
+            # Drop an optional `"title"` after the URL, and unwrap `<...>`.
+            target = re.split(r'\s+["\']', target, maxsplit=1)[0].strip().strip("<>")
+            if not target or target.startswith(("http://", "https://", "mailto:", "tel:")):
+                continue
+            path_part, _, frag = target.partition("#")
+            dest = md if path_part == "" else (md.parent / path_part).resolve()
+            try:
+                dest_label = dest.relative_to(ROOT)
+            except ValueError:
+                dest_label = dest
+            if not dest.exists():
+                err(f"{rel}: link target '{target}' does not exist (resolves to {dest_label})")
+                continue
+            if frag and dest.suffix == ".md":
+                if dest not in anchor_cache:
+                    anchor_cache[dest] = _anchors_in(dest)
+                slugs = anchor_cache[dest]
+                if slugs is not None and frag not in slugs:
+                    err(f"{rel}: link '{target}' — fragment '#{frag}' matches no heading or "
+                        f"anchor in {dest_label}")
+
+
+# Vocabulary the lean redesign retired. A past rename is legitimately still named in the
+# changelog and the upgrading guide; anywhere else it is a document that never got updated.
+RETIRED_TERMS = (
+    "plans_archive",
+    "sdd-with-superpowers",
+    "docs/superpowers/",
+    "Definition of Ready",
+    "Definition of Done",
+    "allowed-tools:",
+    "not yet enforced",
+)
+# CHANGELOG.md and docs/upgrading.md legitimately name a past rename. This script itself is the
+# third, necessary exemption: RETIRED_TERMS above must hold the literal strings it searches for.
+RETIRED_VOCAB_EXEMPT_FILES = {"CHANGELOG.md", "docs/upgrading.md", "scripts/validate.py"}
+
+
+def validate_retired_vocabulary():
+    """None of RETIRED_TERMS may appear outside CHANGELOG.md / docs/upgrading.md. `allowed-tools:`
+    is scoped to agents/ — that is where it is a foot-gun, and validate_md_components() already
+    flags it there; this repeats the term list for one shared exemption rule, not the check."""
+    for path in _scanned_files("*"):
+        rel = str(path.relative_to(ROOT))
+        if rel in RETIRED_VOCAB_EXEMPT_FILES:
+            continue
+        try:
+            text = path.read_text()
+        except (OSError, UnicodeDecodeError):
+            continue
+        for term in RETIRED_TERMS:
+            if term == "allowed-tools:" and not rel.startswith("agents/"):
+                continue
+            if term in text:
+                err(f"{rel}: retired term {term!r} — see docs/upgrading.md")
+
+
+def validate_tool_version(manifests):
+    """The vendored gate's own __version__, the template's pinned check.version, and both
+    manifests' version must all agree — drift here means the wrong gate ships with the plugin.
+    Read as text, never imported: tools/sdd-check.py is a vendorable artefact."""
+    versions = {}
+
+    tool_path = ROOT / "tools" / "sdd-check.py"
+    if tool_path.is_file():
+        m = re.search(r'^__version__\s*=\s*"([^"]+)"', tool_path.read_text(), re.MULTILINE)
+        if m:
+            versions["tools/sdd-check.py"] = m.group(1)
+        else:
+            err("tools/sdd-check.py: no __version__ = \"...\" assignment found")
+        if not tool_path.stat().st_mode & 0o111:
+            err("tools/sdd-check.py: not executable (chmod +x)")
+    else:
+        err("missing tools/sdd-check.py")
+
+    template_path = ROOT / "references" / "templates" / "sdd.yaml"
+    if template_path.is_file():
+        m = re.search(r'^\s*version:\s*"([^"]+)"', template_path.read_text(), re.MULTILINE)
+        if m:
+            versions["references/templates/sdd.yaml (check.version)"] = m.group(1)
+        else:
+            err("references/templates/sdd.yaml: no check.version found")
+    else:
+        err("missing references/templates/sdd.yaml")
+
+    for subdir in (".claude-plugin", ".cursor-plugin"):
+        data = manifests.get(subdir)
+        if data and data.get("version"):
+            versions[f"{subdir}/plugin.json (version)"] = data["version"]
+
+    if len(set(versions.values())) > 1:
+        detail = ", ".join(f"{k}={v}" for k, v in versions.items())
+        err(f"version disagreement across the gate, the template pin, and the manifests: {detail}")
+
+
 def main():
     manifests = {}
     for subdir, label in ((".claude-plugin", "Claude manifest"), (".cursor-plugin", "Cursor manifest")):
@@ -217,6 +384,10 @@ def main():
     validate_md_components("commands", require_name=False)
     validate_rules()
 
+    validate_links()
+    validate_retired_vocabulary()
+    validate_tool_version(manifests)
+
 
 if __name__ == "__main__":
     main()
@@ -226,4 +397,5 @@ if __name__ == "__main__":
             print(f"  - {e}")
         sys.exit(1)
     print("OK: manifests, dual-host parity, component paths, kebab-case names, "
-          "hook configs and scripts, skills, agents, commands, and rules are valid")
+          "hook configs and scripts, skills, agents, commands, rules, links, "
+          "retired vocabulary, and tool/template/manifest version agreement are valid")
