@@ -34,7 +34,8 @@ The **specification — not the code, not the prompt — is the source of truth.
 | Spec-aware review into the ledger; prompt blocks for the panel | `sdd-review` |
 | Work a review round: merge findings, verify, fix, resolve, re-request | `sdd-triage` |
 | Traceability / drift / spec-check / a REQ's context | `sdd-trace` |
-| Run the drift gate, lint the docs, or regenerate the indexes | `sdd-trace` / `sdd-check` (vendored by `sdd-scaffold`) |
+| Run the drift gate or lint the docs (report-only) | `sdd-trace` |
+| Regenerate the indexes and status lines from the map | `sdd-specify` / `sdd-archive` / `sdd-triage` (they run the vendored `generate`) |
 | Does the code satisfy the `SPEC §` it cites, clause by clause | `sdd-spec-conformance-reviewer` agent |
 | Review a *requirement, spec, or ADR* for boundary violations | `sdd-doc-reviewer` agent |
 | Close out the spec status, the requirement status, traceability, and the plan — in the implementing PR | `sdd-archive` |

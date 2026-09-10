@@ -126,7 +126,7 @@ and, outside them, informative narrative). `full` requires directories.
 | Key | Meaning |
 |---|---|
 | `script` | Where the vendored gate lives in this repository. |
-| `version` | The pinned gate version. It must equal the vendored tool's own version, or the gate refuses to run. |
+| `version` | The pinned gate version. It must equal the vendored tool's own version, or the `descriptor` family fails the run (an error by default; `generate` and `context` do not check the pin). |
 | `links.exclude` | Globs the `links` family skips. Printed in every report when non-empty. |
 | `changelog.path` / `changelog.max_words` | The changelog the `changelog` family lints, and the per-bullet word budget. |
 | `code_roots` | Where `tree-to-map` looks for cited identifiers. Empty means the repository minus `docs/`, `.git/`, `vendor/` and `node_modules/`. |
