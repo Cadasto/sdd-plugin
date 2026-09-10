@@ -12,9 +12,10 @@
 | `selftest` | Run the tool against the fixtures it carries. |
 | `--version` | Print the tool's own version. |
 
-Two options are common to every command: `--root DIR` names the repository root (default: the working
-directory), and `--only fam[,fam]` runs just the families listed. `check` also takes `--changelog-all`,
-which extends the `changelog` family past `## [Unreleased]` to every section of the changelog.
+`--root DIR` is common to every command; it names the repository root (default: the working directory).
+`--only fam[,fam]` applies to `check` only, and runs just the families listed; any other command given it
+exits 2 with a message naming the flag and the command. `check` also takes `--changelog-all`, which
+extends the `changelog` family past `## [Unreleased]` to every section of the changelog.
 
 ## Exit codes
 
@@ -24,12 +25,14 @@ which extends the `changelog` family past `## [Unreleased]` to every section of 
 | `1` | Ran; at least one error. |
 | `2` | Could not configure itself, so nothing ran. |
 
-Exit 2 has two causes and no others: the descriptor is missing or cannot be parsed, or the command line is
-invalid — an unknown subcommand, or an unknown family in `--only`. The message names the file and the
-line, or the bad argument.
+Exit 2 has three causes: the descriptor is missing or cannot be parsed; the command line is invalid — an
+unknown subcommand, an unknown family in `--only`, or `--only` given to a command that does not accept it;
+or `context` was given an identifier with no record. The message names the file and the line, or the bad
+argument or identifier.
 
-When the tool exits 2 the report is the first line followed by `sdd-check: FAILED — <message>`, with no
-finding lines and no family lines, because no family ran.
+For the first two causes the report is the first line followed by `sdd-check: FAILED — <message>`, with no
+finding lines and no family lines, because no family ran. `context` given an unknown identifier prints that
+one line only, not a report.
 
 A missing map, a map that cannot be parsed, and a map that yields no records are **not** exit 2. Each is a
 `map-schema` error, so the run exits 1, and every family that needs records is listed under `skipped:`
@@ -67,6 +70,9 @@ families that did not, each with its reason:
 families run: …; skipped: <family> (<reason>)
 ```
 
+The two lists are not a dichotomy: a family that only partly ran — `plans` when git is unavailable, for
+instance — names in both, because part of it ran and part could not.
+
 Every family some file waives adds a line `waived: <family> (<n> files)` straight after it, so a waiver
 can never hide silently.
 
@@ -84,7 +90,7 @@ skipped and named in the summary. Section numbers below are [sdd-methodology.md]
 
 ### descriptor
 
-- `descriptor` — the descriptor parses; `req_style` is `area-prefixed | flat-numeric`; `req_areas` present and non-empty when area-prefixed, absent when flat-numeric; `excluded_areas` disjoint from `req_areas`; `paths.*` and `traceability` exist and match the profile's shape; `check.version` equals the tool's `__version__`; every `check.families` key is a known family and every value `error | warn | off`; `default_mode` valid.
+- `descriptor` — the descriptor parses; `req_style` is `area-prefixed | flat-numeric`; `req_areas` present and non-empty when area-prefixed, absent when flat-numeric; `excluded_areas` disjoint from `req_areas`; `paths.*` and `traceability` exist and match the profile's shape; `check.version` equals the tool's `__version__`; every `check.families` key is a known family and every value `error | warn | off`; `default_mode` valid; `doc_kinds` retains the four normative kinds (`requirement`, `specification`, `adr`, `plan`) — a repository may extend the list, never shrink it below them.
 
 Default severity `error`. Enforces §5 (the identifier scheme and excluded areas) and §3 (the kind vocabulary).
 
@@ -102,7 +108,7 @@ Default severity `error`. Enforces §5 (the single canonical home), §6 (an "enf
 
 ### index-sync
 
-- `index-sync` — the requirements index (the `README.md` of `paths.requirements`, or the file itself under the lightweight profile) has a table whose rows carry `REQ` ids; the parse yields at least one row; every row id has a record and every record has a row; the row's stability and implementation cells (columns found by header text `Stability`/`Status` and `Implementation`/`Impl.`, else the last two columns; case-insensitive compare) equal the record; a requirement detail file (`<paths.requirements>/<id>*.md`, full profile) has frontmatter `status` and `implementation` equal to the record; a specification's frontmatter `requirements:` list, when present, equals the set of records whose canonical points into it (warn).
+- `index-sync` — the requirements index (the `README.md` of `paths.requirements`, or the file itself under the lightweight profile) has a table whose rows carry `REQ` ids; the parse yields at least one row; an id that carries more than one row is an error; a table carrying ids whose header names no `Stability` or no `Implementation` column is a warning; every row id has a record and every record has a row; the row's stability and implementation cells (columns found by header text `Stability`/`Status` and `Implementation`/`Impl.`, else the last two columns; case-insensitive compare) equal the record; a requirement detail file (`<paths.requirements>/<id>*.md`, full profile) has frontmatter `status` and `implementation` equal to the record; a specification's frontmatter `requirements:` list, when present, equals the set of records whose canonical points into it (warn).
 
 Default severity `error`. Enforces §5 (the index links and never duplicates) and §6 (the map owns both axes).
 
@@ -141,7 +147,7 @@ Default severity `error`. Enforces §5 (the single canonical home), §11 (duplic
 
 ### links
 
-- `links` — in every `*.md` under `docs/`, `AGENTS.md`, `README.md`, and any `paths.*` outside `docs/`: every inline link `](target)` and reference definition `[label]: target` whose target has no scheme (`http:`, `https:`, `mailto:`, `ftp:`, `tel:`, `data:`, `//`) resolves: the path exists relative to the file (error), a host-absolute path is an error, and a `#fragment` on a `.md` target (or a bare `#fragment`) resolves to a heading slug or explicit anchor in that file (error). Fenced code, inline code and frontmatter are skipped. `check.links.exclude` globs are honoured and printed.
+- `links` — in every `*.md` under `docs/`, `AGENTS.md`, `README.md`, and any `paths.*` outside `docs/`: every inline link `](target)` and reference definition `[label]: target` whose target has no scheme (`http:`, `https:`, `mailto:`, `ftp:`, `tel:`, `data:`, `//`) resolves: a host-absolute path is an error; a relative path that walks outside the repository root (`../` past the top) is an error, distinct from a host-absolute path; the path exists relative to the file (error); and a `#fragment` on a `.md` target (or a bare `#fragment`) resolves to a heading slug or explicit anchor in that file (error). Fenced code, inline code and frontmatter are skipped. `check.links.exclude` globs are honoured and printed.
 
 Default severity `error`. Enforces §8 — the chain is made of links, and a link that nothing resolves rots
 silently.
@@ -167,17 +173,17 @@ requirement that is built and still `draft` owes a reason.
 
 ## Waivers
 
-A file is waived for one or more families by a comment anywhere in it:
+A file is waived for one or more families by a comment anywhere in it — matched as text, not as markup, so
+it still counts inside a fenced code block:
 
 ```markdown
 <!-- sdd-check: allow <family>[, <family>] -->
 ```
 
-For example:
-
-```markdown
-<!-- sdd-check: allow rfc2119, one-home -->
-```
+Name more than one family comma-separated in the same comment. Never write a real family name into an
+example of this syntax: the comment waives whatever file holds it, fenced or not, so a document
+demonstrating the pattern with a real name waives itself for that family. Use the `<family>` placeholder
+shown above, even in prose that walks through the syntax.
 
 The waiver covers that file and only the families it names. Every waiver is counted in the summary, so a
 repository can see how many it carries and whether the number is going down.
@@ -186,7 +192,16 @@ repository can see how many it carries and whether the number is going down.
 
 `generate` writes three blocks — `requirements-index`, `specifications-index` and `adr-index` — plus the
 `status:` and `implementation:` frontmatter lines of every requirement detail file. Each block sits
-between a pair of markers whose format is owned by [traceability-schema.md](traceability-schema.md) §4.
+between a pair of markers whose format is owned by [traceability-schema.md](traceability-schema.md) §4. A
+block's links resolve relative to the file holding the block, not to the block's canonical home — the same
+index wrapped into two different files links each row from where it actually sits. An opening marker with
+no closing one, or a block name outside the three known names, is skipped rather than written; `generate`
+exits 1 and names each block it skipped, by file, line and reason.
+
+A kind-less document under `paths.specifications` still becomes a row in the generated specifications
+index: `generate` reads the kind the document's location implies, the same fallback `doc-kinds` reports
+against elsewhere in this file — `doc-kinds` keeps warning about the missing declaration at its own
+severity, but the row is not dropped while the warning stands.
 
 `generate --verify` compares and writes nothing; the `generated` family makes the same comparison during
 `check`, so a hand edit between the markers fails the gate.
