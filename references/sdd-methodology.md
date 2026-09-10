@@ -348,6 +348,7 @@ The review-enforced list is meant to shrink.
 
 | Rule | Enforcement |
 |---|---|
+| Map record shape and status vocabulary | `map-schema` |
 | Canonical home resolves both ways | `map-to-tree` |
 | Evidence on enforced records | `map-to-tree` |
 | Index equals map | `index-sync` |

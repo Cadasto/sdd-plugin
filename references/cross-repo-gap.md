@@ -8,8 +8,8 @@ This is a niche, advanced pattern (only relevant when `docs/.sdd.yaml` declares 
 
 1. **Write it in the upstream's conventions** — RFC-2119 keywords, `Status: Draft`, cite the existing upstream `REQ` it extends, a one-paragraph rationale rooted in **concrete consumer usage**, explicit acceptance criteria, and out-of-scope. Mirror the upstream's identifier style and section layout, *not* the consumer's. The draft must read as if authored in the upstream repo — that is what makes it droppable.
 2. **Store it locally.** A gap draft is `kind: upstream`. It lives under the relation's `gap_drafts`
-   directory — `docs/<name>-gap-drafts/SDK-GAP-NN-<slug>.md` — so the consumer keeps a record, and it is
-   emitted from `references/templates/gap-draft.md`. Number sequentially.
+   directory — `docs/<name>-gap-drafts/<PREFIX>-GAP-NN-<slug>.md` — so the consumer keeps a record, and it
+   is emitted from `references/templates/gap-draft.md`. Number sequentially.
 3. **Track the lifecycle** in the draft's frontmatter, in `state:` — not `status:`, because the lifecycle
    being tracked is the upstream's:
 
