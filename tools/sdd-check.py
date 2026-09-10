@@ -774,6 +774,11 @@ def _as_str(value, fallback: str = "") -> str:
     return str(value)
 
 
+def _article(word: str) -> str:
+    """``"an"`` before a word that opens on a vowel sound, ``"a"`` otherwise."""
+    return "an" if word[:1].lower() in "aeiou" else "a"
+
+
 def _top_level_key_line(text: str, key: str) -> int:
     """The 1-based line number of an unindented ``key:`` mapping entry, or ``1``."""
     pattern = re.compile(r"^%s\s*:" % re.escape(key))
@@ -1455,9 +1460,9 @@ def check_map_to_tree(ctx: Context, report: "Report") -> None:
                 if not target.exists():
                     add("missing %s path: %s" % (key, rel))
                 elif not target.is_file():
-                    article = "an" if key[0] in "aeiou" else "a"
                     add(
-                        "%s %s entry must be a file, not a directory: %s" % (article, key, rel)
+                        "%s %s entry must be a file, not a directory: %s"
+                        % (_article(key), key, rel)
                     )
         for probe in record.probes:
             if catalogue is not None:
@@ -2056,8 +2061,9 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
                 "rfc2119",
                 at,
                 "%s:%d" % (anchor, lineno),
-                "the RFC-2119 keyword %s does not belong in a %s document; the specification "
-                "owns the normative prose" % (", ".join(sorted(set(words))), kind),
+                "the RFC-2119 keyword %s does not belong in %s %s document; the specification "
+                "owns the normative prose"
+                % (", ".join(sorted(set(words))), _article(kind), kind),
             )
     if not examined:
         # A family that read no document did not run, whatever the reason. Every

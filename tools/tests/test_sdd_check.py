@@ -872,12 +872,23 @@ class TestRfc2119Family(BaselineCase):
         self.write("docs/adr/ADR-001-environment.md",
                    "---\nkind: adr\nstatus: accepted\n---\n\n# ADR-001 — Environment\n\n"
                    + NORMATIVE_SENTENCE + "\n")
-        self.assert_finding(self.run_only("rfc2119"), "RFC-2119")
+        finding = self.assert_finding(self.run_only("rfc2119"), "RFC-2119")
+        # M5: the article agrees with the kind ("an adr", not "a adr").
+        self.assertIn("belong in an adr document", finding.message)
 
     def test_keyword_in_a_reference(self):
         self.write("docs/reference/variables.md",
                    "---\nkind: reference\n---\n\n# Variables\n\n" + NORMATIVE_SENTENCE + "\n")
         self.assert_finding(self.run_only("rfc2119"), "RFC-2119")
+
+    def test_keyword_in_an_operations_document(self):
+        # M5: another vowel-leading kind, so the fix is not special-cased to "adr".
+        # "operations" is not an RFC2119-citing kind, so this warns at the family's
+        # configured severity rather than erroring.
+        self.write("docs/operations/runbook.md",
+                   "---\nkind: operations\n---\n\n# Runbook\n\n" + NORMATIVE_SENTENCE + "\n")
+        finding = self.assert_finding(self.run_only("rfc2119"), "RFC-2119", level="WARN")
+        self.assertIn("belong in an operations document", finding.message)
 
     def test_keyword_in_a_guide_warns_by_default(self):
         self.edit(GUIDE_REL, "Write the specification first",
