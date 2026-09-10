@@ -7,6 +7,7 @@ The detailed companion to [AGENTS.md](../AGENTS.md) (which is authoritative); th
 - **Components are kebab-case** and namespaced `<plugin>:<component>` (for example `sdd:sdd-specify`). A component's frontmatter `name` MUST equal its directory (skills) or filename stem (agents); `scripts/validate.py` enforces this.
 - `skills/<name>/SKILL.md` (includes user-invoked slash commands) · `agents/<name>.md` · `rules/<name>.mdc`. Shared reference material (the methodology, the schemas, the scaffold templates) lives in top-level `references/`. The legacy `commands/<name>.md` layout is not used.
 - Skill/command prefix is `sdd-`; the awareness skill is `spec-driven-development` (kept distinct from the plugin name `sdd` to avoid a `sdd:sdd` collision).
+- **`tools/` is the one shipped, vendorable artefact — not another skill/agent/rule.** `tools/sdd-check.py` is a single, executable, standard-library-only Python file (3.9+) that `/sdd-scaffold` copies into a consuming repository; its unit tests live in `tools/tests/` (`unittest`, no pytest). `scripts/` is this repository's own validation and never imports it — read it as text or shell out to it, the way a consuming repository would.
 
 ## Skill vs agent vs rule
 
