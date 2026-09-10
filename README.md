@@ -38,7 +38,7 @@ A focused surface — eight `/sdd-*` commands plus an always-on router.
 
 ### Agents
 
-The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only `Read`/`Grep`/`Glob` and so is read-only outright; the other two add `Bash` for read-only scoping (`git diff`, `git log`), which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and every other tool the host offers — the repository's MCP servers included — is inherited. These grants are enforced by Claude Code. Cursor's subagent frontmatter carries no tool grant — a subagent inherits every tool — so on Cursor both the reviewers' no-edit rule and the implementer's no-spawn rule are contracts the agent bodies state, not sandboxes; Cursor's `subagentStart` hook is the enforceable path and is not shipped in 0.5.0.
+The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only `Read`/`Grep`/`Glob` and so is read-only outright; the other two add `Bash` for read-only scoping (`git diff`, `git log`), which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and every other tool the host offers — the repository's MCP servers included — is inherited. These grants are enforced by Claude Code. Cursor's subagent frontmatter carries no tool grant — a subagent inherits every tool — so on Cursor both the reviewers' no-edit rule and the implementer's no-spawn rule are contracts the agent bodies state, not sandboxes; Cursor's `subagentStart` hook is the enforceable path and is not shipped in 0.6.0.
 
 | Agent | Purpose |
 |---|---|
@@ -47,10 +47,15 @@ The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only 
 | `sdd-spec-conformance-reviewer` | Judges whether implemented code satisfies the normative `SPEC §` / `REQ` acceptance criteria it cites, clause by clause — the conformance pass (not code quality, drift, or test-passing) |
 | `sdd-implementer` | Implements one bounded task from a delivery brief — reads the `SPEC §` the brief cites, cites `REQ`/`PROBE` ids in test names and its commit message, verifies with the command the brief names, and returns `En-route findings` |
 
+### The gate
+
+`sdd-check` is the plugin's drift gate — one vendored, standard-library-only Python file that checks the traceability chain in both directions, lints the prose rules a machine can apply (document kinds, RFC-2119 keyword placement and grammar, single canonical home, link targets, changelog bullets), regenerates the requirements/specifications/ADR indexes and the requirement status lines from the map, prints a requirement's context bundle, and tests itself against its own fixtures. `/sdd-scaffold` copies it into the repository at the descriptor's `check.script` (`scripts/sdd-check.py` by default) and pins the copy's version in `check.version`; the gate refuses to pass when the vendored copy and the pin disagree, so a stale copy cannot keep a build green. Run it directly with `sdd-check check`, `sdd-check generate` (rewrite the generated blocks from one source; `--verify` reports without writing), `sdd-check context <REQ>` (the index row, the record, the canonical section, and any open strand), or `sdd-check selftest`. Full contract: [references/sdd-check.md](references/sdd-check.md).
+
 ### Hooks
 
-- **SessionStart** — detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a short context line plus the available `/sdd-*` surface.
+- **SessionStart** — detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a context line, the available `/sdd-*` surface, and a short orientation — branch and tree state, active plans, open pull requests when the forge CLI answers, and the drift gate's verdict when it is vendored.
 - **PostToolUse** *(Claude Code)* / **afterFileEdit** *(Cursor, `hooks/cursor-hooks.json`)* — after an edit to a requirement, spec, ADR, plan, or the traceability map, reminds you to keep the traceability chain in sync and run `/sdd-trace`.
+- **Stop** *(Claude Code)* / **stop** *(Cursor)* — a one-shot nudge when the session made no commit and leaves uncommitted changes in an SDD repository; the second stop in the same session passes silently. Opt out per repo with `hooks.stop_nudge: false` in `docs/.sdd.yaml`.
 
 ### Cursor
 
@@ -101,8 +106,14 @@ The walkthrough is [docs/quick-start.md](docs/quick-start.md); prompts by use ca
 
 ```yaml
 sdd:
+  profile: full                     # full | lightweight
+
   req_style: area-prefixed          # area-prefixed | flat-numeric
   req_areas: [FOUND, EHR, CLIN, AUTH]   # only for area-prefixed
+  excluded_areas: []                # area-prefixed only; tokens deliberately not areas
+  doc_kinds: [requirement, specification, adr, plan, guide, analysis, operations, reference, upstream]
+  default_mode: spec-first          # the mode a specification has when its frontmatter names none
+
   paths:
     requirements: docs/requirements
     specifications: docs/specifications
@@ -113,6 +124,11 @@ sdd:
   ci_target: ci                     # `make ci`, `task ci`, `npm run ci`
   spec_check_target: spec-check
   ground_truth: "<the authoritative source for this repo's domain facts>"
+
+  check:
+    script: scripts/sdd-check.py    # where /sdd-scaffold vendors the gate
+    version: "0.6.0"                # must equal the vendored tool's own version
+    families: {}                    # per-family error | warn | off overrides — see references/sdd-check.md
 
   # Delivery parameters. /sdd-deliver and /sdd-review read these instead of asking.
   # Every value here is an EXAMPLE — no model and no reviewer is required by the plugin.
@@ -133,7 +149,7 @@ sdd:
 - [docs/quick-start.md](docs/quick-start.md) — one capability from idea to a ready pull request
 - [docs/examples.md](docs/examples.md) — prompts by use case
 - [docs/install.md](docs/install.md) — install on both hosts
-- [docs/upgrading.md](docs/upgrading.md) — moving a repository from 0.4.x
+- [docs/upgrading.md](docs/upgrading.md) — moving a repository from 0.4.x or 0.5.x
 - [docs/testing.md](docs/testing.md) — validate and dogfood
 - [docs/versioning.md](docs/versioning.md) — SemVer + release steps
 - [docs/authoring.md](docs/authoring.md) — skill / agent / rule authoring conventions
