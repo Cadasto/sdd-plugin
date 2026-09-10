@@ -9,6 +9,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
+The rules Phase 1 stated are now enforced: one vendored, versioned, self-testing gate —
+`sdd-check` — checks the chain in both directions, lints the prose rules that can be checked
+mechanically, and generates every derived index from one source. The descriptor covers the shapes
+repositories had to invent. Moving a repository from 0.5.x is described in `docs/upgrading.md`.
+
 ### Added
 - Tools: `tools/sdd-check.py` — the drift gate: a strict YAML-subset parser, descriptor and map models, and the drift-core families (descriptor, map schema, map to tree, index sync, plans, tree to map, draft reason), with unit tests.
 - References: `sdd-check.md` — the contract of the shared drift gate: families, severities, report format, exit codes, waivers, generated blocks, vendoring and the version pin.
