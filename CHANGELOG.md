@@ -27,6 +27,10 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Hooks: `session-start.sh` prints orientation: branch and tree state, active plans, open pull requests when the forge CLI answers, and the drift-gate verdict when the gate is vendored.
 - Hooks: `spec-edit-reminder.sh` points at the generate command after a map or requirement edit.
 - Scripts: `validate.py` checks relative links and fragments, retired vocabulary, and version agreement between the tool, the template pin and the manifests; CI runs the tool's unit tests and selftest.
+- Skills: `sdd-scaffold` vendors the gate, pins its version, wires the real spec-check target, runs generate, and gains `--upgrade` for a 0.5.x repository.
+- Skills: `sdd-trace` runs the gate's context and check commands first; `sdd-specify`, `sdd-archive` and `sdd-triage` write the map and run generate instead of hand-editing an index.
+- Skills: `sdd-review` reads a specification's mode when detecting the lane; `sdd-finalize` and `sdd-deliver` name the gate; the router routes drift, lint and regenerate requests.
+- Agents: `sdd-traceability-auditor` runs the gate first and spends its judgement on what the gate cannot decide.
 
 ### Fixed
 - Tools: the generated specifications index skips the specification template, and a vendored gate is no longer scanned as this repository's own code.

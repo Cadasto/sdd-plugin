@@ -39,24 +39,20 @@ Reach for this agent when the scan is whole-tree and context isolation is worth 
 
 ## How to audit
 
-1. Load `docs/.sdd.yaml`; resolve all paths from it.
+1. **Run the gate first.** Resolve it — the repository's vendored copy at `check.script` (`docs/.sdd.yaml`, default `scripts/sdd-check.py`) if it exists, else the plugin's own `tools/sdd-check.py` — and run `check --root .`. Take its findings as the mechanical baseline: `references/sdd-check.md` owns the families, the report format, and what each finding means — this agent does not restate them. When `python3` is unavailable, say so and perform steps 2–5 as the whole audit rather than only the judgement layer below.
 2. Parse the requirements index and the traceability map.
-3. For each requirement, follow its `canonical` link to the real spec file/anchor; verify it exists and owns the prose (no duplication elsewhere — grep the spec tree for the same normative statement).
-4. Verify every listed `package` and `test` path exists; every `PROBE` id resolves to a test.
-5. Cross-check both directions: a `REQ` in the index but not the map (or vice-versa); a spec section with no `Implements:` backlink.
+3. For each requirement, follow its `canonical` link to the real spec file/anchor and confirm it owns the prose. Spend this judgement on what the baseline left as a warning or could not see at all — duplicated prose that survives the gate's normalisation, or a canonical section that resolves but does not own the prose.
+4. Verify every listed `package`/`test` path and every `PROBE` id the baseline reported only as a warning, or that a skipped family left unchecked.
+5. Cross-check both directions on anything the baseline left open: a `REQ` in the index but not the map (or vice-versa); a spec section with no `Implements:` backlink.
 
 ## Drift classes to report
 
-(Self-contained — an isolated agent cannot load the `sdd-trace` skill; keep this list complete here.)
-
-- **Orphan REQ** — index/map entry with no canonical spec.
-- **Orphan code/test** — map lists a path that doesn't exist; or `landed`/`shipped` REQ with no packages/tests.
-- **Orphan probe** — `PROBE` id with no test.
-- **Duplicated normative prose** — the same MUST/SHALL statement in two files (two sources of truth); flagged by audit step 3.
-- **Index/map disagreement** — a REQ present in one but not the other; status axes inconsistent.
-- **A status line that lies** — a `REQ` left `in_progress` after it landed, or a `SPEC §` status that does
-  not match what the map says shipped. There is no plans index and no plan axis on a record; a plan file's
-  status is not a drift class. This agent does not report plan status; `/sdd-trace` does.
+`references/sdd-check.md` — read directly (`${CLAUDE_PLUGIN_ROOT}/references/sdd-check.md` on Claude Code,
+else Glob for the installed copy) — owns the families and what each one reports; relay the baseline's
+findings by family rather than re-deriving them. This agent's own judgement (`## How to audit` steps 3–5)
+adds only what a family leaves as a warning or cannot see mechanically: duplicated prose that survives the
+gate's normalisation, and a canonical section that resolves but does not own the prose. There is no plans
+index and no plan axis on a record; this agent does not report plan status — `/sdd-trace` does.
 
 ## Materiality threshold
 
