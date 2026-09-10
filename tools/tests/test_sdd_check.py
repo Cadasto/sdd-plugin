@@ -1846,9 +1846,13 @@ class TestTreeToMapUnderGit(GitCase):
         self.assert_clean(self.run_only("tree-to-map"))
 
     def test_an_untracked_file_that_is_not_ignored_is_scanned(self):
-        self.write("scratch/note.py", "# REQ-FOUND-077\n")
+        # M9: the file must stay untracked (created after the baseline commit) so this
+        # test actually depends on --others --exclude-standard. Committing it first (as
+        # an earlier version of this test did) makes --cached alone find it, so a
+        # regression dropping those flags would pass anyway.
         self.init_git()
         self.commit("baseline")
+        self.write("scratch/note.py", "# REQ-FOUND-077\n")
         self.assert_finding(self.run_only("tree-to-map"), "unknown identifier cited", level="WARN")
 
 
