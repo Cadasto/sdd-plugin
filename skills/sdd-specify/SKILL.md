@@ -18,7 +18,7 @@ If the repo is not scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold
 1. Read `docs/.sdd.yaml` for `req_style`, `req_areas`, `req_gap`.
 2. **Assign the next identifier** without collision — area-prefixed (`REQ-<AREA>-NNN`, reject unknown areas) or flat-numeric (next slot at `req_gap` spacing).
 3. From `references/templates/requirement.md`: capability (what + why), **observable, testable** acceptance criteria — covering the **negative space** (what the capability must refuse or fail closed on, with the intended failure behaviour as an observable outcome; the normative *how* lives in the spec, §B), not only happy paths — explicit out-of-scope, and the two status fields (`status: draft`, `implementation: proposed`).
-4. Add the record to `traceability.yaml` (`references/traceability-schema.md`), then run `sdd-check generate`; the index row and the detail file's status lines are written from the record.
+4. Add the record to `traceability.yaml` (`references/traceability-schema.md`), then run `sdd-check generate` (the repository's vendored copy at `check.script`, else the plugin's own `tools/sdd-check.py`, with `--root .`; when `python3` is unavailable, say so and leave the block for the next run rather than hand-editing it); the index row and the detail file's status lines are written from the record.
 - **No implementation detail** — no file paths, no "how". Track the two status axes separately (`draft` is binding now).
 
 ## B · Specification (`SPEC-* §`) — make or amend normative behaviour
@@ -27,7 +27,7 @@ If the repo is not scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold
 2. **Look up ground truth** for any domain fact in the source named in `.sdd.yaml` (`ground_truth`); never guess.
 3. Write or amend the statement with explicit **RFC-2119** keywords (MUST/SHALL, SHOULD, MAY) and a stable `§N` anchor. No task lists, no file paths, no PR summaries. An amendment to an existing § — one sentence or many — is full-lane work (methodology §12) and goes through steps 4 and 5 like a new §; there is no edit of normative text small enough to skip them.
 4. **The spec owns the negative space's *how*.** Refusals, `MUST NOT`s, fail-closed behaviour, and the error contract (what failure looks like) are written here with normative force — the `REQ` acceptance criteria only name and cite them (§A).
-5. Set/verify the `Status:` header; add/update the record in `traceability.yaml` (`references/traceability-schema.md`) with the canonical anchor, then run `sdd-check generate`; the requirements index row and the specifications index are written from the record.
+5. Set/verify the `Status:` header; add/update the record in `traceability.yaml` (`references/traceability-schema.md`) with the canonical anchor, then run `sdd-check generate` (the repository's vendored copy at `check.script`, else the plugin's own `tools/sdd-check.py`, with `--root .`; when `python3` is unavailable, say so and leave the block for the next run rather than hand-editing it); the requirements index row and the specifications index are written from the record.
 - **One canonical home — never duplicate normative prose.** This is the cardinal rule.
 
 ## C · ADR (`ADR-NNNN`) — record an irreversible decision
