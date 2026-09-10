@@ -952,7 +952,11 @@ class Descriptor:
                 if isinstance(body, dict)
             }
         name = _as_str(self.upstream)
-        return {name: {"repo": name}} if name else {}
+        # The scalar form names no relation, so it takes the generic name "upstream"
+        # itself (never the repo string — an unpredictable key any caller deriving a
+        # path or message from the relation name would have to special-case) and the
+        # implied role, matching references/cross-repo-gap.md's documented shape.
+        return {"upstream": {"repo": name, "role": "consumed"}} if name else {}
 
 
 # ---------------------------------------------------------------------------

@@ -1598,6 +1598,18 @@ class TestInterfaces(BaselineCase):
         self.assertEqual({"core": {"repo": "example.org/core", "role": "consumed"}},
                          desc.upstream_relations())
 
+    def test_scalar_upstream_normalises_to_a_named_relation(self):
+        # BI1: references/cross-repo-gap.md documents the scalar form as one relation
+        # NAMED "upstream" with role: consumed — not one keyed by the repo string,
+        # which would give an unpredictable key any caller deriving a path or message
+        # from the relation name would have to special-case.
+        self.edit(sdd_check.DESCRIPTOR_REL, '  upstream: ""', '  upstream: "example.org/core"')
+        desc = sdd_check.Descriptor.load(self.tmp)
+        self.assertEqual(
+            {"upstream": {"repo": "example.org/core", "role": "consumed"}},
+            desc.upstream_relations(),
+        )
+
     def test_context_reads_files_and_lists_docs(self):
         desc = sdd_check.Descriptor.load(self.tmp)
         ctx = sdd_check.Context(self.tmp, desc, sdd_check.load_map(desc))
