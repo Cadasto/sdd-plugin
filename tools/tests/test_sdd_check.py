@@ -1426,6 +1426,17 @@ class TestCommandLine(BaselineCase):
         self.assertEqual(2, code, out)
         self.assertIn("docs/.sdd.yaml", out)
 
+    def test_wrong_shape_sdd_key_returns_two(self):
+        # AI1: a wrong-shape `sdd:` key (a scalar, not a mapping) must fail closed with
+        # one clear message naming the file and the line — never fall back every field
+        # to its default and produce a cascade of misleading findings.
+        self.write(sdd_check.DESCRIPTOR_REL, "sdd: hello\n")
+        code, out = self.run_main(["check", "--root", str(self.tmp)])
+        self.assertEqual(2, code, out)
+        self.assertIn("docs/.sdd.yaml:1", out)
+        self.assertIn("sdd:", out)
+        self.assertIn("mapping", out)
+
     def test_unknown_family_returns_two(self):
         code, out = self.run_main(["check", "--root", str(self.tmp), "--only", "links,nope"])
         self.assertEqual(2, code, out)

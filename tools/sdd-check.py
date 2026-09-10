@@ -764,6 +764,15 @@ def _as_str(value, fallback: str = "") -> str:
     return str(value)
 
 
+def _top_level_key_line(text: str, key: str) -> int:
+    """The 1-based line number of an unindented ``key:`` mapping entry, or ``1``."""
+    pattern = re.compile(r"^%s\s*:" % re.escape(key))
+    for index, line in enumerate(text.split("\n")):
+        if pattern.match(line):
+            return index + 1
+    return 1
+
+
 class Descriptor:
     """`docs/.sdd.yaml`, with a default for every key the schema gives one."""
 
@@ -826,8 +835,20 @@ class Descriptor:
             raise FileNotFoundError(DESCRIPTOR_REL)
         text = path.read_text(encoding="utf-8", errors="replace")
         data = load_yaml(text, source=DESCRIPTOR_REL)
-        if isinstance(data, dict) and isinstance(data.get("sdd"), dict):
-            data = data["sdd"]
+        if isinstance(data, dict) and "sdd" in data:
+            sdd = data["sdd"]
+            if not isinstance(sdd, dict):
+                # The tool cannot configure itself from a wrong-shape `sdd:` key: every
+                # field would silently fall back to its default and the run would produce
+                # a cascade of misleading findings instead of one clear failure. Fail
+                # closed, once, naming the file and the line — the same contract a
+                # missing or unparseable descriptor already carries.
+                raise YamlError(
+                    "the sdd: key must be a mapping, not %s" % type(sdd).__name__,
+                    _top_level_key_line(text, "sdd"),
+                    DESCRIPTOR_REL,
+                )
+            data = sdd
         if not isinstance(data, dict):
             raise YamlError("the descriptor is not a mapping", 1, DESCRIPTOR_REL)
         return cls(Path(root), data)
