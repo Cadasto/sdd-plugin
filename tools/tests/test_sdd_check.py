@@ -623,12 +623,18 @@ class GitCase(BaselineCase):
     """A baseline repository plus the helpers that turn it into a git work tree."""
 
     def git(self, *args):
-        subprocess.run(
-            ["git", "-C", str(self.tmp)] + list(args),
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        try:
+            subprocess.run(
+                ["git", "-C", str(self.tmp)] + list(args),
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            # A missing or failing git must fail this one test with a reason, not
+            # abort with a raw traceback (M3 — the same fail-closed shape the tool's
+            # own selftest mutation helper carries).
+            self.fail("git unavailable: %s" % exc)
 
     def init_git(self):
         self.git("init", "-q")
@@ -2170,6 +2176,30 @@ class TestSelftest(unittest.TestCase):
             code = sdd_check.selftest()
         self.assertEqual(0, code, buffer.getvalue())
         self.assertIn("selftest: OK", buffer.getvalue())
+
+    def test_selftest_survives_a_missing_git(self):
+        # M3: the stale-plan case shells out to git via an unguarded helper. A missing
+        # binary must fail only that one case — never abort the whole run with a raw
+        # traceback after the cases before it already printed PASS.
+        original_run = sdd_check.subprocess.run
+
+        def fake_run(cmd, *args, **kwargs):
+            if cmd and cmd[0] == "git":
+                raise FileNotFoundError(2, "No such file or directory", "git")
+            return original_run(cmd, *args, **kwargs)
+
+        sdd_check.subprocess.run = fake_run
+        try:
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = sdd_check.selftest()
+        finally:
+            sdd_check.subprocess.run = original_run
+        out = buffer.getvalue()
+        self.assertEqual(1, code, out)
+        self.assertIn("FAIL plan-stale-after-tag", out)
+        self.assertIn("PASS descriptor-version-pin", out)
+        self.assertIn("selftest: FAILED", out)
 
     def test_selftest_is_mutation_detectable(self):
         original = sdd_check.CHECKS["links"]

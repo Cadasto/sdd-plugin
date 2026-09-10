@@ -3770,7 +3770,16 @@ def selftest() -> int:
         with tempfile.TemporaryDirectory() as holder:
             root = Path(holder)
             write_baseline(root)
-            case.mutate(root)
+            try:
+                case.mutate(root)
+            except (OSError, subprocess.SubprocessError) as exc:
+                # A mutation that shells out (git, for the stale-plan fixture) must
+                # fail only this one case when the binary is missing or fails — never
+                # abort the whole run with a raw traceback after the cases before it
+                # already printed PASS.
+                print("FAIL %s — %s" % (case.name, exc))
+                failed.append(case.name)
+                continue
             report = run_check(root, only=None, changelog_all=False)
             reason = case.check(report, root)
         if reason is None:
