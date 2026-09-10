@@ -19,7 +19,7 @@ Run this as the **first step of a version bump, before the tag**. The deletions 
 3. **Inbound-link check — before any delete.** Grep the whole documentation root, `docs/**`, plus any directory the descriptor names under `paths.*` that lies outside it, for each candidate's path and basename. A link whose source is itself a candidate — an archive index listing the plans beside it, a finished plan citing another — does not count; the source leaves the tree in the same commit. If any other document still links to a candidate, stop and print the list. The fix is to rewrite the citation to the PR or the `REQ`, then run this again. Never delete a file that is still cited.
 4. **First run in this repo.** If `<paths.plans>/archive/` exists, select from it exactly as step 2 does: a file whose frontmatter `status` is `done` or `abandoned`, plus the directory's index file, joins the same candidate list. A file there with any other status, or with no frontmatter, stops the sweep and is named in the report — sitting in an archive directory is not proof that a plan is finished. Run the same inbound-link check over the additions. This step only adds candidates; it deletes nothing. If `docs/.sdd.yaml` still declares the retired archive-path key (see `docs/upgrading.md`), remove that line in the same commit.
 5. **Delete.** `git rm` each candidate — this is the only step that deletes anything. Use `git rm` so the deletion is staged with the bump; git keeps the history and the PR head ref stays fetchable. Remove the legacy archive directory from step 4 in the same commit, once its last file is gone.
-6. **Report.** What was deleted, what was kept and why (`active`, `postponed`), and what blocked.
+6. **Report.** Run `sdd-check check` — the repository's vendored copy at `check.script`, else the plugin's own `tools/sdd-check.py`, with `--root .` — and report the `plans` family clean (`references/sdd-check.md`); when `python3` is unavailable, say so instead. Then report what was deleted, what was kept and why (`active`, `postponed`), and what blocked.
 
 With `--dry-run`, print steps 2–4 and delete nothing.
 
@@ -34,3 +34,4 @@ With `--dry-run`, print steps 2–4 and delete nothing.
 
 - `references/sdd-methodology.md` — §9 the plan lifecycle.
 - `references/traceability-schema.md` — §3 the plan frontmatter contract.
+- `references/sdd-check.md` — the `plans` family step 6 confirms clean.
