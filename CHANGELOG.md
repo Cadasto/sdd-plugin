@@ -17,12 +17,16 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Tools: `sdd-check` gains the five prose families — document kinds, RFC-2119 grammar and placement, one canonical home, links with fragments, and changelog bullets — with file-level waivers.
 - Tools: `sdd-check generate` writes the three index tables and the requirement status lines from one source; `context` prints a requirement's bundle; `selftest` proves every rule with a negative fixture.
 - Templates: `gap-draft.md` — the upstream cross-repo ask with its state lifecycle.
+- Hooks: `session-stop.sh` — a one-shot nudge when a session made no commit and leaves uncommitted changes, registered on both hosts; opt out with `hooks.stop_nudge: false`.
 
 ### Changed
 - References: `artefact-prose.md` — the changelog-bullet and one-home rules are enforced by the gate's `changelog` and `one-home` families.
 - References: `cross-repo-gap.md` — the `state:` lifecycle, the disclosure rule, the behaviour-preservation test, and the named `upstream` relations.
 - Templates: `sdd.yaml` carries the profile, document kinds, excluded areas, default mode, and the check and hooks blocks.
 - Templates: every emitted document declares its kind; the three index tables sit in generated blocks; `ci.md` names the gate and an optional upstream watcher.
+- Hooks: `session-start.sh` prints orientation: branch and tree state, active plans, open pull requests when the forge CLI answers, and the drift-gate verdict when the gate is vendored.
+- Hooks: `spec-edit-reminder.sh` points at the generate command after a map or requirement edit.
+- Scripts: `validate.py` checks relative links and fragments, retired vocabulary, and version agreement between the tool, the template pin and the manifests; CI runs the tool's unit tests and selftest.
 
 ### Fixed
 - Tools: the generated specifications index skips the specification template, and a vendored gate is no longer scanned as this repository's own code.
