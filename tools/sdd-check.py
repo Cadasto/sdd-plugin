@@ -2103,10 +2103,14 @@ def _blank_blockquotes(text: str) -> str:
 def check_one_home(ctx: Context, report: "Report") -> None:
     """A normative sentence lives in one specification section and nowhere else."""
     level = ctx.level("one-home")
+    paths = ctx.docs_files()
+    if not paths:
+        report.skip("one-home", "no markdown documents")
+        return
     homes: Dict[str, List[Tuple[str, int]]] = {}
     others: List[Path] = []
     specifications = 0
-    for path in ctx.docs_files():
+    for path in paths:
         if _waived(ctx, report, "one-home", path):
             continue
         if effective_kind(ctx, path) != "specification":

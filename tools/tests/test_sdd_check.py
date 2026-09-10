@@ -1127,6 +1127,15 @@ class TestOneHomeFamily(BaselineCase):
         self.assertIn("specification", report.families_skipped.get("one-home", ""))
         self.assertNotIn("one-home", report.families_run)
 
+    def test_an_empty_docs_tree_is_distinguished_from_every_document_waived(self):
+        # M6: with no markdown documents at all, the skip reason must not claim every
+        # document is waived — there was nothing to waive in the first place.
+        for path in sorted((self.tmp / "docs").rglob("*.md")):
+            path.unlink()
+        report = self.run_only("one-home")
+        self.assertEqual("no markdown documents", report.families_skipped.get("one-home"))
+        self.assertNotIn("one-home", report.families_run)
+
 
 # ---------------------------------------------------------------------------
 # links
