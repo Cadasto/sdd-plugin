@@ -16,3 +16,5 @@ jobs:
       # CI is strict and deterministic: Python is guaranteed here, so run the
       # validator directly (the scripts/validate.sh graceful skip is for local use).
       - run: python3 scripts/validate.py
+      - run: python3 -m unittest discover -s tools/tests -v
+      - run: python3 tools/sdd-check.py selftest
