@@ -11,29 +11,25 @@ allowed-tools: Read, Glob, Grep, Bash
 
 Owns the *spec-side* check: does the traceability map still match the tree, and what is the full context for a requirement. Read `docs/.sdd.yaml` for paths, the traceability map, and `spec_check_target`. (Whether the tests and the build pass is the build gate's job — see Guardrails.)
 
+## Resolve the gate
+
+Both modes below run `sdd-check`: the repository's vendored copy at `check.script` (`docs/.sdd.yaml`, default `scripts/sdd-check.py`) if it exists, else the plugin's own copy, resolved the same way `references/…` resolves — `${CLAUDE_PLUGIN_ROOT}/tools/sdd-check.py` on Claude Code, or Glob for the installed `tools/sdd-check.py`. Every invocation passes `--root .`. When `python3` is unavailable, say so plainly and use the mode's stated fallback instead of failing silently.
+
 ## Mode A — context bundle for a REQ
 
-Assemble in one shot so no whole-tree grep is needed:
+Run `context <REQ>` and present its output as-is — the heading order and what an empty section prints are `sdd-check`'s contract (`references/sdd-check.md`); an unknown id is reported as the tool prints it.
 
-1. The **registry row** from the requirements index.
-2. The **traceability block** — canonical link, `status`/`implementation`, packages, tests, probes.
-3. The **canonical spec excerpt** — the actual normative §, fetched from the `canonical` link.
-4. Any **open `STRAND`s** touching this REQ (if `use_strands`).
+**Fallback — Python unavailable.** Assemble the same bundle by hand: the **registry row** from the requirements index; the **traceability block** (canonical link, `status`/`implementation`, packages, tests, probes); the **canonical spec excerpt**, fetched from the `canonical` link; any **open `STRAND`s** touching this REQ (if `use_strands`).
 
 Present it compactly and name the next action (e.g. "no implementation yet → `/sdd-deliver`").
 
 ## Mode B — drift scan (the spec-check analogue)
 
-With no REQ, walk the map against the tree and report each orphan class:
+With no REQ, run `check` and report its output grouped by family — `references/sdd-check.md` owns the families and what each finding means; do not re-derive them here. Then, only for what the tool cannot decide, add judgement: a plan/`REQ` status mismatch the tool flagged as a warning is worth reading in its full context before recommending a fix; a duplicated-prose finding is worth a second look at whether the second copy is really the same statement.
 
-- a `canonical` link to a missing file/anchor;
-- a listed `package`/`test` path that does not exist;
-- a `PROBE` id with no corresponding test;
-- a requirement marked `landed`/`shipped` with no `packages`/`tests`;
-- a `REQ` in the index but not the map (or vice-versa);
-- a plan whose frontmatter `status` disagrees with its `REQ` — `status: active` while the `REQ` is already `shipped` (unless the plan's `mode` is `implementation-aligned`, which hardens shipped behaviour by design), or `status: done` while the `REQ` is not.
+**Fallback — Python unavailable.** Say so; the mechanical scan cannot run here. Report what can still be read by hand from the requirements index and the traceability map, and say the drift scan is incomplete without the gate.
 
-If the repo defines the `spec_check_target` build target, run it (`<build_entrypoint> <spec_check_target>`) to corroborate traceability drift. Then report the human-readable breakdown, grouped by class with the offending id/path; **recommend** fixes, do not apply them.
+Report the breakdown, grouped by family, with the offending id/path; **recommend** fixes, do not apply them.
 
 ## Guardrails
 
@@ -43,5 +39,6 @@ If the repo defines the `spec_check_target` build target, run it (`<build_entryp
 
 ## Reference
 
+- `references/sdd-check.md` — the gate's commands, families, report format, and exit codes that both modes run.
 - `references/traceability-schema.md` — the record format and what counts as drift.
 - `references/sdd-methodology.md` — §8 the traceability chain & drift CI, §10 the one-shot bundle.

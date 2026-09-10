@@ -52,6 +52,7 @@ in the same PR).
 - One canonical home per requirement — the index links, the spec owns the prose. Never duplicate normative text.
 - One home per fact in process prose too — cite identifiers rather than restating the same story across the commit body, PR body, changelog, and review comments. See [docs/development-process.md](docs/development-process.md) (*Artefact prose*).
 - Identifiers are immutable once published. Never renumber or reuse.
+- Every document under docs/ declares its kind; derived indexes are generated — run `sdd-check generate`, never hand-edit a generated block.
 - Don't mix document kinds (no tasks in a spec, no file paths in a requirement, one decision per ADR).
 - Don't settle an open question silently in code — raise a STRAND, draft an ADR, or ask.
 - Look domain facts up in the named ground-truth source (see [`docs/.sdd.yaml`](docs/.sdd.yaml)) — never guess.

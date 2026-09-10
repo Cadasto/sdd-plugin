@@ -2,9 +2,17 @@
 # Edit to match this repo's conventions, then never switch req_style (it would renumber IDs).
 # Full field reference: the sdd plugin's `references/traceability-schema.md`.
 sdd:
+  profile: full                     # full | lightweight
+
   req_style: area-prefixed          # area-prefixed | flat-numeric
   req_areas: [FOUND]                # required iff req_style == area-prefixed; add areas deliberately
   req_gap: 10                       # decadal gap for flat-numeric (REQ-010, REQ-020, …)
+  excluded_areas: []                # area-prefixed only; tokens that are deliberately not areas
+
+  # The document-kind vocabulary every `kind:` frontmatter value is checked against.
+  doc_kinds: [requirement, specification, adr, plan, guide, analysis, operations, reference, upstream]
+
+  default_mode: spec-first          # the mode a specification has when its frontmatter names none
 
   paths:
     requirements: docs/requirements
@@ -20,9 +28,50 @@ sdd:
 
   use_probes: false                 # set true to enable PROBE-NNN conformance probes
   use_strands: false                # set true to enable STRAND-NN open research questions
-  upstream: ""                      # sibling SDD repo this one consumes (cross-repo gap drafts); blank if none
 
-  ground_truth: "<the authoritative source for this repo's domain facts — agents MUST look up, never guess>"
+  upstream: ""                      # sibling SDD repo this one consumes; blank if none, or a map of named relations:
+  # upstream:
+  #   <name>:
+  #     repo: <module path or URL>
+  #     role: consumed | platform-context | ground-truth
+  #     authority: upstream-leads | local-leads
+  #     gap_drafts: docs/<name>-gap-drafts     # role: consumed only
+
+  # The authoritative source for this repo's domain facts — agents look it up here, never guess.
+  # One source, or an ordered list consulted first to last:
+  # ground_truth:
+  #   - <the first source consulted>
+  #   - <the next one>
+  ground_truth: "<the authoritative source for this repo's domain facts>"
+
+  check:
+    script: scripts/sdd-check.py   # where the vendored gate lives
+    version: "0.6.0"               # must equal the vendored tool's own version
+    links:
+      exclude: []                  # globs; printed in every report when non-empty
+    changelog:
+      path: CHANGELOG.md
+      max_words: 35
+    code_roots: []                 # for tree-to-map; empty = the repository minus docs/, .git/, vendor/, node_modules/
+    test_globs: ["*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs"]
+    probes_catalogue: ""           # a document whose headings carry PROBE ids; empty = a probe resolves through a cited test
+    families:                      # error | warn | off
+      descriptor: error
+      map-schema: error
+      map-to-tree: error
+      index-sync: error
+      plans: error
+      tree-to-map: warn
+      doc-kinds: warn
+      rfc2119: warn                # the per-kind table in sdd-check.md still errors for requirement/adr/plan/reference
+      one-home: error
+      links: error
+      changelog: warn
+      generated: error
+      draft-reason: off
+
+  hooks:
+    stop_nudge: true               # the session-stop hook's one-shot "record progress" nudge; false disables it in this repository
 
   # Delivery parameters. /sdd-deliver and /sdd-review read these instead of asking.
   # Every value here is an EXAMPLE — no model and no reviewer is required by the plugin.

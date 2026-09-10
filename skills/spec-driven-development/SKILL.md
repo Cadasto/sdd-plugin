@@ -34,6 +34,8 @@ The **specification — not the code, not the prompt — is the source of truth.
 | Spec-aware review into the ledger; prompt blocks for the panel | `sdd-review` |
 | Work a review round: merge findings, verify, fix, resolve, re-request | `sdd-triage` |
 | Traceability / drift / spec-check / a REQ's context | `sdd-trace` |
+| Run the drift gate or lint the docs (report-only) | `sdd-trace` |
+| Regenerate the indexes and status lines from the map | `sdd-specify` / `sdd-archive` / `sdd-triage` (they run the vendored `generate`) |
 | Does the code satisfy the `SPEC §` it cites, clause by clause | `sdd-spec-conformance-reviewer` agent |
 | Review a *requirement, spec, or ADR* for boundary violations | `sdd-doc-reviewer` agent |
 | Close out the spec status, the requirement status, traceability, and the plan — in the implementing PR | `sdd-archive` |
@@ -57,9 +59,11 @@ tool wants to write them somewhere else, point it at `docs/plans/` rather than k
 - **One home per fact — in process prose too.** The commit body, PR body, changelog, and review comments each carry only what lives nowhere else; cite identifiers (`REQ`/`SPEC §`/plan/SHA) instead of restating. `references/artefact-prose.md`.
 - **Don't settle open questions silently** — a genuine fork goes to an ADR (`sdd-specify`) or a `STRAND`, or back to brainstorming.
 - **Check the descriptor.** Repo conventions live in `docs/.sdd.yaml`; if it is missing, the repo isn't scaffolded (route to `sdd-scaffold`).
+- **Never hand-edit a generated block.** Every skill that changes the map or the frontmatter runs `sdd-check generate` (the repository's vendored copy at `check.script`, else the plugin's own `tools/sdd-check.py`, with `--root .`; when `python3` is unavailable, say so and leave the block for the next run rather than hand-editing it) before it stops. This skill states the rule for the others to obey; it has no `Bash` grant and performs no artefact work itself.
 
 ## Reference
 
 - `references/sdd-methodology.md` — the authoritative grounding (ladder, document kinds, RFC-2119, identifiers, traceability, two modes, the plan lifecycle, lanes, review discipline, anti-patterns).
+- `references/sdd-check.md` — the vendored drift gate's commands, families, and report format.
 - `references/traceability-schema.md` — the `traceability.yaml` and `.sdd.yaml` schemas.
 - `references/artefact-prose.md` — one home per fact, the findings ledger, the prose register.

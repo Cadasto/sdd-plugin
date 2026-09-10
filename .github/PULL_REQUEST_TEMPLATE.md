@@ -14,3 +14,4 @@
 - [ ] Disclosure grep clean over the tree, `CHANGELOG.md`, and the commit messages on this branch
 - [ ] Version bumped and [CHANGELOG.md](../CHANGELOG.md) updated (if component content changed) — see [docs/versioning.md](../docs/versioning.md)
 - [ ] Docs synced (AGENTS.md, README.md, `hooks/session-start.sh`) when components were added or renamed
+- [ ] `python3 -m unittest discover -s tools/tests` and `python3 tools/sdd-check.py selftest` pass when `tools/` changed

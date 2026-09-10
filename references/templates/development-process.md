@@ -1,3 +1,7 @@
+---
+kind: guide
+---
+
 # Development process — the SDD constitution
 
 How work flows in this repository. The **specification is the source of truth**; code is derived from it
@@ -6,15 +10,40 @@ and measured against it. When they disagree the spec wins — except a section e
 
 ## Document kinds
 
-Every document has one job. Don't mix them.
+Every document has one job and one altitude. Don't mix them. Every document under `docs/` declares its
+job in a `kind:` frontmatter key, and the vocabulary of nine is the descriptor's `doc_kinds` in
+[`.sdd.yaml`](.sdd.yaml). The nine fall into three zones, and the zone decides how a document is read.
 
-| Kind | Answers | Normative? | Location |
-|---|---|---|---|
-| **Requirement** (`REQ-*`) | What must we deliver? How accept it? | Yes (acceptance) | `docs/requirements/` |
-| **Specification** (`SPEC-*`) | How must it behave? | **Yes** (RFC-2119) | `docs/specifications/` |
-| **ADR** (`ADR-*`) | Which irreversible fork? | Decision record | `docs/adr/` |
-| **Plan** | What work implements a slice? | No (tasks) | `docs/plans/` |
-| **Guide** | How to work here safely? | No | `docs/*.md` |
+| Zone | Kind | Answers | Status | Location |
+|---|---|---|---|---|
+| Normative | **Requirement** (`REQ-*`) | What do we deliver, and how do we accept it? | `status` and `implementation` | `docs/requirements/` |
+| Normative | **Specification** (`SPEC-*`) | How does the system behave? (RFC-2119) | `status` | `docs/specifications/` |
+| Normative | **ADR** (`ADR-*`) | Which irreversible fork did we take? | `status` | `docs/adr/` |
+| Normative | **Plan** | What work implements a slice? | `status` | `docs/plans/` |
+| Informative | **Guide** | How do I work here safely? | none | `docs/` |
+| Informative | **Analysis** | What did we measure or compare? | none | `docs/analysis/` |
+| Informative | **Operations** | How do operators run the system? | none | `docs/operations/` |
+| Informative | **Reference** | A declared projection, binding nothing | none | beside the specs, or `docs/reference/` |
+| Upstream | **Upstream** | What another repository owes this one | `state` | `docs/<name>-gap-drafts/` |
+
+**Authority.** Where an informative document and a normative one disagree, the normative one wins and the
+informative document is corrected. An informative document may carry a process imperative; it is never the
+only home of a product-contract rule — it cites the owning `SPEC §`.
+
+**Status per kind.** Each normative kind carries its own status vocabulary. A requirement carries two of
+them and they are tracked separately: `status` says how settled the wording is, `implementation` says how
+much is built. An informative kind carries no status. The upstream kind spells its key `state`, because
+the lifecycle it tracks belongs to another repository.
+
+| Kind | Key | Values |
+|---|---|---|
+| **Specification** | `status` | `draft` · `stable` · `deprecated` |
+| **Requirement** | `status` | `draft` · `stable` · `deprecated` |
+| **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` |
+| **Plan** | `status` | `active` · `done` · `postponed` · `abandoned` |
+| **ADR** | `status` | `proposed` · `accepted` · `superseded` · `deprecated` |
+| **Upstream** | `state` | `proposed` · `submitted` · `landed-upstream` · `landed` · `rejected` |
+| Guide, analysis, operations, reference | — | no status |
 
 - Requirements: capability + acceptance + out-of-scope. **No** file paths or implementation detail.
 - Specifications: RFC-2119 prose only. **No** task lists, file paths, or duplicated requirement bodies.
@@ -43,6 +72,16 @@ REQ (capability + acceptance)            [gate: worth doing]
 The whole close-out — spec status, requirements index, traceability, and the plan flip — lands in the
 **same PR** that implements the plan. No follow-up PR. The plan file stays where it is so reviewers can
 read it through the merge; it is deleted at the next version bump.
+
+## The gate
+
+The drift gate is one tool, `sdd-check`, vendored into this repository at the descriptor's `check.script`
+and run by `<build_entrypoint> <spec_check_target>`. It checks the traceability map against the tree and
+the tree against the map, the index against the map, the plan frontmatter, a plan whose `status`
+disagrees with the records it implements, the finished-plan sweep after a release tag, the declared
+document kinds, the links and their fragments, the RFC-2119 and one-home prose rules, the changelog
+bullets, and the generated blocks; each family's severity is set in [`.sdd.yaml`](.sdd.yaml) under
+`check.families`. The derived indexes are written by `sdd-check generate`, never by hand.
 
 ## Two source-of-truth modes
 
@@ -95,6 +134,7 @@ Close-out
 - [ ] Negative space exercised: refusal and failure paths tested; each new runtime failure mode maps to the error-contract `SPEC §`
 - [ ] `SPEC §` status set; `REQ` implementation status set
 - [ ] `traceability.yaml` updated (packages / tests / probes)
+- [ ] `sdd-check generate` run; the index tables and status lines match the map
 - [ ] Plan flipped to `status: done` in place — no move, no index
 - [ ] Deferred items and workers' en-route findings are in the ledger's `Deferred` table
 - [ ] Any code the orchestrator wrote itself is named here, with why the task could not be made self-contained

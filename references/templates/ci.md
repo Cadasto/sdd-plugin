@@ -1,3 +1,7 @@
+---
+kind: guide
+---
+
 # CI — how the methodology is enforced
 
 CI is *operational process*, not part of the normative contract — but it is where SDD drift is caught
@@ -18,11 +22,13 @@ mechanically. Two enabling policies:
 | **build / typecheck** | it compiles |
 | **test** | unit tests pass |
 | **derived-artefact-verify** | committed generated files match their source (schema, OpenAPI, codegen) |
-| **spec-check** | the traceability map matches the tree — every cited path/probe/test exists; no orphan `REQ` or probe. The map carries no plan axis, so plans are outside this gate |
+| **spec-check** | the shared gate `sdd-check`: map ↔ tree, index = map, document kinds, links and fragments, RFC-2119 and one-home, changelog bullets, generated blocks — one selftested tool, families configured in `.sdd.yaml` |
 | **(scheduled) drift bot** | re-runs codegen / `spec-check` on a clean checkout; fails the scheduled run and reports the drift it found between PRs |
+| **(scheduled) upstream watcher** | re-runs the checks against a pinned upstream (a spec release, a toolchain, a base image) and fails the run on drift — optional, per repository |
 
 The non-negotiable SDD gate is **`spec-check`** (`<build_entrypoint> <spec_check_target>`): it turns
 "we have specs" into "our specs can't silently rot", and it runs on **both** lanes. Before a done-claim,
 run the full build gate (`<build_entrypoint> <ci_target>`) and read its output, then `/sdd-trace` for
-traceability drift, including a plan whose `status` disagrees with its `REQ` — the one plan check, and it is `/sdd-trace`'s, not `spec-check`'s. `/sdd-review` writes the review ledger onto the PR and `/sdd-archive` performs the
-close-out inside the implementing PR.
+traceability drift, including a plan whose `status` disagrees with its `REQ` — `/sdd-trace` reports it in
+session; `spec-check` fails on it. `/sdd-review` writes the review ledger onto the PR and `/sdd-archive`
+performs the close-out inside the implementing PR.
