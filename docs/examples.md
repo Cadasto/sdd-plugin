@@ -1,8 +1,8 @@
 # Prompt examples
 
-Recipes for a repository that is already scaffolded — one goal each, the prompt to type, what happens, and what to check. New to the plugin? Start with the [quick start](quick-start.md).
+This page is for users whose repository is already scaffolded. It collects recipes with one goal each: the prompt to type, what happens, and what to check. New to the plugin? Start with the [quick start](quick-start.md).
 
-Every `/sdd-*` skill also triggers on plain phrasing — the phrases quoted in its description, such as "add a requirement" or "cut the release" — so the slash form is a convenience, not a requirement. The example repository issues API tokens; its requirements use the `AUTH` area and its spec is `SPEC-AUTH`.
+Every `/sdd-*` skill also triggers on plain phrasing (the phrases quoted in its description, such as "add a requirement" or "cut the release"), so the slash form is a convenience, not a requirement. The example repository issues API tokens; its requirements use the `AUTH` area and its spec is `SPEC-AUTH`.
 
 ## Ask where a statement belongs
 
@@ -10,7 +10,7 @@ Every `/sdd-*` skill also triggers on plain phrasing — the phrases quoted in i
 Should "a refresh with a revoked token fails closed" be a requirement or a spec section?
 ```
 
-The router skill answers without touching a file: the requirement names the observable outcome as an acceptance criterion, the spec section owns the normative *how* — the `MUST NOT`, the error contract. It then points at `/sdd-specify`. Use it whenever you are unsure which document kind you are about to write.
+The router skill answers without touching a file: the requirement names the observable outcome as an acceptance criterion, the spec section owns the normative *how*: the `MUST NOT`, the error contract. It then points at `/sdd-specify`. Use it whenever you are unsure which document kind you are about to write.
 
 ## Turn a design note into documents
 
@@ -30,7 +30,7 @@ Check: no `MUST`, `SHOULD`, or `MAY` sentence lives only in the note.
 /sdd-specify record an ADR: refresh tokens are opaque strings, not JWTs
 ```
 
-One decision per ADR, next sequential number, `status: proposed`. When you have decided, set it to `accepted` in the file — the dispatch gate refuses to start delivery on a `proposed` ADR.
+One decision per ADR, next sequential number, `status: proposed`. When you have decided, set it to `accepted` in the file; the dispatch gate refuses to start delivery on a `proposed` ADR.
 
 Check: `docs/adr/README.md` has the row; the ADR cites the requirements it amends.
 
@@ -68,7 +68,7 @@ Then:
 /sdd-review <N> --post
 ```
 
-On the maintenance lane only the reviewers named in `agents.reviewers` are dispatched — there is no spec delta for the SDD reviewers to read. If that list is empty, the ledger's accounting line reads `Dispatched: none — agents.reviewers is empty · Reported: 0 of 0` and the ledger is not marked clean. Your own review of the pull request then stands as the panel and clears it.
+On the maintenance lane only the reviewers named in `agents.reviewers` are dispatched; there is no spec delta for the SDD reviewers to read. If that list is empty, the ledger's accounting line reads `Dispatched: none — agents.reviewers is empty · Reported: 0 of 0` and the ledger is not marked clean. Your own review of the pull request then stands as the panel and clears it.
 
 The lane is guarded by a ratchet, not a diff check: a reviewer that finds a new rule living only in code flags it, and the change becomes full lane. `make spec-check` runs in both lanes.
 
@@ -84,7 +84,7 @@ One bundle: the index row, the traceability record, the canonical spec section, 
 /sdd-trace
 ```
 
-With no argument, a drift scan of the whole map against the tree, grouped by orphan class — a canonical link to a missing anchor, a listed test that does not exist, a requirement marked `shipped` with no packages. When `spec-check` fails in CI and the cause is unclear:
+With no argument, a drift scan of the whole map against the tree, grouped by orphan class: a canonical link to a missing anchor, a listed test that does not exist, a requirement marked `shipped` with no packages. When `spec-check` fails in CI and the cause is unclear:
 
 ```text
 Run a whole-repo traceability audit before we tag the release.
@@ -106,7 +106,7 @@ Useful in CI, or any script that wants a requirement's context without a session
 Does the token refresh handler satisfy SPEC-AUTH §3, clause by clause?
 ```
 
-The `sdd-spec-conformance-reviewer` agent returns one verdict per clause — satisfied, violated, or untested — ranked by RFC-2119 force. It judges conformance, not code quality; the repository's own language reviewer does that.
+The `sdd-spec-conformance-reviewer` agent returns one verdict per clause (satisfied, violated, or untested), ranked by RFC-2119 force. It judges conformance, not code quality; the repository's own language reviewer does that.
 
 ```text
 Review REQ-AUTH-001 against the requirement contract.
@@ -120,7 +120,7 @@ The `sdd-doc-reviewer` agent checks one document for boundary violations: implem
 /sdd-review <N> --panel
 ```
 
-Prints one review-request block per name in `agents.review_panel.<lane>`, filled from the repository's `docs/ai-workflow.md` § Review. Paste each block to the reviewer it names — nothing in the repository can start a reviewer that runs outside it. The reviewer's findings come back in the ledger format, and `/sdd-triage` merges them.
+Prints one review-request block per name in `agents.review_panel.<lane>`, filled from the repository's `docs/ai-workflow.md` § Review. Paste each block to the reviewer it names; nothing in the repository can start a reviewer that runs outside it. The reviewer's findings come back in the ledger format, and `/sdd-triage` merges them.
 
 ## Work a review round
 
@@ -151,7 +151,7 @@ The format and its rules live in [artefact-prose.md](../references/artefact-pros
 /sdd-deliver <N>
 ```
 
-Given a pull request number, the skill reads the draft's body — the claim line, and the plan path or, on the maintenance lane, the task list — plus the plan file on the branch when there is one, and continues at the first unfinished step. A claim line that names a different session stops it: two sessions on one branch means one of them is thrown away.
+Given a pull request number, the skill reads the draft's body (the claim line, and the plan path or, on the maintenance lane, the task list) plus the plan file on the branch when there is one, and continues at the first unfinished step. A claim line that names a different session stops it: two sessions on one branch means one of them is thrown away.
 
 ## Configure a Go repository
 
@@ -165,7 +165,7 @@ sdd:
     task_review: lane
 ```
 
-Workers load those skills from their brief; the reviewer sits on the per-task gate and on the review panel in both lanes. If the repository has a code-index tool, name it in `docs/ai-workflow.md` § Orchestration — workers query it before grepping, and the orchestrator uses it to anchor reviewer briefs. The same shape holds for any language; the values are the repository's.
+Workers load those skills from their brief; the reviewer sits on the per-task gate and on the review panel in both lanes. If the repository has a code-index tool, name it in `docs/ai-workflow.md` § Orchestration: workers query it before grepping, and the orchestrator uses it to anchor reviewer briefs. The same shape holds for any language; the values are the repository's.
 
 ## Upgrade a repository already on 0.5.x
 
@@ -173,7 +173,7 @@ Workers load those skills from their brief; the reviewer sits on the per-task ga
 /sdd-scaffold --upgrade
 ```
 
-Re-vendors `tools/sdd-check.py` if the plugin ships a newer copy than `check.version` pins, fills in any descriptor key the 0.6.0 shape adds, wraps a hand-written index table in the generated-block markers without dropping a row, and adds `kind:` to the ten scaffold-owned files it emits (a hand-authored document keeps the maintainer's own `kind:`, added by hand). Plain `/sdd-scaffold` takes the same path when the descriptor has no `check:` block. When a hand-written index row has no matching record in `traceability.yaml`, `generate` refuses to drop it: the run writes nothing and names the row — capture the requirement with `/sdd-specify`, or delete the stale row by hand, then run again. A note inside the markers is refused the same way; move it outside them. Full procedure: [docs/upgrading.md](upgrading.md).
+Re-vendors `tools/sdd-check.py` if the plugin ships a newer copy than `check.version` pins, fills in any descriptor key the 0.6.0 shape adds, wraps a hand-written index table in the generated-block markers without dropping a row, and adds `kind:` to the ten scaffold-owned files it emits (a hand-authored document keeps the maintainer's own `kind:`, added by hand). Plain `/sdd-scaffold` takes the same path when the descriptor has no `check:` block. When a hand-written index row has no matching record in `traceability.yaml`, `generate` refuses to drop it: the run writes nothing and names the row. Capture the requirement with `/sdd-specify`, or delete the stale row by hand, then run again. A note inside the markers is refused the same way; move it outside them. Full procedure: [docs/upgrading.md](upgrading.md).
 
 ## Sweep plans at a release
 
@@ -181,7 +181,7 @@ Re-vendors `tools/sdd-check.py` if the plugin ships a newer copy than `check.ver
 /sdd-finalize --dry-run
 ```
 
-Lists every plan with `status: done` or `abandoned`. A refusal names the document that still links to a candidate — for example `docs/ci.md` citing a plan path. Rewrite the citation to the pull request or the requirement, then:
+Lists every plan with `status: done` or `abandoned`. A refusal names the document that still links to a candidate, for example `docs/ci.md` citing a plan path. Rewrite the citation to the pull request or the requirement, then:
 
 ```text
 /sdd-finalize
@@ -197,4 +197,4 @@ Advanced, and only when `docs/.sdd.yaml` declares an `upstream` that also practi
 /sdd-specify draft an upstream gap: the SDK needs a refresh-token grant
 ```
 
-The draft is written in the upstream's conventions — its identifier style, RFC-2119, acceptance criteria — so it drops straight into the upstream's spec tree, and it is stored locally with its lifecycle tracked. The rules are in [cross-repo-gap.md](../references/cross-repo-gap.md). For anything the repository consumes, the upstream's semantics are ground truth and the local documents are corrected, never the other way round.
+The draft is written in the upstream's conventions (its identifier style, RFC-2119, acceptance criteria), so it drops straight into the upstream's spec tree, and it is stored locally with its lifecycle tracked. The rules are in [cross-repo-gap.md](../references/cross-repo-gap.md). For anything the repository consumes, the upstream's semantics are ground truth and the local documents are corrected, never the other way round.
