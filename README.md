@@ -54,7 +54,7 @@ The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only 
 ### Hooks
 
 - **SessionStart** — detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a context line, the available `/sdd-*` surface, and a short orientation — branch and tree state, active plans, open pull requests when the forge CLI answers, and the drift gate's verdict when it is vendored.
-- **PostToolUse** *(Claude Code)* / **afterFileEdit** *(Cursor, `hooks/cursor-hooks.json`)* — after an edit to a requirement, spec, ADR, plan, or the traceability map, reminds you to keep the traceability chain in sync and run `/sdd-trace`.
+- **PostToolUse** *(Claude Code)* — after an edit to a requirement, spec, ADR, plan, or the traceability map, reminds you to keep the traceability chain in sync: `/sdd-trace` to check it, `/sdd-specify`, `/sdd-archive` or the vendored `generate` command to regenerate. Cursor's `afterFileEdit` event has no output channel, so there is no reminder on Cursor ([install notes](docs/install.md#cursor)).
 - **Stop** *(Claude Code)* / **stop** *(Cursor)* — a one-shot nudge when the session made no commit and leaves uncommitted changes in an SDD repository; the second stop in the same session passes silently. Opt out per repo with `hooks.stop_nudge: false` in `docs/.sdd.yaml`.
 
 ### Cursor

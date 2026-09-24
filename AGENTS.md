@@ -37,10 +37,10 @@ This repo supports **both Claude Code and Cursor**; shared assets (skills, agent
 - **Tools**: `tools/sdd-check.py` — the vendorable drift gate; `/sdd-scaffold` copies it into a consuming repository at `check.script` and pins its version in `check.version`. `tools/tests/` — its unit tests (`unittest`, no pytest).
 - **Cursor rules**: `rules/*.mdc` — Cursor-only rule guidance (`description` / `globs` / `alwaysApply`), referenced by the Cursor manifest's `rules` path. Shipped: `rules/sdd-context.mdc`.
 - **Claude hooks**: `hooks/hooks.json` — object `{ "hooks": { "SessionStart": [...], "PostToolUse": [...], "Stop": [...] } }`; use `${CLAUDE_PLUGIN_ROOT}` in command paths.
-- **Cursor hooks**: `hooks/cursor-hooks.json` — object `{ "hooks": { "sessionStart": [...], "afterFileEdit": [...], "stop": [...] } }`; the command runs from the plugin root (**workspace-relative**, **not** `${CLAUDE_PLUGIN_ROOT}`).
+- **Cursor hooks**: `hooks/cursor-hooks.json` — object `{ "hooks": { "sessionStart": [...], "afterFileEdit": [...], "stop": [...] } }`; command paths are **workspace-relative**, **not** `${CLAUDE_PLUGIN_ROOT}` — see [docs/install.md](docs/install.md#cursor) for what is still unverified there.
 - **Shared hook scripts**: `hooks/session-start.sh` (detects an SDD repo, prints context + the `/sdd-*` surface + orientation), `hooks/spec-edit-reminder.sh` (reminds to sync traceability after a doc edit), and `hooks/session-stop.sh` (a one-shot nudge when a session ends with no commit and uncommitted changes). All host-agnostic; all exit 0 except the Stop hook's deliberate exit 2 on Claude Code. `scripts/hooks-test.sh` exercises them.
 - **Claude settings**: `.claude/settings.json` enables the maintainer plugins used while developing this repo (skill-creator, superpowers, plugin-dev, claude-md-management) and pre-approves the validate commands; `.claude/CLAUDE.md` imports this file via `@../AGENTS.md`. `.claude/settings.local.json` is gitignored.
-- **Validation**: `scripts/validate.sh` (graceful local wrapper — warns and skips if Python is absent) runs `scripts/validate.py`, which checks both manifests, dual-host parity, declared component paths, kebab-case names, hook-config JSON, skill/agent/rule frontmatter, that every relative link and `.md` fragment resolves (`references/templates/` excluded — its links resolve once scaffolded into a consuming repo), that retired vocabulary does not reappear, and that the vendored gate's `__version__`, the template's pinned `check.version`, and both manifests' `version` agree. CI pins Python, runs the validator strictly, then `python3 -m unittest discover -s tools/tests` and `python3 tools/sdd-check.py selftest` ([`.github/workflows/validate.yml`](.github/workflows/validate.yml)).
+- **Validation**: `scripts/validate.sh` (graceful local wrapper — warns and skips if Python is absent) runs `scripts/validate.py`, which checks both manifests, dual-host parity, declared component paths, kebab-case names, hook-config JSON, skill/agent/rule frontmatter, that every relative link and `.md` fragment resolves (`references/templates/` excluded — its links resolve once scaffolded into a consuming repo), that retired vocabulary does not reappear, and that the vendored gate's `__version__`, the template's pinned `check.version`, and both manifests' `version` agree. `validate.sh` also runs `scripts/hooks-test.sh` (bash and git only), even when Python is absent. CI runs on a Python matrix — 3.9, the tool's floor, and current 3.x — and runs the validator strictly, then `python3 -m unittest discover -s tools/tests`, `python3 tools/sdd-check.py selftest` and `bash scripts/hooks-test.sh` ([`.github/workflows/validate.yml`](.github/workflows/validate.yml)).
 - **Contributor docs**: `docs/` holds committed human-facing references — [quick start](docs/quick-start.md), [examples](docs/examples.md), [install](docs/install.md), [upgrading](docs/upgrading.md), [testing](docs/testing.md), [versioning](docs/versioning.md), [authoring](docs/authoring.md). `.github/` holds issue + PR templates, `copilot-instructions.md`, and the validate workflow. (Planning/research working notes under `docs/plans/` and `docs/research/` are gitignored — not part of the published plugin.)
 
 ## Components
@@ -80,7 +80,7 @@ A general engineering plugin such as superpowers is optional: exploration workfl
 
 ### Hooks
 - **SessionStart** — detects an SDD repository and prints a context line plus the `/sdd-*` surface (or a scaffold pointer in a non-SDD repo with a `docs/` dir).
-- **PostToolUse** (Claude Code) — after an edit to a requirement/spec/ADR/plan or the descriptor/traceability map, reminds to keep the chain in sync and run `/sdd-trace`. Cursor uses the `afterFileEdit` event equivalent.
+- **PostToolUse** (Claude Code) — after an edit to a requirement/spec/ADR/plan or the descriptor/traceability map, reminds to keep the chain in sync (`/sdd-trace` to check; the vendored `generate`, `/sdd-specify` or `/sdd-archive` to regenerate). It is registered on Cursor's `afterFileEdit` too, but that event has no output channel, so Cursor shows no reminder.
 - **Stop** (Claude Code) / **stop** (Cursor) — a one-shot nudge when the session made no commit and leaves uncommitted changes in an SDD repository; the second stop in a session passes silently. Opt out per repo with `hooks.stop_nudge: false` in `docs/.sdd.yaml`.
 
 ## Development
@@ -90,7 +90,7 @@ A general engineering plugin such as superpowers is optional: exploration workfl
 No build step — pure Markdown + JSON. Validate and dogfood locally:
 
 ```bash
-./scripts/validate.sh             # manifests, dual-host parity, frontmatter (warns & skips if Python is absent)
+./scripts/validate.sh             # manifests, dual-host parity, frontmatter (warns & skips if Python is absent), then hooks-test.sh
 claude plugin validate .          # manifest + component structure (no Python needed)
 claude --plugin-dir /path/to/sdd-plugin # load locally for one session
 ```

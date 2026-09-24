@@ -45,7 +45,7 @@ Add this repository as a plugin (Cursor **Settings → Plugins**, via Git URL or
 
 > Cursor subagents inherit every tool. The `tools:` and `disallowedTools:` grants in `agents/*.md` are Claude Code fields, so on Cursor the reviewers' no-edit rule and the implementer's no-spawn rule hold as contracts stated in the agent bodies. Cursor's `subagentStart` hook can deny a spawn and is the enforceable path; this plugin does not ship it.
 
-> The Cursor hook wiring targets the `sessionStart` and `afterFileEdit` events; if your Cursor version exposes a different post-edit event or payload shape, adjust `hooks/cursor-hooks.json` and the path-extraction in `hooks/spec-edit-reminder.sh` accordingly.
+> The Cursor hook wiring targets three events — `sessionStart`, `afterFileEdit` and `stop`. Its command paths in `hooks/cursor-hooks.json` are workspace-relative (`bash hooks/session-start.sh`, not `${CLAUDE_PLUGIN_ROOT}`), and the working directory Cursor runs a plugin hook command from is undocumented, so that wiring awaits one live Cursor verification. The scripts themselves change into the payload's first `workspace_roots` entry before reading `docs/.sdd.yaml`, so they do not depend on it. If your Cursor version exposes a different event or payload shape, adjust `hooks/cursor-hooks.json` and the path extraction in `hooks/spec-edit-reminder.sh` accordingly.
 
 ## Host repository requirements
 
@@ -58,5 +58,5 @@ The `spec-check` target runs the vendored gate: `/sdd-scaffold` copies `tools/sd
 Three host-agnostic hooks ship (Claude `hooks/hooks.json`, Cursor `hooks/cursor-hooks.json`):
 
 - **`session-start.sh`** — on session start, detects an SDD repo (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints one context line plus the `/sdd-*` surface, then a short orientation (branch and tree state, active plans, open pull requests, the drift-gate verdict). On Cursor it emits an `additional_context` JSON object; on Claude Code, plain text.
-- **`spec-edit-reminder.sh`** — after an edit to a requirement, spec, ADR, plan, or the descriptor/traceability map (Claude `PostToolUse` on `Write`/`Edit`; Cursor `afterFileEdit`, which has no output channel, so the reminder is observational there), prints a short reminder to keep the chain in sync. It is advisory, never blocks an edit, and always exits 0.
+- **`spec-edit-reminder.sh`** — after an edit to a requirement, spec, ADR, plan, or the descriptor/traceability map (Claude `PostToolUse` on `Write`/`Edit`), prints a short reminder to keep the chain in sync: `/sdd-trace` to check it, and the vendored `generate` command, `/sdd-specify` or `/sdd-archive` to bring the indexes and status lines along. It is registered on Cursor's `afterFileEdit` too, but that event has no output channel, so on Cursor the reminder reaches no one. It is advisory, never blocks an edit, and always exits 0.
 - **`session-stop.sh`** — a one-shot nudge when a session ends with no commit and uncommitted changes still in the tree (Claude `Stop`, Cursor `stop`). Opt out per repository with `hooks.stop_nudge: false` in `docs/.sdd.yaml`.
