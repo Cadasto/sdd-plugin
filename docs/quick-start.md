@@ -1,6 +1,6 @@
 # Quick start
 
-Take one capability from idea to a ready pull request with the `/sdd-*` skills. Written for sdd 0.5.0 on Claude Code with a GitHub remote. Cursor installation and hook wiring differ — see [install.md](install.md).
+Take one capability from idea to a ready pull request with the `/sdd-*` skills. Written for sdd 0.6.0 on Claude Code with a GitHub remote. Cursor installation and hook wiring differ — see [install.md](install.md).
 
 The assistant's wording varies between runs. The files each step produces, and the gates it stops at, do not — check those.
 
@@ -33,9 +33,11 @@ AGENTS.md
 
 It fills the `agents:` block of `docs/.sdd.yaml` with example values and the code-index line in `docs/ai-workflow.md` § Orchestration, and it suggests a value for `agents.reviewers` when it finds `go.mod`, `composer.json`, or `package.json`. Review both before going on: name the reviewer agent your repository uses, or leave the list empty and expect the per-task gate to report itself unconfigured in step 3.
 
-It also offers stub `spec-check` and `ci` targets for your `Makefile`. The stub `spec-check` fails on purpose with `spec-check: no checker wired yet` until the repository wires its own checker. Accept the stubs for now.
+It vendors the drift gate too: `tools/sdd-check.py` is copied from the plugin into the repository at `check.script` (`scripts/sdd-check.py` by default), the copy's own version is pinned into `check.version`, and the real `spec-check` target is wired into your `Makefile` — `python3 scripts/sdd-check.py selftest && python3 scripts/sdd-check.py check`, not a stub. It then runs `generate` before the first `check`, because a freshly scaffolded repository's index blocks still hold placeholder rows the `generated` family would otherwise reject. That first `check` still reports failures of its own: the starter `traceability.yaml` carries no records yet, which is a `map-schema` error by design, so every record-dependent family is skipped with the reason `map unavailable`. That is the expected first state, not a defect — it clears once `/sdd-specify` writes the first requirement, in step 2.
 
-Check: `docs/.sdd.yaml` exists and carries an `agents:` block. From the next session on, a one-line banner names the `/sdd-*` surface whenever you open the repository.
+Check: `docs/.sdd.yaml` exists and carries an `agents:` block and a `check:` block naming the vendored gate. From the next session on, a one-line banner names the `/sdd-*` surface whenever you open the repository.
+
+Already on 0.5.x instead of starting fresh? Run `/sdd-scaffold --upgrade` and follow [docs/upgrading.md](upgrading.md) — this walkthrough is for a repository that has never been scaffolded.
 
 ## 2. Specify the capability
 
@@ -64,7 +66,7 @@ Check:
 /sdd-trace REQ-AUTH-001
 ```
 
-The bundle shows the index row, the traceability record, and the spec section it points to. A broken link is reported here, before any code exists.
+The bundle shows the index row, the traceability record, and the spec section it points to. A broken link is reported here, before any code exists. `/sdd-trace` gets this from the gate directly — `python3 scripts/sdd-check.py context REQ-AUTH-001` prints the same bundle from a shell, without going through the skill.
 
 ## 3. Deliver it
 

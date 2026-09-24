@@ -7,6 +7,49 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
+## [Unreleased]
+
+The rules 0.5.0 stated are now enforced: one vendored, versioned, self-testing gate —
+`sdd-check` — checks the chain in both directions, lints the prose rules that can be checked
+mechanically, and generates every derived index from one source. The descriptor covers the shapes
+repositories had to invent. Moving a repository from 0.5.x is described in `docs/upgrading.md`.
+
+### Added
+- Tools: `tools/sdd-check.py` — the drift gate: a strict YAML-subset parser, descriptor and map models, and the drift-core families (descriptor, map schema, map to tree, index sync, plans, tree to map, draft reason), with unit tests.
+- Tools: path containment is checked at descriptor load for every command, naming the offending key's line; a wrong-shape key or a missing configured code root is a `descriptor` error.
+- Tools: a run that verifies nothing never prints OK; a check in which no family ran exits 2, and a document that cannot be decoded is an error.
+- References: `sdd-check.md` — the contract of the shared drift gate: families, severities, report format, exit codes, waivers, generated blocks, vendoring and the version pin.
+- References: `sdd-methodology.md` §3 the nine document kinds in three zones, §5 excluded areas, §6 per-kind status vocabularies, §10 the ground-truth resolution order and the cross-repo ask lifecycle, §13 the enforcement register.
+- References: `traceability-schema.md` — the descriptor's profile, kinds, excluded areas, default mode, upstream relations, `check:` and `hooks:` blocks; two new record fields; generated blocks.
+- Tools: `sdd-check` gains the five prose families — document kinds, RFC-2119 grammar and placement, one canonical home, links with fragments, and changelog bullets — with file-level waivers.
+- Tools: `sdd-check generate` writes the three index tables and the requirement status lines from one source; `context` prints a requirement's bundle; `selftest` proves each family with a negative fixture.
+- Tools: `generate` matches a row by the identifier it cites and, writing nothing, refuses a row with no record, prose inside the markers, or an undecodable file.
+- Tools: `generate --verify` prints the refusals a writing run would; a near-miss or orphaned block marker is an error naming its line.
+- Tools: `generate` keeps a byte-order mark and each file's dominant line ending, and a failed write names every file already written.
+- Tools: the markdown scan closes a fence only on a bare run of its own length; the YAML subset rejects duplicate keys and decodes quoted values alike in block and inline form.
+- Templates: `gap-draft.md` — the upstream cross-repo ask with its state lifecycle.
+- Hooks: `session-stop.sh` — a one-shot nudge when a session made no commit and leaves uncommitted changes, registered on both hosts; opt out with `hooks.stop_nudge: false`.
+
+### Changed
+- References: `artefact-prose.md` — the changelog-bullet and one-home rules are enforced by the gate's `changelog` and `one-home` families.
+- References: `cross-repo-gap.md` — the `state:` lifecycle, the disclosure rule, the behaviour-preservation test, and the named `upstream` relations.
+- Templates: `sdd.yaml` carries the profile, document kinds, excluded areas, default mode, and the check and hooks blocks.
+- Templates: every emitted document declares its kind; the three index tables sit in generated blocks; `ci.md` names the gate and an optional upstream watcher.
+- Hooks: `session-start.sh` prints orientation — branch and tree state, active plans, open pull requests when the forge CLI answers without writing into the repository, and the drift-gate verdict or why none came.
+- Hooks: the three scripts detect Cursor by a positive payload marker, read the descriptor from the payload's workspace root, and accept quoted, trailing-slash and unwrapped descriptor paths.
+- Hooks: `spec-edit-reminder.sh` names the vendored generate command, `/sdd-specify` or `/sdd-archive` for regeneration, and `/sdd-trace` only for the check.
+- Scripts: `validate.py` checks links, retired vocabulary and version agreement; `hooks-test.sh` exercises the hooks; CI runs both, the unit tests and selftest on Python 3.9 and 3.x.
+- Skills: `sdd-scaffold` vendors and pins the gate, wires the real spec-check target, runs generate, and gains `--upgrade`, which a 0.5.x descriptor with no check block takes without the flag.
+- Skills: every gate call site runs `check` from the vendored copy and routes an unvendored repository to `/sdd-scaffold --upgrade`; `generate` and `context` may use the plugin copy.
+- Skills: `sdd-trace` runs the gate's context and check commands first; `sdd-specify`, `sdd-archive` and `sdd-triage` write the map and run generate instead of hand-editing an index.
+- Skills: `sdd-review` reads a specification's mode when detecting the lane; `sdd-finalize` and `sdd-deliver` name the gate; the router routes drift, lint and regenerate requests.
+- Agents: `sdd-traceability-auditor` relays the gate's findings by family, checks only skipped families by hand, and reports plans as the `plans` family does.
+- Packaging: `.gitattributes` keeps maintainer settings, scripts and the gate's tests out of exported archives.
+
+### Fixed
+- Hooks: the Claude hook commands quote the plugin root and survive an install path containing spaces.
+- Docs: the Cursor `afterFileEdit` event is no longer presented as a working edit reminder, and the Cursor hook list names `stop`.
+
 ## [0.5.1] - 2026-09-08
 
 ### Changed

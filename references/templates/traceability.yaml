@@ -8,7 +8,7 @@
 #     title: <capability>
 #     canonical: docs/specifications/<topic>.md#<anchor>
 #     status: draft               # draft | stable | deprecated
-#     implementation: proposed    # proposed | in_progress | shipped | deferred
+#     implementation: proposed    # proposed | planned | in_progress | partial | landed | shipped | deferred
 #     packages: []
 #     tests: []
 #     probes: []

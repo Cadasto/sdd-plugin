@@ -12,7 +12,7 @@ While on the `0.x` line, treat the plugin as pre-stable: a breaking change may s
 
 ## Release steps
 
-1. Bump `version` in **both** manifests (they must agree): `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`. Keep `description`, `author`, `license`, `repository`, and `keywords` identical across both — `scripts/validate.py` enforces this parity.
+1. Bump `version` in **both** manifests (they must agree): `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`. Keep `description`, `author`, `license`, `repository`, and `keywords` identical across both — `scripts/validate.py` enforces this parity. Bump `tools/sdd-check.py`'s `__version__` and `references/templates/sdd.yaml`'s `check.version` to match in the same step — `scripts/validate.py` fails when the tool, the template pin, and the manifests disagree. A repository that already vendored the gate picks up the new version by running `/sdd-scaffold --upgrade`.
 2. Run `./scripts/validate.sh` and `claude plugin validate .`.
 3. **Dogfood:** load the working copy (`claude --plugin-dir /path/to/sdd-plugin`) and run the full loop on a throwaway repo on **both** hosts — see [testing.md](testing.md).
 4. Fold the accumulated `## [Unreleased]` notes into a dated `## [X.Y.Z] - YYYY-MM-DD` section in [CHANGELOG.md](../CHANGELOG.md) (Keep a Changelog — groups in order Added, Changed, Deprecated, Removed, Fixed, Security; see [AGENTS.md](../AGENTS.md#changelog-style)).
