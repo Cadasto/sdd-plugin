@@ -59,7 +59,7 @@ tool wants to write them somewhere else, point it at `docs/plans/` rather than k
 - **One home per fact — in process prose too.** The commit body, PR body, changelog, and review comments each carry only what lives nowhere else; cite identifiers (`REQ`/`SPEC §`/plan/SHA) instead of restating. `references/artefact-prose.md`.
 - **Don't settle open questions silently** — a genuine fork goes to an ADR (`sdd-specify`) or a `STRAND`, or back to brainstorming.
 - **Check the descriptor.** Repo conventions live in `docs/.sdd.yaml`; if it is missing, the repo isn't scaffolded (route to `sdd-scaffold`).
-- **Never hand-edit a generated block.** Every skill that changes the map or the frontmatter runs `sdd-check generate` (the repository's vendored copy at `check.script`, else the plugin's own `tools/sdd-check.py`, with `--root .`; when `python3` is unavailable, say so and leave the block for the next run rather than hand-editing it) before it stops. This skill states the rule for the others to obey; it has no `Bash` grant and performs no artefact work itself.
+- **Never hand-edit a generated block.** Every skill that changes the map or the frontmatter runs `sdd-check generate` before it stops. Run the gate from the repository's vendored copy at `check.script`, with `--root .`. When the repository has not vendored it, route `check` to `/sdd-scaffold --upgrade` first — the plugin's own `tools/sdd-check.py` fails the version pin — while `generate` and `context`, which do not check the pin, may run from the plugin's copy. When `python3` is unavailable, it says so and leaves the block for the next run rather than hand-editing it. This skill states the rule for the others to obey; it has no `Bash` grant and performs no artefact work itself.
 
 ## Reference
 

@@ -46,8 +46,8 @@ This agent does not restate those rules and does not re-derive a verdict a famil
 1. **Run the gate first.** Use the repository's vendored copy at `check.script` (`docs/.sdd.yaml`,
    default `scripts/sdd-check.py`) and run `python3 <check.script> check --root .`. When that file does
    not exist, report `gate not vendored — route to /sdd-scaffold --upgrade`, run the plugin's own
-   `tools/sdd-check.py check --root .` instead, and discount only its `descriptor` version-pin finding,
-   which the plugin's copy fails by construction. When the run exits 2, report the one-line reason as the
+   `tools/sdd-check.py check --root .` instead, and discount only a `descriptor` version-pin finding,
+   which then measures the plugin's copy rather than the repository's. When the run exits 2, report the one-line reason as the
    first finding: the gate could not configure itself, so no family decided anything.
 2. **Relay the baseline by family.** Every family listed under `families run:` has decided its own
    scope: report its findings as the gate printed them, grouped by family, each with the owning `sdd-*`

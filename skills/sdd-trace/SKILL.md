@@ -13,7 +13,7 @@ Owns the *spec-side* check: does the traceability map still match the tree, and 
 
 ## Resolve the gate
 
-Both modes below run `sdd-check`: the repository's vendored copy at `check.script` (`docs/.sdd.yaml`, default `scripts/sdd-check.py`) if it exists, else the plugin's own copy, resolved the same way `references/…` resolves — `${CLAUDE_PLUGIN_ROOT}/tools/sdd-check.py` on Claude Code, or Glob for the installed `tools/sdd-check.py`. Every invocation passes `--root .`. When `python3` is unavailable, say so plainly and use the mode's stated fallback instead of failing silently.
+Mode A runs `context` and Mode B runs `check`. Run the gate from the repository's vendored copy at `check.script`, with `--root .`. When the repository has not vendored it, route `check` to `/sdd-scaffold --upgrade` first — the plugin's own `tools/sdd-check.py` fails the version pin — while `generate` and `context`, which do not check the pin, may run from the plugin's copy. `check.script` is in `docs/.sdd.yaml` (default `scripts/sdd-check.py`); the plugin's copy resolves the same way `references/…` resolves — `${CLAUDE_PLUGIN_ROOT}/tools/sdd-check.py` on Claude Code, or Glob for the installed `tools/sdd-check.py`. When `python3` is unavailable, say so plainly and use the mode's stated fallback instead of failing silently.
 
 ## Mode A — context bundle for a REQ
 
