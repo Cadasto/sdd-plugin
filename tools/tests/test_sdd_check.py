@@ -210,6 +210,21 @@ class TestYamlSubset(unittest.TestCase):
     def test_trailing_content_after_an_inline_list_is_refused(self):
         self.assertEqual(1, self._error_line("globs: [a, b] and more\n"))
 
+    def test_inline_list_quoted_items_decode_like_block_scalars(self):
+        # L1.4: one shared quoted-scalar path.
+        self.assertEqual({"k": ["Don't", "b"]}, sdd_check.load_yaml("k: ['Don''t', b]\n"))
+        self.assertEqual({"k": ['a"b']}, sdd_check.load_yaml('k: ["a\\"b"]\n'))
+        self.assertEqual({"k": ["C:\\x"]}, sdd_check.load_yaml("k: ['C:\\x']\n"))
+        self.assertEqual(
+            sdd_check.load_yaml("k: 'C:\\x'\n")["k"], sdd_check.load_yaml("k: ['C:\\x']\n")["k"][0]
+        )
+
+    def test_text_after_a_closing_quote_inside_an_inline_list_is_refused(self):
+        self.assertEqual(1, self._error_line("k: ['a', 'b' c]\n"))
+        with self.assertRaises(sdd_check.YamlError) as caught:
+            sdd_check.load_yaml("k: ['a', 'b' c]\n")
+        self.assertIn("text after a closing quote", caught.exception.message)
+
     def test_every_yaml_sample_in_the_schema_reference_loads(self):
         reference = TOOLS_DIR.parent / "references" / "traceability-schema.md"
         blocks = yaml_blocks(reference.read_text(encoding="utf-8"))
@@ -1888,8 +1903,40 @@ class TestTreeToMapRules(BaselineCase):
         self.assert_finding(self.run_only("tree-to-map"), "lists no tests", level="WARN")
 
     def test_missing_code_root_is_reported(self):
+        # L1.1: a configured root that does not exist is a descriptor ERROR (it used to be
+        # a tree-to-map WARN); the roots that do exist are still scanned.
         self.edit(sdd_check.DESCRIPTOR_REL, "code_roots: []", "code_roots: [src, nowhere]")
-        self.assert_finding(self.run_only("tree-to-map"), "code root does not exist", level="WARN")
+        self.assert_finding(self.run_only("descriptor"), "check.code_roots: 'nowhere' does not exist")
+        self.write("src/env/extra.py", "# REQ-FOUND-077\n")
+        report = self.run_only("tree-to-map")
+        self.assertIn("tree-to-map", report.families_run)
+        self.assert_finding(report, "unknown identifier cited", level="WARN")
+
+    def test_no_existing_code_root_skips_tree_to_map(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "code_roots: []", "code_roots: [nowhere, gone]")
+        report = self.run_only("tree-to-map")
+        self.assertNotIn("tree-to-map", report.families_run)
+        self.assertEqual("no configured code root exists", report.families_skipped.get("tree-to-map"))
+
+    def test_wrong_shape_code_roots_and_test_globs_are_descriptor_errors(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "code_roots: []", "code_roots: src")
+        self.edit(sdd_check.DESCRIPTOR_REL, 'test_globs: ["*_test.py"]', "test_globs: [1, 2]")
+        report = self.run_only("descriptor")
+        self.assert_finding(report, "check.code_roots must be a list of strings")
+        self.assert_finding(report, "check.test_globs must be a list of strings")
+        report = self.run_only("tree-to-map")
+        self.assertNotIn("tree-to-map", report.families_run)
+        self.assertIn("not a list of strings", report.families_skipped.get("tree-to-map", ""))
+
+    def test_wrong_type_max_words_is_a_descriptor_error(self):
+        # L1.2
+        for value in ('"thirty"', "true", "3.5"):
+            with self.subTest(value=value):
+                sdd_check.write_baseline(self.tmp)
+                self.edit(sdd_check.DESCRIPTOR_REL, "max_words: 35", "max_words: %s" % value)
+                self.assert_finding(
+                    self.run_only("descriptor"), "check.changelog.max_words must be an integer"
+                )
 
     def test_dot_files_are_scanned(self):
         self.write("src/.hidden.py", "# REQ-FOUND-077\n")
@@ -2133,6 +2180,38 @@ class TestGenerateSafety(BaselineCase):
         report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
         self.assertEqual(2, report.exit_code())
         self.assertIn("escapes the repository", report.render(self.tmp))
+
+    def test_the_containment_error_names_the_nested_keys_own_line(self):
+        # L1.7: the anchor is the offending key's line, not line 1 of the descriptor.
+        self.edit("docs/.sdd.yaml", "    adr: docs/adr", "    adr: ../outside")
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        line = self.line_of("docs/.sdd.yaml", "adr: ../outside")
+        self.assertIn("docs/.sdd.yaml:%d: paths.adr escapes" % line, report.render(self.tmp))
+
+    def test_the_containment_error_names_the_code_roots_item_line(self):
+        self.edit("docs/.sdd.yaml", "    code_roots: []", "    code_roots:\n      - src\n      - ../elsewhere")
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        line = self.line_of("docs/.sdd.yaml", "- ../elsewhere")
+        self.assertIn("docs/.sdd.yaml:%d: check.code_roots escapes" % line, report.render(self.tmp))
+
+    def test_a_file_form_requirements_path_outside_docs_is_scanned_and_generated(self):
+        # L1.3: the lightweight profile's single requirements file is part of the docs set,
+        # so `generated` sees it and `generate` rewrites it.
+        index = (self.tmp / INDEX_REL).read_text(encoding="utf-8")
+        self.write("REQUIREMENTS.md", index.replace("Draft | shipped |", "Draft | landed |"))
+        for child in sorted((self.tmp / "docs/requirements").iterdir()):
+            child.unlink()
+        (self.tmp / "docs/requirements").rmdir()
+        self.edit("docs/.sdd.yaml", "profile: full", "profile: lightweight")
+        self.edit("docs/.sdd.yaml", "requirements: docs/requirements", "requirements: REQUIREMENTS.md")
+        report = sdd_check.run_check(self.tmp, only=["generated"], changelog_all=False)
+        self.assertTrue(
+            any(f.anchor.startswith("REQUIREMENTS.md:") for f in report.findings), report.render(self.tmp)
+        )
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        self.assertIn("REQUIREMENTS.md", written)
+        self.assertIn("| REQ-FOUND-001 | Environment boundary |", (self.tmp / "REQUIREMENTS.md").read_text(encoding="utf-8"))
 
     def test_a_scalar_requirements_item_fails_the_load_and_writes_nothing(self):
         self.edit(MAP_REL, "requirements:\n  - id: REQ-FOUND-001",
@@ -3009,10 +3088,44 @@ class TestSelftest(unittest.TestCase):
         finally:
             sdd_check.subprocess.run = original_run
         out = buffer.getvalue()
-        self.assertEqual(1, code, out)
-        self.assertIn("FAIL plan-stale-after-tag", out)
+        # L1.9: a missing git is a skip with its reason, not a false FAILED (this used to
+        # expect `FAIL plan-stale-after-tag` and exit 1).
+        self.assertEqual(0, code, out)
+        self.assertIn("SKIP plan-stale-after-tag — git not found", out)
         self.assertIn("PASS descriptor-version-pin", out)
-        self.assertIn("selftest: FAILED", out)
+        self.assertIn("selftest: OK — 26 cases, 1 skipped", out)
+        self.assertNotIn("FAIL", out)
+
+    def test_selftest_skips_when_git_is_not_on_path(self):
+        original = sdd_check.shutil.which
+        sdd_check.shutil.which = lambda name: None
+        try:
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = sdd_check.selftest()
+        finally:
+            sdd_check.shutil.which = original
+        self.assertEqual(0, code, buffer.getvalue())
+        self.assertIn("SKIP plan-stale-after-tag — git not found", buffer.getvalue())
+
+    def test_a_git_that_is_present_but_fails_is_still_a_failure(self):
+        original_run = sdd_check.subprocess.run
+
+        def failing_run(cmd, *args, **kwargs):
+            # Only the mutation's own git calls (check=True) fail; the gate's reads still run.
+            if cmd and cmd[0] == "git" and kwargs.get("check"):
+                raise sdd_check.subprocess.CalledProcessError(128, cmd)
+            return original_run(cmd, *args, **kwargs)
+
+        sdd_check.subprocess.run = failing_run
+        try:
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer):
+                code = sdd_check.selftest()
+        finally:
+            sdd_check.subprocess.run = original_run
+        self.assertEqual(1, code, buffer.getvalue())
+        self.assertIn("FAIL plan-stale-after-tag", buffer.getvalue())
 
     def test_selftest_is_mutation_detectable(self):
         original = sdd_check.CHECKS["links"]

@@ -7,7 +7,9 @@ implements is `references/sdd-check.md` (families, report format, exit codes) an
 frontmatter, the generated-block markers).
 
 Exit codes: 0 ran with no errors, 1 ran with at least one error, 2 could not configure
-itself (the descriptor is missing or unparseable, or the command line is invalid).
+itself or verified nothing: the descriptor is missing, unparseable, wrong-shape, or names a
+path outside the repository; the command line is invalid; ``context`` was given an id with
+no record; or a ``check`` run in which no family ran.
 """
 
 import dataclasses
@@ -15,6 +17,7 @@ import difflib
 import fnmatch
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -424,53 +427,53 @@ class _YamlParser:
         return _coerce_plain_scalar(text)
 
     def _inline_list(self, text: str, lineno: int) -> list:
-        items: List[Tuple[str, bool]] = []
-        current = ""
-        quote = ""
-        quoted = False
-        closed = -1
-        for position, char in enumerate(text[1:], 1):
-            if quote:
-                if char == quote:
-                    quote = ""
-                else:
-                    current += char
-                continue
-            if char in "\"'":
-                quote = char
-                quoted = True
-                continue
-            if char == "]":
-                closed = position
+        """An inline ``[a, "b", 'c']`` list. A quoted item decodes through
+        :meth:`_read_quoted` — the one path block scalars take, so ``''`` and ``\\"`` mean
+        the same thing in both forms — and text after its closing quote, before the next
+        ``,`` or ``]``, is refused exactly as it is after a quoted block scalar."""
+        out: List[object] = []
+        rest = text[1:]
+        while True:
+            rest = rest.lstrip(" ")
+            if not rest:
+                self.fail("an unterminated inline list", lineno)
+            if rest[0] == "]":
+                rest = rest[1:]
                 break
-            if char == "[":
-                self.fail("a nested inline list is not supported", lineno)
-            if char == "{":
-                self.fail("a flow mapping is not supported", lineno)
-            if char == ",":
-                if current.strip() or quoted:
-                    items.append((current.strip(), quoted))
-                current = ""
-                quoted = False
+            if rest[0] in "\"'":
+                value, rest = self._read_quoted(rest, lineno)
+                rest = rest.lstrip(" ")
+                if not rest:
+                    self.fail("an unterminated inline list", lineno)
+                if rest[0] not in ",]":
+                    self.fail("text after a closing quote", lineno)
+                out.append(value)
+                if rest[0] == ",":
+                    rest = rest[1:]
                 continue
-            current += char
-        if closed == -1:
-            self.fail("an unterminated inline list", lineno)
-        if current.strip() or quoted:
-            items.append((current.strip(), quoted))
-        rest = text[closed + 1 :].strip()
+            cut = len(rest)
+            for position, char in enumerate(rest):
+                if char in ",]":
+                    cut = position
+                    break
+                if char == "[":
+                    self.fail("a nested inline list is not supported", lineno)
+                if char == "{":
+                    self.fail("a flow mapping is not supported", lineno)
+            if cut == len(rest):
+                self.fail("an unterminated inline list", lineno)
+            token = rest[:cut].strip()
+            rest = rest[cut + 1 :] if rest[cut] == "," else rest[cut:]
+            if not token:
+                continue
+            if token[0] == "&":
+                self.fail("an anchor is not supported", lineno)
+            if token[0] == "*":
+                self.fail("an alias is not supported", lineno)
+            out.append(_coerce_plain_scalar(token))
+        rest = rest.strip()
         if rest and not rest.startswith("#"):
             self.fail("trailing content after an inline list", lineno)
-        out: List[object] = []
-        for token, was_quoted in items:
-            if was_quoted:
-                out.append(token)
-            elif token[0] == "&":
-                self.fail("an anchor is not supported", lineno)
-            elif token[0] == "*":
-                self.fail("an alias is not supported", lineno)
-            else:
-                out.append(_coerce_plain_scalar(token))
         return out
 
 
@@ -836,6 +839,11 @@ def _as_str(value, fallback: str = "") -> str:
     return str(value)
 
 
+def _is_string_list(value) -> bool:
+    """Whether an optional list-of-strings key is absent or has that shape."""
+    return value is None or (isinstance(value, list) and all(isinstance(v, str) for v in value))
+
+
 def _article(word: str) -> str:
     """``"an"`` before a word that opens on a vowel sound, ``"a"`` otherwise."""
     return "an" if word[:1].lower() in "aeiou" else "a"
@@ -850,22 +858,60 @@ def _top_level_key_line(text: str, key: str) -> int:
     return 1
 
 
+def _key_line(text: str, dotted: str, value: str = "") -> int:
+    """The 1-based line of a nested descriptor key such as ``paths.adr`` — with or without
+    the ``sdd:`` wrapper — or, for a sequence key, of the item carrying ``value``. Falls
+    back to the outermost key found, then to ``1``."""
+    lines = text.split("\n")
+    position, parent_indent, found = 0, -1, 1
+    for segment in dotted.split("."):
+        pattern = re.compile(r"^(\s*)%s\s*:" % re.escape(segment))
+        hit = None
+        for index in range(position, len(lines)):
+            line = lines[index]
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            indent = len(line) - len(line.lstrip())
+            if parent_indent >= 0 and indent <= parent_indent:
+                break
+            match = pattern.match(line)
+            if match:
+                hit = (index, len(match.group(1)))
+                break
+        if hit is None:
+            return found
+        position, parent_indent = hit[0] + 1, hit[1]
+        found = hit[0] + 1
+    if value:
+        for index in range(position, len(lines)):
+            line = lines[index]
+            if not line.strip():
+                continue
+            if len(line) - len(line.lstrip()) <= parent_indent:
+                break
+            if line.lstrip().startswith("-") and value in line:
+                return index + 1
+    return found
+
+
 def _reject_escaping_paths(root: Path, data: dict, text: str) -> None:
     """Reject a path-bearing descriptor key that points outside the repository.
 
-    ``generate`` writes through ``paths.*``, ``traceability`` and the ``check.*`` paths; an
-    absolute path, or one that climbs out with ``..``, would let a write land outside the
-    tree the gate governs. The check is lexical — a symlink the maintainer put in their own
-    tree is theirs to write through — and runs before any read or write, so a bad path fails
-    the load the way a missing descriptor does rather than mid-generate.
+    Every command reads through ``paths.*``, ``traceability`` and the ``check.*`` paths, and
+    ``generate`` writes through them; an absolute path, or one that climbs out with ``..``,
+    would let a read or a write land outside the tree the gate governs. The check is
+    lexical — a symlink the maintainer put in their own tree is theirs to follow — and runs
+    when the descriptor loads, for every command, so a bad path fails the load (exit 2) the
+    way a missing descriptor does rather than mid-run. The error names the offending key's
+    own line.
     """
     root_abs = os.path.abspath(str(root))
 
-    def check(rel, key):
+    def check(rel, key, item=False):
         rel = _as_str(rel)
         if not rel:
             return
-        anchor = _top_level_key_line(text, key.split(".")[0])
+        anchor = _key_line(text, key, rel if item else "")
         if os.path.isabs(rel):
             raise YamlError(
                 "%s must be a path inside the repository, not the absolute '%s'" % (key, rel),
@@ -894,7 +940,7 @@ def _reject_escaping_paths(root: Path, data: dict, text: str) -> None:
         if isinstance(changelog, dict):
             check(changelog.get("path"), "check.changelog.path")
         for croot in _as_list(check_block.get("code_roots")):
-            check(croot, "check.code_roots")
+            check(croot, "check.code_roots", item=True)
         check(check_block.get("probes_catalogue"), "check.probes_catalogue")
 
 
@@ -942,8 +988,20 @@ class Descriptor:
         changelog = changelog if isinstance(changelog, dict) else {}
         self.changelog_path = _as_str(changelog.get("path"), "CHANGELOG.md")
         max_words = changelog.get("max_words", 35)
-        self.changelog_max_words = max_words if isinstance(max_words, int) else 35
+        #: A wrong-shape value is reported by the descriptor family, never silently replaced.
+        self.shape_problems: List[str] = []
+        if max_words is None or isinstance(max_words, bool) or not isinstance(max_words, int):
+            self.shape_problems.append(
+                "check.changelog.max_words must be an integer, not '%s'" % _as_str(max_words)
+            )
+            max_words = 35
+        self.changelog_max_words = max_words
+        self.code_roots_valid = _is_string_list(self.check.get("code_roots"))
+        if not self.code_roots_valid:
+            self.shape_problems.append("check.code_roots must be a list of strings")
         self.code_roots = [_as_str(r) for r in _as_list(self.check.get("code_roots"))]
+        if not _is_string_list(self.check.get("test_globs")):
+            self.shape_problems.append("check.test_globs must be a list of strings")
         globs = [_as_str(g) for g in _as_list(self.check.get("test_globs"))]
         self.test_globs = globs or list(DEFAULT_TEST_GLOBS)
         self.probes_catalogue = _as_str(self.check.get("probes_catalogue"), "")
@@ -1246,6 +1304,10 @@ class Context:
         if self._docs_files is None:
             found: List[Path] = []
             for root in self.desc.docs_roots():
+                if root.is_file() and root.suffix == ".md":
+                    # A file-form path (the lightweight profile's requirements file).
+                    found.append(root)
+                    continue
                 if not root.is_dir():
                     continue
                 for path in sorted(root.rglob("*.md")):
@@ -1434,6 +1496,12 @@ def check_descriptor(ctx: Context, report: "Report") -> None:
             add("check.families.%s: '%s' is not error | warn | off" % (family, value))
     if desc.default_mode not in MODES:
         add("default_mode: '%s' is not %s" % (desc.default_mode, " | ".join(MODES)))
+    for problem in desc.shape_problems:
+        add(problem)
+    if desc.code_roots_valid:
+        for rel in desc.code_roots:
+            if not desc.resolve(rel).exists():
+                add("check.code_roots: '%s' does not exist" % rel)
     # A repository may extend doc_kinds; an extra kind is read as informative. The four
     # normative kinds carry status vocabularies, so they cannot be dropped.
     missing_kinds = [kind for kind in NORMATIVE_KINDS if kind not in desc.doc_kinds]
@@ -2040,15 +2108,15 @@ def check_tree_to_map(ctx: Context, report: "Report") -> None:
     pattern = re.compile(
         r"(?<![0-9A-Za-z_-])(%s)(?![0-9A-Za-z_-])" % desc.req_pattern().pattern
     )
-    roots: List[Path] = []
-    for rel in desc.code_roots:
-        target = desc.resolve(rel)
-        if target.exists():
-            roots.append(target)
-        else:
-            report.add(
-                "tree-to-map", level, DESCRIPTOR_REL, "code root does not exist: %s" % rel
-            )
+    if not desc.code_roots_valid:
+        report.skip("tree-to-map", "check.code_roots is not a list of strings")
+        return
+    # A configured root that does not exist is a descriptor finding; scanning the rest is
+    # still honest, but scanning nothing and calling it a pass is not.
+    roots = [desc.resolve(rel) for rel in desc.code_roots if desc.resolve(rel).exists()]
+    if desc.code_roots and not roots:
+        report.skip("tree-to-map", "no configured code root exists")
+        return
     if not desc.code_roots:
         roots = [ctx.root]
     skip = _code_skip_set(desc)
@@ -3605,7 +3673,7 @@ _BASELINE_FILES = {
 
   check:
     script: scripts/sdd-check.py
-    version: "0.6.0"
+    version: "@VERSION@"
     links:
       exclude: []
     changelog:
@@ -3774,6 +3842,12 @@ Write the specification first, then the code, then the tests that cite the requi
 Read [the development process](docs/development-process.md) before changing anything here.
 """,
 }
+
+
+#: The pin follows the tool, so bumping ``__version__`` never leaves the fixture unclean.
+_BASELINE_FILES["docs/.sdd.yaml"] = _BASELINE_FILES["docs/.sdd.yaml"].replace(
+    "@VERSION@", __version__
+)
 
 
 def write_baseline(root: Path) -> None:
@@ -3981,6 +4055,9 @@ class SelftestCase:
     name: str
     mutate: Callable[[Path], None]
     check: Callable[["Report", Path], Optional[str]]
+    #: An external binary the mutation shells out to; without it the case is skipped with
+    #: that reason, never reported as a false failure.
+    needs: str = ""
 
 
 def _mutate_edit(rel: str, old: str, new: str) -> Callable[[Path], None]:
@@ -4086,7 +4163,9 @@ def _mutate_git_commit_and_tag(root: Path) -> None:
 SELFTEST_CASES: Tuple[SelftestCase, ...] = (
     SelftestCase(
         "descriptor-version-pin",
-        _mutate_edit("docs/.sdd.yaml", '    version: "0.6.0"', '    version: "0.5.0"'),
+        _mutate_edit(
+            "docs/.sdd.yaml", '    version: "%s"' % __version__, '    version: "0.0.0-selftest"'
+        ),
         _finding_check("descriptor", "does not equal the tool's version"),
     ),
     SelftestCase(
@@ -4302,13 +4381,16 @@ SELFTEST_CASES: Tuple[SelftestCase, ...] = (
         "plan-stale-after-tag",
         _mutate_git_commit_and_tag,
         _finding_check("plans", "predates the latest release tag"),
+        needs="git",
     ),
 )
 
 
 def selftest() -> int:
-    """Run the tool against the baseline fixture it carries: clean, then one mutation
-    per rule, printing ``PASS``/``FAIL`` per case."""
+    """Run the tool against the baseline fixture it carries: clean, then each mutation
+    case — at least one per family — printing ``PASS``, ``FAIL`` or ``SKIP`` per case. A
+    case whose mutation needs a binary the machine lacks (git) is skipped with that reason;
+    a skip never fails the run."""
     with tempfile.TemporaryDirectory() as holder:
         base_root = Path(holder)
         write_baseline(base_root)
@@ -4321,12 +4403,25 @@ def selftest() -> int:
         return 1
 
     failed: List[str] = []
+    skipped: List[str] = []
     for case in SELFTEST_CASES:
+        if case.needs and shutil.which(case.needs) is None:
+            print("SKIP %s — %s not found" % (case.name, case.needs))
+            skipped.append("%s (%s not found)" % (case.name, case.needs))
+            continue
         with tempfile.TemporaryDirectory() as holder:
             root = Path(holder)
             write_baseline(root)
             try:
                 case.mutate(root)
+            except FileNotFoundError as exc:
+                if not case.needs:
+                    print("FAIL %s — %s" % (case.name, exc))
+                    failed.append(case.name)
+                    continue
+                print("SKIP %s — %s not found" % (case.name, case.needs))
+                skipped.append("%s (%s not found)" % (case.name, case.needs))
+                continue
             except (OSError, subprocess.SubprocessError) as exc:
                 # A mutation that shells out (git, for the stale-plan fixture) must
                 # fail only this one case when the binary is missing or fails — never
@@ -4347,6 +4442,12 @@ def selftest() -> int:
     if failed:
         print("selftest: FAILED — %d of %d" % (len(failed), total))
         return 1
+    if skipped:
+        print(
+            "selftest: OK — %d cases, %d skipped: %s"
+            % (total - len(skipped), len(skipped), "; ".join(skipped))
+        )
+        return 0
     print("selftest: OK — %d cases" % total)
     return 0
 
