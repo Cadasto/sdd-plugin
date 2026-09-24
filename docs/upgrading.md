@@ -14,17 +14,28 @@ earlier one having actually run, not just been read.
    tree catches up before you move it to `error` — every family the descriptor doesn't mention
    uses the gate's own default. The block's full shape and every key's meaning are in
    [traceability-schema.md § The check block](../references/traceability-schema.md#the-check-block).
+   By hand, copy the `check:` and `hooks:` blocks from the plugin's own
+   `references/templates/sdd.yaml` (in the plugin's install directory) into `docs/.sdd.yaml` under
+   `sdd:` — those are the defaults `--upgrade` would write.
 2. **Vendor and pin the gate.** Run `/sdd-scaffold --upgrade` — or plain `/sdd-scaffold`, which takes
    the same path on its own when the descriptor has no `check:` block — or by hand: copy `tools/sdd-check.py`
-   into the repository at the `check.script` path step 1 just added (`scripts/sdd-check.py` by
+   from the plugin's install directory into the repository at the `check.script` path step 1 just added (`scripts/sdd-check.py` by
    default) and set `check.version` — now that the `check:` block exists to hold it — to match the
    copy's own `__version__`. Until both are true, `spec-check` cannot pass: a missing script means
    the build target has nothing to run, and a version mismatch fails the `descriptor` family
    outright. If the repository has no `CHANGELOG.md`, create one with a `# Changelog` heading and a
    blank `## [Unreleased]` section — `check.changelog.path` names a hard error when the file is absent.
+   Then wire the build: the 0.5.x scaffold wrote a `spec-check` stub that exits non-zero on purpose.
+   Replace its body with `python3 scripts/sdd-check.py selftest && python3 scripts/sdd-check.py check`
+   (substitute your `check.script`), in the syntax of your `build_entrypoint`, and keep `ci` depending
+   on it — until then `<build_entrypoint> spec-check` keeps failing whatever the gate says.
 3. **Declare a `kind:` on every document.** `--upgrade` writes it into the ten scaffold-owned files it
    emits (the process docs, the three index READMEs, the four `_template.md` stubs); a hand-written
-   document it doesn't touch needs one frontmatter line added by hand —
+   document it doesn't touch needs one frontmatter line added by hand. Adding them yourself, give the
+   process docs (`development-process.md`, `ai-workflow.md`, `ci.md`) and the three index READMEs
+   `kind: guide`, and each `_template.md` stub the kind of its folder (`requirement`, `specification`,
+   `adr`, `plan`) — a different informative kind such as `reference` would make the RFC-2119 lint
+   error on their keywords. For any other document —
    `kind: requirement` (or `specification`, `adr`, `plan`, `guide`, `analysis`, `operations`,
    `reference`, `upstream`). `--upgrade` never writes `kind:` into a document it doesn't touch: the
    location fallback (a document under `paths.specifications` is read as a specification, and so on for
@@ -81,7 +92,9 @@ earlier one having actually run, not just been read.
    requirement with `/sdd-specify`, or delete the stale row by hand; `row <id> has no matching document`
    — a specification or ADR file that is missing, not `kind: specification`, or (for an ADR) named
    outside `^(ADR-|\d{4}-)`; a refusal naming a line inside the markers that is not a row — a note,
-   blockquote, bullet, heading or extra column — move that prose outside the markers. Then re-run. Once
+   blockquote, bullet, heading or extra column — move that prose outside the markers; a refusal naming
+   a row whose id cell carries `<` or `>` markup other than a whole-cell placeholder — remove that markup
+   from the id cell. Then re-run. Once
    nothing is refused, `generate` populates every marker block and each requirement's
    `status`/`implementation` frontmatter, and `check` has something real to verify.
 9. **`generate` never discards what it cannot regenerate.** The tool refuses on its own: the real

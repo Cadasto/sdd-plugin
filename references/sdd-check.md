@@ -231,7 +231,8 @@ rerun.
 - **A row with nothing behind it is refused.** A requirements row whose id has no record is refused as
   `row <id> has no record in the map`; a specifications or ADR row with no matching document as
   `row <id> has no matching document`. Capture the record with `/sdd-specify`, or delete the stale row by
-  hand. A row whose record exists is never refused, however its cell is formatted.
+  hand. A row whose record exists is never refused as missing, however its cell is formatted — it can
+  still be refused for markup the regenerated table would lose, below.
 - **Non-row content inside the markers is protected.** The run refuses, naming the file and the line,
   when regeneration would remove a non-blank line that is not part of the table (a note, a blockquote, a
   bullet, a heading), a column the current header carries and the generated header does not, or a row

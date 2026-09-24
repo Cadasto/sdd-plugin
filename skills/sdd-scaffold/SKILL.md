@@ -73,10 +73,11 @@ Same non-destructive contract as the fresh path, run against a repository scaffo
    - `row <id> has no record in the map` — capture the requirement with `/sdd-specify`, or delete the stale row by hand.
    - `row <id> has no matching document` — a specifications row whose file is missing under `paths.specifications` or is not `kind: specification`, or an ADR row whose file is missing or is named outside `^(ADR-|\d{4}-)`: restore or rename the document, or delete the stale row by hand.
    - a refusal naming a file and line inside the markers that is not a row — a note, blockquote, bullet or heading, or a column the generated table does not carry — move that prose outside the markers (above the opening marker or below the closer), then rerun.
+   - a refusal naming a row whose id cell carries `<` or `>` markup other than a whole-cell `<…>` placeholder — remove that markup from the id cell, then rerun.
 
    When `--verify` prints no refusal, run the real `python3 <check.script> generate --root .`, then `python3 <check.script> check --root .` and read its output.
 
-8. **Report.** Every descriptor key added, whether the starter `CHANGELOG.md` was created, the re-vendor outcome (old → new version, or "already current"), every `kind:` line added, every README wrapped, the build-target wiring proposed, every refusal `generate` printed (file, line or row id, and its cause, left in place), and the `generate`/`check` output for whatever ran. For each refusal, name its fix from step 7 and say the block keeps failing the `generated` family until it is fixed and `--upgrade` runs again.
+8. **Report.** Every descriptor key added, whether the starter `CHANGELOG.md` was created, the re-vendor outcome (old → new version, or "already current"), every `kind:` line added, every README wrapped, the build-target wiring proposed, every refusal `generate` printed (file, line or row id, and its cause, left in place), and the `generate`/`check` output for whatever ran. For each refusal, name its fix from step 7 and say the block keeps failing the `generated` family until it is fixed and `--upgrade` runs again. When `check` reports a `map-to-tree` or `links` error that a canonical anchor or fragment in a pre-0.6.0 specification resolves to nothing, name the cause: that specification still carries the old comment-only anchor, which `--upgrade` does not rewrite — the maintainer converts it by hand as `docs/upgrading.md` step 4 shows.
 
 ## Guardrails
 

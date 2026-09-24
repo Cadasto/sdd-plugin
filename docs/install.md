@@ -51,7 +51,7 @@ Add this repository as a plugin (Cursor **Settings → Plugins**, via Git URL or
 
 Installing the plugin needs nothing. To get full value, the **repository you apply SDD to** should expose a single build entry point (`make` / `task` / `just` / `npm`) with a `spec-check` target and a full `ci` target — `/sdd-trace` and the delivery gates invoke these. `/sdd-scaffold` can stub them for you and records the target names in `docs/.sdd.yaml`.
 
-The `spec-check` target runs the vendored gate: `/sdd-scaffold` copies `tools/sdd-check.py` into the repository and wires `spec-check` to run `python3 <check.script> check`, so CI needs no plugin. The gate's contract — the families it checks and what each means — is [references/sdd-check.md](../references/sdd-check.md); a repository may keep its own additional checks beside it.
+The `spec-check` target runs the vendored gate: `/sdd-scaffold` copies `tools/sdd-check.py` into the repository and wires `spec-check` to run `python3 <check.script> selftest && python3 <check.script> check`, so CI needs no plugin. The gate's contract — the families it checks and what each means — is [references/sdd-check.md](../references/sdd-check.md); a repository may keep its own additional checks beside it.
 
 ## Hooks
 
