@@ -1,11 +1,16 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this project are documented in this file.
 
-The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-- Keep a Changelog: https://keepachangelog.com/en/1.1.0/
-- Semantic Versioning: https://semver.org/spec/v2.0.0.html
+## [Unreleased]
+
+### Changed
+- Docs: `README.md` follows the shared Cadasto plugin layout, with badges, requirements, features, and a table of contents; every `docs/` page opens with an orienting paragraph.
+
+### Fixed
+- Docs: `README.md`, `docs/install.md`, and `docs/quick-start.md` no longer say `/sdd-scaffold` stubs the `spec-check` target; it wires the vendored gate.
 
 ## [0.6.0] - 2026-09-24
 
