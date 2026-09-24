@@ -2,7 +2,7 @@
 
 `sdd-check` is the shared drift gate. It is one Python file, vendored into a repository by `/sdd-scaffold` and run by the `spec-check` build target, so CI needs no plugin. It checks the traceability chain in both directions, lints the prose rules that can be checked mechanically, regenerates the derived indexes, prints a requirement's context bundle, and tests itself.
 
-Nothing installs an `sdd-check` executable. Throughout this document `sdd-check <cmd>` is shorthand for `python3 <check.script> <cmd> --root .`, where `<check.script>` is the vendored copy the descriptor names (`docs/.sdd.yaml` → `check.script`). A repository that has not vendored the gate runs `/sdd-scaffold --upgrade` first — the plugin's own copy fails the version pin by construction.
+Nothing installs an `sdd-check` executable. Throughout this document `sdd-check <cmd>` is shorthand for `python3 <check.script> <cmd> --root .`, where `<check.script>` is the vendored copy the descriptor names (`docs/.sdd.yaml` → `check.script`). A repository that has not vendored the gate runs `/sdd-scaffold --upgrade` before `check` — `check` run from the plugin's own copy fails the version pin, because that copy is not the one the descriptor pins. `generate` and `context` do not check the pin, so they may run from the plugin's copy.
 
 ## Commands
 
@@ -15,9 +15,10 @@ Nothing installs an `sdd-check` executable. Throughout this document `sdd-check 
 | `--version` | Print the tool's own version. |
 
 `--root DIR` is common to every command; it names the repository root (default: the working directory).
-`--only fam[,fam]` applies to `check` only, and runs just the families listed; any other command given it
-exits 2 with a message naming the flag and the command. `check` also takes `--changelog-all`, which
-extends the `changelog` family past `## [Unreleased]` to every section of the changelog.
+`--only fam[,fam]` applies to `check` only, and runs just the families listed. `check` also takes
+`--changelog-all`, which extends the `changelog` family past `## [Unreleased]` to every section of the
+changelog; `--verify` belongs to `generate` alone. Any of the three given to a command that does not take
+it exits 2 with a message naming the flag and the command.
 
 ## Exit codes
 
@@ -27,21 +28,25 @@ extends the `changelog` family past `## [Unreleased]` to every section of the ch
 | `1` | Ran; at least one error. |
 | `2` | Could not configure itself, so nothing ran. |
 
-Exit 2 has three causes: the descriptor is missing or cannot be parsed; the command line is invalid — an
-unknown subcommand, an unknown family in `--only`, or `--only` given to a command that does not accept it;
-or `context` was given an identifier with no record. The message names the file and the line, or the bad
-argument or identifier.
+Exit 2 has exactly four causes, and nothing else produces it:
 
-For the first two causes the report is the first line followed by `sdd-check: FAILED — <message>`, with no
-finding lines and no family lines, because no family ran. `context` given an unknown identifier prints that
-one line only, not a report.
+1. **The descriptor** is missing, cannot be parsed, has the wrong shape, or names a path that is absolute
+   or escapes the repository.
+2. **The command line is invalid** — an unknown command or option, an unknown family in `--only`, or
+   `--only`, `--verify` or `--changelog-all` given to a command that does not take it.
+3. **`context` was given an identifier with no record.**
+4. **A `check` run in which no family ran** — every family `off`, for instance, or `--only` naming an
+   off family. The tool verified nothing, which is a configuration failure rather than a clean pass.
+
+A command-line error prints one line naming the problem. For a descriptor failure the report is the first
+line followed by `sdd-check: FAILED — <message>`, where the message names the file and the line, with no
+finding lines and no family lines. `context` given an unknown identifier prints that one line only, not a
+report. A run in which no family ran ends `sdd-check: FAILED — no family ran (<reasons>)` and never
+prints `OK`.
 
 A missing map, a map that cannot be parsed, and a map that yields no records are **not** exit 2. Each is a
 `map-schema` error, so the run exits 1, and every family that needs records is listed under `skipped:`
 with the reason `map unavailable`.
-
-A run in which no family ran is exit 2 as well: with every family `off`, or `--only` naming an off family,
-the tool verified nothing, which is a configuration failure rather than a clean pass.
 
 Exit 2 is a failure of the gate itself; CI treats it as red, never as skipped.
 
@@ -66,6 +71,7 @@ The last line is one of:
 ```
 sdd-check: OK — <n> checks, 0 errors, <w> warnings
 sdd-check: FAILED — <e> errors, <w> warnings
+sdd-check: FAILED — no family ran (<reasons>)
 ```
 
 `<n> checks` is the number of families that ran. The next line always names the families that ran and the
@@ -95,7 +101,7 @@ skipped and named in the summary. Section numbers below are [sdd-methodology.md]
 
 ### descriptor
 
-- `descriptor` — the descriptor parses; `req_style` is `area-prefixed | flat-numeric`; `req_areas` present and non-empty when area-prefixed, absent when flat-numeric; `excluded_areas` disjoint from `req_areas`; `paths.*` and `traceability` exist and match the profile's shape; `check.version` equals the tool's `__version__`; every `check.families` key is a known family and every value `error | warn | off`; `default_mode` valid; `doc_kinds` retains the four normative kinds (`requirement`, `specification`, `adr`, `plan`) — a repository may extend the list, never shrink it below them.
+- `descriptor` — the descriptor parses; `req_style` is `area-prefixed | flat-numeric`; `req_areas` present and non-empty when area-prefixed, absent when flat-numeric; `excluded_areas` disjoint from `req_areas`; `paths.*` and `traceability` exist and match the profile's shape; `check.version` equals the tool's `__version__`; every `check.families` key is a known family and every value `error | warn | off`; `default_mode` valid; `doc_kinds` retains the four normative kinds (`requirement`, `specification`, `adr`, `plan`) — a repository may extend the list, never shrink it below them; `check.code_roots` and `check.test_globs` are lists of strings and every configured code root exists; `check.changelog.max_words` is an integer. Path containment is checked at load, for every command, before anything is read or written: a `paths.*`, `traceability` or `check.*` path that is absolute or climbs out of the repository fails the load with exit 2, naming the line of the offending key.
 
 Default severity `error`. Enforces §5 (the identifier scheme and excluded areas) and §3 (the kind vocabulary).
 
@@ -125,13 +131,13 @@ Default severity `error`. Enforces §9 (finished in place, swept at the release)
 
 ### tree-to-map
 
-- `tree-to-map` — under `check.code_roots` (default: the repository minus `docs/`, `.git/`, `vendor/`, `node_modules/`, the descriptor's `paths.*`, and the vendored gate at `check.script`, which is an artefact this repository carries rather than code it wrote), every token matching the repository's `REQ` pattern names a record (else error `unknown identifier cited`); a test file (a `check.test_globs` match) citing a `REQ` whose record lists no `tests` → warn. Files are those git tracks or does not ignore; without git, the whole tree.
+- `tree-to-map` — under `check.code_roots` (default: the repository minus `docs/`, `.git/`, `vendor/`, `node_modules/`, every `paths.*`, the map at `traceability`, and the vendored gate at `check.script`, which is an artefact this repository carries rather than code it wrote), every token matching the repository's `REQ` pattern names a record (else error `unknown identifier cited`); a test file (a `check.test_globs` match) citing a `REQ` whose record lists no `tests` → warn. Files are those git tracks or does not ignore; without git, the whole tree. When roots are configured and none exists, the family is skipped with that reason and is not counted as run.
 
 Default severity `warn`. Enforces §5 (a published id is never invented or reused) and §8 (the chain runs both ways).
 
 ### doc-kinds
 
-- `doc-kinds` — every `*.md` under `docs/` (and under any `paths.*` outside it) has frontmatter opening on line 1 or right after a leading HTML comment block, with `kind:` in `doc_kinds` (missing or unknown → the family's severity); a normative kind's `status`/`state` value is in that kind's vocabulary (error); a `kind: upstream` document uses `state:` and not `status:` (error); an informative kind carrying `status:` → warn. A document that declares no kind is treated, for the other families, as the kind its location implies — `paths.specifications` → specification, then `paths.requirements` → requirement (only that file when it names a file), `paths.adr` → adr, `paths.plans` → plan, otherwise guide — while `doc-kinds` still reports the missing declaration.
+- `doc-kinds` — every `*.md` under `docs/` (and under any `paths.*` outside it) has frontmatter opening on line 1 or right after a leading HTML comment block, with `kind:` in `doc_kinds` (missing or unknown → the family's severity); a normative kind's `status`/`state` value is in that kind's vocabulary (error); a `kind: upstream` document uses `state:` and not `status:` (error); an informative kind carrying `status:` → warn; a document that cannot be read or is not valid UTF-8 → error, never treated as empty. A document that declares no kind is treated, for the other families, as the kind its location implies — `paths.specifications` → specification, then `paths.requirements` → requirement (only that file when it names a file), `paths.adr` → adr, `paths.plans` → plan, otherwise guide — while `doc-kinds` still reports the missing declaration.
 
 Default severity `warn`. Enforces §3 (the kinds and their zones) and §6 (the per-kind vocabularies).
 
@@ -159,13 +165,13 @@ silently.
 
 ### changelog
 
-- `changelog` — under `## [Unreleased]` in `check.changelog.path` (and every section with `--changelog-all`): each top-level bullet has at most `max_words` words, one sentence (a `.`, `!` or `?` followed by a space and a capital letter counts as a second), no rationale connector (` because `, ` so that `, ` in order to `), and at most four backticked tokens (an inventory).
+- `changelog` — under `## [Unreleased]` in `check.changelog.path` (and every section with `--changelog-all`): each top-level bullet has at most `max_words` words, one sentence (a `.`, `!` or `?` followed by a space and a capital letter counts as a second), no rationale connector (` because `, ` so that `, ` in order to `), and at most four backticked tokens (an inventory). A `check.changelog.path` that names no file is an error at any severity other than `off`.
 
 Default severity `warn`. Enforces the changelog-bullet rule in [artefact-prose.md](artefact-prose.md).
 
 ### generated
 
-- `generated` — every marker block in the tree equals what `generate` would write; an opening marker without a closing one is an error; a block name outside the three known names is an error.
+- `generated` — every marker block in the tree equals what `generate` would write; an opening marker without a closing one is an error; a block name outside the three known names is an error; a near-miss marker — a line containing `sdd:generated` that is neither an exact opening marker nor an exact closer — and a closer with no opener are errors naming file and line. A marker indented four or more spaces is code, not a marker.
 
 Default severity `error`. Enforces §5 — a derived index has one source, and a hand edit makes a second one.
 
@@ -202,22 +208,53 @@ number is going down.
 between a pair of markers whose format is owned by [traceability-schema.md](traceability-schema.md) §4. A
 block's links resolve relative to the file holding the block, not to the block's canonical home — the same
 index wrapped into two different files links each row from where it actually sits. An opening marker with
-no closing one, or a block name outside the three known names, is skipped rather than written; `generate`
-exits 1 and names each block it skipped, by file, line and reason. A marker pair quoted inside a fenced
-code block is not a live block; it is neither flagged nor rewritten.
+no closing one, a closer with no opener, a near-miss marker, or a block name outside the three known names
+is skipped rather than written; `generate` exits 1 and names each one by file, line and reason. A marker
+pair quoted inside a fenced code block, or indented four or more spaces, is not a live block; it is
+neither flagged nor rewritten.
 
-Two guarantees make a non-`--verify` run safe to script. `generate` validates the map write-free first: an
-out-of-vocabulary or malformed record aborts the run with nothing written. And it refuses to delete a
-hand-written index row that has no record in the map — the whole run writes nothing and names each such
-row. Capture the record with `/sdd-specify`, or delete the stale row by hand, then rerun.
+### What a writing run refuses
+
+`generate` never loses hand-written content silently. A run that would, writes nothing to any file and
+names every refusal as a `refused — …` line; it exits 1. Capture what the refusal names, or move it, then
+rerun.
+
+- **Only errors block.** The map is validated write-free first. An ERROR-level map finding — an
+  out-of-vocabulary or malformed record — aborts the run with nothing written. A WARN, such as an unknown
+  record key, does not block the write, in `generate` as in `check`.
+- **Rows are identified by what they refer to**, not by the raw text of their first cell. A requirements
+  row is the `REQ` id found anywhere in its first cell, with backticks, asterisks and link markup
+  ignored; a specifications row is the spec name in its first cell, or its link target's file stem,
+  matched against the specification files `generate` would list; an ADR row is the `ADR` id in its first
+  cell. A bare id, a `./`-linked id, a backticked name, or a differently-linked cell for a record or
+  document that exists is therefore rewritten, not refused.
+- **A row with nothing behind it is refused.** A requirements row whose id has no record is refused as
+  `row <id> has no record in the map`; a specifications or ADR row with no matching document as
+  `row <id> has no matching document`. Capture the record with `/sdd-specify`, or delete the stale row by
+  hand. A row whose record exists is never refused, however its cell is formatted.
+- **Non-row content inside the markers is protected.** The run refuses, naming the file and the line,
+  when regeneration would remove a non-blank line that is not part of the table (a note, a blockquote, a
+  bullet, a heading), a column the current header carries and the generated header does not, or a row
+  whose id cell contains `<` or `>` other than a placeholder. Move that prose outside the markers, or
+  record the column's content elsewhere, then rerun. A placeholder row — an id cell of the form `<…>`, as
+  the 0.5.x templates carried — is not protected and is replaced.
+- **A file that is not valid UTF-8 is refused**, by name, rather than rewritten; a leading byte-order mark
+  is allowed and preserved. A rewrite keeps the file's dominant line ending.
+
+If a write fails part-way, the run names every file it had already written and the one that failed.
 
 A kind-less document under `paths.specifications` still becomes a row in the generated specifications
 index: `generate` reads the kind the document's location implies, the same fallback `doc-kinds` reports
 against elsewhere in this file — `doc-kinds` keeps warning about the missing declaration at its own
 severity, but the row is not dropped while the warning stands.
 
-`generate --verify` compares and writes nothing; the `generated` family makes the same comparison during
-`check`, so a hand edit between the markers fails the gate.
+### `--verify`
+
+`generate --verify` compares and writes nothing. It prints a unified diff for each stale block and the
+same `refused — …` lines a writing run would, and exits 1 when any block would change or any refusal
+exists. When no generated block is found
+anywhere it prints `sdd-check: no generated blocks found` and exits 0. The `generated` family makes the
+same comparison during `check`, so a hand edit between the markers fails the gate.
 
 ## Vendoring and the version pin
 

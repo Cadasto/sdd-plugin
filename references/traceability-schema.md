@@ -58,7 +58,8 @@ sdd:
     changelog:
       path: CHANGELOG.md
       max_words: 35
-    code_roots: []                 # for tree-to-map; empty = the repository minus docs/, .git/, vendor/, node_modules/
+    code_roots: []                 # for tree-to-map; must exist; empty = the repository minus docs/, .git/,
+                                   # vendor/, node_modules/, every paths.*, the traceability map, check.script
     test_globs: ["*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs"]
     probes_catalogue: ""           # a document whose headings carry PROBE ids; empty = a probe resolves through a cited test
     families:                      # error | warn | off
@@ -128,9 +129,9 @@ and, outside them, informative narrative). `full` requires directories.
 | `script` | Where the vendored gate lives in this repository. |
 | `version` | The pinned gate version. It must equal the vendored tool's own version, or the `descriptor` family fails the run (an error by default; `generate` and `context` do not check the pin). |
 | `links.exclude` | Globs the `links` family skips. Printed in every report when non-empty. |
-| `changelog.path` / `changelog.max_words` | The changelog the `changelog` family lints, and the per-bullet word budget. |
-| `code_roots` | Where `tree-to-map` looks for cited identifiers. Empty means the repository minus `docs/`, `.git/`, `vendor/` and `node_modules/`. |
-| `test_globs` | What counts as a test file. |
+| `changelog.path` / `changelog.max_words` | The changelog the `changelog` family lints (a missing file is an error unless the family is `off`), and the per-bullet word budget (an integer). |
+| `code_roots` | Where `tree-to-map` looks for cited identifiers — a list of strings, each of which must exist (else a `descriptor` error). Empty means the repository minus `docs/`, `.git/`, `vendor/`, `node_modules/`, every `paths.*`, the `traceability` map and `check.script`. |
+| `test_globs` | What counts as a test file — a list of strings. |
 | `probes_catalogue` | A document whose headings carry `PROBE` ids. Empty means a probe resolves through a cited test. |
 | `families` | Per-family severity — `error` · `warn` · `off`. The families and the rules each one applies are in [sdd-check.md](sdd-check.md). |
 

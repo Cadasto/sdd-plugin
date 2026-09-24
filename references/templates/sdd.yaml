@@ -52,7 +52,8 @@ sdd:
     changelog:
       path: CHANGELOG.md
       max_words: 35
-    code_roots: []                 # for tree-to-map; empty = the repository minus docs/, .git/, vendor/, node_modules/
+    code_roots: []                 # for tree-to-map; must exist; empty = the repository minus docs/, .git/,
+                                   # vendor/, node_modules/, every paths.*, the traceability map, check.script
     test_globs: ["*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs"]
     probes_catalogue: ""           # a document whose headings carry PROBE ids; empty = a probe resolves through a cited test
     families:                      # error | warn | off
