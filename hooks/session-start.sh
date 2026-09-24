@@ -4,7 +4,11 @@
 # active plans, open pull requests, and the drift-gate verdict. Every external command is optional and
 # guarded; each is time-limited when the `timeout` binary is on PATH, and still runs — untimed, not
 # skipped — when it isn't (see tmo() below). The script ALWAYS exits 0, so a missing or slow tool
-# prints nothing rather than blocking the session.
+# prints nothing rather than blocking the session — except the vendored drift gate, whose missing
+# verdict is itself reported ("no verdict (…)"), since silence there reads as a clean tree.
+#
+# Working directory: a Cursor payload's first "workspace_roots" entry, when it names a directory;
+# otherwise wherever the host started the script.
 #
 # Host-aware output. Claude Code adds plain stdout to the context. Cursor injects only a JSON object
 # on stdout — {"additional_context": "<text>"} — ignoring plain text. The two are told apart by a
@@ -55,12 +59,26 @@ add() {
   if [ -z "$out" ]; then out="$1"; else out="$out$nl$1"; fi
 }
 
-# Read one scalar key nested directly under a named block in docs/.sdd.yaml, without a YAML parser.
-# `desc_get paths plans` returns the value of `plans:` inside the `paths:` block — and not the
-# `plans:` that names a check family elsewhere in the file.
+# Read one scalar key from docs/.sdd.yaml, without a YAML parser. `desc_get paths plans` returns the
+# value of `plans:` nested directly under the `paths:` block — and not the `plans:` that names a check
+# family elsewhere in the file. An empty block name reads a top-level key: `desc_get "" traceability`
+# finds `traceability:` in a descriptor written without the `sdd:` wrapper.
 desc_get() {
   [ -f docs/.sdd.yaml ] || return 0
   awk -v blk="$1" -v key="$2" '
+    function value(line,   v, q) {
+      v = substr(line, length(key) + 2)        # everything after "key:"
+      sub(/^[[:space:]]+/, "", v)              # leading space
+      sub(/[[:space:]]+#.*$/, "", v)           # a trailing " # comment"
+      sub(/[[:space:]]+$/, "", v)              # trailing space (and a CR)
+      q = sprintf("%c", 39)                    # a single quote, without writing one here
+      gsub("^\"|\"$", "", v)                 # surrounding double quotes
+      gsub("^" q "|" q "$", "", v)             # or single quotes
+      sub(/\/+$/, "", v)                      # a trailing slash
+      print v
+      exit
+    }
+    blk == "" { if (index($0, key ":") == 1) value($0); next }
     !inb && $0 ~ ("^[[:space:]]*" blk ":[[:space:]]*(#.*)?$") { inb = match($0, /[^[:space:]]/); next }
     inb {
       ind = match($0, /[^[:space:]]/)
@@ -68,20 +86,19 @@ desc_get() {
       if (ind <= inb) { inb = 0; next }        # dedented: the block ended
       line = $0
       sub(/^[[:space:]]+/, "", line)
-      if (index(line, key ":") == 1) {
-        v = substr(line, length(key) + 2)      # everything after "key:"
-        sub(/^[[:space:]]+/, "", v)            # leading space
-        sub(/[[:space:]]+#.*$/, "", v)         # a trailing " # comment"
-        sub(/[[:space:]]+$/, "", v)            # trailing space
-        q = sprintf("%c", 39)                  # a single quote, without writing one here
-        gsub("^\"|\"$", "", v)               # surrounding double quotes
-        gsub("^" q "|" q "$", "", v)           # or single quotes
-        sub(/\/+$/, "", v)                    # a trailing slash
-        print v
-        exit
-      }
+      if (index(line, key ":") == 1) value(line)
     }
   ' docs/.sdd.yaml 2>/dev/null
+}
+
+# Cursor does not document the working directory of a plugin hook. When the payload names the
+# workspace ("workspace_roots"), move into its first entry so docs/.sdd.yaml is read from the
+# repository, not from wherever the host started the script. Parsed without jq; an absent entry, or
+# one that is not a directory, leaves the working directory as it was.
+workspace_root() {
+  printf '%s' "$1" | tr -d '\r\n' \
+    | grep -oE '"workspace_roots"[[:space:]]*:[[:space:]]*\[[[:space:]]*"([^"\\]|\\.)*"' \
+    | head -n1 | sed -E 's/^.*\[[[:space:]]*"//; s/"$//' | sed 's#\\/#/#g; s#\\\\#\\#g'
 }
 
 is_sdd_repo() {
@@ -105,6 +122,8 @@ if [ -n "$payload" ]; then
     *'"hook_event_name"'*)                      host=claude ;;
   esac
 fi
+ws="$(workspace_root "$payload")"
+if [ -n "$ws" ] && [ -d "$ws" ]; then cd "$ws" 2>/dev/null || :; fi
 
 # Claude Code sends `source` (startup | resume | clear | compact | fork). It is read here and
 # deliberately not acted on: the full orientation prints for every source.
@@ -235,9 +254,21 @@ EOF
   check_script="$(desc_get check script)"
   [ -n "$check_script" ] || check_script="scripts/sdd-check.py"
   if [ -f "$check_script" ]; then
+    # A vendored gate that yields no verdict line is reported, never silenced: a crash, a timeout or
+    # a missing interpreter would otherwise look exactly like a repository with no gate at all.
     if have python3; then
-      verdict="$(tmo 15 python3 "$check_script" check 2>/dev/null | grep '^sdd-check:' | tail -n1)"
-      [ -n "$verdict" ] && add "› drift gate: $verdict"
+      gate_out="$(tmo 15 python3 "$check_script" check 2>/dev/null)"
+      gate_rc=$?
+      verdict="$(printf '%s\n' "$gate_out" | grep '^sdd-check:' | tail -n1)"
+      if [ -n "$verdict" ]; then
+        add "› drift gate: $verdict"
+      elif [ "$gate_rc" -eq 124 ] && have timeout; then
+        add "› drift gate: no verdict (timed out)"
+      else
+        add "› drift gate: no verdict (exit $gate_rc)"
+      fi
+    else
+      add "› drift gate: no verdict (python3 not found)"
     fi
   else
     add "› drift gate: not vendored — run /sdd-scaffold --upgrade to vendor sdd-check"

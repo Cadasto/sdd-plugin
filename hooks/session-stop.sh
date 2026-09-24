@@ -26,13 +26,17 @@ state_dir() {
 }
 STATE_DIR="$(state_dir)"
 
+# Cursor does not document the working directory of a plugin hook. When the payload names the
+# workspace ("workspace_roots"), move into its first entry so docs/.sdd.yaml is read from the
+# repository, not from wherever the host started the script. Parsed without jq; an absent entry, or
+# one that is not a directory, leaves the working directory as it was.
+workspace_root() {
+  printf '%s' "$1" | tr -d '\r\n' \
+    | grep -oE '"workspace_roots"[[:space:]]*:[[:space:]]*\[[[:space:]]*"([^"\\]|\\.)*"' \
+    | head -n1 | sed -E 's/^.*\[[[:space:]]*"//; s/"$//' | sed 's#\\/#/#g; s#\\\\#\\#g'
+}
+
 have() { command -v "$1" >/dev/null 2>&1; }
-
-# Not an SDD repository: nothing to nudge about.
-[ -f docs/.sdd.yaml ] || exit 0
-
-# Per-repository opt-out.
-grep -qE "^[[:space:]]*stop_nudge:[[:space:]]*[\"']?false" docs/.sdd.yaml && exit 0
 
 # The host's payload. Detect on a positive marker: a Cursor payload also carries
 # "hook_event_name", so it is told apart by "workspace_roots" / "cursor_version". A
@@ -44,6 +48,17 @@ case "$payload" in
   *'"workspace_roots"'*|*'"cursor_version"'*) host=cursor ;;
   *'"hook_event_name"'*)                      host=claude ;;
 esac
+ws="$(workspace_root "$payload")"
+if [ -n "$ws" ] && [ -d "$ws" ]; then cd "$ws" 2>/dev/null || :; fi
+
+# Not an SDD repository: nothing to nudge about.
+[ -f docs/.sdd.yaml ] || exit 0
+
+# Per-repository opt-out: the value false, bare or quoted, with an optional trailing comment. A
+# value that merely starts with "false" (falsey, false_start) is not an opt-out.
+q="'"
+grep -qE "^[[:space:]]*stop_nudge:[[:space:]]*(false|\"false\"|${q}false${q})[[:space:]]*(#.*)?\$" docs/.sdd.yaml \
+  && exit 0
 
 # Claude Code's payload carries "session_id" on every hook; folded into the key so it matches the one
 # hooks/session-start.sh wrote for this session. Empty on a host whose payload carries no such field.
@@ -58,9 +73,10 @@ key="$(printf '%s' "$key_src" | cksum 2>/dev/null | cut -d' ' -f1)"
 # Already nudged in this session: the second stop passes.
 [ -f "$STATE_DIR/$key.nudged" ] && exit 0
 
-# Defensive: the host says it is re-running the stop hook after a nudge. Anchored to the
-# value, so a branch or PR named "...true..." elsewhere in the payload cannot trip it.
-if printf '%s' "$payload" | grep -qE '"stop_hook_active"[[:space:]]*:[[:space:]]*true'; then
+# Defensive: the host says it is re-running the stop hook after a nudge. Anchored to the key and to
+# the JSON value true exactly, so a branch or PR named "...true..." elsewhere in the payload, a string
+# "true", or a longer token cannot trip it.
+if printf '%s' "$payload" | grep -qE '"stop_hook_active"[[:space:]]*:[[:space:]]*true([[:space:],}]|$)'; then
   exit 0
 fi
 
