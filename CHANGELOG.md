@@ -7,7 +7,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Keep a Changelog: https://keepachangelog.com/en/1.1.0/
 - Semantic Versioning: https://semver.org/spec/v2.0.0.html
 
-## [Unreleased]
+## [0.6.0] - 2026-09-24
 
 The rules 0.5.0 stated are now enforced: one vendored, versioned, self-testing gate —
 `sdd-check` — checks the chain in both directions, lints the prose rules that can be checked
