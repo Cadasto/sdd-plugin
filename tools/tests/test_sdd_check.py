@@ -2384,6 +2384,21 @@ class TestGenerateSafety(BaselineCase):
         self.edit(INDEX_REL, "| [REQ-FOUND-001](REQ-FOUND-001.md) |", "| REQ-FOUND-001 |")
         self._assert_regenerated(INDEX_REL)
 
+    def test_a_row_naming_a_record_only_in_a_later_cell_is_refused_not_deleted(self):
+        # Only the first cell identifies a row: a hand-written row that merely mentions an
+        # existing id in a later cell must be protected, not deleted as if it were that record's row.
+        index = self.tmp / INDEX_REL
+        text = index.read_text()
+        row = "| Legacy login | superseded by REQ-FOUND-001 | — | Draft | deferred |\n"
+        first = "| [REQ-FOUND-001](REQ-FOUND-001.md) |"
+        index.write_text(text.replace(first, row + first, 1))
+        before = index.read_bytes()
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, written)
+        self.assertEqual(before, index.read_bytes())
+        verify_code, _ = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(1, verify_code)
+
     def test_a_dot_slash_linked_id_for_a_present_record_is_not_a_drop(self):
         self.edit(INDEX_REL, "(REQ-FOUND-001.md)", "(./REQ-FOUND-001.md)")
         self._assert_regenerated(INDEX_REL)

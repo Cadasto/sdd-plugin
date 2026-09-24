@@ -3284,9 +3284,11 @@ def _row_identity(name: str, desc: "Descriptor", cells: List[str]) -> Tuple[str,
     """``(display key, identity tokens)`` for one index row — what the row refers to, not
     how its first cell happens to be formatted.
 
-    Link markup, backticks and asterisks are ignored. A requirements row is its REQ id,
-    found anywhere in the first cell (then, as ``check_index_sync`` reads a table, in any
-    other cell). An ADR row is the ``ADR-N`` id in its first cell. A specifications row —
+    Link markup, backticks and asterisks are ignored. A requirements row is the REQ id
+    found in its first cell — only the first: a hand-written row such as
+    ``| Legacy login | superseded by REQ-X |`` names no requirement of its own, and
+    reading a later cell would let regeneration delete it as if it were that record's
+    row. A row whose first cell names no id is keyed on its text. An ADR row is the ``ADR-N`` id in its first cell. A specifications row —
     and an ADR row whose cell names no ``ADR-N`` id — is its cell text or its link
     target's file stem, compared without case.
     """
@@ -3302,11 +3304,9 @@ def _row_identity(name: str, desc: "Descriptor", cells: List[str]) -> Tuple[str,
 
     text = _cell_text(_CELL_LINK_RE.sub(keep_text, cells[0]))
     if name == "requirements-index":
-        pattern = desc.req_pattern()
-        for cell in cells:
-            match = pattern.search(_cell_text(_CELL_LINK_RE.sub(r"\1", cell)))
-            if match:
-                return match.group(0), {match.group(0)}
+        match = desc.req_pattern().search(text)
+        if match:
+            return match.group(0), {match.group(0)}
         return text, {text}
     if name == "adr-index":
         match = _ADR_ID_RE.search(text)
