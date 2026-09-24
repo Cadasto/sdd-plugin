@@ -14,7 +14,8 @@ earlier one having actually run, not just been read.
    tree catches up before you move it to `error` — every family the descriptor doesn't mention
    uses the gate's own default. The block's full shape and every key's meaning are in
    [traceability-schema.md § The check block](../references/traceability-schema.md#the-check-block).
-2. **Vendor and pin the gate.** Run `/sdd-scaffold --upgrade`, or by hand: copy `tools/sdd-check.py`
+2. **Vendor and pin the gate.** Run `/sdd-scaffold --upgrade` — or plain `/sdd-scaffold`, which takes
+   the same path on its own when the descriptor has no `check:` block — or by hand: copy `tools/sdd-check.py`
    into the repository at the `check.script` path step 1 just added (`scripts/sdd-check.py` by
    default) and set `check.version` — now that the `check:` block exists to hold it — to match the
    copy's own `__version__`. Until both are true, `spec-check` cannot pass: a missing script means
@@ -73,18 +74,20 @@ earlier one having actually run, not just been read.
    the ADR table — or let `--upgrade` wrap all three for you.
 8. **Run `sdd-check generate --verify` before the real `generate`.** A table just wrapped in markers
    holds content that doesn't yet match what `generate` would write from the map, so `--verify` exits 1
-   on that staleness — expected here; read the diff, not the exit code. A row in the current content with
-   no matching row in the generated content is a row `generate` would drop. Diagnose it by block: a
-   requirements row with no `REQ-` record in `traceability.yaml`; a specifications row whose file is
-   missing under `paths.specifications` or whose kind is not `specification`; an adr row whose file is
-   missing or is named outside `^(ADR-|\d{4}-)`. Capture the missing record (`/sdd-specify` for a
-   requirement) or delete the stale row by hand if it no longer belongs, then re-run. Once every row is
-   represented, `generate` populates every marker block and each requirement's `status`/`implementation`
-   frontmatter, and `check` has something real to verify.
-9. **`generate` never overwrites a row it cannot match to a record.** The tool refuses on its own: the
-   real `generate` writes nothing while any hand-written row would vanish, and names each one. This is a
-   guarantee, not a discipline you have to remember — step 8 is the preview that tells you which record to
-   capture or which stale row to remove.
+   on that staleness — expected here; read the diff, not the exit code. `--verify` also prints every
+   `refused — …` line the real run would. A row is matched by the identifier or spec name inside its
+   first cell, so a bare, backticked or differently linked cell for a record that exists is simply
+   rewritten. Act on each refusal by its message: `row <id> has no record in the map` — capture the
+   requirement with `/sdd-specify`, or delete the stale row by hand; `row <id> has no matching document`
+   — a specification or ADR file that is missing, not `kind: specification`, or (for an ADR) named
+   outside `^(ADR-|\d{4}-)`; a refusal naming a line inside the markers that is not a row — a note,
+   blockquote, bullet, heading or extra column — move that prose outside the markers. Then re-run. Once
+   nothing is refused, `generate` populates every marker block and each requirement's
+   `status`/`implementation` frontmatter, and `check` has something real to verify.
+9. **`generate` never discards what it cannot regenerate.** The tool refuses on its own: the real
+   `generate` writes nothing while any refusal stands, and names each one. This is a guarantee, not a
+   discipline you have to remember — step 8 is the preview that tells you what to capture, remove or
+   move.
 10. **An RFC-2119 keyword outside `docs/specifications/` is now linted.** `MUST`, `SHOULD`, `MAY`,
     and the rest are binding words with no traceability chain to enforce them anywhere but a spec.
     The gate errors on one in a `requirement`, `adr`, `plan` or `reference` document; in `guide`,

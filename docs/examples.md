@@ -173,7 +173,7 @@ Workers load those skills from their brief; the reviewer sits on the per-task ga
 /sdd-scaffold --upgrade
 ```
 
-Re-vendors `tools/sdd-check.py` if the plugin ships a newer copy than `check.version` pins, fills in any descriptor key the 0.6.0 shape adds, wraps a hand-written index table in the generated-block markers without dropping a row, and adds `kind:` to the ten scaffold-owned files it emits (a hand-authored document keeps the maintainer's own `kind:`, added by hand). When a hand-written index row has no matching record in `traceability.yaml`, `generate` refuses to drop it: the run writes nothing and names the row — capture the requirement with `/sdd-specify`, or delete the stale row by hand, then run again. Full procedure: [docs/upgrading.md](upgrading.md).
+Re-vendors `tools/sdd-check.py` if the plugin ships a newer copy than `check.version` pins, fills in any descriptor key the 0.6.0 shape adds, wraps a hand-written index table in the generated-block markers without dropping a row, and adds `kind:` to the ten scaffold-owned files it emits (a hand-authored document keeps the maintainer's own `kind:`, added by hand). Plain `/sdd-scaffold` takes the same path when the descriptor has no `check:` block. When a hand-written index row has no matching record in `traceability.yaml`, `generate` refuses to drop it: the run writes nothing and names the row — capture the requirement with `/sdd-specify`, or delete the stale row by hand, then run again. A note inside the markers is refused the same way; move it outside them. Full procedure: [docs/upgrading.md](upgrading.md).
 
 ## Sweep plans at a release
 
