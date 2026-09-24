@@ -2905,6 +2905,17 @@ def render_requirements_index(ctx: Context, home: Optional[Path] = None) -> str:
     return "\n".join(lines)
 
 
+def _listed_specifications(ctx: Context) -> List[Tuple[Path, str]]:
+    """``(path, spec name)`` for every document the specifications index lists."""
+    listed = []
+    for path in ctx.desc.specification_files():
+        if effective_kind(ctx, path) != "specification":
+            continue
+        front = _quiet_frontmatter(ctx.read(path))
+        listed.append((path, _as_str(front.get("spec")) or path.stem.upper()))
+    return listed
+
+
 def render_specifications_index(ctx: Context, home: Optional[Path] = None) -> str:
     """The ``specifications-index`` generated table: one row per specification document.
 
@@ -2914,11 +2925,8 @@ def render_specifications_index(ctx: Context, home: Optional[Path] = None) -> st
     desc = ctx.desc
     home = home if home is not None else desc.specifications_index_path()
     lines = ["| Spec | Topic | Status | Mode |", "|---|---|---|---|"]
-    for path in desc.specification_files():
-        if effective_kind(ctx, path) != "specification":
-            continue
+    for path, spec_name in _listed_specifications(ctx):
         front = _quiet_frontmatter(ctx.read(path))
-        spec_name = _as_str(front.get("spec")) or path.stem.upper()
         title = ""
         for _, level, text, _ in headings(ctx.read(path)):
             if level == 1:
@@ -2953,6 +2961,19 @@ def _traceability_refs(text: str) -> str:
     return "; ".join(refs) if refs else "—"
 
 
+def _listed_adrs(ctx: Context) -> List[Path]:
+    """Every decision record the ADR index lists, in path order."""
+    desc = ctx.desc
+    adr_dir = desc.resolve(desc.paths.get("adr", DEFAULT_PATHS["adr"]))
+    if not adr_dir.is_dir():
+        return []
+    return [
+        path
+        for path in sorted(adr_dir.glob("*.md"))
+        if path.is_file() and _ADR_NAME_RE.match(path.name)
+    ]
+
+
 def render_adr_index(ctx: Context, home: Optional[Path] = None) -> str:
     """The ``adr-index`` generated table: one row per ADR document, in path order.
 
@@ -2963,31 +2984,27 @@ def render_adr_index(ctx: Context, home: Optional[Path] = None) -> str:
     desc = ctx.desc
     home = home if home is not None else desc.adr_index_path()
     lines = ["| ID | Title | Status | Date | Resolves / amends |", "|---|---|---|---|---|"]
-    adr_dir = desc.resolve(desc.paths.get("adr", DEFAULT_PATHS["adr"]))
-    if adr_dir.is_dir():
-        for path in sorted(adr_dir.glob("*.md")):
-            if not path.is_file() or not _ADR_NAME_RE.match(path.name):
-                continue
-            # Absent or unparseable frontmatter is still a decision record: a row with
-            # `—` placeholders, never a silently omitted line.
-            front = _quiet_frontmatter(ctx.read(path))
+    for path in _listed_adrs(ctx):
+        # Absent or unparseable frontmatter is still a decision record: a row with
+        # `—` placeholders, never a silently omitted line.
+        front = _quiet_frontmatter(ctx.read(path))
 
-            def cell(key, capitalize=False):
-                value = _as_str(front.get(key))
-                if not value:
-                    return "—"
-                return value.capitalize() if capitalize else value
+        def cell(key, capitalize=False):
+            value = _as_str(front.get(key))
+            if not value:
+                return "—"
+            return value.capitalize() if capitalize else value
 
-            lines.append(
-                "| %s | %s | %s | %s | %s |"
-                % (
-                    cell("id"),
-                    cell("title"),
-                    cell("status", capitalize=True),
-                    cell("date"),
-                    _traceability_refs(ctx.read(path)),
-                )
+        lines.append(
+            "| %s | %s | %s | %s | %s |"
+            % (
+                cell("id"),
+                cell("title"),
+                cell("status", capitalize=True),
+                cell("date"),
+                _traceability_refs(ctx.read(path)),
             )
+        )
     return "\n".join(lines)
 
 
@@ -3081,39 +3098,169 @@ def _diff(anchor: str, before: List[str], after: List[str]) -> List[str]:
     )
 
 
-def _row_key(name: str, desc: "Descriptor", cells: List[str]) -> str:
-    """The identity of an index row for drop detection: the REQ id in a requirements row,
-    otherwise the first cell's text."""
+#: A markdown inline link, captured as ``(text, target)``; the target may be ``<…>``-wrapped
+#: and may carry a title.
+_CELL_LINK_RE = re.compile(r"!?\[([^\]]*)\]\(\s*<?([^)<>\s]*)>?(?:\s+[^)]*)?\)")
+_ADR_ID_RE = re.compile(r"ADR-\d+")
+#: A 0.5.x template placeholder: an id cell that is exactly one ``<…>`` token.
+_PLACEHOLDER_RE = re.compile(r"<[^<>]+>")
+
+
+def _row_identity(name: str, desc: "Descriptor", cells: List[str]) -> Tuple[str, set]:
+    """``(display key, identity tokens)`` for one index row — what the row refers to, not
+    how its first cell happens to be formatted.
+
+    Link markup, backticks and asterisks are ignored. A requirements row is its REQ id,
+    found anywhere in the first cell (then, as ``check_index_sync`` reads a table, in any
+    other cell). An ADR row is the ``ADR-N`` id in its first cell. A specifications row —
+    and an ADR row whose cell names no ``ADR-N`` id — is its cell text or its link
+    target's file stem, compared without case.
+    """
     if not cells:
-        return ""
+        return "", set()
+    stems = set()
+
+    def keep_text(match):
+        target = urllib.parse.unquote(match.group(2).split("#", 1)[0])
+        if target:
+            stems.add(Path(target).stem.lower())
+        return match.group(1)
+
+    text = _cell_text(_CELL_LINK_RE.sub(keep_text, cells[0]))
     if name == "requirements-index":
         pattern = desc.req_pattern()
         for cell in cells:
-            text = _cell_text(cell)
-            if pattern.fullmatch(text):
-                return text
-    return _cell_text(cells[0])
+            match = pattern.search(_cell_text(_CELL_LINK_RE.sub(r"\1", cell)))
+            if match:
+                return match.group(0), {match.group(0)}
+        return text, {text}
+    if name == "adr-index":
+        match = _ADR_ID_RE.search(text)
+        if match:
+            return match.group(0), {match.group(0).lower()}
+    tokens = {text.lower()} | stems if text else set(stems)
+    return text, tokens
 
 
-def _protected_row_keys(
-    name: str, desc: "Descriptor", content: List[str]
-) -> List[Tuple[str, int]]:
-    """Every hand-authored row key a block carries, with its line within the block. A
-    placeholder row (``<...>``) is not a real row and is not protected, so a fresh scaffold
-    can still generate its first table over the template's placeholders."""
-    keys: List[Tuple[str, int]] = []
-    for lineno, _header, cells in table_rows("\n".join(content)):
-        key = _row_key(name, desc, cells)
-        if key and "<" not in key and ">" not in key:
-            keys.append((key, lineno))
-    return keys
+def _document_tokens(ctx: "Context", name: str) -> set:
+    """The identity tokens of every document a specifications or ADR block lists — the
+    names and file stems a hand-written row may use to refer to a document that exists."""
+    tokens = set()
+    if name == "specifications-index":
+        for path, spec_name in _listed_specifications(ctx):
+            tokens.update({spec_name.lower(), path.stem.lower(), path.name.lower()})
+    elif name == "adr-index":
+        for path in _listed_adrs(ctx):
+            tokens.update({path.stem.lower(), path.name.lower()})
+            match = _ADR_ID_RE.search(path.stem)
+            if match:
+                tokens.add(match.group(0).lower())
+            identifier = _as_str(_quiet_frontmatter(ctx.read(path)).get("id"))
+            if identifier:
+                tokens.add(identifier.lower())
+    return tokens
 
 
-def _dropped_rows(name: str, desc: "Descriptor", current: List[str], new: List[str]) -> List[str]:
-    """The keys of rows the current block carries that the regenerated block would not —
-    a hand-written row with no record in the map."""
-    new_keys = {key for key, _ in _protected_row_keys(name, desc, new)}
-    return [key for key, _ in _protected_row_keys(name, desc, current) if key not in new_keys]
+def _block_layout(content: List[str]):
+    """Split a block's lines into its pipe tables and every other non-blank line.
+
+    Returns ``(tables, stray)``: each table is ``(header offset, header cells, [(row
+    offset, row cells)])``, and ``stray`` is the offset of every non-blank line that is not
+    part of a table — a note, a blockquote, a bullet, a heading, a comment. Offsets index
+    ``content``. The scan reads the raw lines, not a comment-blanked view, so an HTML
+    comment inside the block is stray content too.
+    """
+    tables = []
+    stray: List[int] = []
+    index = 0
+    total = len(content)
+    while index < total:
+        line = content[index]
+        if not line.strip():
+            index += 1
+            continue
+        if "|" in line and index + 1 < total and _is_separator(content[index + 1]):
+            header = _split_cells(line)
+            rows = []
+            probe = index + 2
+            while probe < total and "|" in content[probe] and content[probe].strip():
+                rows.append((probe, _split_cells(content[probe])))
+                probe += 1
+            tables.append((index, header, rows))
+            index = probe
+            continue
+        stray.append(index)
+        index += 1
+    return tables, stray
+
+
+def _is_placeholder_cell(cell: str) -> bool:
+    return bool(_PLACEHOLDER_RE.fullmatch(_cell_text(cell)))
+
+
+def _block_refusals(
+    name: str,
+    desc: "Descriptor",
+    current: List[str],
+    new: List[str],
+    documents: Optional[set] = None,
+) -> List[Tuple[int, str]]:
+    """Everything regenerating one block would destroy, as ``(offset in current, reason)``.
+
+    Refused: a non-blank line that is not part of a table; a column the current header
+    carries and the generated header does not; a row whose id cell carries ``<``/``>``
+    markup other than a whole-cell placeholder; and a row that refers to no record (the
+    requirements index) or no document (the other two). A row that refers to something
+    present is regenerated, however its cells are formatted. A placeholder row — an id
+    cell that is exactly one ``<…>`` token, as 0.5.x READMEs carried — is not protected.
+    ``documents`` adds the identity tokens of the documents a specifications or ADR block
+    lists (see :func:`_document_tokens`).
+    """
+    refusals: List[Tuple[int, str]] = []
+    tables, stray = _block_layout(current)
+    new_tables, _ = _block_layout(new)
+    for offset in stray:
+        refusals.append(
+            (
+                offset,
+                "this line is not part of the table and regeneration would remove it — "
+                "move it outside the markers",
+            )
+        )
+    generated_columns = set()
+    known = set(documents or ())
+    for _offset, header, rows in new_tables:
+        generated_columns.update(_cell_text(cell).lower() for cell in header)
+        for _row_offset, cells in rows:
+            known.update(_row_identity(name, desc, cells)[1])
+    missing = "no record in the map" if name == "requirements-index" else "no matching document"
+    for header_offset, header, rows in tables:
+        for cell in header:
+            column = _cell_text(cell)
+            if column and column.lower() not in generated_columns:
+                refusals.append(
+                    (
+                        header_offset,
+                        "column '%s' is not in the generated table and would be removed"
+                        % column,
+                    )
+                )
+        for row_offset, cells in rows:
+            if not cells or _is_placeholder_cell(cells[0]):
+                continue
+            key, tokens = _row_identity(name, desc, cells)
+            if "<" in cells[0] or ">" in cells[0]:
+                refusals.append(
+                    (
+                        row_offset,
+                        "row %s: the id cell carries '<' or '>' markup that regeneration "
+                        "would remove" % (key or cells[0]),
+                    )
+                )
+                continue
+            if not tokens & known:
+                refusals.append((row_offset, "row %s has %s" % (key or cells[0], missing)))
+    return sorted(refusals)
 
 
 def _write_preserving_eol(path: Path, new_text: str) -> None:
@@ -3199,9 +3346,12 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
             if current_content == new_content:
                 continue
             changed = True
-            for key in _dropped_rows(name, desc, current_content, new_content):
+            documents = _document_tokens(ctx, name)
+            for offset, reason in _block_refusals(
+                name, desc, current_content, new_content, documents
+            ):
                 refusals.append(
-                    "%s: refused — row %s has no record in the map; nothing written" % (anchor, key)
+                    "%s:%d: refused — %s; nothing written" % (anchor, start + 1 + offset, reason)
                 )
             if verify:
                 stale = True

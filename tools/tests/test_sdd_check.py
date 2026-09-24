@@ -2044,8 +2044,9 @@ class TestGenerators(BaselineCase):
             "<!-- sdd:generated requirements-index -->\n\n"
             "stale requirements content that is never closed\n\n"
             "## An important heading\n\n"
-            "<!-- sdd:generated adr-index -->\n\n"
-            "stale adr content, not yet the real table\n\n"
+            "<!-- sdd:generated adr-index -->\n"
+            "| ID | Title | Status | Date | Resolves / amends |\n"
+            "|----|-------|--------|------|-------------------|\n"
             "<!-- /sdd:generated -->\n"
         )
         self.write("docs/requirements/orphan.md", orphan)
@@ -2067,9 +2068,12 @@ class TestGenerators(BaselineCase):
         # And the second block is genuinely regenerated from the map, not left stale
         # and not merged into the first — assert the whole file's bytes, not just that
         # exit code and a substring look right.
+        # The stale content is a table, not prose: a non-table line inside a block is
+        # refused rather than deleted (P3), so the regenerable case is a stale layout.
         expected = orphan.replace(
-            "\n\nstale adr content, not yet the real table\n\n<!-- /sdd:generated -->",
-            "\n\n| ID | Title | Status | Date | Resolves / amends |\n"
+            "-->\n| ID | Title | Status | Date | Resolves / amends |\n"
+            "|----|-------|--------|------|-------------------|\n<!-- /sdd:generated -->",
+            "-->\n\n| ID | Title | Status | Date | Resolves / amends |\n"
             "|---|---|---|---|---|\n\n<!-- /sdd:generated -->",
         )
         self.assertNotEqual(orphan, expected, "fixture drift: nothing to regenerate")
@@ -2135,10 +2139,180 @@ class TestGenerateSafety(BaselineCase):
         self.assertEqual(0, code, written)
         self.assertIn(INDEX_REL, written)
 
+    def _index_block(self, rel, body):
+        """Replace everything between the markers of ``rel`` with ``body`` (padded)."""
+        path = self.tmp / rel
+        text = path.read_text(encoding="utf-8")
+        head, rest = text.split(" -->\n", 1)
+        _, tail = rest.split("<!-- /sdd:generated -->", 1)
+        path.write_text(
+            head + " -->\n\n" + body + "\n\n<!-- /sdd:generated -->" + tail, encoding="utf-8"
+        )
+
+    def _refused_and_unchanged(self, rel, *fragments):
+        before = (self.tmp / rel).read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        for fragment in fragments:
+            self.assertTrue(any(fragment in line for line in lines), (fragment, lines))
+        self.assertEqual(before, (self.tmp / rel).read_bytes())
+        return lines
+
     def test_a_placeholder_row_is_not_protected(self):
-        desc = sdd_check.Descriptor.load(self.tmp)
-        current = ["| <REQ-FOUND-001> | x | y | Draft | shipped |"]
-        self.assertEqual([], sdd_check._dropped_rows("requirements-index", desc, current, []))
+        # L1.8: a real 0.5.x table — header, separator, placeholder row — inside the
+        # markers is regenerated at exit 0, and the placeholder is gone.
+        self._index_block(
+            INDEX_REL,
+            "| ID | Title | Spec | Stability | Implementation |\n"
+            "|----|-------|------|-----------|----------------|\n"
+            "| <REQ-FOUND-001> | <capability> | `<SPEC-NAME \u00a7N>` | Draft | proposed |",
+        )
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        self.assertEqual([INDEX_REL], written)
+        text = (self.tmp / INDEX_REL).read_text(encoding="utf-8")
+        self.assertNotIn("<REQ-FOUND-001>", text)
+        self.assertIn("| [REQ-FOUND-001](REQ-FOUND-001.md) | Environment boundary |", text)
+
+    def test_the_same_row_without_the_placeholder_brackets_is_refused(self):
+        # Can-fail control for the placeholder test: the guard is reached for this table,
+        # and it is only the `<...>` form that exempts the row.
+        self._index_block(
+            INDEX_REL,
+            "| ID | Title | Spec | Stability | Implementation |\n"
+            "|----|-------|------|-----------|----------------|\n"
+            "| REQ-FOUND-077 | <capability> | `<SPEC-NAME \u00a7N>` | Draft | proposed |",
+        )
+        self._refused_and_unchanged(INDEX_REL, "row REQ-FOUND-077 has no record in the map")
+
+    def test_generate_over_the_real_scaffold_requirements_template(self):
+        # L1.8: the README /sdd-scaffold emits generates its first table cleanly.
+        template = TOOLS_DIR.parent / "references" / "templates" / "requirements-README.md"
+        (self.tmp / INDEX_REL).write_bytes(template.read_bytes())
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        self.assertEqual([INDEX_REL], written)
+        text = (self.tmp / INDEX_REL).read_text(encoding="utf-8")
+        self.assertIn("| [REQ-FOUND-001](REQ-FOUND-001.md) | Environment boundary |", text)
+        code, lines = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(0, code, lines)
+
+    def test_a_refusal_in_one_file_withholds_every_other_write(self):
+        # L1.8: an orphan row in the index AND a stale detail-file status — the refusal
+        # aborts the whole run, so BOTH files keep their bytes.
+        self._add_orphan_row()
+        self.edit(REQ_REL, "status: draft", "status: stable")
+        index_before = (self.tmp / INDEX_REL).read_bytes()
+        detail_before = (self.tmp / REQ_REL).read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any("REQ-FOUND-002" in line and "refused" in line for line in lines), lines)
+        self.assertEqual(index_before, (self.tmp / INDEX_REL).read_bytes())
+        self.assertEqual(detail_before, (self.tmp / REQ_REL).read_bytes())
+
+    # --- P1 / P2: a row is identified by what it refers to -------------------
+    def _assert_regenerated(self, rel):
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        self.assertIn(rel, written)
+        code, lines = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(0, code, lines)
+
+    def test_a_bare_id_for_a_present_record_is_not_a_drop(self):
+        self.edit(INDEX_REL, "| [REQ-FOUND-001](REQ-FOUND-001.md) |", "| REQ-FOUND-001 |")
+        self._assert_regenerated(INDEX_REL)
+
+    def test_a_dot_slash_linked_id_for_a_present_record_is_not_a_drop(self):
+        self.edit(INDEX_REL, "(REQ-FOUND-001.md)", "(./REQ-FOUND-001.md)")
+        self._assert_regenerated(INDEX_REL)
+
+    def test_a_backticked_bold_id_with_trailing_text_is_not_a_drop(self):
+        self.edit(
+            INDEX_REL, "| [REQ-FOUND-001](REQ-FOUND-001.md) |", "| **`REQ-FOUND-001`** (core) |"
+        )
+        self._assert_regenerated(INDEX_REL)
+
+    def test_a_differently_linked_spec_row_is_not_a_drop(self):
+        self.edit(SPEC_INDEX_REL, "[`SPEC-ENV`](env.md)", "[env.md](./env.md)")
+        self._assert_regenerated(SPEC_INDEX_REL)
+
+    def test_a_bare_spec_name_is_not_a_drop(self):
+        self.edit(SPEC_INDEX_REL, "[`SPEC-ENV`](env.md)", "SPEC-ENV")
+        self._assert_regenerated(SPEC_INDEX_REL)
+
+    def test_a_spec_row_naming_no_document_is_refused_as_no_matching_document(self):
+        self.edit(
+            SPEC_INDEX_REL,
+            "| [`SPEC-ENV`](env.md) | Environment | Draft | spec-first |",
+            "| [`SPEC-ENV`](env.md) | Environment | Draft | spec-first |\n"
+            "| [`SPEC-GONE`](gone.md) | Gone | Draft | spec-first |",
+        )
+        lines = self._refused_and_unchanged(SPEC_INDEX_REL, "row SPEC-GONE has no matching document")
+        self.assertFalse(any("no record" in line for line in lines), lines)
+
+    def _add_adr(self, stem, front_id):
+        self.write(
+            "docs/adr/%s.md" % stem,
+            "---\nkind: adr\nid: %s\ntitle: Pick one\nstatus: accepted\ndate: 2026-01-02\n---\n\n"
+            "# %s — Pick one\n" % (front_id, front_id),
+        )
+
+    def test_a_linked_adr_id_for_a_present_record_is_not_a_drop(self):
+        self._add_adr("ADR-0001-pick-one", "ADR-0001")
+        self._index_block(
+            "docs/adr/README.md",
+            "| ID | Title | Status | Date | Resolves / amends |\n|---|---|---|---|---|\n"
+            "| [ADR-0001](ADR-0001-pick-one.md) | Pick one | Accepted | 2026-01-02 | — |",
+        )
+        self._assert_regenerated("docs/adr/README.md")
+
+    def test_an_adr_row_naming_no_document_is_refused_as_no_matching_document(self):
+        self._add_adr("ADR-0001-pick-one", "ADR-0001")
+        self._index_block(
+            "docs/adr/README.md",
+            "| ID | Title | Status | Date | Resolves / amends |\n|---|---|---|---|---|\n"
+            "| ADR-0009 | Lost | Accepted | 2026-01-02 | — |",
+        )
+        self._refused_and_unchanged("docs/adr/README.md", "row ADR-0009 has no matching document")
+
+    def test_a_refusal_names_the_file_and_line(self):
+        self._add_orphan_row()
+        lines = self._refused_and_unchanged(INDEX_REL, "refused")
+        line = self.line_of(INDEX_REL, "REQ-FOUND-002")
+        self.assertTrue(
+            any(entry.startswith("%s:%d: refused" % (INDEX_REL, line)) for entry in lines), lines
+        )
+
+    # --- P3: non-row content inside a block is protected ---------------------
+    def test_a_note_inside_the_markers_is_refused_and_the_file_is_byte_identical(self):
+        self.edit(INDEX_REL, "\n<!-- /sdd:generated -->", "> Note: keep this.\n<!-- /sdd:generated -->")
+        lines = self._refused_and_unchanged(INDEX_REL, "not part of the table")
+        line = self.line_of(INDEX_REL, "> Note: keep this.")
+        self.assertTrue(any(entry.startswith("%s:%d:" % (INDEX_REL, line)) for entry in lines), lines)
+
+    def test_a_bullet_a_heading_and_a_comment_inside_the_markers_are_each_refused(self):
+        self.edit(
+            INDEX_REL,
+            "\n<!-- /sdd:generated -->",
+            "- a bullet\n\n### A heading\n\n<!-- a comment -->\n<!-- /sdd:generated -->",
+        )
+        lines = self._refused_and_unchanged(INDEX_REL, "not part of the table")
+        self.assertEqual(3, len([l for l in lines if "not part of the table" in l]), lines)
+
+    def test_an_extra_column_is_refused(self):
+        self.edit(INDEX_REL, "| Implementation |\n|---|---|---|---|---|", "| Implementation | Owner |\n|---|---|---|---|---|---|")
+        self.edit(INDEX_REL, "| Draft | shipped |", "| Draft | shipped | team-a |")
+        self._refused_and_unchanged(INDEX_REL, "column 'Owner' is not in the generated table")
+
+    def test_an_id_cell_with_markup_is_refused_even_when_the_record_exists(self):
+        self.edit(INDEX_REL, "| [REQ-FOUND-001](REQ-FOUND-001.md) |", "| REQ-FOUND-001<br>core |")
+        self._refused_and_unchanged(INDEX_REL, "row REQ-FOUND-001: the id cell carries")
+
+    def test_verify_leaves_a_note_inside_the_markers_in_place(self):
+        self.edit(INDEX_REL, "\n<!-- /sdd:generated -->", "> Note: keep this.\n<!-- /sdd:generated -->")
+        before = (self.tmp / INDEX_REL).read_bytes()
+        sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(before, (self.tmp / INDEX_REL).read_bytes())
 
     def test_detail_files_match_the_id_exactly_or_with_a_dash_suffix(self):
         self.write("docs/requirements/REQ-FOUND-0011.md", "---\nkind: requirement\nstatus: draft\nimplementation: shipped\n---\n")
