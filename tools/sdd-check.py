@@ -553,10 +553,11 @@ def frontmatter(text: str) -> Tuple[Optional[dict], int]:
 
 def _closes_fence(line: str, fence: str) -> bool:
     """Whether ``line`` closes a code fence opened by ``fence``: a leading run of the same
-    fence character at least as long as the opener."""
+    fence character at least as long as the opener, and nothing after it — a closing fence
+    carries no info string, so a line like ```` ```js ```` opens nothing and closes nothing."""
     stripped = line.strip()
     run = len(stripped) - len(stripped.lstrip(fence[0]))
-    return run >= len(fence)
+    return run >= len(fence) and not stripped[run:].strip()
 
 
 def _content_lines(
@@ -1198,6 +1199,8 @@ class Context:
         self.records_by_id = {r.id: r for r in records if r.id}
         self.changelog_all = changelog_all
         self._texts: Dict[str, str] = {}
+        #: Why a file could not be read or decoded, keyed like ``_texts``.
+        self.read_problems: Dict[str, str] = {}
         self._docs_files: Optional[List[Path]] = None
         self._git_ok: Optional[bool] = None
 
@@ -1214,13 +1217,30 @@ class Context:
             return candidate.as_posix()
 
     def read(self, path) -> str:
+        """The file's text (BOM dropped, line endings normalised to ``\n``). A file that
+        cannot be read reads as empty and one that is not UTF-8 is decoded with
+        replacement characters, and either way the reason lands in :attr:`read_problems`
+        so a family can report it rather than treat the file as empty."""
         key = str(self.abs(path))
         if key not in self._texts:
             try:
-                self._texts[key] = Path(key).read_text(encoding="utf-8-sig", errors="replace")
-            except OSError:
+                raw = Path(key).read_bytes()
+            except OSError as exc:
+                self.read_problems[key] = "cannot be read (%s)" % (exc.strerror or exc)
                 self._texts[key] = ""
+                return ""
+            try:
+                text = raw.decode("utf-8-sig")
+            except UnicodeDecodeError as exc:
+                self.read_problems[key] = "is not valid UTF-8 (byte %d)" % exc.start
+                text = raw.decode("utf-8-sig", errors="replace")
+            self._texts[key] = text.replace("\r\n", "\n").replace("\r", "\n")
         return self._texts[key]
+
+    def read_problem(self, path) -> Optional[str]:
+        """Why ``path`` could not be read or decoded, or ``None``."""
+        self.read(path)
+        return self.read_problems.get(str(self.abs(path)))
 
     def docs_files(self) -> List[Path]:
         if self._docs_files is None:
@@ -2071,6 +2091,13 @@ def check_doc_kinds(ctx: Context, report: "Report") -> None:
         return
     examined = 0
     for path in paths:
+        problem = ctx.read_problem(path)
+        if problem:
+            # An unreadable document is not an empty one: every family would otherwise
+            # read it as blank and pass it, so the gate says so once, loudly.
+            examined += 1
+            report.add("doc-kinds", "ERROR", ctx.rel(path), "the document %s" % problem)
+            continue
         if _waived(ctx, report, "doc-kinds", path):
             continue
         examined += 1
@@ -2548,10 +2575,17 @@ def check_generated(ctx: Context, report: "Report") -> None:
         text = ctx.read(path)
         blocks = generated_blocks(text)
         if not blocks:
+            if _MARKER_TOKEN in text:
+                # No block, but a stray closer or a near-miss opener is still a finding.
+                for lineno, message in generated_marker_problems(text):
+                    found_any = True
+                    report.add("generated", level, "%s:%d" % (ctx.rel(path), lineno), message)
             continue
         found_any = True
         anchor = ctx.rel(path)
         lines = text.split("\n")
+        for lineno, message in generated_marker_problems(text):
+            report.add("generated", level, "%s:%d" % (anchor, lineno), message)
         for name, start, end in blocks:
             if end == 0:
                 report.add(
@@ -3044,6 +3078,65 @@ _GENERATED_OPEN_RE = re.compile(
 )
 
 
+#: The token every generated-block marker carries; a line with it that is not an exact
+#: marker is a near miss, never silently ignored.
+_MARKER_TOKEN = "sdd:generated"
+
+
+def _marker_view(text: str) -> List[str]:
+    """The lines the marker scan reads: fences blanked (a quoted example is not a live
+    block), inline code blanked (prose that names a marker in backticks is not one), and
+    HTML comments kept, since the markers are comments. Line numbers are preserved."""
+    return [line for _lineno, line in _content_lines(text, True, keep_comments=True)]
+
+
+def _marker_kind(line: str) -> Tuple[str, str]:
+    """``("open", name)``, ``("close", "")``, ``("near", "")`` or ``("", "")``.
+
+    A line indented four or more columns is an indented code block, not a marker, and is
+    never read as one — nor reported as a near miss.
+    """
+    expanded = line.expandtabs(4)
+    if len(expanded) - len(expanded.lstrip(" ")) >= 4:
+        return "", ""
+    stripped = line.strip()
+    match = _GENERATED_OPEN_RE.match(stripped)
+    if match:
+        return "open", match.group(1)
+    if stripped == GENERATED_CLOSE:
+        return "close", ""
+    if _MARKER_TOKEN in stripped:
+        return "near", ""
+    return "", ""
+
+
+def generated_marker_problems(text: str) -> List[Tuple[int, str]]:
+    """Every malformed marker line as ``(line, message)``: a line naming ``sdd:generated``
+    that is neither an exact opening nor an exact closing marker, and a closing marker no
+    opening marker precedes. (An opener with no closer is reported by
+    :func:`generated_blocks` itself, with a closing line of ``0``.)"""
+    problems: List[Tuple[int, str]] = []
+    inside = False
+    for index, line in enumerate(_marker_view(text)):
+        kind, _name = _marker_kind(line)
+        if kind == "open":
+            inside = True
+        elif kind == "close":
+            if inside:
+                inside = False
+            else:
+                problems.append((index + 1, "a closing generated marker with no opening marker"))
+        elif kind == "near":
+            problems.append(
+                (
+                    index + 1,
+                    "malformed generated marker — the line names %s but is neither %s nor %s"
+                    % (_MARKER_TOKEN, GENERATED_OPEN % "<name>", GENERATED_CLOSE),
+                )
+            )
+    return problems
+
+
 def generated_blocks(text: str) -> List[Tuple[str, int, int]]:
     """Every generated block as ``(name, opening marker line, closing marker line)``.
 
@@ -3055,27 +3148,26 @@ def generated_blocks(text: str) -> List[Tuple[str, int, int]]:
     block's closer. The scan resumes right there, so a well-formed block that follows
     an unclosed one is still found and generated normally.
     """
-    # Match markers on a fence-blanked view (comments kept, fences blanked), so a marker
-    # pair quoted inside a fenced example is not mistaken for a live block. Line numbers
-    # are preserved, so the indices still address the raw text every caller slices.
-    lines = [line for _lineno, line in _content_lines(text, False, keep_comments=True)]
+    # Match markers on a fence-blanked view (see _marker_view), so a marker pair quoted
+    # inside a fenced example is not mistaken for a live block. Line numbers are preserved,
+    # so the indices still address the raw text every caller slices.
+    lines = _marker_view(text)
     found: List[Tuple[str, int, int]] = []
     index = 0
     while index < len(lines):
-        match = _GENERATED_OPEN_RE.match(lines[index].strip())
-        if not match:
+        kind, name = _marker_kind(lines[index])
+        if kind != "open":
             index += 1
             continue
-        name = match.group(1)
         start = index + 1
         end = 0
         probe = index + 1
         while probe < len(lines):
-            stripped = lines[probe].strip()
-            if stripped == GENERATED_CLOSE:
+            probe_kind, _ = _marker_kind(lines[probe])
+            if probe_kind == "close":
                 end = probe + 1
                 break
-            if _GENERATED_OPEN_RE.match(stripped):
+            if probe_kind == "open":
                 break
             probe += 1
         found.append((name, start, end))
@@ -3277,14 +3369,32 @@ def _block_refusals(
     return sorted(refusals)
 
 
-def _write_preserving_eol(path: Path, new_text: str) -> None:
-    """Write ``new_text`` (which uses ``\n``) keeping the file's existing line terminator,
-    so regenerating one row never rewrites every line ending in the file."""
+_BOM = b"\xef\xbb\xbf"
+
+
+def _strict_text_problem(path: Path) -> Optional[str]:
+    """Why ``generate`` must not rewrite ``path``: it cannot be read, or it is not UTF-8
+    (a BOM is allowed). ``None`` when it is safe to rewrite."""
     try:
-        crlf = b"\r\n" in path.read_bytes()
+        path.read_bytes().decode("utf-8-sig")
+    except OSError as exc:
+        return "cannot be read (%s)" % (exc.strerror or exc)
+    except UnicodeDecodeError as exc:
+        return "is not valid UTF-8 (byte %d)" % exc.start
+    return None
+
+
+def _write_preserving_eol(path: Path, new_text: str) -> None:
+    """Write ``new_text`` (which uses ``\n``) keeping the file's dominant line terminator
+    and its byte-order mark, so regenerating one row never rewrites every line ending in
+    the file — neither on a CRLF file, nor on an LF file with one stray CRLF line."""
+    try:
+        raw = path.read_bytes()
     except OSError:
-        crlf = False
-    with open(path, "w", encoding="utf-8", newline="\r\n" if crlf else "\n") as handle:
+        raw = b""
+    crlf = raw.count(b"\r\n") * 2 > raw.count(b"\n")
+    encoding = "utf-8-sig" if raw.startswith(_BOM) else "utf-8"
+    with open(path, "w", encoding=encoding, newline="\r\n" if crlf else "\n") as handle:
         handle.write(new_text)
 
 
@@ -3334,6 +3444,8 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
     diff_lines: List[str] = []
     refusals: List[str] = []
     new_texts: Dict[Path, str] = {}
+    #: Every file the run would rewrite, in both modes (``--verify`` fills no new_texts).
+    targets: List[Path] = []
     stale = False
     skipped = False
 
@@ -3341,10 +3453,14 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
     for path in _link_files(ctx):
         text = ctx.read(path)
         blocks = generated_blocks(text)
+        anchor = ctx.rel(path)
+        if _MARKER_TOKEN in text:
+            for lineno, message in generated_marker_problems(text):
+                messages.append("%s:%d: skipped — %s" % (anchor, lineno, message))
+                skipped = True
         if not blocks:
             continue
         any_block = True
-        anchor = ctx.rel(path)
         for name, start, end in blocks:
             if end == 0:
                 messages.append(
@@ -3379,6 +3495,8 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
                 diff_lines.extend(_diff(anchor, current_content, new_content))
             else:
                 file_lines = file_lines[:start] + new_content + file_lines[end - 1 :]
+        if changed and path not in targets:
+            targets.append(path)
         if changed and not verify:
             candidate = "\n".join(file_lines)
             if candidate != text:
@@ -3394,6 +3512,8 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
                 updated = _rewrite_status_lines(base, record)
                 if updated == base:
                     continue
+                if detail not in targets:
+                    targets.append(detail)
                 if verify:
                     stale = True
                     diff_lines.extend(
@@ -3402,6 +3522,15 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
                 else:
                     new_texts[detail] = updated
 
+    for path in targets:
+        # The text above was decoded leniently; a file that is not strict UTF-8 would lose
+        # its undecodable bytes to replacement characters on rewrite, so it is refused.
+        problem = _strict_text_problem(path)
+        if problem:
+            refusals.append(
+                "%s: refused — the file %s, and rewriting it would destroy those bytes; "
+                "nothing written" % (ctx.rel(path), problem)
+            )
     if not any_block:
         messages.append("sdd-check: no generated blocks found")
     if verify:
@@ -3414,7 +3543,14 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
         return 1, warnings + messages + refusals
     written: List[str] = []
     for path in new_texts:
-        _write_preserving_eol(path, new_texts[path])
+        try:
+            _write_preserving_eol(path, new_texts[path])
+        except OSError as exc:
+            # Say exactly where the run stopped: what is already on disk, and what is not.
+            return 1, warnings + messages + written + [
+                "%s: write failed (%s); the %d file(s) listed above were written, "
+                "no later file was" % (ctx.rel(path), exc.strerror or exc, len(written))
+            ]
         ctx._texts[str(ctx.abs(path))] = new_texts[path]
         written.append(ctx.rel(path))
     return (1 if skipped else 0), warnings + messages + sorted(written)

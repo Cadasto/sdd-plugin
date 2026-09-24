@@ -2457,6 +2457,110 @@ class TestGenerateSafety(BaselineCase):
         self.assert_clean(report)
 
 
+class TestGenerateContentSafety(BaselineCase):
+    """P7, P8, L1.5, L1.6: marker near misses, undecodable files, BOM and line endings,
+    and a write that fails part-way."""
+
+    def _stale(self):
+        self.edit(INDEX_REL, "Draft | shipped |", "Draft | landed |")
+
+    def test_a_near_miss_marker_is_a_generated_error_naming_file_and_line(self):
+        self.edit(INDEX_REL, "<!-- /sdd:generated -->", "<!-- /sdd:generated -->\n\n<!-- sdd:generated adr-index-->")
+        report = sdd_check.run_check(self.tmp, only=["generated"], changelog_all=False)
+        line = self.line_of(INDEX_REL, "adr-index-->")
+        hits = [f for f in report.findings if f.family == "generated" and f.level == "ERROR"
+                and f.anchor == "%s:%d" % (INDEX_REL, line)]
+        self.assertTrue(hits, report.render(self.tmp))
+        self.assertIn("malformed generated marker", hits[0].message)
+
+    def test_a_stray_closer_is_a_generated_error(self):
+        self.edit(GUIDE_REL, "Write the specification first", "<!-- /sdd:generated -->\n\nWrite the specification first")
+        report = sdd_check.run_check(self.tmp, only=["generated"], changelog_all=False)
+        self.assert_finding(report, "no opening marker", family="generated")
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any(line.startswith(GUIDE_REL + ":") and "no opening marker" in line for line in lines), lines)
+
+    def test_an_indented_marker_pair_is_never_rewritten(self):
+        text = (self.tmp / GUIDE_REL).read_text(encoding="utf-8")
+        self.write(GUIDE_REL, text + "\nExample:\n\n    <!-- sdd:generated requirements-index -->\n    stale\n    <!-- /sdd:generated -->\n")
+        before = (self.tmp / GUIDE_REL).read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, lines)
+        self.assertEqual(before, (self.tmp / GUIDE_REL).read_bytes())
+        report = sdd_check.run_check(self.tmp, only=["generated"], changelog_all=False)
+        self.assert_clean(report)
+
+    def test_an_undecodable_index_is_refused_and_byte_identical(self):
+        # P8: a Latin-1 byte in a file generate would rewrite.
+        self._stale()
+        path = self.tmp / INDEX_REL
+        path.write_bytes(path.read_bytes().replace(b"Each row links", b"Each r\xf6w links"))
+        before = path.read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any(line.startswith(INDEX_REL + ": refused") and "not valid UTF-8" in line for line in lines), lines)
+        self.assertEqual(before, path.read_bytes())
+        code, lines = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any("not valid UTF-8" in line for line in lines), lines)
+
+    def test_check_reports_an_undecodable_document_as_a_doc_kinds_error(self):
+        path = self.tmp / GUIDE_REL
+        path.write_bytes(path.read_bytes() + b"\xff\xfe\n")
+        report = self.run_only("doc-kinds")
+        self.assert_finding(report, "is not valid UTF-8", family="doc-kinds")
+
+    def test_a_bom_survives_regeneration(self):
+        # L1.5
+        self._stale()
+        path = self.tmp / INDEX_REL
+        path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        raw = path.read_bytes()
+        self.assertTrue(raw.startswith(b"\xef\xbb\xbf"))
+        self.assertFalse(raw[3:].startswith(b"\xef\xbb\xbf"))
+        self.assertIn(b"Draft | shipped |", raw)
+
+    def test_one_stray_crlf_does_not_convert_an_lf_file(self):
+        # L1.5: the dominant ending wins.
+        self._stale()
+        path = self.tmp / INDEX_REL
+        path.write_bytes(path.read_bytes().replace(b"# Requirements\n", b"# Requirements\r\n"))
+        code, written = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, written)
+        raw = path.read_bytes()
+        self.assertEqual(0, raw.count(b"\r\n"), raw)
+        self.assertIn(b"Draft | shipped |", raw)
+
+    def test_a_failed_write_reports_what_was_already_written(self):
+        # L1.6: two files to write; the second write fails.
+        self._stale()
+        self.edit(REQ_REL, "status: draft", "status: stable")
+        original = sdd_check._write_preserving_eol
+        calls = []
+
+        def flaky(path, text):
+            calls.append(path)
+            if len(calls) == 2:
+                raise OSError(28, "No space left on device")
+            original(path, text)
+
+        sdd_check._write_preserving_eol = flaky
+        try:
+            code, lines = sdd_check.generate(self.tmp, verify=False)
+        finally:
+            sdd_check._write_preserving_eol = original
+        self.assertEqual(1, code, lines)
+        first, second = (sdd_check.Context(self.tmp, None, []).rel(p) for p in calls)
+        self.assertIn(first, lines)
+        self.assertTrue(
+            any(line.startswith(second + ": write failed") and "No space left" in line for line in lines),
+            lines,
+        )
+
+
 class TestGeneratedFamily(BaselineCase):
     def test_hand_edited_cell_is_an_error(self):
         self.edit(INDEX_REL, "Environment boundary", "Environment boundary, hand-edited")
@@ -2546,6 +2650,44 @@ class TestGeneratedBlocksScan(unittest.TestCase):
             [("requirements-index", 3, 0), ("adr-index", 10, 15)],
             sdd_check.generated_blocks(UNCLOSED_THEN_WELL_FORMED),
         )
+
+    def test_an_info_string_line_does_not_close_a_fence(self):
+        # L1.11: "```js" opens nothing and closes nothing; the fence stays open, so the
+        # marker pair after it is still quoted, not live.
+        text = "\n".join(
+            [
+                "```",
+                "```js",
+                "<!-- sdd:generated requirements-index -->",
+                "<!-- /sdd:generated -->",
+                "```",
+            ]
+        )
+        self.assertEqual([], sdd_check.generated_blocks(text))
+        self.assertFalse(sdd_check._closes_fence("```js", "```"))
+        self.assertTrue(sdd_check._closes_fence("```  ", "```"))
+
+    def test_a_marker_indented_four_spaces_is_code(self):
+        # P7: an indented code block quoting the markers is never a live block, and is
+        # not a near miss either.
+        text = "\n".join(
+            ["Example:", "", "    <!-- sdd:generated requirements-index -->", "    <!-- /sdd:generated -->"]
+        )
+        self.assertEqual([], sdd_check.generated_blocks(text))
+        self.assertEqual([], sdd_check.generated_marker_problems(text))
+
+    def test_near_miss_and_orphan_closer_lines_are_problems(self):
+        text = "\n".join(
+            [
+                "<!-- sdd:generated requirements-index-->",
+                "<!-- /sdd:generated -->",
+                "prose naming `<!-- sdd:generated x -->` in code is fine",
+            ]
+        )
+        problems = sdd_check.generated_marker_problems(text)
+        self.assertEqual([1, 2], [line for line, _ in problems], problems)
+        self.assertIn("malformed generated marker", problems[0][1])
+        self.assertIn("no opening marker", problems[1][1])
 
     def test_a_marker_pair_inside_a_fence_is_not_a_block(self):
         # The schema reference documents the marker syntax by quoting it inside a fenced
