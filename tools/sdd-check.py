@@ -1421,10 +1421,14 @@ def check_descriptor(ctx: Context, report: "Report") -> None:
         add("doc_kinds must keep the normative kinds; missing: %s" % ", ".join(missing_kinds))
 
 
-def check_map_schema(ctx: Context, report: "Report") -> None:
-    """Every record carries the fields the schema requires, with values in vocabulary."""
+def check_map_schema(ctx: Context, report: "Report", level: Optional[str] = None) -> None:
+    """Every record carries the fields the schema requires, with values in vocabulary.
+
+    ``level`` overrides the family's configured severity — ``generate``'s write-free
+    preflight forces ``ERROR``. An unknown record key is a ``WARN`` either way.
+    """
     desc = ctx.desc
-    level = ctx.level("map-schema")
+    level = level or ctx.level("map-schema")
     pattern = desc.req_pattern()
     seen: Dict[str, int] = {}
     for record in ctx.records:
@@ -2698,7 +2702,17 @@ class Report:
                 "[%s] %s %s: %s" % (finding.family, finding.level, finding.anchor, finding.message)
             )
         errors, warnings = self.errors(), self.warnings()
-        if errors:
+        if not self.families_run:
+            # Exit 2: nothing was verified, so the summary must never read as a pass.
+            reasons: List[str] = []
+            for name in FAMILIES:
+                reason = self.families_skipped.get(name)
+                if reason and reason not in reasons:
+                    reasons.append(reason)
+            lines.append(
+                "sdd-check: FAILED — no family ran (%s)" % ("; ".join(reasons) or "none planned")
+            )
+        elif errors:
             lines.append("sdd-check: FAILED — %d errors, %d warnings" % (errors, warnings))
         else:
             lines.append(
@@ -3301,15 +3315,20 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
     ctx = Context(root, desc, records)
 
     # Write-free preflight: never rewrite a document from a map that fails its own schema.
-    # Forced to ERROR whatever the configured severity — write-safety is not a knob.
+    # Forced to ERROR whatever the configured severity — write-safety is not a knob. Only
+    # an ERROR blocks: an unknown record key stays the WARN `check` reports, and is shown.
     preflight = Report()
-    check_map_schema(ctx, preflight)
-    schema_problems = [f for f in preflight.findings if f.level in ("ERROR", "WARN")]
-    if schema_problems:
-        for finding in schema_problems:
-            report.add("map-schema", "ERROR", finding.anchor, finding.message)
+    check_map_schema(ctx, preflight, level="ERROR")
+    if preflight.errors():
+        for finding in preflight.findings:
+            report.add("map-schema", finding.level, finding.anchor, finding.message)
         report.mark_run("map-schema")
         return report.exit_code(), report.render(root).split("\n")
+    warnings = [
+        "[map-schema] %s %s: %s" % (f.level, f.anchor, f.message)
+        for f in preflight.findings
+        if f.level == "WARN"
+    ]
 
     messages: List[str] = []
     diff_lines: List[str] = []
@@ -3318,11 +3337,13 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
     stale = False
     skipped = False
 
+    any_block = False
     for path in _link_files(ctx):
         text = ctx.read(path)
         blocks = generated_blocks(text)
         if not blocks:
             continue
+        any_block = True
         anchor = ctx.rel(path)
         for name, start, end in blocks:
             if end == 0:
@@ -3381,17 +3402,22 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
                 else:
                     new_texts[detail] = updated
 
+    if not any_block:
+        messages.append("sdd-check: no generated blocks found")
     if verify:
-        return (1 if (stale or skipped) else 0), messages + diff_lines
+        # The same refusal lines a writing run prints, so a dry run never promises a write
+        # the real run would refuse.
+        failed = stale or skipped or bool(refusals)
+        return (1 if failed else 0), warnings + messages + refusals + diff_lines
     if refusals:
         # A dropped row is data loss: abort the whole run, write nothing, name every row.
-        return 1, messages + refusals
+        return 1, warnings + messages + refusals
     written: List[str] = []
     for path in new_texts:
         _write_preserving_eol(path, new_texts[path])
         ctx._texts[str(ctx.abs(path))] = new_texts[path]
         written.append(ctx.rel(path))
-    return (1 if skipped else 0), messages + sorted(written)
+    return (1 if skipped else 0), warnings + messages + sorted(written)
 
 
 def run_generate(root: Path, verify: bool) -> int:
@@ -4234,8 +4260,7 @@ def main(argv=None) -> int:
     else:
         command, rest = argv[0], argv[1:]
     if command not in COMMANDS:
-        print("sdd-check: unknown command '%s'" % command)
-        print(USAGE.rstrip())
+        print("sdd-check: unknown command '%s' — see --help" % command)
         return 2
 
     root = Path.cwd()
@@ -4281,6 +4306,14 @@ def main(argv=None) -> int:
         return 2
     if changelog_all and command != "check":
         print("sdd-check: --changelog-all applies to 'check' only, not '%s'" % command)
+        return 2
+    if only is not None:
+        unknown = [name for name in only if name not in FAMILIES]
+        if unknown:
+            print("sdd-check: unknown family '%s' in --only" % unknown[0])
+            return 2
+    if positional and command in ("generate", "selftest"):
+        print("sdd-check: %s takes no positional argument ('%s')" % (command, positional[0]))
         return 2
 
     if command == "generate":

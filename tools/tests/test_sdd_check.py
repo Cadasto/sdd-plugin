@@ -1538,6 +1538,35 @@ class TestCommandLine(BaselineCase):
         code, out = self.run_main(["check", "--root", str(self.tmp), "--only", "draft-reason"])
         self.assertEqual(2, code, out)
         self.assertIn("families run: none", out)
+        # P5: a run that verified nothing never prints OK.
+        self.assertNotIn("sdd-check: OK", out)
+        self.assertIn("sdd-check: FAILED — no family ran (not selected; off)", out)
+
+    def test_every_family_off_says_no_family_ran(self):
+        text = (self.tmp / "docs/.sdd.yaml").read_text(encoding="utf-8")
+        for family in sdd_check.FAMILIES:
+            text = text.replace("      %s: error\n" % family, "      %s: off\n" % family)
+            text = text.replace("      %s: warn\n" % family, "      %s: off\n" % family)
+        self.write("docs/.sdd.yaml", text)
+        code, out = self.run_main(["check", "--root", str(self.tmp)])
+        self.assertEqual(2, code, out)
+        self.assertIn("sdd-check: FAILED — no family ran (off)", out)
+
+    def test_cli_errors_print_one_line(self):
+        # P9: each invalid command line is exit 2 and one line naming the problem.
+        cases = [
+            (["frobnicate"], "unknown command 'frobnicate'"),
+            (["check", "--root", str(self.tmp), "--only", "nope"], "unknown family 'nope'"),
+            (["check", "--bogus"], "unknown option '--bogus'"),
+            (["generate", "--root", str(self.tmp), "extra"], "generate takes no positional"),
+            (["selftest", "extra"], "selftest takes no positional"),
+            (["check", "--root", str(self.tmp), "--verify"], "--verify"),
+        ]
+        for argv, fragment in cases:
+            code, out = self.run_main(argv)
+            self.assertEqual(2, code, (argv, out))
+            self.assertEqual(1, len(out.strip().split("\n")), (argv, out))
+            self.assertIn(fragment, out)
 
     def test_verify_on_check_returns_two(self):
         code, out = self.run_main(["check", "--root", str(self.tmp), "--verify"])
@@ -2114,6 +2143,60 @@ class TestGenerateSafety(BaselineCase):
         code, _ = sdd_check.generate(self.tmp, verify=False)
         self.assertEqual(1, code)
         self.assertEqual(before, (self.tmp / INDEX_REL).read_bytes())
+
+    def test_an_unknown_record_key_warns_and_does_not_block_generate(self):
+        # P4: the retired `plans:` key (every un-cleaned 0.5.x map) and an extension key
+        # are WARNs in check and in generate; the write still happens.
+        self.edit(MAP_REL, "    status: draft", "    plans: [docs/plans/x.md]\n    owner: team-a\n    status: draft")
+        self.edit(INDEX_REL, "Draft | shipped |", "Draft | landed |")
+        report = self.run_only("map-schema")
+        self.assert_finding(report, "unknown key 'plans'", level="WARN")
+        self.assertEqual(0, report.errors())
+        code, lines = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any(line.startswith("+| [REQ-FOUND-001]") for line in lines), lines)
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(0, code, lines)
+        self.assertIn(INDEX_REL, lines)
+        self.assertTrue(any("WARN" in line and "unknown key 'owner'" in line for line in lines), lines)
+        self.assertFalse(any("ERROR" in line for line in lines), lines)
+        self.assertIn("Draft | shipped |", (self.tmp / INDEX_REL).read_text(encoding="utf-8"))
+
+    def test_the_preflight_blocks_an_error_even_with_map_schema_off(self):
+        self.edit("docs/.sdd.yaml", "map-schema: error", "map-schema: off")
+        self.edit(MAP_REL, "status: draft", "status: typo")
+        before = (self.tmp / INDEX_REL).read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any("[map-schema] ERROR" in line for line in lines), lines)
+        self.assertEqual(before, (self.tmp / INDEX_REL).read_bytes())
+
+    def test_verify_prints_the_refusals_and_exits_one(self):
+        # P6: a dry run shows the same refusal a writing run would print.
+        self._add_orphan_row()
+        code, lines = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(
+            any("refused — row REQ-FOUND-002 has no record in the map" in line for line in lines),
+            lines,
+        )
+        _, written_run = sdd_check.generate(self.tmp, verify=False)
+        refused = [line for line in written_run if "refused" in line]
+        self.assertEqual(refused, [line for line in lines if "refused" in line])
+
+    def test_verify_exits_one_on_a_refusal_even_when_nothing_else_is_stale(self):
+        self.edit(INDEX_REL, "\n<!-- /sdd:generated -->", "> Note\n<!-- /sdd:generated -->")
+        code, lines = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any("refused" in line for line in lines), lines)
+
+    def test_no_generated_block_anywhere_is_said_out_loud(self):
+        for rel in (INDEX_REL, SPEC_INDEX_REL, "docs/adr/README.md"):
+            text = (self.tmp / rel).read_text(encoding="utf-8")
+            self.write(rel, text.replace("<!-- sdd:generated", "<!-- was").replace("<!-- /sdd:generated -->", ""))
+        code, lines = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(0, code, lines)
+        self.assertIn("sdd-check: no generated blocks found", lines)
 
     def test_generate_fails_closed_on_an_out_of_vocabulary_status_and_writes_nothing(self):
         self.edit(MAP_REL, "status: draft", "status: typo")
