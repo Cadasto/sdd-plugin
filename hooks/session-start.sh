@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart hook (host-agnostic): when a Spec-Driven Development repository is detected, print one
 # context line plus the available /sdd-* surface, then a short orientation — branch and tree state,
-# active plans, open pull requests, and the drift-gate verdict. Every external command is optional and
+# open pull requests, and the drift-gate verdict. Every external command is optional and
 # guarded; each is time-limited when the `timeout` binary is on PATH, and still runs — untimed, not
 # skipped — when it isn't (see tmo() below). The script ALWAYS exits 0, so a missing or slow tool
 # prints nothing rather than blocking the session — except the vendored drift gate, whose missing
@@ -59,9 +59,9 @@ add() {
   if [ -z "$out" ]; then out="$1"; else out="$out$nl$1"; fi
 }
 
-# Read one scalar key from docs/.sdd.yaml, without a YAML parser. `desc_get paths plans` returns the
-# value of `plans:` nested directly under the `paths:` block — and not the `plans:` that names a check
-# family elsewhere in the file. An empty block name reads a top-level key: `desc_get "" traceability`
+# Read one scalar key from docs/.sdd.yaml, without a YAML parser. `desc_get paths adr` returns the
+# value of `adr:` nested directly under the `paths:` block — and not a same-named key under another
+# block elsewhere in the file. An empty block name reads a top-level key: `desc_get "" traceability`
 # finds `traceability:` in a descriptor written without the `sdd:` wrapper.
 desc_get() {
   [ -f docs/.sdd.yaml ] || return 0
@@ -154,7 +154,7 @@ emit() {
 
 # ---------------------------------------------------------------- orientation
 if is_sdd_repo; then
-  add "› Spec-Driven Development repo detected — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR) · /sdd-deliver (plan → workers → draft PR) · /sdd-review (spec-aware review + panel prompts) · /sdd-triage (work a review round) · /sdd-trace (traceability/drift) · /sdd-archive (close out the plan in its PR) · /sdd-finalize (sweep finished plans at a version bump) · /sdd-scaffold. Plans live in docs/plans/, are flipped to done in place, and are swept at the next release. Run /sdd-trace + the build's spec-check before claiming done."
+  add "› Spec-Driven Development repo detected — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR) · /sdd-deliver (plan → workers → draft PR) · /sdd-review (spec-aware review + panel prompts) · /sdd-triage (work a review round) · /sdd-trace (traceability/drift) · /sdd-archive (close out the REQ in its PR) · /sdd-scaffold. A plan is a working file, never committed. Run /sdd-trace + the build's spec-check before claiming done."
 
   # 1. Branch and working-tree state.
   if have git && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -189,37 +189,7 @@ if is_sdd_repo; then
     fi
   fi
 
-  # 2. Active plans, from the descriptor's plans directory.
-  plans_dir="$(desc_get paths plans)"
-  [ -n "$plans_dir" ] || plans_dir="docs/plans"
-  if [ -d "$plans_dir" ]; then
-    total=0
-    listed=0
-    plan_list=""
-    for f in "$plans_dir"/*.md; do
-      [ -f "$f" ] || continue
-      case "$f" in *_template.md) continue ;; esac   # the scaffold's stub is not an active plan
-      head -n 40 "$f" | grep -qE '^status:[[:space:]]*active([[:space:]]|$)' || continue
-      total=$((total + 1))
-      [ "$listed" -lt 5 ] || continue
-      pid="$(head -n 40 "$f" | sed -n 's/^plan:[[:space:]]*//p' | head -n1)"
-      [ -n "$pid" ] || pid="$(basename "$f" .md)"
-      imp="$(head -n 40 "$f" | sed -n 's/^implements:[[:space:]]*//p' | head -n1 \
-             | sed 's/^\[//; s/\][[:space:]]*$//')"
-      entry="$pid"
-      [ -n "$imp" ] && entry="$pid ($imp)"
-      if [ -z "$plan_list" ]; then plan_list="$entry"; else plan_list="$plan_list · $entry"; fi
-      listed=$((listed + 1))
-    done
-    if [ "$total" -gt 0 ]; then
-      if [ "$total" -gt "$listed" ]; then
-        plan_list="$plan_list · … and $((total - listed)) more"
-      fi
-      add "› active plans: $total — $plan_list"
-    fi
-  fi
-
-  # 3. Open pull requests, only when the forge CLI is installed and answers. Numbers are printed as
+  # 2. Open pull requests, only when the forge CLI is installed and answers. Numbers are printed as
   # `PR <n>`; any failure, timeout or unexpected payload prints nothing.
   # Only when a home for gh's own state exists: with HOME and XDG_STATE_HOME both unset, gh
   # writes its device-id under the current directory — i.e. into the repository being opened.
@@ -250,7 +220,7 @@ EOF
     esac
   fi
 
-  # 4. The drift gate's own verdict, when the gate is vendored here.
+  # 3. The drift gate's own verdict, when the gate is vendored here.
   check_script="$(desc_get check script)"
   [ -n "$check_script" ] || check_script="scripts/sdd-check.py"
   if [ -f "$check_script" ]; then
@@ -274,7 +244,7 @@ EOF
     add "› drift gate: not vendored — run /sdd-scaffold --upgrade to vendor sdd-check"
   fi
 
-  # 5. Record HEAD as this session found it, and clear any nudge a previous session left behind.
+  # 4. Record HEAD as this session found it, and clear any nudge a previous session left behind.
   key_src="$PWD"
   [ -n "$sid" ] && key_src="$PWD:$sid"
   key="$(printf '%s' "$key_src" | cksum 2>/dev/null | cut -d' ' -f1)"
@@ -287,7 +257,7 @@ EOF
 else
   # Not yet an SDD repo: a single, low-noise pointer (only when a docs/ dir exists, to avoid firing everywhere).
   if [ -d docs ]; then
-    add "› SDD plugin available — run /sdd-scaffold to set up the spec-driven docs/ structure (requirements, specs, ADRs, plans, traceability)."
+    add "› SDD plugin available — run /sdd-scaffold to set up the spec-driven docs/ structure (requirements, specs, ADRs, traceability)."
   fi
 fi
 

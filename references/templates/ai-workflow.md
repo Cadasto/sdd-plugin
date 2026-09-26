@@ -19,16 +19,14 @@ pipeline — plan, workers, review, triage, close-out — is run by the `/sdd-*`
    of the index — follow to the canonical spec.)
 2. Look up ground truth before editing — the source named in .sdd.yaml (ground_truth); never guess.
    For a requirement already in the map, `sdd-check context <REQ>` prints its bundle: index row, record,
-   canonical section, acceptance criteria, plans, tests and open strands.
-3. Deliver: /sdd-deliver — dispatch preconditions, the plan on the branch, workers per task, the per-task
+   canonical section, acceptance criteria, tests and open strands.
+3. Deliver: /sdd-deliver — dispatch preconditions, the working plan, workers per task, the per-task
    gate, the in-branch review into round 0 of the ledger, the draft PR.
 4. Don't decide open questions in code — surface a STRAND or record an ADR (/sdd-specify), or ask.
 5. Review: /sdd-review writes the ledger; /sdd-review --panel prints the prompt blocks for reviewers that
    run outside this repo. /sdd-triage works each round back into the ledger and fixes.
-6. Close out IN THE SAME PR: /sdd-archive — SPEC § status, REQ status, traceability.yaml, the plan flipped
-   to status: done in place, the PR body filled. The plan does not move.
-7. At the next version bump, before the tag: /sdd-finalize sweeps done and abandoned plans out of
-   docs/plans/.
+6. Close out IN THE SAME PR: /sdd-archive — REQ status, traceability.yaml, the SPEC § promoted only if
+   confirmed, the PR body filled. The plan is a working file; nothing is done to it.
 ```
 
 ## Orchestration (standing)
@@ -88,8 +86,8 @@ filled in; do not retype it from memory.
 
 ```text
 ── review request · PR <N> · lane: <full|maintenance> · round <R> ──────────────
-Review <owner>/<repo> PR <N>. Read docs/ai-workflow.md § Review and the plan file
-named in the PR body, on the PR branch. Report blockers and should-fix only; nits
+Review <owner>/<repo> PR <N>. Read docs/ai-workflow.md § Review and the PR body.
+Report blockers and should-fix only; nits
 go under "Deferred". Post ONE review body in the ledger format: ids from F<n>
 upward, severity, file:line anchor, one line per finding, plain words. Do not
 restate the PR body.
@@ -128,7 +126,7 @@ proposed correction. Verify before fixing; a correction that is wrong and applie
 |---|---|
 | Set up / extend the SDD structure | `/sdd-scaffold` |
 | Capture a capability, write a spec, record a decision | `/sdd-specify` |
-| Deliver a REQ or plan: plan, workers, gates, draft PR | `/sdd-deliver` |
+| Deliver a REQ: plan, workers, gates, draft PR | `/sdd-deliver` |
 | Implement one bounded task | `sdd-implementer` agent (dispatched by the driver) |
 | Spec-aware review into the ledger; panel prompts | `/sdd-review` (`--panel`) |
 | Work a review round: merge, verify, fix, resolve, re-request | `/sdd-triage` |
@@ -136,5 +134,4 @@ proposed correction. Verify before fixing; a correction that is wrong and applie
 | A REQ's context bundle; drift reported in session, not a build failure | `/sdd-trace` |
 | Regenerate the derived indexes and status lines | `sdd-check generate` |
 | Drift, links, prose lints | `<build_entrypoint> <spec_check_target>` (`sdd-check`) |
-| Close out the spec status, the requirement status, traceability, and the plan — in the implementing PR | `/sdd-archive` |
-| Sweep finished plans at a version bump | `/sdd-finalize` |
+| Close out the requirement record and the PR body — in the implementing PR | `/sdd-archive` |

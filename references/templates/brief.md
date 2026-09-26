@@ -5,8 +5,9 @@
 
 **Task.** <what to build or change, in enough detail to act on without reading the plan>
 **Cites.** <REQ-AREA-NNN> · <SPEC-NAME §N>  <!-- full lane: the § implemented (none = returned unstarted); maintenance lane: the § whose behaviour must not change, or "maintenance — no normative change" -->
+**Finding.** <F<n> when the task is a triage fix, otherwise none>
 **Files.** <the only paths the worker may touch>
-**Verify.** `<command>`  <!-- the worker runs it, reads it, and quotes the output -->
+**Verify.** `<command>`  <!-- the worker runs it, reads it, quotes the output, and on a pass commits the Files by explicit path -->
 **Skills.** <agents.worker_skills, or none>
 **Code index.** <the tool named in docs/ai-workflow.md § Orchestration, or none>
 **Worktree.** <path when agents.worktree_per_worker applies, otherwise "the branch">
@@ -14,7 +15,7 @@
 
 ## Report (the worker returns exactly this)
 
-1. **What landed** — files changed, one line each.
+1. **Committed** — the commit SHA (or `None` when nothing was committed), then the files changed, one line each.
 2. **Verification** — the command run and what its output said.
 3. **Open questions** — for the orchestrator, or `None`.
 4. `## En-route findings` — or `None`.

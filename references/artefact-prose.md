@@ -2,15 +2,15 @@
 
 The single-canonical-home rule ([sdd-methodology.md](sdd-methodology.md) §5) applied to the **process prose** around a change — the commit, the PR body, the changelog, and the review/resolution comments. It exists because agent-to-agent workflows retell the same story three or four times (commit body ≈ PR body ≈ changelog ≈ review comment), and every retelling is a second source of truth: drift waiting to happen and noise for the next agent to wade through.
 
-> **Principle.** Each fact has exactly one home. Every other artefact **cites the identifier** — `REQ` / `SPEC §` / `ADR` / plan / `PROBE` / commit SHA / finding — instead of restating the prose. Prefer a citation over a paragraph.
+> **Principle.** Each fact has exactly one home. Every other artefact **cites the identifier** — `REQ` / `SPEC §` / `ADR` / `PROBE` / commit SHA / finding — instead of restating the prose. Prefer a citation over a paragraph.
 
 ## Where each kind of prose lives
 
 | Artefact | Its one job | Must **not** contain | Anchors it cites |
 |---|---|---|---|
 | **Spec §** | Normative *what / how it must behave* (RFC-2119) | Task lists, file paths, PR-style narrative | `REQ` |
-| **Commit body** | The *why* of **this** change — rationale, tradeoff — one tight paragraph | A re-listing of the diff; restated spec prose | `REQ` / `SPEC §` / plan / `ADR` |
-| **PR body** | The *review lens* — what to look at, what's out of scope, how it was verified, which IDs it touches | A re-explanation of the spec; a second changelog | plan / `REQ` / `SPEC §`; the commit range |
+| **Commit body** | The *why* of **this** change — rationale, tradeoff — one tight paragraph | A re-listing of the diff; restated spec prose | `REQ` / `SPEC §` / `ADR` |
+| **PR body** | The *review lens* — what to look at, what's out of scope, how it was verified, which IDs it touches | A re-explanation of the spec; a second changelog | `REQ` / `SPEC §`; the commit range |
 | **Changelog** | The *user-facing delta* — one subsystem-led line per bullet | Rationale, design narrative (those are in the commit/ADR) | optional `REQ` |
 | **Review comment** | One finding, anchored to `file:line` (+ the `SPEC §` it violates, if normative) | Essays; re-litigation of settled points | `SPEC §` / finding id |
 | **Resolution comment** | That a finding is fixed — one line + the fixing commit SHA | A re-description of the fix (it's in the diff) | the finding + commit SHA |
@@ -21,8 +21,8 @@ and `one-home` families — and are written here so the tool and the reviewer ap
 - **Changelog bullet.** One sentence, at most about 35 words, leading with the subsystem, no API
   inventory, no rationale. Rationale belongs in the commit body or the ADR.
 - **One canonical home.** Each normative sentence, normalised, appears **exactly once** across
-  `docs/specifications/**`, and RFC-2119 keywords do not appear outside that tree. A requirement, an ADR,
-  or a plan cites the anchor instead of repeating the sentence. A consolidation that changes a `MUST`'s
+  `docs/specifications/**`, and RFC-2119 keywords do not appear outside that tree. A requirement or an ADR
+  cites the anchor instead of repeating the sentence. A consolidation that changes a `MUST`'s
   force while moving it is not a move — it is an amendment, and is reviewed as one.
 
 ## The findings ledger
@@ -49,8 +49,11 @@ Dispatched: <reviewers> · Reported: <n> of <m>
 
 - Ids are `F<n>`, taken from the next free number and **append-only across rounds**. A finding keeps its
   id for the life of the change.
-- `severity` is `blocker | should-fix | nit`. `status` is `open | fixed@<sha> | declined + reason | deferred`.
+- `severity` is `blocker | should-fix | nit`. `status` is `open | fixed@<sha> | declined + reason | deferred`; whoever lands a fix sets its row to `fixed@<sha>`.
 - Every fix pass enumerates **the ledger**, never the comment channels.
+- **Rounds.** Round 0 is everything before the PR is marked ready, the maintainer's review of the draft
+  included. On a ready PR, each triage of newly arrived reviews opens the next round; ids continue.
+- The ledger is the one PR comment whose first line starts `## Review ledger`, edited in place.
 - **Completion accounting.** The header names which reviewers were dispatched and how many reported. The maintainer's review of the draft is appended to the same line when it is in — `Dispatched: <reviewers>, maintainer · Reported: <n> of <m>` — which is where a ready check finds it; on a `Dispatched: none` ledger the maintainer is then the whole panel.
 - Near-duplicate findings from two reviewers merge under **one** id, with both sources named.
 - Write a finding id as `F12`, or in words — **never as a bare hash-plus-number**, which a hosting platform

@@ -1,6 +1,6 @@
 # Quick start
 
-This walkthrough is for a first-time user: it takes one capability from idea to a ready pull request with the `/sdd-*` skills, in a repository that has never been scaffolded. Written for sdd 0.6.0 on Claude Code with a GitHub remote. Cursor installation and hook wiring differ; see [install.md](install.md).
+This walkthrough is for a first-time user: it takes one capability from idea to a ready pull request with the `/sdd-*` skills, in a repository that has never been scaffolded. Written for sdd 0.7.0 on Claude Code with a GitHub remote. Cursor installation and hook wiring differ; see [install.md](install.md).
 
 The assistant's wording varies between runs. The files each step produces, and the gates it stops at, do not. Check those.
 
@@ -27,7 +27,6 @@ docs/
   requirements/            README.md, _template.md
   specifications/          README.md, _template.md, traceability.yaml
   adr/                     README.md, _template.md
-  plans/
 AGENTS.md
 ```
 
@@ -77,8 +76,8 @@ The bundle shows the index row, the traceability record, and the spec section it
 The skill runs as the orchestrator and stops at each gate:
 
 1. **Dispatch gate.** Five preconditions: the requirement has acceptance criteria, the spec sections exist, any ADR is accepted, the failure behaviour is cited from the requirement and the spec, and the verification commands are known. An unmet one stops the run and is named. Fix it with `/sdd-specify` and run again.
-2. **Lane.** A new capability is the full lane. The lane is written into the plan header.
-3. **Plan.** A feature branch, and `docs/plans/YYYY-MM-DD-<slug>.md` committed on it with `status: active`. The plan lists small, independently verifiable tasks and states no rule; a rule belongs in the spec.
+2. **Lane.** A new capability is the full lane. The lane is passed to the review and written into the pull request body.
+3. **Plan.** A feature branch, and `docs/plans/YYYY-MM-DD-<slug>.md` written on disk and never committed; the scaffold lists the directory in `.gitignore`. The plan lists small, independently verifiable tasks and states no rule; a rule belongs in the spec.
 4. **Workers.** One `sdd-implementer` per task, on the model and parallelism the `agents:` block declares, each briefed from the plan. A worker names `REQ-AUTH-001` in its test names and its commit message, never in doc comments, which stay plain prose for whoever reads the code. It runs the verification command named in its brief and reports anything wrong outside its brief as en-route findings.
 5. **Per-task gate.** With `task_review: lane`, the reviewers named in `agents.reviewers` check each task on the full lane. An empty list is reported as an unconfigured gate, and the skill asks before continuing.
 6. **Round 0.** `/sdd-review` runs on the branch. Its findings open the ledger, and blockers are fixed before any pull request exists.
@@ -86,7 +85,7 @@ The skill runs as the orchestrator and stops at each gate:
 
 Then it stops and waits for you.
 
-Check: `gh pr view <N>` shows a draft whose body carries the `Lane:` line and the claim line, and the plan file is on the branch.
+Check: `gh pr view <N>` shows a draft whose body carries the `Lane:` line, the claim line and the task list.
 
 ## 4. Review, triage, close out
 
@@ -104,20 +103,9 @@ When the ledger has no open blocker, resume delivery against the pull request nu
 /sdd-deliver <N>
 ```
 
-Resumed, the skill closes out through `/sdd-archive` (the spec section status, the requirement's `implementation` status, the traceability record, and the plan flipped to `status: done` where it lies), fills the pull request body, marks the pull request ready, and prints one review-request block per entry in `agents.review_panel.full` for reviewers that run outside the repository. Paste those where they go. A person merges.
+Resumed, the skill closes out through `/sdd-archive` (the requirement's traceability record set to `implementation: shipped`, and the spec section promoted only if you confirm it), runs the full gate before pushing, fills the pull request body, marks the pull request ready, and prints one review-request block per entry in `agents.review_panel.full` for reviewers that run outside the repository. Paste those where they go. A person merges.
 
-Check: the plan is still in `docs/plans/` and its frontmatter reads `status: done`; the pull request is no longer a draft.
-
-## 5. Sweep at the next release
-
-Finished plans stay in `docs/plans/` until the next version bump. As the first step of that bump, before the tag:
-
-```text
-/sdd-finalize --dry-run
-/sdd-finalize
-```
-
-The dry run lists every plan whose status is `done` or `abandoned` and stops if another document under `docs/` still links to one. Rewrite that citation to the pull request or the requirement, then run without `--dry-run`. The deletions ride in the bump commit. Plans that are `active` or `postponed` are never touched.
+Check: the pull request body's task list is ticked and the requirement's record reads `implementation: shipped`; the pull request is no longer a draft.
 
 ## What you have now
 

@@ -6,10 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Tools: the build status `retired`, allowed only on a `deprecated` requirement, with a selftest case.
+- Tools: `check.rfc2119.sections` (`section-sign`, `requirement-id`, `either`) chooses which headings open a normative section.
+- References: `scaffold-upgrade.md` holds the `/sdd-scaffold --upgrade` procedure, moved out of the skill.
+- Docs: `docs/upgrading.md` gains the 0.6.x to 0.7.0 steps.
+
 ### Changed
+- Tools: a `map-schema` error in `generate` holds back only the requirements index and detail-file status lines.
+- Tools: the gate reads nothing under `paths.plans`; a `check.families.plans` line is reported as a note until it is deleted.
+- Skills: a plan is a working file: `sdd-deliver` writes it without committing it, the PR body carries the task list, and `sdd-scaffold` lists `paths.plans` in `.gitignore`.
+- Skills: `sdd-archive` sets the `REQ` to `shipped`, promotes a `SPEC §` only when the maintainer confirms, and pushes the close-out only after the full gate passes.
+- Skills: `sdd-specify` drops the template comment, writes from shipped code only what the code does, and states how to withdraw an unaccepted ADR; `sdd-deliver` drops the plan template's comment.
+- Skills: the router triggers on a code-first request; `sdd-review --post` edits the existing ledger comment instead of posting a second one.
+- Agents: `sdd-implementer` commits the brief's files by explicit path, reports the SHA, and loads `worker_skills` by name; reviewer findings use the ledger's columns; an untested MUST is a blocker.
+- Agents: `sdd-doc-reviewer` flags a solution in ADR Context, a plan citation and a leftover template comment; `sdd-traceability-auditor` flags `packages` that are not the implementing code.
+- References: `sdd-methodology.md` §6 adds `retired` and says the close-out sets `shipped`; §9 defines the plan as a working file and forbids durable documents from citing one.
+- References: `sdd-check.md` owns the gate-invocation rule and the scoped `generate` refusal; `artefact-prose.md` defines ledger rounds and the ledger comment's identity.
+- Templates: the build-status vocabulary gains `retired`; `sdd.yaml` gains `check.rfc2119.sections` and loses `plan` and `plans`; the ADR placeholders steer Context and Decision; `brief.md` gains a `Finding` field.
 - Docs: `README.md` follows the shared Cadasto plugin layout, with badges, requirements, features, and a table of contents; every `docs/` page opens with an orienting paragraph.
 
+### Removed
+- Skills: `sdd-finalize`; there is no release sweep, because no plan is committed.
+- Tools: the `plans` family, the plan frontmatter contract and the `plan` document kind; `context` prints no `Plans` section.
+
 ### Fixed
+- Tools: a nested descriptor key's line anchor matches only a direct child, so `check.rfc2119` is never read as `check.families.rfc2119`.
 - Docs: `README.md`, `docs/install.md`, and `docs/quick-start.md` no longer say `/sdd-scaffold` stubs the `spec-check` target; it wires the vendored gate.
 
 ## [0.6.0] - 2026-09-24

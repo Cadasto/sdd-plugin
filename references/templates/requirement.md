@@ -1,11 +1,11 @@
-<!-- Template: a single requirement. Authored by /sdd-specify. Fill the <...> placeholders.
+<!-- Template: a single requirement. Authored by /sdd-specify. Fill the <...> placeholders. Delete this comment in the file you create.
      A requirement states WHAT + acceptance. It carries NO file paths and NO implementation detail. -->
 ---
 kind: requirement
 id: <REQ-AREA-NNN>
 title: <short capability name>
 status: draft # spec stability: draft | stable | deprecated (draft is binding now)
-implementation: proposed # build status: proposed | planned | in_progress | partial | landed | shipped | deferred
+implementation: proposed # build status: proposed | planned | in_progress | partial | landed | shipped | deferred | retired
 ---
 
 # <REQ-AREA-NNN> — <capability name>

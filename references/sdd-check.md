@@ -2,7 +2,7 @@
 
 `sdd-check` is the shared drift gate. It is one Python file, vendored into a repository by `/sdd-scaffold` and run by the `spec-check` build target, so CI needs no plugin. It checks the traceability chain in both directions, lints the prose rules that can be checked mechanically, regenerates the derived indexes, prints a requirement's context bundle, and tests itself.
 
-Nothing installs an `sdd-check` executable. Throughout this document `sdd-check <cmd>` is shorthand for `python3 <check.script> <cmd> --root .`, where `<check.script>` is the vendored copy the descriptor names (`docs/.sdd.yaml` → `check.script`). A repository that has not vendored the gate runs `/sdd-scaffold --upgrade` before `check` — `check` run from the plugin's own copy fails the version pin, because that copy is not the one the descriptor pins. `generate` and `context` do not check the pin, so they may run from the plugin's copy.
+Nothing installs an `sdd-check` executable. Throughout this document `sdd-check <cmd>` is shorthand for `python3 <check.script> <cmd> --root .`, where `<check.script>` is the vendored copy the descriptor names (`docs/.sdd.yaml` → `check.script`). A repository that has not vendored the gate runs `/sdd-scaffold --upgrade` before `check` — `check` run from the plugin's own copy fails the version pin, because that copy is not the one the descriptor pins. `generate` and `context` do not check the pin, so they may run from the plugin's copy. A report-only caller (`/sdd-trace`, the `sdd-traceability-auditor` agent) does not stop there: it reports `gate not vendored — run /sdd-scaffold --upgrade` as its first finding, runs the plugin's copy, and discounts only the `descriptor` version-pin finding. When `python3` is unavailable, a skill says so and leaves every generated block for the next run; it never hand-edits one.
 
 ## Commands
 
@@ -81,7 +81,7 @@ families that did not, each with its reason:
 families run: …; skipped: <family> (<reason>)
 ```
 
-The two lists are not a dichotomy: a family that only partly ran — `plans` when git is unavailable, for
+The two lists are not a dichotomy: a family that only partly ran — `rfc2119` when a specification has no section heading, for
 instance — names in both, because part of it ran and part could not.
 
 Every family some file waives adds a line `waived: <family> (<n> files)` straight after it, so a waiver
@@ -95,19 +95,20 @@ link exclusions: …
 
 ## Families
 
-Thirteen families. Each one has a default severity, which a repository overrides per family in
+Twelve families. Each one has a default severity, which a repository overrides per family in
 `check.families` (`error` · `warn` · `off`). A family that is `off`, or that is left out by `--only`, is
-skipped and named in the summary. Section numbers below are [sdd-methodology.md](sdd-methodology.md).
+skipped and named in the summary. No family reads `paths.plans`: a plan is a working file
+([sdd-methodology.md](sdd-methodology.md) §9). Section numbers below are [sdd-methodology.md](sdd-methodology.md).
 
 ### descriptor
 
-- `descriptor` — the descriptor parses; `req_style` is `area-prefixed | flat-numeric`; `req_areas` present and non-empty when area-prefixed, absent when flat-numeric; `excluded_areas` disjoint from `req_areas`; `paths.*` and `traceability` exist and match the profile's shape; `check.version` equals the tool's `__version__`; every `check.families` key is a known family and every value `error | warn | off`; `default_mode` valid; `doc_kinds` retains the four normative kinds (`requirement`, `specification`, `adr`, `plan`) — a repository may extend the list, never shrink it below them; `check.code_roots` and `check.test_globs` are lists of strings and every configured code root exists; `check.changelog.max_words` is an integer. Path containment is checked at load, for every command, before anything is read or written: a `paths.*`, `traceability` or `check.*` path that is absolute or climbs out of the repository fails the load with exit 2, naming the line of the offending key.
+- `descriptor` — the descriptor parses; `req_style` is `area-prefixed | flat-numeric`; `req_areas` present and non-empty when area-prefixed, absent when flat-numeric; `excluded_areas` disjoint from `req_areas`; `paths.requirements`, `paths.specifications`, `paths.adr` and `traceability` exist and match the profile's shape (`paths.plans` is a working directory the gate never reads and need not exist, but it may not be empty or name the repository root, `docs`, another `paths.*` entry or the traceability map, because every family skips it); `check.version` equals the tool's `__version__`; every `check.families` key is a known family and every value `error | warn | off` (a key naming a retired family, `plans`, is a NOTE until the line is deleted); `default_mode` valid; `doc_kinds` retains the three normative kinds (`requirement`, `specification`, `adr`) — a repository may extend the list, never shrink it below them; `check.code_roots` and `check.test_globs` are lists of strings and every configured code root exists; `check.changelog.max_words` is an integer; `check.rfc2119.sections` is `section-sign | requirement-id | either`. Path containment is checked at load, for every command, before anything is read or written: a `paths.*`, `traceability` or `check.*` path that is absolute or climbs out of the repository fails the load with exit 2, naming the line of the offending key.
 
 Default severity `error`. Enforces §5 (the identifier scheme and excluded areas) and §3 (the kind vocabulary).
 
 ### map-schema
 
-- `map-schema` — the map parses and yields at least one record; ids unique; id matches the repository's style and, when area-prefixed, an area in `req_areas` and not in `excluded_areas`; `title`, `canonical`, `status`, `implementation` present; `status` and `implementation` in vocabulary; `canonical` is `path#anchor`; list fields are lists of strings; unknown keys warn.
+- `map-schema` — the map parses and yields at least one record; ids unique; id matches the repository's style and, when area-prefixed, an area in `req_areas` and not in `excluded_areas`; `title`, `canonical`, `status`, `implementation` present; `status` and `implementation` in vocabulary; `implementation: retired` only when `status` is `deprecated`; `canonical` is `path#anchor`; list fields are lists of strings; unknown keys warn.
 
 Default severity `error`. Enforces §6 (the per-kind status vocabularies) and §8 (the traceability chain).
 
@@ -123,12 +124,6 @@ Default severity `error`. Enforces §5 (the single canonical home), §6 (an "enf
 
 Default severity `error`. Enforces §5 (the index links and never duplicates) and §6 (the map owns both axes).
 
-### plans
-
-- `plans` — every file under `paths.plans` (not `_template.md`) has frontmatter `plan`, `implements`, `mode`, `status`; `plan` equals the filename stem; `status` in vocabulary; `mode` in vocabulary; every `implements` id that looks like a `REQ` has a record; `status: active` while every implemented record is `landed | shipped` and `mode` is `spec-first` → warn; `status: done` while an implemented record is not enforced → warn; `status: done | abandoned` and the plan's last commit is older than the newest tag → error `finished plan predates the latest release tag; run /sdd-finalize` (skipped with a note when there is no git, no tag, or the file is uncommitted).
-
-Default severity `error`. Enforces §9 (finished in place, swept at the release) and §11 (a status line that lies).
-
 ### tree-to-map
 
 - `tree-to-map` — under `check.code_roots` (default: the repository minus `docs/`, `.git/`, `vendor/`, `node_modules/`, every `paths.*`, the map at `traceability`, and the vendored gate at `check.script`, which is an artefact this repository carries rather than code it wrote), every token matching the repository's `REQ` pattern names a record (else error `unknown identifier cited`); a test file (a `check.test_globs` match) citing a `REQ` whose record lists no `tests` → warn. Files are those git tracks or does not ignore; without git, the whole tree. When roots are configured and none exists, the family is skipped with that reason and is not counted as run.
@@ -137,15 +132,15 @@ Default severity `warn`. Enforces §5 (a published id is never invented or reuse
 
 ### doc-kinds
 
-- `doc-kinds` — every `*.md` under `docs/` (and under any `paths.*` outside it) has frontmatter opening on line 1 or right after a leading HTML comment block, with `kind:` in `doc_kinds` (missing or unknown → the family's severity); a normative kind's `status`/`state` value is in that kind's vocabulary (error); a `kind: upstream` document uses `state:` and not `status:` (error); an informative kind carrying `status:` → warn; a document that cannot be read or is not valid UTF-8 → error, never treated as empty. A document that declares no kind is treated, for the other families, as the kind its location implies — `paths.specifications` → specification, then `paths.requirements` → requirement (only that file when it names a file), `paths.adr` → adr, `paths.plans` → plan, otherwise guide — while `doc-kinds` still reports the missing declaration.
+- `doc-kinds` — every `*.md` under `docs/` (and under any `paths.*` outside it), never under `paths.plans`, has frontmatter opening on line 1 or right after a leading HTML comment block, with `kind:` in `doc_kinds` (missing or unknown → the family's severity); a normative kind's `status`/`state` value is in that kind's vocabulary (error); a `kind: upstream` document uses `state:` and not `status:` (error); an informative kind carrying `status:` → warn; a document that cannot be read or is not valid UTF-8 → error, never treated as empty. A document that declares no kind is treated, for the other families, as the kind its location implies — `paths.specifications` → specification, then `paths.requirements` → requirement (only that file when it names a file), `paths.adr` → adr, otherwise guide — while `doc-kinds` still reports the missing declaration.
 
 Default severity `warn`. Enforces §3 (the kinds and their zones) and §6 (the per-kind vocabularies).
 
 ### rfc2119
 
-- `rfc2119` — a keyword is one of `MUST`, `MUST NOT`, `SHALL`, `SHALL NOT`, `SHOULD`, `SHOULD NOT`, `REQUIRED`, `RECOMMENDED`, `MAY`, `OPTIONAL` as a whole upper-case word, outside fenced code, inline code, HTML comments and frontmatter. In a `specification` kind: a normative section (a heading containing `§`) with no keyword → warn; a lower-case modal (`must`, `shall`, `should`, `may not`) in a sentence with no keyword → warn; malformed forms `MUST to`, `are MUST`, `is MUST`, `MUST MUST`, `NOT NOT`, `SHOULD MUST` → error. Outside a specification: a keyword in a `requirement | adr | plan | reference` kind → error; in `guide | analysis | operations | upstream` → the family's severity; files with the waiver are skipped and counted.
+- `rfc2119` — a keyword is one of `MUST`, `MUST NOT`, `SHALL`, `SHALL NOT`, `SHOULD`, `SHOULD NOT`, `REQUIRED`, `RECOMMENDED`, `MAY`, `OPTIONAL` as a whole upper-case word, outside fenced code, inline code, HTML comments and frontmatter. In a `specification` kind: a normative section with no keyword → warn, where a heading opens a normative section by the convention `check.rfc2119.sections` names: `section-sign` (default; the heading contains `§`), `requirement-id` (the heading names a token matching the repository's `REQ` pattern, on identifier boundaries) or `either`; a specification with no such heading is listed as a partial skip for this rule; a lower-case modal (`must`, `shall`, `should`, `may not`) in a sentence with no keyword → warn; malformed forms `MUST to`, `are MUST`, `is MUST`, `MUST MUST`, `NOT NOT`, `SHOULD MUST` → error. Outside a specification: a keyword in a `requirement | adr | reference` kind → error; in `guide | analysis | operations | upstream` → the family's severity; files with the waiver are skipped and counted.
 
-Default severity `warn` — but the per-kind rules above still error for `requirement`, `adr`, `plan` and
+Default severity `warn` — but the per-kind rules above still error for `requirement`, `adr` and
 `reference`, because a binding word in a document that binds nothing is a second source of truth.
 Enforces §4 (keyword discipline) and §3 (the zones).
 
@@ -219,8 +214,11 @@ neither flagged nor rewritten.
 names every refusal as a `refused — …` line; it exits 1. Capture what the refusal names, or move it, then
 rerun.
 
-- **Only errors block.** The map is validated write-free first. An ERROR-level map finding — an
-  out-of-vocabulary or malformed record — aborts the run with nothing written. A WARN, such as an unknown
+- **Only errors block, and only the output they feed.** The map is validated write-free first. An
+  ERROR-level map finding — an out-of-vocabulary or malformed record, or a map that cannot be loaded —
+  blocks the record-derived output: every `requirements-index` block and every detail-file status line
+  stays byte-identical. Each `requirements-index` block is named by its own `skipped` line, and the detail files by one line naming the requirements directory; with a file-form requirements path that carries no `requirements-index` block, nothing is named, but the run still exits 1. The `specifications-index` and
+  `adr-index` blocks read no record and are still regenerated. The run exits 1. A WARN, such as an unknown
   record key, does not block the write, in `generate` as in `check`.
 - **Rows are identified by what they refer to**, not by the raw text of their first cell. A requirements
   row is the `REQ` id found anywhere in its first cell, with backticks, asterisks and link markup

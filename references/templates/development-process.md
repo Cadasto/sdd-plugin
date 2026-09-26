@@ -12,14 +12,13 @@ and measured against it. When they disagree the spec wins — except a section e
 
 Every document has one job and one altitude. Don't mix them. Every document under `docs/` declares its
 job in a `kind:` frontmatter key, and the vocabulary of nine is the descriptor's `doc_kinds` in
-[`.sdd.yaml`](.sdd.yaml). The nine fall into three zones, and the zone decides how a document is read.
+[`.sdd.yaml`](.sdd.yaml). The eight fall into three zones, and the zone decides how a document is read.
 
 | Zone | Kind | Answers | Status | Location |
 |---|---|---|---|---|
 | Normative | **Requirement** (`REQ-*`) | What do we deliver, and how do we accept it? | `status` and `implementation` | `docs/requirements/` |
 | Normative | **Specification** (`SPEC-*`) | How does the system behave? (RFC-2119) | `status` | `docs/specifications/` |
 | Normative | **ADR** (`ADR-*`) | Which irreversible fork did we take? | `status` | `docs/adr/` |
-| Normative | **Plan** | What work implements a slice? | `status` | `docs/plans/` |
 | Informative | **Guide** | How do I work here safely? | none | `docs/` |
 | Informative | **Analysis** | What did we measure or compare? | none | `docs/analysis/` |
 | Informative | **Operations** | How do operators run the system? | none | `docs/operations/` |
@@ -39,16 +38,14 @@ the lifecycle it tracks belongs to another repository.
 |---|---|---|
 | **Specification** | `status` | `draft` · `stable` · `deprecated` |
 | **Requirement** | `status` | `draft` · `stable` · `deprecated` |
-| **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` |
-| **Plan** | `status` | `active` · `done` · `postponed` · `abandoned` |
+| **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` · `retired` |
 | **ADR** | `status` | `proposed` · `accepted` · `superseded` · `deprecated` |
 | **Upstream** | `state` | `proposed` · `submitted` · `landed-upstream` · `landed` · `rejected` |
 | Guide, analysis, operations, reference | — | no status |
 
 - Requirements: capability + acceptance + out-of-scope. **No** file paths or implementation detail.
 - Specifications: RFC-2119 prose only. **No** task lists, file paths, or duplicated requirement bodies.
-- Plans: cite the `REQ`/`SPEC §`/`ADR` they implement in the frontmatter. The only place checkboxes live.
-  A working file on the branch, not a governed artefact.
+- Plans: a working task list `/sdd-deliver` writes under `docs/plans/` and never commits; the PR body carries the tasks. A plan states no rule.
 - ADRs: one decision each.
 
 ## Identifiers
@@ -63,22 +60,21 @@ normative prose has a **single canonical home** — the requirements index only 
 REQ (capability + acceptance)            [gate: worth doing]
  └─ SPEC § (RFC-2119, Status: Draft)      [gate: single home, no duplicate prose]
      └─ ADR (only if an irreversible fork) [gate: Accepted before code]
-         └─ PLAN (tasks + verification)    [gate: dispatch preconditions]
+         └─ PLAN (tasks + verification, a working file)  [gate: dispatch preconditions]
              └─ CODE + TESTS (tests cite ids)  [gate: tests green + drift gate green]
-                 └─ update SPEC status + traceability  [gate: same PR]
-                     └─ update REQ status; flip the plan to done in place [gate: PR-body close-out]
+                 └─ update traceability; promote the SPEC § only if confirmed  [gate: same PR]
+                     └─ update REQ status; fill the PR body  [gate: PR-body close-out]
 ```
 
-The whole close-out — spec status, requirements index, traceability, and the plan flip — lands in the
-**same PR** that implements the plan. No follow-up PR. The plan file stays where it is so reviewers can
-read it through the merge; it is deleted at the next version bump.
+The whole close-out — the requirement status, the traceability update and the PR body — lands in the
+**same PR** that implements the slice. No follow-up PR. The plan is a working file on the author's disk;
+nothing is done to it.
 
 ## The gate
 
 The drift gate is one tool, `sdd-check`, vendored into this repository at the descriptor's `check.script`
 and run by `<build_entrypoint> <spec_check_target>`. It checks the traceability map against the tree and
-the tree against the map, the index against the map, the plan frontmatter, a plan whose `status`
-disagrees with the records it implements, the finished-plan sweep after a release tag, the declared
+the tree against the map, the index against the map, the declared
 document kinds, the links and their fragments, the RFC-2119 and one-home prose rules, the changelog
 bullets, and the generated blocks; each family's severity is set in [`.sdd.yaml`](.sdd.yaml) under
 `check.families`. The derived indexes are written by `sdd-check generate`, never by hand.
@@ -104,7 +100,7 @@ The lane test is one question, answered in one line of the PR body: **does this 
 statement** — a `REQ`'s acceptance criteria, a `SPEC §` behaviour, a public API shape, an error contract?
 
 - **Full lane** — new capability, any change to API shape, behaviour, or error contract, any spec
-  amendment. Owes the plan, the `REQ`/spec edits, the traceability update, the SDD reviewers, and a PR body
+  amendment. Owes the `REQ`/spec edits, the traceability update, the SDD reviewers, and a PR body
   with the review lens and the identifiers touched. Its PR body carries `Lane: full`.
 - **Maintenance lane** — refactors, moves and splits, performance work, dependency bumps, tooling,
   documentation polish, and a bug-fix whose fix makes the code match an **existing** spec statement. Owes
@@ -123,19 +119,21 @@ The PR body is where the close-out lives. Copy this block (a repo may also keep 
 ````markdown
 Lane: <full | maintenance — no normative change>
 Implements: <REQ-…> · <SPEC-NAME §N> · <ADR-NNNN>
-Plan: docs/plans/<YYYY-MM-DD-slug>.md
 Claim: session <id> · worktree <path or none>
 
 Review lens: <what to look at; what is out of scope>
 Verified: `<command>` → <what the output said>
 
+Tasks:
+- [x] T1 — <task>
+- [ ] T2 — <task>
+
 Close-out
 - [ ] Code and tests complete, and the verification output was read — not assumed
 - [ ] Negative space exercised: refusal and failure paths tested; each new runtime failure mode maps to the error-contract `SPEC §`
-- [ ] `SPEC §` status set; `REQ` implementation status set
+- [ ] `REQ` implementation status set; `SPEC §` promoted only if the maintainer confirmed it
 - [ ] `traceability.yaml` updated (packages / tests / probes)
 - [ ] `sdd-check generate` run; the index tables and status lines match the map
-- [ ] Plan flipped to `status: done` in place — no move, no index
 - [ ] Deferred items and workers' en-route findings are in the ledger's `Deferred` table
 - [ ] Any code the orchestrator wrote itself is named here, with why the task could not be made self-contained
 ````
@@ -146,7 +144,7 @@ Findings for the change live in **one review ledger comment** on the same PR, up
 ## Artefact prose — one home per fact
 
 The commit body, PR body, changelog, and review comments each carry only what lives nowhere else — cite
-identifiers (`REQ`/`SPEC §`/plan/SHA) instead of restating. The spec owns normative behaviour; the commit
+identifiers (`REQ`/`SPEC §`/SHA) instead of restating. The spec owns normative behaviour; the commit
 body owns the *why* of this change; the PR body owns the *review lens* (what to look at, how it was
 verified); the changelog owns the one-line, user-facing delta. Don't retell the same story across all four.
 

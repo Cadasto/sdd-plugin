@@ -1,17 +1,9 @@
-<!-- Template: a working implementation plan. Filename: docs/plans/YYYY-MM-DD-<slug>.md
-     A plan is a working file on the branch: the only place checkbox task lists live, and it
-     introduces NO normative statement (a rule goes in a spec first, via /sdd-specify).
-     /sdd-archive flips status to done in place — no move, no index.
-     /sdd-finalize deletes done and abandoned plans at the next version bump. Postponed plans
-     are never deleted. -->
----
-kind: plan
-plan: <YYYY-MM-DD-slug>
-implements: [<REQ-AREA-NNN>, <SPEC-NAME §N>]
-mode: spec-first         # spec-first | implementation-aligned
-status: active           # active | done | postponed | abandoned
----
-
+<!-- Template: a working implementation plan. Filename: <paths.plans>/YYYY-MM-DD-<slug>.md
+     Delete this comment in the file you create.
+     A plan is a working file on the author's disk: the only place checkbox task lists live before
+     the draft PR exists, and it introduces NO normative statement (a rule goes in a spec first, via
+     /sdd-specify). It is never committed; the gate does not read it; the draft PR body carries the
+     task list from the moment the draft opens. Delete the file when the PR merges, or leave it. -->
 # Plan — <title>  (<YYYY-MM-DD>)
 
 **Implements:** <REQ-AREA-NNN> · <SPEC-NAME §N> · <ADR-NNNN>
@@ -36,6 +28,5 @@ status: active           # active | done | postponed | abandoned
 
 ## Notes
 
-<!-- What a fresh session needs to resume from this file alone: which tasks landed, which worker
-     dispatch died and was not re-run, any adjudication made mid-flight.
-     If status is postponed, one line saying what would restart it. -->
+<!-- What a fresh session on this machine needs to resume before the draft PR exists: which tasks
+     landed, which worker dispatch died and was not re-run, any adjudication made mid-flight. -->

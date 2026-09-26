@@ -24,7 +24,7 @@ This page is for contributors adding or changing a skill, agent, or Cursor rule 
 
 ## The `description` (the trigger)
 
-For skills the `description` is always-on metadata. Keep it lean and in the third person: *what + scope*, 3–5 representative triggers ("This skill should be used when…"), and a short "Not for …" anti-trigger that disambiguates it from the neighbouring skills. Name the pair a reader would otherwise confuse (for example `sdd-archive` vs `sdd-finalize`, or `sdd-review` vs `sdd-triage`).
+For skills the `description` is always-on metadata. Keep it lean and in the third person: *what + scope*, 3–5 representative triggers ("This skill should be used when…"), and a short "Not for …" anti-trigger that disambiguates it from the neighbouring skills. Name the pair a reader would otherwise confuse (for example `sdd-specify` vs `sdd-deliver`, or `sdd-review` vs `sdd-triage`).
 
 **YAML gotcha:** a `description` value with an unquoted `: ` (colon-space) makes a real YAML parser read it as a nested mapping, so the component loads with *empty* metadata (every field silently dropped). `claude plugin validate` catches this, and `scripts/validate.py` guards against it too. Reword or quote the value.
 
