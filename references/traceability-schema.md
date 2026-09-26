@@ -229,6 +229,24 @@ status: active            # active | done | postponed | abandoned
 | `mode` | yes | Which source-of-truth mode this slice runs in (methodology §7). |
 | `status` | yes | `active` · `done` · `postponed` · `abandoned`. `/sdd-archive` sets `done` in place; `/sdd-finalize` deletes `done` and `abandoned` at the next version bump and never touches `active` or `postponed`. |
 
+### Legacy `**Status:**` lines
+
+Plans written before this contract carried their state in a bold header line instead, such as
+`**Status:** Done` or `**Status:** In progress (since May)`. `/sdd-scaffold --upgrade` maps that line to a
+proposed `status:`, and `/sdd-finalize` reads it for a file in the legacy archive `<paths.plans>/archive/`.
+Both read the leading word or phrase after `**Status:**`, compared case-insensitively once emphasis,
+punctuation and any trailing parenthetical are stripped, and map it by meaning:
+
+| Leading word or phrase | `status` |
+|---|---|
+| done, landed, complete, completed, implemented, archived | `done` |
+| active, in progress, draft, not started | `active` (a draft plan does not exist, methodology §6) |
+| parked, on hold | `postponed` |
+| abandoned, dropped | `abandoned` |
+
+A word that fits none is unmapped: `--upgrade` leaves `status:` blank for the maintainer, and
+`/sdd-finalize` stops the sweep on it.
+
 ## 4. Generated blocks
 
 Three indexes are derived from the map rather than written by hand. Each one lives between a pair of

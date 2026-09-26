@@ -27,8 +27,8 @@ review.
 4. **Plans.** The `plans` family no longer checks `<paths.plans>/archive/` or any `README.md` under
    `paths.plans`, and prints the archive's file count on every run as a partial skip. The retired
    archive-path key stays retired: the gate finds the archive at its fixed location. The first
-   `/sdd-finalize` sweeps the archive, and there it accepts a legacy `**Status:**` line in place of
-   frontmatter once the maintainer confirms the quoted list. A live plan written with bold header
+   `/sdd-finalize` sweeps the archive, and there it accepts a legacy `**Status:**` line that reads as done or
+   abandoned in place of frontmatter, once the maintainer confirms the quoted list. A live plan written with bold header
    lines (`**Status:**`, `**Covers:**`) gets a proposed frontmatter block from
    `/sdd-scaffold --upgrade`; review each status mapping, then apply it. Once applied, the
    frontmatter owns the plan's state; a repository whose own tooling reads the `**Status:**` line

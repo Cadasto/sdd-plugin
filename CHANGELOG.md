@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: the build status `retired`, allowed only on a `deprecated` requirement, with a selftest case.
 - Tools: `check.rfc2119.sections` (`section-sign`, `requirement-id`, `either`) chooses which headings open a normative section.
 - Skills: `sdd-scaffold --upgrade` step 4b proposes frontmatter for plans written with bold header lines.
+- References: `traceability-schema.md` § Legacy `**Status:**` lines maps an old status word to a plan `status`.
 - Docs: `docs/upgrading.md` gains the 0.6.x to 0.7.0 steps; `docs/testing.md` gains the legacy-plan manual checks.
 
 ### Changed
