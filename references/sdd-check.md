@@ -125,7 +125,7 @@ Default severity `error`. Enforces §5 (the index links and never duplicates) an
 
 ### plans
 
-- `plans` — every file under `paths.plans` (not `_template.md`, not `README.md`, not the legacy archive `<paths.plans>/archive/`, which is counted and printed as a partial skip on every run) has frontmatter `plan`, `implements`, `mode`, `status`; `plan` equals the filename stem; `status` in vocabulary; `mode` in vocabulary; every `implements` id that looks like a `REQ` has a record; `status: active` while every implemented record is `landed | shipped` and `mode` is `spec-first` → warn; `status: done` while an implemented record is not enforced → warn; `status: done | abandoned` and the plan's last commit is older than the newest tag → error `finished plan predates the latest release tag; run /sdd-finalize` (skipped with a note when there is no git, no tag, or the file is uncommitted).
+- `plans` — every file under `paths.plans` (not `_template.md`, not `README.md`, not the legacy archive `<paths.plans>/archive/`, which is counted and printed as a partial skip on every run in which it holds files) has frontmatter `plan`, `implements`, `mode`, `status`; `plan` equals the filename stem; `status` in vocabulary; `mode` in vocabulary; every `implements` id that looks like a `REQ` has a record; `status: active` while every implemented record is `landed | shipped` and `mode` is `spec-first` → warn; `status: done` while an implemented record is not enforced → warn; `status: done | abandoned` and the plan's last commit is older than the newest tag → error `finished plan predates the latest release tag; run /sdd-finalize` (skipped with a note when there is no git, no tag, or the file is uncommitted).
 
 Default severity `error`. Enforces §9 (finished in place, swept at the release) and §11 (a status line that lies).
 
@@ -222,7 +222,7 @@ rerun.
 - **Only errors block, and only the output they feed.** The map is validated write-free first. An
   ERROR-level map finding — an out-of-vocabulary or malformed record, or a map that cannot be loaded —
   blocks the record-derived output: every `requirements-index` block and every detail-file status line
-  stays byte-identical, and each block is named by a `skipped` line. The `specifications-index` and
+  stays byte-identical. Each `requirements-index` block is named by its own `skipped` line, and the detail files by one line naming the requirements directory; with a file-form requirements path that carries no `requirements-index` block, nothing is named, but the run still exits 1. The `specifications-index` and
   `adr-index` blocks read no record and are still regenerated. The run exits 1. A WARN, such as an unknown
   record key, does not block the write, in `generate` as in `check`.
 - **Rows are identified by what they refer to**, not by the raw text of their first cell. A requirements

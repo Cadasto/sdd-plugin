@@ -187,7 +187,7 @@ Lists every plan with `status: done` or `abandoned`. A refusal names the documen
 /sdd-finalize
 ```
 
-The first run in a repository that still has a `docs/plans/archive/` directory sweeps it under the same status test and removes the directory once it is empty. `active` and `postponed` plans are never touched.
+The same run moves every `landed` requirement to `shipped`. The first run in a repository that still has a `docs/plans/archive/` directory sweeps it under the same status test (a legacy `**Status:**` line counts there once you confirm the quoted list) and removes the directory once it is empty. `active` and `postponed` plans are never touched.
 
 ## Draft a gap for an upstream repository
 

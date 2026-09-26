@@ -23,7 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Agents: `sdd-doc-reviewer` flags a solution in ADR Context, plan citations, restated spec rules and leftover template comments.
 - Agents: `sdd-traceability-auditor` flags a record whose `packages` are not the implementing code.
 - References: `sdd-methodology.md` §9 forbids durable documents from citing a plan, with a register row.
-- Templates: each template's comment says to delete it; the ADR Context and Decision placeholders steer away from the solution and restated mechanics.
+- Templates: the requirement, specification, ADR and plan templates' comments say to delete them; the ADR Context and Decision placeholders steer away from the solution and restated mechanics.
 - References: `sdd-methodology.md` §6 defines `landed` as merged and `shipped` as released.
 - References: `sdd-check.md` owns the gate-invocation rule, with a report-only exception; skills cite it instead of restating it.
 - Skills: `sdd-archive` sets `landed`, flips the plan before the gate, and commits and pushes the close-out.
@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Docs: `README.md` follows the shared Cadasto plugin layout, with badges, requirements, features, and a table of contents; every `docs/` page opens with an orienting paragraph.
 
 ### Fixed
+- Tools: a nested descriptor key's line anchor matches only a direct child, so `check.rfc2119` is never read as `check.families.rfc2119`.
 - Docs: `README.md`, `docs/install.md`, and `docs/quick-start.md` no longer say `/sdd-scaffold` stubs the `spec-check` target; it wires the vendored gate.
 
 ## [0.6.0] - 2026-09-24

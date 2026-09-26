@@ -497,6 +497,12 @@ class TestMapSchemaFamily(BaselineCase):
         finding = self.assert_finding(self.run_only("map-schema"), "belongs only to a deprecated requirement")
         self.assertIn("'draft'", finding.message)
 
+    def test_retired_on_a_stable_record_is_refused(self):
+        self.edit(MAP_REL, "    status: draft", "    status: stable")
+        self.edit(MAP_REL, "implementation: shipped", "implementation: retired")
+        finding = self.assert_finding(self.run_only("map-schema"), "belongs only to a deprecated requirement")
+        self.assertIn("'stable'", finding.message)
+
     def test_deprecated_is_not_a_build_status(self):
         self.edit(MAP_REL, "    status: draft", "    status: deprecated")
         self.edit(MAP_REL, "implementation: shipped", "implementation: deprecated")
@@ -2422,6 +2428,7 @@ class TestGenerateSafety(BaselineCase):
         self.edit(MAP_REL, "status: draft", "status: typo")
         self.edit(INDEX_REL, "Draft | shipped |", "Draft | landed |")
         self.edit(REQ_REL, "status: draft", "status: stable")
+        self.edit(SPEC_INDEX_REL, "| Draft | spec-first |", "| Stable | spec-first |")
 
     def test_a_map_error_still_regenerates_the_blocks_that_read_no_record(self):
         self._stale_adr_block_and_a_map_error()
@@ -2432,6 +2439,8 @@ class TestGenerateSafety(BaselineCase):
             "| ID | Title | Status | Date | Resolves / amends |",
             (self.tmp / "docs/adr/README.md").read_text(encoding="utf-8"),
         )
+        self.assertIn(SPEC_INDEX_REL, lines)
+        self.assertIn("| Draft | spec-first |", (self.tmp / SPEC_INDEX_REL).read_text(encoding="utf-8"))
         self.assertTrue(
             any(line.startswith(INDEX_REL + ":") and "skipped — block 'requirements-index'" in line
                 for line in lines),

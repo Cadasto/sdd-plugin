@@ -1,6 +1,6 @@
 ---
 name: sdd-archive
-description: This skill should be used when the user asks to "close out the plan", "mark the plan done", "mark the requirement landed", or "this feature is done, close it out". Flips the plan status to done in place and sets the SPEC §, REQ, traceability, and PR-body surfaces inside the implementing PR. Not for deleting finished plans at a release (sdd-finalize), the drift check (sdd-trace), or review (sdd-review).
+description: This skill should be used when the user asks to "close out the plan", "mark the plan done", "mark the requirement landed", or "this feature is done, close it out". Flips the plan status to done in place, sets the REQ to landed in the traceability map, promotes a SPEC § only when the maintainer confirms, and writes the PR body, inside the implementing PR. Not for deleting finished plans at a release (sdd-finalize), the drift check (sdd-trace), or review (sdd-review).
 argument-hint: "<plan file or REQ to close out>"
 allowed-tools: Read, Edit, Bash, Glob, Grep
 ---
@@ -30,14 +30,15 @@ Do not close out unverified work; closing out asserts the slice is done.
 2. **Traceability record** — set the delivered `REQ`'s `implementation` to `landed` (`references/sdd-methodology.md` §6: merged, not yet released; `/sdd-finalize` moves it to `shipped` at the release), and mirror the spec `status` in its `traceability.yaml` record (it takes effect when the PR merges); confirm it lists the landed `packages`, `tests`, and `probes` — a record carries no plan axis and no PR pointer, do not add one. Then run `sdd-check generate` so the index rows and the requirement detail file's status lines pick up the change.
 3. **Plan** — edit the plan's frontmatter `status: active` → `status: done`. Leave the file exactly where it is. Never `git mv` a plan, never create or update a plans index, and never write into a `plans/archive/` directory — deleting finished plans is `/sdd-finalize`'s job at the next version bump.
 4. **Confirm the gate is clean** — run `sdd-check check`; read the summary line and confirm it reports clean before continuing. The flip comes first because the `plans` family warns on an `active` spec-first plan whose records are all `landed` or `shipped`. When `python3` is unavailable, say the gate did not run and leave the PR-body `sdd-check generate` checkbox unticked.
-5. **Commit and push** — one commit carrying the status edits, the map, the regenerated blocks and the plan flip, its message citing the `REQ` ids (`references/artefact-prose.md`). Push the branch.
-6. **PR body** — once the branch is pushed, fill the close-out block from the repo's `docs/development-process.md` and write it with the forge CLI (on GitHub, `gh pr edit <PR> --body-file <file>`): the `Lane:` line, the identifiers, the plan path, the claim line, the review lens, what was verified and what the output said, the close-out checkboxes, the deferred items, and the workers' en-route findings. That file owns the block; fill it, don't redefine it.
-7. **Report** — what was set, and the next action (mark the PR ready).
+5. **Commit** — one local commit carrying the status edits, the map, the regenerated blocks and the plan flip, its message citing the `REQ` ids (`references/artefact-prose.md`). Do not push yet.
+6. **Full gate** — run `<build_entrypoint> <ci_target>` and `<build_entrypoint> <spec_check_target>` on the branch as it now stands and read the output. When it is red, stop with nothing pushed: the remote must never claim a slice done that the gate has not passed.
+7. **Push and PR body** — push the branch, then fill the close-out block from the repo's `docs/development-process.md` and write it with the forge CLI (on GitHub, `gh pr edit <PR> --body-file <file>`): the `Lane:` line, the identifiers, the plan path, the claim line, the review lens, what was verified and what the output said, the close-out checkboxes, the deferred items, and the workers' en-route findings, with the full gate's output from step 6. That file owns the block; fill it, don't redefine it.
+8. **Report** — what was set, and the next action (mark the PR ready).
 
 ## Guardrails
 
 - **Cite, don't restate** — the close-out commit and PR body follow `references/artefact-prose.md`.
-- **Four close-out surfaces plus the in-place plan flip:** `SPEC §` status, `REQ` status, `traceability.yaml`, PR body — and the plan's `status: done` (step 3). Nothing else is hand-edited at close-out; `generate` rewrites the derived blocks.
+- **The close-out surfaces:** the plan's `status: done` in place (step 3), the record's `implementation: landed` in `traceability.yaml` (step 2), the PR body (step 7), and a `SPEC §` promotion only when the maintainer confirmed it (step 1). Nothing else is hand-edited at close-out; `generate` rewrites the derived blocks.
 - **`AGENTS.md` capability tables are maintenance-lane work**; update them if something user-facing shipped, in this PR or the next.
 - **Never hand-edit a generated block; change the map or the frontmatter and run `sdd-check generate`.**
 

@@ -87,7 +87,7 @@ Eight `/sdd-*` skills, each also usable as a slash command, plus an always-on ro
 
 The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only `Read`, `Grep`, and `Glob`, so it is read-only outright. The other two add `Bash` for read-only scoping (`git diff`, `git log`), which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and it inherits every other tool the host offers, the repository's MCP servers included.
 
-Claude Code enforces these grants. Cursor's subagent frontmatter carries no tool grant, and a subagent inherits every tool, so on Cursor both the reviewers' no-edit rule and the implementer's no-spawn rule are contracts the agent bodies state, not sandboxes. Cursor's `subagentStart` hook is the enforceable path and is not shipped in 0.6.0.
+Claude Code enforces these grants. Cursor's subagent frontmatter carries no tool grant, and a subagent inherits every tool, so on Cursor both the reviewers' no-edit rule and the implementer's no-spawn rule are contracts the agent bodies state, not sandboxes. Cursor's `subagentStart` hook is the enforceable path and is not shipped yet.
 
 | Agent | Purpose |
 |---|---|

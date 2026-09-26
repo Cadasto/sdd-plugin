@@ -47,7 +47,7 @@ If the `spec_check_target` does not already run the vendored gate, propose the f
 
 Run `sdd-check generate --verify` (when `python3` is unavailable, skip this step and say the regeneration could not run here). `--verify` writes nothing and exits 1 on any staleness, which is expected right after step 5 wrapped a table, so read the output, not the exit code (`references/sdd-check.md` § `--verify`).
 
-- A `map-schema` error is not a refusal and does not block the real run (`references/sdd-check.md` § What a writing run refuses). Report each map finding for the maintainer to fix, for instance a withdrawn requirement takes `implementation: retired` with `status: deprecated` (`references/traceability-schema.md` § Record fields), and rerun this step once it is fixed.
+- A `map-schema` error is not a refusal: the real run leaves the requirements index and the detail-file status lines as they are, still regenerates the specifications and ADR indexes, and exits 1 (`references/sdd-check.md` § What a writing run refuses). Report each map finding for the maintainer to fix, for instance a withdrawn requirement takes `implementation: retired` with `status: deprecated` (`references/traceability-schema.md` § Record fields), and rerun this step once it is fixed.
 - Act on each `refused — …` line as `references/sdd-check.md` § What a writing run refuses directs, then rerun this step.
 
 When `--verify` prints no refusal, run the real `sdd-check generate`, then `sdd-check check`, and read its output.

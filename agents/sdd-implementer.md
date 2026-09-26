@@ -40,7 +40,7 @@ A complete brief follows `references/templates/brief.md` and carries six things:
 5. the instruction to report en-route findings;
 6. the instruction not to spawn subagents.
 
-If one of the six is missing, name the missing part and return the task unstarted. A `Cites` field with no `REQ` is complete on the maintenance lane; a missing `SPEC §` is decided by the next section. If the brief names skills to apply, load each one with the `Skill` tool by its full name (for example `go-coding:go-testing`) and apply it. Where the host has no `Skill` tool, Glob the installed plugins for `skills/<name>/SKILL.md` and read it. If a named skill cannot be found, say so under Open questions and continue. No skill is attached to this agent's frontmatter.
+If one of the six is missing, name the missing part and return the task unstarted. A `Cites` field with no `REQ` is complete on the maintenance lane; a missing `SPEC §` is decided by the next section. If the brief names skills to apply, load each one with the `Skill` tool by its full name (for example `go-coding:go-testing`) and apply it. Where the host has no `Skill` tool, drop the plugin prefix (`go-coding:go-testing` → `go-testing`), Glob the installed plugins for `skills/<stem>/SKILL.md`, and read it. If a named skill cannot be found, say so under Open questions and continue. No skill is attached to this agent's frontmatter.
 
 ## Read the spec before you write code
 
@@ -78,7 +78,7 @@ Every report ends with a section headed `## En-route findings`. List anything wr
 
 Four sections, in this order, and the last one is headed exactly `## En-route findings`:
 
-1. **What landed** — the commit SHA, then the files you changed, one line each.
+1. **What landed** — the commit SHA, or `None` when verification failed and nothing was committed; then the files you changed, one line each.
 2. **Verification** — the command you ran and what its output said.
 3. **Open questions** — what the orchestrator has to decide, or `None`.
 4. `## En-route findings` — one `file:line` and one sentence each, or `None`.

@@ -162,7 +162,7 @@ A purist "spec always precedes code" rule breaks down for bug-fixes and perf wor
 
 | Mode | When | Order |
 |---|---|---|
-| **Spec-first** | New capability, API surface, schema shape, invariant | `REQ → SPEC (Draft) → ADR if fork → Plan → Code → SPEC status → REQ shipped` |
+| **Spec-first** | New capability, API surface, schema shape, invariant | `REQ → SPEC (Draft) → ADR if fork → Plan → Code → SPEC status → REQ landed → REQ shipped at the release` |
 | **Implementation-aligned** | Hardening, perf, DB quirks, bug-fix on shipped code | `Code + migrations → update SPEC § + guide in the same PR → note in spec frontmatter` |
 
 The discipline that keeps mode 2 honest: **"code wins until the spec is updated — in the same PR."** The spec is never allowed to silently lag. This is the encoding of the industry's *reconcile loop*.
@@ -237,7 +237,7 @@ is no plans index to update, because there is no plans index. The plan stays on 
 merge so reviewers can read it.
 
 At the next version bump — as the first step, before the tag — every plan whose `status` is `done` or
-`abandoned` is deleted. Inbound links from `docs/**` are checked first — a link from a file that leaves in the same sweep does not count — and the sweep stops with the list;
+`abandoned` is deleted. Inbound links from `docs/**`, the root `AGENTS.md` and `README.md`, and any `paths.*` directory outside `docs/` are checked first — a link from a file that leaves in the same sweep does not count — and the sweep stops with the list;
 the fix is to cite the PR or the `REQ` instead. A plan whose `status` is `active` or `postponed` is never
 touched.
 
@@ -371,7 +371,7 @@ The review-enforced list is meant to shrink.
 | Links and fragments resolve | `links` |
 | Finished plans swept at the release | `plans` |
 | `landed` moves to `shipped` at the release | review-enforced — `/sdd-finalize` step 6 |
-| Durable documents never cite a plan | `/sdd-finalize` step 3 in this repository; review-enforced across repositories |
+| Durable documents never cite a plan | `/sdd-finalize` step 4 in this repository; review-enforced across repositories |
 | Changelog bullet | `changelog` |
 | Generated blocks match | `generated` |
 | Unknown identifier cited in code | `tree-to-map` |

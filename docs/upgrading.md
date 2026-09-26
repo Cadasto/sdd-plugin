@@ -17,7 +17,7 @@ review.
    and keeps `status: deprecated`. `retired` with any other stability is a `map-schema` error. A
    retired record owes no evidence. A `map-schema` error no longer stops `generate` from writing the
    specifications and ADR indexes; the requirements index and the detail-file status lines stay as
-   they are, each named by a `skipped` line, until the map is clean.
+   they are until the map is clean; each index block held back, and the detail-file directory, is named by a `skipped` line.
 3. **Section convention.** A repository that titles its specification sections by requirement id,
    such as `## REQ-060 — Title` or `## Topic (REQ-060)`, sets `check.rfc2119.sections:
    requirement-id` (or `either`, when some headings carry `§` instead). Expect new warnings from
@@ -25,7 +25,7 @@ review.
    out keeps 0.6.0's behaviour. The key's meaning is in
    [traceability-schema.md § The check block](../references/traceability-schema.md#the-check-block).
 4. **Plans.** The `plans` family no longer checks `<paths.plans>/archive/` or any `README.md` under
-   `paths.plans`, and prints the archive's file count on every run as a partial skip. The retired
+   `paths.plans`, and prints the archive's file count as a partial skip on every run in which it holds files. The retired
    archive-path key stays retired: the gate finds the archive at its fixed location. The first
    `/sdd-finalize` sweeps the archive, and there it accepts a legacy `**Status:**` line that reads as done or
    abandoned in place of frontmatter, once the maintainer confirms the quoted list. A live plan written with bold header

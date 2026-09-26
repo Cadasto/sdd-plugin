@@ -39,7 +39,7 @@ If the repo is not scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold
 1. Assign the next sequential number (never reused) and name the file `<paths.adr>/NNNN-<slug>.md`, or `ADR-NNNN-<slug>.md` when the existing records use that form; `generate` lists only file names matching `^(ADR-|\d{4}-)`. From `references/templates/adr.md`: Status (`proposed` → must be `accepted` before code depends on it), Context, Decision, Consequences.
 2. **One irreversible decision per ADR.** Long flows/DDL stay in the specs. A choice that is cheap to reverse — a toolchain or library pick swapped in an afternoon — is not an ADR.
 3. **Keep the sections apart.** Context states the problem and the forces, and never names the option chosen; the choice appears first in Decision. Decision names the choice and cites the `SPEC §` that carries the mechanics, rather than restating them.
-4. Wire traceability: cite the `STRAND` it resolves (when `use_strands` is true; close that strand with a backlink) and the `REQ`s it amends. Cite a PR, a commit or a `REQ` for background, never a plan (methodology §9).
+4. Wire traceability: cite the `STRAND` it resolves (when `use_strands` is true; close that strand with a backlink) and the `REQ`s it amends. Cite background per the plan-citation guardrail below.
 5. Run `sdd-check generate`; the ADR index row is written from the file (`references/sdd-check.md` § Generated blocks).
 6. **Withdrawing an ADR before it is accepted:** delete the file and its row in the ADR index by hand, in the same change. `sdd-check generate` refuses to drop a row whose document is gone, by design (`references/sdd-check.md` § What a writing run refuses). The number is not reused.
 
@@ -50,6 +50,7 @@ A design note is **input narrative, not the source of truth.** Extract its norma
 ## Guardrails
 
 - Keep the kinds separate even though one skill authors all three: a requirement has no normative prose, a spec has no tasks, an ADR holds one decision.
+- **A requirement, specification or ADR never cites a plan** (methodology §9): plans are deleted at the release sweep, so cite a PR, a commit or a `REQ` instead.
 - Don't settle an open question silently — record it as an ADR (§C) or a `STRAND`, or return to brainstorming.
 - For a missing **upstream** capability (consuming a sibling SDD repo), see `references/cross-repo-gap.md`.
 - **Never hand-edit a generated block; change the map or the frontmatter and run `sdd-check generate`.** The one sanctioned exception is deleting the row of a withdrawn ADR (§C step 6).
