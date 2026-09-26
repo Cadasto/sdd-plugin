@@ -1,7 +1,7 @@
 ---
 name: spec-driven-development
-allowed-tools: Read, Grep, Glob
 description: This skill should be used when the user asks "what is SDD", "explain spec-driven development", "how does the spec workflow work here", "which /sdd command do I use", or asks to implement, build, or add behaviour in a repository with docs/.sdd.yaml before a REQ or spec exists. Explains the methodology, routes intent to the right sdd-* skill, and blocks code-first work. Not for performing an artefact action (sdd-specify, sdd-deliver, sdd-trace, sdd-review).
+allowed-tools: Read, Grep, Glob
 ---
 
 # Spec-Driven Development — awareness, routing & integration

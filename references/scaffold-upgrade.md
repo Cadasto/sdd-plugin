@@ -31,7 +31,7 @@ Scope: every file under `paths.plans` that is not `_template.md`, not a `README.
 - `kind: plan` and `plan: <filename stem>`.
 - `implements:`: the identifiers on the `**Covers:**` line, else on an `**Implements:**` line. Leave a range such as `REQ-060..068` out of the list and name it in the report for the maintainer to expand. Mark each `REQ` id with no record in the map: it fails the `plans` family until `/sdd-specify` records it or it is dropped. With neither line, leave `implements:` blank and flag it.
 - `mode: <default_mode>` from the descriptor, marked for review.
-- `status:` mapped from the `**Status:**` line by the table in `references/traceability-schema.md` § Legacy `**Status:**` lines. Print every mapping; an unmapped word is left blank for the maintainer.
+- `status:` read from the `**Status:**` line: a finished or landed plan is `done`, a parked one `postponed`, one in progress `active`; a word that fits none is left blank. Print every mapping for the maintainer.
 
 Never edit the body. When the repository's own `docs/plans/_template.md` still produces bold-header plans, name it too, so new plans stop arriving in the old form. Once applied, the frontmatter owns the plan's state; a repository whose own tooling reads the `**Status:**` line picks one owner, because two status lines can disagree. A plan converted to `status: done` whose last commit predates the newest tag is then reported by the `plans` family until `/sdd-finalize` sweeps it.
 

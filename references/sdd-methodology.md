@@ -148,8 +148,8 @@ another repository, not to this one (§10).
 one of these carries evidence — at least one `packages`, `tests`, or `operations` entry — and the gate
 fails when it does not.
 
-The close-out in the implementing PR sets **`shipped`** (§9). **`landed`** is for code that is merged but
-not yet usable, such as work behind a flag.
+The close-out in the implementing PR sets **`shipped`** (§9). **`landed`** stays in the vocabulary for a
+maintainer who merges code that is not yet usable, such as work behind a flag; no skill sets it.
 
 **`retired`** marks a withdrawn requirement whose identifier is kept only so it is never reused (§14). It
 is allowed only when `status` is `deprecated`, and it owes no evidence. The reverse does not hold: during a

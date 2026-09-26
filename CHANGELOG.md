@@ -10,33 +10,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: the build status `retired`, allowed only on a `deprecated` requirement, with a selftest case.
 - Tools: `check.rfc2119.sections` (`section-sign`, `requirement-id`, `either`) chooses which headings open a normative section.
 - Skills: `sdd-scaffold --upgrade` step 4b proposes frontmatter for plans written with bold header lines.
-- References: `traceability-schema.md` § Legacy `**Status:**` lines maps an old status word to a plan `status`.
 - References: `scaffold-upgrade.md` holds the `/sdd-scaffold --upgrade` procedure, moved out of the skill.
-- References: `artefact-prose.md` defines ledger rounds and the ledger comment's identity.
 - Docs: `docs/upgrading.md` gains the 0.6.x to 0.7.0 steps; `docs/testing.md` gains the legacy-plan manual checks.
 
 ### Changed
 - Tools: a `map-schema` error in `generate` holds back only the requirements index and detail-file status lines.
 - Tools: the `plans` family skips `README.md` and the legacy `<paths.plans>/archive/`, printing its file count when it holds files.
-- Skills: `sdd-specify` drops the template comment, checks implementation-aligned claims against the code, and keeps ADR Context free of the chosen option.
-- Skills: `sdd-specify` states how to withdraw an unaccepted ADR; `sdd-deliver` drops the plan template's comment.
-- Agents: `sdd-doc-reviewer` flags a solution in ADR Context, plan citations, restated spec rules and leftover template comments.
-- Agents: `sdd-traceability-auditor` flags a record whose `packages` are not the implementing code.
-- References: `sdd-methodology.md` §9 forbids durable documents from citing a plan, with a register row.
-- Templates: the requirement, specification, ADR and plan templates' comments say to delete them; the ADR Context and Decision placeholders steer away from the solution and restated mechanics.
-- References: `sdd-methodology.md` §6: close-out sets `shipped`; `landed` is for merged but not yet usable code.
-- References: `sdd-check.md` owns the gate-invocation rule, with a report-only exception; skills cite it instead of restating it.
-- Skills: `sdd-archive` flips the plan before the gate and pushes the close-out only after the full gate passes.
-- Skills: `sdd-finalize` builds the full candidate list before one inbound-link check.
-- Skills: the router triggers on code-first requests; `sdd-specify` writes the ADR index row and states the anchor contract.
-- Skills: `sdd-deliver`, `sdd-review` and `sdd-triage` agree on ledger rounds and on recording the maintainer's review.
-- Skills: `sdd-triage` paginates comment reads and resolves threads through GraphQL; `sdd-review` briefs each reviewer.
-- Agents: `sdd-implementer` commits the brief's files by explicit path, reports the SHA, and loads worker skills by name.
-- Agents: reviewer findings carry ledger severity and anchors; an untested MUST is a blocker.
-- Templates: `brief.md` gains a `Finding` field and reports the commit SHA.
-- Skills: `sdd-finalize` accepts a legacy `**Status:**` line for a file in the legacy archive, after the maintainer confirms.
-- References: `sdd-methodology.md` §6 and the register, `traceability-schema.md` and `sdd-check.md` carry `retired`, the section convention and the scoped refusal.
-- Templates: the build-status vocabulary gains `retired`; `sdd.yaml` gains `check.rfc2119.sections`.
+- Skills: `sdd-archive` sets the `REQ` to `shipped`, promotes a `SPEC §` only when the maintainer confirms, and pushes the close-out only after the full gate passes.
+- Skills: `sdd-finalize` lists a legacy-archive file without frontmatter with its `**Status:**` line quoted, runs one inbound-link check over the full candidate list, and deletes only after the maintainer confirms.
+- Skills: `sdd-specify` drops the template comment, writes from shipped code only what the code does, and states how to withdraw an unaccepted ADR; `sdd-deliver` drops the plan template's comment.
+- Skills: the router triggers on a code-first request; `sdd-review --post` edits the existing ledger comment instead of posting a second one.
+- Agents: `sdd-implementer` commits the brief's files by explicit path, reports the SHA, and loads `worker_skills` by name; reviewer findings use the ledger's columns; an untested MUST is a blocker.
+- Agents: `sdd-doc-reviewer` flags a solution in ADR Context, a plan citation and a leftover template comment; `sdd-traceability-auditor` flags `packages` that are not the implementing code.
+- References: `sdd-methodology.md` §6 adds `retired` and says the close-out sets `shipped`; §9 forbids durable documents from citing a plan.
+- References: `sdd-check.md` owns the gate-invocation rule and the scoped `generate` refusal; `artefact-prose.md` defines ledger rounds and the ledger comment's identity.
+- Templates: the build-status vocabulary gains `retired`; `sdd.yaml` gains `check.rfc2119.sections`; the ADR placeholders steer Context and Decision; `brief.md` gains a `Finding` field.
 - Docs: `README.md` follows the shared Cadasto plugin layout, with badges, requirements, features, and a table of contents; every `docs/` page opens with an orienting paragraph.
 
 ### Fixed

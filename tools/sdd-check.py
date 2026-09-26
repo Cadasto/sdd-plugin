@@ -3551,10 +3551,10 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
     unified diff per stale block when it is true. Two guarantees make a non-``--verify`` run
     safe to script: the map is validated write-free first (a ``map-schema`` error leaves every
     record-derived block and detail-file status line as it is, names each skipped block and the
-    detail-file directory (nothing, with a file-form requirements path and no requirements-index
-    block), and exits 1 in every case, while
-    the blocks that read no record are still regenerated), and a hand-written index row with no record in the map is refused, not deleted
-    — the whole run writes nothing when any row would vanish. A descriptor that is missing or
+    detail-file directory — nothing, with a file-form requirements path and no requirements-index
+    block — still regenerates the blocks that read no record, and exits 1 in every case), and a
+    hand-written index row with no record in the map is refused, not deleted — the whole run
+    writes nothing when any row would vanish. A descriptor that is missing or
     does not parse fails exactly as ``check`` fails it.
     """
     root = Path(root)

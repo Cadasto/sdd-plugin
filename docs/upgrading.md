@@ -27,8 +27,8 @@ review.
 4. **Plans.** The `plans` family no longer checks `<paths.plans>/archive/` or any `README.md` under
    `paths.plans`, and prints the archive's file count as a partial skip on every run in which it holds files. The retired
    archive-path key stays retired: the gate finds the archive at its fixed location. The first
-   `/sdd-finalize` sweeps the archive, and there it accepts a legacy `**Status:**` line that reads as done or
-   abandoned in place of frontmatter, once the maintainer confirms the quoted list. A live plan written with bold header
+   `/sdd-finalize` sweeps the archive; a file there with no frontmatter `status` is listed with its `**Status:**`
+   line quoted, and deleted only once the maintainer confirms the list. A live plan written with bold header
    lines (`**Status:**`, `**Covers:**`) gets a proposed frontmatter block from
    `/sdd-scaffold --upgrade`; review each status mapping, then apply it. Once applied, the
    frontmatter owns the plan's state; a repository whose own tooling reads the `**Status:**` line
@@ -163,7 +163,7 @@ having actually run, not just been read.
 | The descriptor needs an `agents:` block | `/sdd-deliver` or `/sdd-review` stops with "route to `/sdd-scaffold` to fill that block" | Run `/sdd-scaffold`; a top-up run adds the block and touches no other key. Confirm `agents.reviewers` and the code-index line in `docs/ai-workflow.md` § Orchestration. |
 | The `plans:` axis is gone from traceability records | A `spec-check` that requires `plans:` fails or reports every record | Delete the `plans:` key from each record in `traceability.yaml`; drop that check from your `spec-check`. |
 | `/sdd-archive` no longer moves the plan | Finished plans stay in `docs/plans/` with `status: done` | Nothing to do. Never `git mv` a plan; `/sdd-finalize` deletes finished plans at the next version bump. |
-| `docs/plans/archive/` and the plans index are retired | The legacy directory is still in the tree | The first `/sdd-finalize` run sweeps `done` and `abandoned` plans from it and removes the directory once empty. A plan there without a frontmatter `status` stops the sweep; add the line first. From 0.7.0 a legacy `**Status:**` line is accepted there instead; see [From 0.6.x to 0.7.0](#from-06x-to-070). |
+| `docs/plans/archive/` and the plans index are retired | The legacy directory is still in the tree | The first `/sdd-finalize` run sweeps `done` and `abandoned` plans from it and removes the directory once empty. A plan there without a frontmatter `status` stops the sweep; add the line first. From 0.7.0 the sweep lists such a file with its `**Status:**` line quoted and waits for the maintainer to confirm; see [From 0.6.x to 0.7.0](#from-06x-to-070). |
 | `paths.plans_archive` is gone from the descriptor | An unread key in `docs/.sdd.yaml` | `/sdd-finalize` removes the line in the same commit, or delete it by hand. |
 | The process-doc templates were rewritten | Your `docs/ai-workflow.md`, `docs/development-process.md`, and `AGENTS.md` still route delivery to a general engineering plugin and describe archive-and-index; the scaffold never overwrites a populated file | Move each file aside, run `/sdd-scaffold`, and merge your local tuning back; or paste § Orchestration, § Review, the lanes, and the PR-body close-out block from the plugin's `references/templates/`. |
 | The PR body carries a `Lane:` line | `/sdd-review` falls back to the plan header, and a maintenance PR has none | Add `Lane: full` or `Lane: maintenance — no normative change` to the body, from the close-out block in `docs/development-process.md`. |
