@@ -23,7 +23,7 @@ Either way, name the next action (e.g. "no implementation yet → `/sdd-deliver`
 
 ## Mode B — drift scan (the spec-check analogue)
 
-With no REQ, run `check` and report its output grouped by family — `references/sdd-check.md` owns the families and what each finding means; do not re-derive them here. When the descriptor names a `spec_check_target`, `<build_entrypoint> <spec_check_target>` may be run as corroboration; the gate's own output stays the report. Then, only for what the tool cannot decide, add judgement: a plan/`REQ` status mismatch the tool flagged as a warning is worth reading in its full context before recommending a fix; a duplicated-prose finding is worth a second look at whether the second copy is really the same statement.
+With no REQ, run `check` and report its output grouped by family — `references/sdd-check.md` owns the families and what each finding means; do not re-derive them here. When the descriptor names a `spec_check_target`, `<build_entrypoint> <spec_check_target>` may be run as corroboration; the gate's own output stays the report. Then, only for what the tool cannot decide, add judgement: a duplicated-prose finding is worth a second look at whether the second copy is really the same statement.
 
 **Fallback — Python unavailable.** Say so; the mechanical scan cannot run here. Report what can still be read by hand from the requirements index and the traceability map, and say the drift scan is incomplete without the gate.
 

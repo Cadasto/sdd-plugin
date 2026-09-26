@@ -905,7 +905,9 @@ class TestPlansOutOfScope(BaselineCase):
         self.assert_finding(self.run_only("descriptor"), "paths.plans", family="descriptor")
         # Nothing is pruned: a dead link in an ADR is still reported.
         self.write("docs/adr/0002-dead.md", "---\nkind: adr\nstatus: accepted\n---\n\n# ADR\n\n[gone](nope.md)\n")
-        self.assert_finding(self.run_only("links"), "no such file")
+        report = self.run_only("links")
+        hits = [f for f in report.findings if f.anchor.startswith("docs/adr/0002-dead.md")]
+        self.assertTrue(hits and "nope.md" in hits[0].message, report.render(self.tmp))
 
     def test_an_empty_plans_path_is_refused_and_prunes_nothing(self):
         self._assert_unsafe_plans_path('""')

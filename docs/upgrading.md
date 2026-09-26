@@ -60,14 +60,14 @@ having actually run, not just been read.
    Replace its body with `python3 scripts/sdd-check.py selftest && python3 scripts/sdd-check.py check`
    (substitute your `check.script`), in the syntax of your `build_entrypoint`, and keep `ci` depending
    on it. Until then `<build_entrypoint> spec-check` keeps failing whatever the gate says.
-3. **Declare a `kind:` on every document.** `--upgrade` writes it into the ten scaffold-owned files it
-   emits (the process docs, the three index READMEs, the four `_template.md` stubs); a hand-written
+3. **Declare a `kind:` on every document.** `--upgrade` writes it into the nine scaffold-owned files it
+   emits (the process docs, the three index READMEs, the three `_template.md` stubs); a hand-written
    document it doesn't touch needs one frontmatter line added by hand. If you add them yourself, give the
    process docs (`development-process.md`, `ai-workflow.md`, `ci.md`) and the three index READMEs
    `kind: guide`, and each `_template.md` stub the kind of its folder (`requirement`, `specification`,
-   `adr`, `plan`); a different informative kind such as `reference` would make the RFC-2119 lint
+   `adr`); a different informative kind such as `reference` would make the RFC-2119 lint
    error on their keywords. Give any other document its own kind:
-   `kind: requirement` (or `specification`, `adr`, `plan`, `guide`, `analysis`, `operations`,
+   `kind: requirement` (or `specification`, `adr`, `guide`, `analysis`, `operations`,
    `reference`, `upstream`). `--upgrade` never writes `kind:` into a document it doesn't touch. The
    location fallback (a document under `paths.specifications` is read as a specification, and so on for
    the other kinds) keeps such a document in the generated indexes meanwhile, and `doc-kinds` keeps
@@ -137,7 +137,7 @@ having actually run, not just been read.
    move.
 10. **An RFC-2119 keyword outside `docs/specifications/` is now linted.** `MUST`, `SHOULD`, `MAY`,
     and the rest are binding words with no traceability chain to enforce them anywhere but a spec.
-    The gate errors on one in a `requirement`, `adr`, `plan`, or `reference` document; in `guide`,
+    The gate errors on one in a `requirement`, `adr`, or `reference` document; in `guide`,
     `analysis`, `operations`, or `upstream` it follows the family's own severity (`warn` by default).
     Reword the sentence, move the normative statement into the spec it belongs in, or waive the file for
     this one family with `<!-- sdd-check: allow <family> -->` (here, `rfc2119`). See

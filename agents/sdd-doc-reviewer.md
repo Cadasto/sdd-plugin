@@ -47,7 +47,7 @@ Invoke after authoring or editing a `REQ`/`SPEC`/`ADR`, before merging a spec ch
 
 **ADR** — one decision; Status/Context/Decision/Consequences. Flag: more than one decision; code depending on a still-`proposed` ADR; long flows/DDL that belong in a spec; missing backlinks (the `STRAND` it resolves, the `REQ`s it amends); consequences that list only upsides; a Context that names the option chosen; a Decision that restates spec mechanics instead of citing the `SPEC §`; a choice cheap to reverse recorded as an ADR.
 
-**All kinds** — an open question settled silently in prose (should be a STRAND/ADR/question); an unstable or reused identifier; a citation of a plan, here or in another repository (methodology §9: plans are deleted at the release sweep); a template's leading instruction comment left in place.
+**All kinds** — an open question settled silently in prose (should be a STRAND/ADR/question); an unstable or reused identifier; a citation of a plan, here or in another repository (methodology §9: a plan is not in the repository); a template's leading instruction comment left in place.
 
 A plan is a working file, never committed; it is not a document this agent reviews.
 

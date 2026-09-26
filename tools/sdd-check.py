@@ -3,8 +3,8 @@
 
 One file, standard library only, Python 3.9 or newer. The contract this file
 implements is `references/sdd-check.md` (families, report format, exit codes) and
-`references/traceability-schema.md` (the descriptor keys, the record fields, the plan
-frontmatter, the generated-block markers).
+`references/traceability-schema.md` (the descriptor keys, the record fields, the
+generated-block markers).
 
 Exit codes: 0 ran with no errors, 1 ran with at least one error, 2 could not configure
 itself or verified nothing: the descriptor is missing, unparseable, wrong-shape, or names a

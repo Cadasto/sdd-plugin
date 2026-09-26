@@ -154,7 +154,7 @@ emit() {
 
 # ---------------------------------------------------------------- orientation
 if is_sdd_repo; then
-  add "› Spec-Driven Development repo detected — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR) · /sdd-deliver (plan → workers → draft PR) · /sdd-review (spec-aware review + panel prompts) · /sdd-triage (work a review round) · /sdd-trace (traceability/drift) · /sdd-archive (close out the REQ in its PR) · /sdd-scaffold. A plan is a working file under docs/plans/, never committed. Run /sdd-trace + the build's spec-check before claiming done."
+  add "› Spec-Driven Development repo detected — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR) · /sdd-deliver (plan → workers → draft PR) · /sdd-review (spec-aware review + panel prompts) · /sdd-triage (work a review round) · /sdd-trace (traceability/drift) · /sdd-archive (close out the REQ in its PR) · /sdd-scaffold. A plan is a working file, never committed. Run /sdd-trace + the build's spec-check before claiming done."
 
   # 1. Branch and working-tree state.
   if have git && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then

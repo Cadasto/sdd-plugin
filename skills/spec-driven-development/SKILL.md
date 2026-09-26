@@ -59,7 +59,7 @@ second tree.
 
 ## Reference
 
-- `references/sdd-methodology.md` — the authoritative grounding (ladder, document kinds, RFC-2119, identifiers, traceability, two modes, the plan lifecycle, lanes, review discipline, anti-patterns).
+- `references/sdd-methodology.md` — the authoritative grounding (ladder, document kinds, RFC-2119, identifiers, traceability, two modes, the working plan, lanes, review discipline, anti-patterns).
 - `references/sdd-check.md` — the vendored drift gate's commands, families, and report format.
 - `references/traceability-schema.md` — the `traceability.yaml` and `.sdd.yaml` schemas.
 - `references/artefact-prose.md` — one home per fact, the findings ledger, the prose register.
