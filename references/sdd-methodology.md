@@ -222,10 +222,11 @@ Five things are confirmed **before the first task is dispatched** — checked, n
 An unmet precondition stops the dispatch and is named. A file of checkboxes cannot refuse to start work;
 a gate can.
 
-### Close-out: four surfaces, in the implementing PR
+### Close-out, in the implementing PR
 
-When the work is done, four things are set in the same PR that lands the code: the affected `SPEC §`
-status, the `REQ` implementation status, the `traceability.yaml` packages/tests/probes, and the PR body.
+When the work is done, the same PR that lands the code sets the `REQ`'s `implementation` to `shipped` (§6)
+with its `traceability.yaml` packages/tests/probes, flips the plan to `done`, and fills the PR body. A
+`SPEC §` is promoted to `stable` only when the maintainer confirms it, because promotion freezes the contract.
 The PR body carries the close-out checklist, the identifiers implemented, the verification commands and
 what they returned, and the deferred items.
 
@@ -278,7 +279,7 @@ release. A finished plan's leftover items travel to the review ledger's `Deferre
 - **Happy-path-only acceptance.** Acceptance criteria that never name what the capability must refuse or fail closed on — the negative space is part of the contract (§3, §9).
 - **Mixing kinds.** Tasks in a spec, file paths in a requirement, multiple decisions in one ADR — each erodes the boundaries that make the system legible.
 - **A status line that lies.** A plan left `active` after it shipped, or a `REQ` left `in_progress` after
-  it landed. There is no plans index to rot any more, so the frontmatter is the only state and it has to be true.
+  it shipped. There is no plans index to rot any more, so the frontmatter is the only state and it has to be true.
 - **Memoir prose.** A specification section or a probe entry states the **current contract only**. History
   — what it used to say, and why it changed — lives in git and in the ADR. A spec that narrates its own
   past is two documents in one file.

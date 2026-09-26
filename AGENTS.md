@@ -57,7 +57,7 @@ Scope is the **spec / document / traceability layer** and the **delivery pipelin
 | `sdd-review` | Lane-aware review orchestration: dispatches the SDD reviewers plus the repo's declared reviewers on the full lane, the declared reviewers alone on the maintenance lane; writes one ledger; `--panel` prints the canonical prompt blocks |
 | `sdd-triage` | One review round: enumerate every comment channel, merge into the ledger, verify before fixing, sweep the axis, fix in this PR, resolve, print the re-review prompts |
 | `sdd-trace` | The traceability gate: one-shot context bundle for a `REQ` + whole-tree drift/orphan report (the `spec-check` analogue). Report-only; whether the tests and the build pass is the build gate's job |
-| `sdd-archive` | The close-out inside the implementing PR: flips the plan to `status: done` in place, sets the `SPEC §` and `REQ` statuses and the traceability map, fills the PR body. No move, no index |
+| `sdd-archive` | The close-out inside the implementing PR: flips the plan to `status: done` in place, sets the `REQ` to `shipped` in the traceability map (a `SPEC §` is promoted only when the maintainer confirms), and fills the PR body after the full gate passes. No move, no index |
 | `sdd-finalize` | The release sweep: as the first step of a version bump, before the tag, deletes `done` and `abandoned` plans after an inbound-link check; the first run also removes a legacy `plans/archive/` |
 
 ### Agents (4)

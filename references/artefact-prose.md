@@ -49,7 +49,7 @@ Dispatched: <reviewers> · Reported: <n> of <m>
 
 - Ids are `F<n>`, taken from the next free number and **append-only across rounds**. A finding keeps its
   id for the life of the change.
-- `severity` is `blocker | should-fix | nit`. `status` is `open | fixed@<sha> | declined + reason | deferred`.
+- `severity` is `blocker | should-fix | nit`. `status` is `open | fixed@<sha> | declined + reason | deferred`; whoever lands a fix sets its row to `fixed@<sha>`.
 - Every fix pass enumerates **the ledger**, never the comment channels.
 - **Rounds.** Round 0 is everything before the PR is marked ready, the maintainer's review of the draft
   included. On a ready PR, each triage of newly arrived reviews opens the next round; ids continue.

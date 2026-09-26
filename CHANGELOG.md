@@ -17,7 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 - Tools: a `map-schema` error in `generate` holds back only the requirements index and detail-file status lines.
-- Tools: the `plans` family skips `README.md` and the legacy `<paths.plans>/archive/`, printing the archive's file count.
+- Tools: the `plans` family skips `README.md` and the legacy `<paths.plans>/archive/`, printing its file count when it holds files.
 - Skills: `sdd-specify` drops the template comment, checks implementation-aligned claims against the code, and keeps ADR Context free of the chosen option.
 - Skills: `sdd-specify` states how to withdraw an unaccepted ADR; `sdd-deliver` drops the plan template's comment.
 - Agents: `sdd-doc-reviewer` flags a solution in ADR Context, plan citations, restated spec rules and leftover template comments.

@@ -132,7 +132,7 @@ Verified: `<command>` → <what the output said>
 Close-out
 - [ ] Code and tests complete, and the verification output was read — not assumed
 - [ ] Negative space exercised: refusal and failure paths tested; each new runtime failure mode maps to the error-contract `SPEC §`
-- [ ] `SPEC §` status set; `REQ` implementation status set
+- [ ] `REQ` implementation status set; `SPEC §` promoted only if the maintainer confirmed it
 - [ ] `traceability.yaml` updated (packages / tests / probes)
 - [ ] `sdd-check generate` run; the index tables and status lines match the map
 - [ ] Plan flipped to `status: done` in place — no move, no index

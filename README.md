@@ -59,7 +59,7 @@ See [docs/install.md](docs/install.md) for marketplace, local-development, updat
 /sdd-deliver REQ-...                   # preconditions → plan on the branch → workers → round 0 → draft PR
 /sdd-review <PR> --panel               # print the prompt blocks for outside reviewers (--post writes the ledger)
 /sdd-triage <PR>                       # each review round: merge, verify, fix, resolve, re-request
-/sdd-archive REQ-...                   # close out spec status, REQ status, traceability, and the plan — in its PR
+/sdd-archive REQ-...                   # close out the plan and the REQ record — in its PR
 /sdd-finalize                          # at the next version bump, before the tag: sweep finished plans
 ```
 
@@ -80,7 +80,7 @@ Eight `/sdd-*` skills, each also usable as a slash command, plus an always-on ro
 | `/sdd-review` | Lane-aware review orchestration: dispatch the SDD reviewers plus the repo's declared reviewers on the full lane, the declared reviewers alone on the maintenance lane, and write one numbered ledger; `--panel` prints the canonical prompt blocks |
 | `/sdd-triage` | One review round: enumerate every comment channel, merge the findings into the ledger, verify before fixing, sweep the pattern class, fix in this PR, resolve, and print the re-review prompts |
 | `/sdd-trace` | The traceability gate: assemble the one-shot context bundle for a `REQ`, and report drift and orphans (the `spec-check` analogue). Report-only |
-| `/sdd-archive` | The close-out inside the implementing PR: flip the plan to `status: done` in place, set the `SPEC §` and `REQ` statuses and the traceability map, and fill the PR body. No move, no index |
+| `/sdd-archive` | The close-out inside the implementing PR: flip the plan to `status: done` in place, set the `REQ` to `shipped` in the traceability map (a `SPEC §` is promoted only when you confirm), and fill the PR body after the full gate passes. No move, no index |
 | `/sdd-finalize` | The release sweep: as the first step of a version bump, before the tag, delete the `done` and `abandoned` plans after an inbound-link check |
 
 ### Agents

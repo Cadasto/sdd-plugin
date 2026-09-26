@@ -15,7 +15,7 @@
 
 ## Report (the worker returns exactly this)
 
-1. **What landed** — the commit SHA (or `None` when nothing was committed), then the files changed, one line each.
+1. **Committed** — the commit SHA (or `None` when nothing was committed), then the files changed, one line each.
 2. **Verification** — the command run and what its output said.
 3. **Open questions** — for the orchestrator, or `None`.
 4. `## En-route findings` — or `None`.

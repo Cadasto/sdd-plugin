@@ -17,7 +17,7 @@ review.
    and keeps `status: deprecated`. `retired` with any other stability is a `map-schema` error. A
    retired record owes no evidence. A `map-schema` error no longer stops `generate` from writing the
    specifications and ADR indexes; the requirements index and the detail-file status lines stay as
-   they are until the map is clean; each index block held back, and the detail-file directory, is named by a `skipped` line.
+   they are until the map is clean; each index block held back, and the detail-file directory, is named by a `skipped` line, and the run exits 1 even when there is nothing to name.
 3. **Section convention.** A repository that titles its specification sections by requirement id,
    such as `## REQ-060 — Title` or `## Topic (REQ-060)`, sets `check.rfc2119.sections:
    requirement-id` (or `either`, when some headings carry `§` instead). Expect new warnings from
