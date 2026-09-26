@@ -420,6 +420,18 @@ class TestDescriptorFamily(BaselineCase):
         self.edit(sdd_check.DESCRIPTOR_REL, 'version: "0.6.0"', 'version: "0.5.0"')
         self.assert_finding(self.run_only("descriptor"), "version")
 
+    def test_rfc2119_sections_vocabulary(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, '    probes_catalogue: ""',
+                  '    probes_catalogue: ""\n    rfc2119:\n      sections: heading')
+        finding = self.assert_finding(self.run_only("descriptor"), "check.rfc2119.sections: 'heading'")
+        line = self.line_of(sdd_check.DESCRIPTOR_REL, "sections: heading")
+        self.assertEqual("%s:%d" % (sdd_check.DESCRIPTOR_REL, line), finding.anchor)
+
+    def test_rfc2119_sections_accepts_each_convention(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, '    probes_catalogue: ""',
+                  '    probes_catalogue: ""\n    rfc2119:\n      sections: either')
+        self.assert_clean(self.run_only("descriptor"))
+
     def test_family_severity_vocabulary(self):
         self.edit(sdd_check.DESCRIPTOR_REL, "rfc2119: warn", "rfc2119: loud")
         self.assert_finding(self.run_only("descriptor"), "error | warn | off")
@@ -1084,6 +1096,67 @@ class TestRfc2119Family(BaselineCase):
         report = self.run_only("rfc2119")
         self.assertIn("rfc2119", report.families_run)
         self.assertIn("§", report.families_skipped.get("rfc2119", ""))
+
+    # check.rfc2119.sections: which headings open a normative section
+    def set_sections(self, value):
+        self.edit(sdd_check.DESCRIPTOR_REL, '    probes_catalogue: ""',
+                  '    probes_catalogue: ""\n    rfc2119:\n      sections: %s' % value)
+
+    def drop_keywords(self):
+        self.edit(SPEC_REL, "The service MUST read every declared variable from the environment when it starts.",
+                  "The service reads every declared variable from the environment when it starts.")
+        self.edit(SPEC_REL, "The service MUST refuse to start when a declared variable is absent.",
+                  "The service refuses to start when a declared variable is absent.")
+
+    def sectionless(self, report):
+        return report.families_skipped.get("rfc2119", "")
+
+    def test_by_default_an_id_only_heading_is_not_a_section(self):
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001)")
+        report = self.run_only("rfc2119")
+        self.assertIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+        self.assertIn("the § section rule", self.sectionless(report))
+
+    def test_requirement_id_counts_a_heading_that_names_an_id(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001)")
+        report = self.run_only("rfc2119")
+        self.assertNotIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+        self.assertFalse(
+            [f for f in report.findings if "carries no RFC-2119 keyword" in f.message],
+            report.render(self.tmp),
+        )
+
+    def test_requirement_id_warns_on_a_section_without_a_keyword(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001)")
+        self.drop_keywords()
+        self.assert_finding(self.run_only("rfc2119"), "is normative and carries no RFC-2119 keyword",
+                            level="WARN")
+
+    def test_requirement_id_does_not_count_a_section_sign_heading(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## §1 — Boundary")
+        report = self.run_only("rfc2119")
+        self.assertIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+        self.assertIn("the requirement-id section rule", self.sectionless(report))
+
+    def test_requirement_id_matches_on_identifier_boundaries(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001x, XREQ-FOUND-001)")
+        report = self.run_only("rfc2119")
+        self.assertIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+
+    def test_either_counts_both_kinds_of_heading(self):
+        self.set_sections("either")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## §1 — Boundary")
+        self.write(SPEC_REL, (self.tmp / SPEC_REL).read_text(encoding="utf-8")
+                   + "\n## Reload (REQ-FOUND-001)\n\nThe service reads the variables once.\n")
+        report = self.run_only("rfc2119")
+        self.assertNotIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+        warned = [f.message for f in report.findings if "carries no RFC-2119 keyword" in f.message]
+        self.assertEqual(1, len(warned), report.render(self.tmp))
+        self.assertIn("Reload (REQ-FOUND-001)", warned[0])
 
 
 # ---------------------------------------------------------------------------

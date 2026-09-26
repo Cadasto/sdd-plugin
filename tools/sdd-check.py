@@ -77,6 +77,8 @@ PLAN_STATUS = ("active", "done", "postponed", "abandoned")
 MODES = ("spec-first", "implementation-aligned")
 ADR_STATUS = ("proposed", "accepted", "superseded", "deprecated")
 UPSTREAM_STATE = ("proposed", "submitted", "landed-upstream", "landed", "rejected")
+#: Which headings open a normative section for the rfc2119 family (check.rfc2119.sections).
+RFC2119_SECTIONS = ("section-sign", "requirement-id", "either")
 
 DEFAULT_KINDS = (
     "requirement",
@@ -1007,6 +1009,13 @@ class Descriptor:
         globs = [_as_str(g) for g in _as_list(self.check.get("test_globs"))]
         self.test_globs = globs or list(DEFAULT_TEST_GLOBS)
         self.probes_catalogue = _as_str(self.check.get("probes_catalogue"), "")
+        rfc2119 = self.check.get("rfc2119")
+        if rfc2119 is not None and not isinstance(rfc2119, dict):
+            self.shape_problems.append("check.rfc2119 must be a mapping")
+        rfc2119 = rfc2119 if isinstance(rfc2119, dict) else {}
+        self.rfc2119_sections = (
+            _as_str(rfc2119.get("sections"), "section-sign") or "section-sign"
+        )
         families = self.check.get("families")
         self.families = {}
         if isinstance(families, dict):
@@ -1500,6 +1509,15 @@ def check_descriptor(ctx: Context, report: "Report") -> None:
         add("default_mode: '%s' is not %s" % (desc.default_mode, " | ".join(MODES)))
     for problem in desc.shape_problems:
         add(problem)
+    if desc.rfc2119_sections not in RFC2119_SECTIONS:
+        text = ctx.read(ctx.root / DESCRIPTOR_REL)
+        report.add(
+            "descriptor",
+            level,
+            "%s:%d" % (DESCRIPTOR_REL, _key_line(text, "check.rfc2119.sections")),
+            "check.rfc2119.sections: '%s' is not %s"
+            % (desc.rfc2119_sections, " | ".join(RFC2119_SECTIONS)),
+        )
     if desc.code_roots_valid:
         for rel in desc.code_roots:
             if not desc.resolve(rel).exists():
@@ -2249,10 +2267,33 @@ def check_doc_kinds(ctx: Context, report: "Report") -> None:
         report.skip("doc-kinds", "every document is waived")
 
 
-def _spec_sections(report: "Report", anchor: str, text: str) -> bool:
-    """Warn on every ``§`` section with no keyword. ``False`` when the document has none."""
+def _section_heading(desc: "Descriptor") -> Callable[[str], bool]:
+    """The predicate for a heading that opens a normative section, by the convention
+    ``check.rfc2119.sections`` names. The match is lexical and needs no record: the
+    requirement-id form accepts any token of the repository's REQ pattern, on identifier
+    boundaries, so REQ-FOUND-0011 is not REQ-FOUND-001. An unknown value is the
+    descriptor family's error; here it reads as the default."""
+    requirement = re.compile(
+        r"(?<![0-9A-Za-z_-])(?:%s)(?![0-9A-Za-z_-])" % desc.req_pattern().pattern
+    )
+    convention = desc.rfc2119_sections
+    if convention == "requirement-id":
+        return lambda heading: bool(requirement.search(heading))
+    if convention == "either":
+        return lambda heading: "§" in heading or bool(requirement.search(heading))
+    return lambda heading: "§" in heading
+
+
+#: How the partial-skip line names each convention.
+_SECTION_LABEL = {"requirement-id": "requirement-id", "either": "§ or requirement-id"}
+
+
+def _spec_sections(
+    report: "Report", anchor: str, text: str, is_section: Callable[[str], bool]
+) -> bool:
+    """Warn on every normative section with no keyword. ``False`` when the document has none."""
     found = headings(text)
-    marked = [index for index, entry in enumerate(found) if "§" in entry[2]]
+    marked = [index for index, entry in enumerate(found) if is_section(entry[2])]
     if not marked:
         return False
     total = len(text.split("\n"))
@@ -2272,9 +2313,11 @@ def _spec_sections(report: "Report", anchor: str, text: str) -> bool:
     return True
 
 
-def _specification_rules(report: "Report", anchor: str, text: str) -> bool:
+def _specification_rules(
+    report: "Report", anchor: str, text: str, is_section: Callable[[str], bool]
+) -> bool:
     """The three rules that apply inside a specification. ``False`` when it has no section."""
-    has_sections = _spec_sections(report, anchor, text)
+    has_sections = _spec_sections(report, anchor, text, is_section)
     for lineno, line in strip_noncontent(text):
         malformed = MALFORMED_RE.search(line)
         if malformed:
@@ -2308,6 +2351,7 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
         return
     sectionless: List[str] = []
     examined = 0
+    is_section = _section_heading(ctx.desc)
     for path in paths:
         if _waived(ctx, report, "rfc2119", path):
             continue
@@ -2319,7 +2363,7 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
         anchor = ctx.rel(path)
         text = ctx.read(path)
         if kind == "specification":
-            if not _specification_rules(report, anchor, text):
+            if not _specification_rules(report, anchor, text, is_section):
                 sectionless.append(anchor)
             continue
         at = "ERROR" if kind in RFC2119_CITING_KINDS else level
@@ -2344,7 +2388,8 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
     if sectionless:
         report.skip(
             "rfc2119",
-            "the § section rule found no section in %s" % ", ".join(sectionless),
+            "the %s section rule found no section in %s"
+            % (_SECTION_LABEL.get(ctx.desc.rfc2119_sections, "§"), ", ".join(sectionless)),
             partial=True,
         )
 
@@ -4346,6 +4391,29 @@ SELFTEST_CASES: Tuple[SelftestCase, ...] = (
             "The service MUST read its configuration from the environment when it starts.",
         ),
         _finding_check("rfc2119", "does not belong in a requirement document"),
+    ),
+    SelftestCase(
+        "rfc2119-requirement-section-empty",
+        _mutate_all(
+            _mutate_edit(
+                "docs/.sdd.yaml",
+                '    probes_catalogue: ""',
+                '    probes_catalogue: ""\n    rfc2119:\n      sections: requirement-id',
+            ),
+            # No section sign, so only the requirement-id convention opens this section.
+            _mutate_edit(
+                "docs/specifications/env.md",
+                "## §1 — Boundary (REQ-FOUND-001)",
+                "## Boundary (REQ-FOUND-001)",
+            ),
+            _mutate_edit(
+                "docs/specifications/env.md",
+                "The service MUST read every declared variable from the environment when it "
+                "starts.\n\nThe service MUST refuse to start when a declared variable is absent.",
+                "The service reads every declared variable from the environment when it starts.",
+            ),
+        ),
+        _finding_check("rfc2119", "is normative and carries no RFC-2119 keyword"),
     ),
     SelftestCase(
         "rfc2119-malformed",
