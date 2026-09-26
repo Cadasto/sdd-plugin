@@ -33,7 +33,7 @@ hook() {
 }
 
 # The descriptor every SDD case uses: customised and awkward (single-quoted path, trailing slash, a
-# custom traceability file, a non-default plans dir) so desc_get is exercised. $1 is the stop_nudge
+# custom traceability file, a trailing slash on the adr dir) so desc_get is exercised. $1 is the stop_nudge
 # line's value, written verbatim.
 write_desc() {
   cat > "$1/docs/.sdd.yaml" <<YAML
@@ -41,8 +41,7 @@ sdd:
   paths:
     requirements: 'docs/reqs'
     specifications: docs/specifications
-    adr: docs/adr
-    plans: docs/my-plans/
+    adr: docs/adr/
   traceability: docs/map.yaml
   check:
     script: scripts/sdd-check.py
@@ -53,7 +52,7 @@ YAML
 
 setup_repo() {
   _r="$(newdir repo)"
-  mkdir -p "$_r/docs/reqs" "$_r/docs/specifications" "$_r/docs/adr" "$_r/docs/my-plans"
+  mkdir -p "$_r/docs/reqs" "$_r/docs/specifications" "$_r/docs/adr"
   write_desc "$_r" "${1:-true}"
   : > "$_r/docs/map.yaml"
   printf '%s' "$_r"
@@ -88,16 +87,6 @@ case "$claude_out" in
   '{'*) bad "session-start emitted JSON for a Claude payload (should be plain text)" ;;
   *"Spec-Driven Development repo detected"*) ok "session-start emits plain text for a Claude payload" ;;
   *) bad "session-start Claude payload produced no orientation line" ;;
-esac
-
-# --- session-start: the plan template is not counted as an active plan --------------
-r="$(setup_repo)"; state="$(newdir state)"
-printf -- '---\nstatus: active\n---\n' > "$r/docs/my-plans/_template.md"
-printf -- '---\nplan: 2026-01-01-real\nstatus: active\nimplements: [REQ-1]\n---\n' > "$r/docs/my-plans/2026-01-01-real.md"
-plans_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep 'active plans')"
-case "$plans_line" in
-  *"active plans: 1"*) ok "session-start counts one active plan, not the _template stub" ;;
-  *) bad "session-start active-plan count wrong: $plans_line" ;;
 esac
 
 # --- session-start: a vendored gate with no verdict is reported, not silenced ---------
@@ -245,10 +234,12 @@ case "$(rem "$r/docs/reqs/REQ-1.md")" in
   *"Edited a requirement"*) ok "reminder fires for a single-quoted requirements path" ;;
   *) bad "reminder missed the single-quoted requirements path" ;;
 esac
-case "$(rem "$r/docs/my-plans/2026-01-01-x.md")" in
-  *"Edited a plan"*) ok "reminder fires for a trailing-slash plans path" ;;
-  *) bad "reminder missed the trailing-slash plans path" ;;
+case "$(rem "$r/docs/adr/0001-x.md")" in
+  *"Edited an ADR"*) ok "reminder fires for a trailing-slash adr path" ;;
+  *) bad "reminder missed the trailing-slash adr path" ;;
 esac
+plan_out="$(rem "$r/docs/plans/2026-01-01-x.md")"
+if [ -z "$plan_out" ]; then ok "reminder is silent for a working plan"; else bad "reminder fired for a plan: $plan_out"; fi
 case "$(rem "$r/docs/map.yaml")" in
   *"Edited the SDD descriptor"*) ok "reminder fires for a custom traceability file" ;;
   *) bad "reminder missed the custom traceability file" ;;

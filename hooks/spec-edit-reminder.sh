@@ -13,16 +13,16 @@
 #
 # Document-kind directories and the traceability file come from `paths.*` / `traceability` in
 # docs/.sdd.yaml when the repository has customised them, falling back to the scaffold's own defaults
-# (docs/requirements, docs/specifications, docs/adr, docs/plans, docs/specifications/traceability.yaml)
+# (docs/requirements, docs/specifications, docs/adr, docs/specifications/traceability.yaml)
 # when the descriptor is missing, unparseable, or silent on a given key. A hard-coded path here would
 # mean the reminder silently never fires in a repository that customised its paths — the worst failure
 # shape, since nobody notices a reminder that never comes. A Cursor payload's first "workspace_roots"
 # entry, when it names a directory, is the working directory the descriptor is read from.
 set -u
 
-# Read one scalar key from docs/.sdd.yaml, without a YAML parser. `desc_get paths plans` returns the
-# value of `plans:` nested directly under the `paths:` block — and not the `plans:` that names a check
-# family elsewhere in the file. An empty block name reads a top-level key: `desc_get "" traceability`
+# Read one scalar key from docs/.sdd.yaml, without a YAML parser. `desc_get paths adr` returns the
+# value of `adr:` nested directly under the `paths:` block — and not a same-named key under another
+# block elsewhere in the file. An empty block name reads a top-level key: `desc_get "" traceability`
 # finds `traceability:` in a descriptor written without the `sdd:` wrapper.
 # Mirrors the identically-named helper in hooks/session-start.sh.
 desc_get() {
@@ -90,8 +90,6 @@ spec_dir="$(desc_get paths specifications)"
 [ -n "$spec_dir" ] || spec_dir="docs/specifications"
 adr_dir="$(desc_get paths adr)"
 [ -n "$adr_dir" ] || adr_dir="docs/adr"
-plans_dir="$(desc_get paths plans)"
-[ -n "$plans_dir" ] || plans_dir="docs/plans"
 trace_file="$(desc_get sdd traceability)"
 [ -n "$trace_file" ] || trace_file="$(desc_get "" traceability)"   # a descriptor with no sdd: wrapper
 [ -n "$trace_file" ] || trace_file="docs/specifications/traceability.yaml"
@@ -115,8 +113,6 @@ case "$f" in
     echo "› Edited a spec — one canonical home (no duplicated normative prose), explicit RFC-2119 force (MUST/SHOULD/MAY), stable § anchors; update traceability.yaml. Then /sdd-trace." ;;
   *"$adr_dir"/*|*"$adr_dir")
     echo "› Edited an ADR — one decision per record; cite the STRAND it resolves and the REQs it amends; it must be Accepted before code depends on it." ;;
-  *"$plans_dir"/*|*"$plans_dir")
-    echo "› Edited a plan — it must cite the REQ/SPEC § it implements and add no new normative rules; close it with /sdd-archive in the same PR once the feature lands and /sdd-trace is clean." ;;
   *) : ;;
 esac
 
