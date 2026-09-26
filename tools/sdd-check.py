@@ -1951,11 +1951,18 @@ def check_plans(ctx: Context, report: "Report") -> None:
         report.skip("plans", "no plans directory")
         return
     tag_commit, skip_reason = _newest_tag_commit(ctx)
-    if skip_reason:
-        report.skip("plans", skip_reason, partial=True)
     pattern = desc.req_pattern()
+    # The legacy archive — the directory the first /sdd-finalize sweeps — predates the plan
+    # contract; it is matched on the first path component, so docs/plans/archived/ is still
+    # checked, and it is counted and printed rather than hidden.
+    archived = 0
     for path in sorted(plans_dir.rglob("*.md")):
-        if path.name == "_template.md" or not path.is_file():
+        if not path.is_file():
+            continue
+        if path.relative_to(plans_dir).parts[0] == "archive":
+            archived += 1
+            continue
+        if path.name in ("_template.md", "README.md"):
             continue
         anchor = ctx.rel(path)
         front, reported = _frontmatter_of(ctx, report, "plans", path)
@@ -2032,6 +2039,17 @@ def check_plans(ctx: Context, report: "Report") -> None:
                     anchor,
                     "finished plan predates the latest release tag; run /sdd-finalize",
                 )
+    # Report.skip keeps one reason per family, so both partial skips share one string.
+    reasons = []
+    if skip_reason:
+        reasons.append(skip_reason)
+    if archived:
+        reasons.append(
+            "legacy plans archive %s (%d files; the first /sdd-finalize sweeps it)"
+            % (ctx.rel(plans_dir / "archive"), archived)
+        )
+    if reasons:
+        report.skip("plans", "; ".join(reasons), partial=True)
 
 
 def _walk_code(ctx: Context, roots: List[Path], skip: set):
@@ -4106,6 +4124,17 @@ def _finding_check(family: str, fragment: str) -> Callable[["Report", Path], Opt
     return check
 
 
+def _check_plan_beside_legacy_archive(report: "Report", root: Path) -> Optional[str]:
+    """The live plan is caught; the legacy archive beside it is skipped, not reported."""
+    anchors = [
+        f.anchor for f in report.findings
+        if f.family == "plans" and "carries no frontmatter" in f.message
+    ]
+    if anchors != ["docs/plans/2026-02-02-live.md"]:
+        return "expected only the live plan's missing frontmatter, got %r" % anchors
+    return None
+
+
 _DEAD_LINK_DOC = """---
 kind: reference
 ---
@@ -4277,6 +4306,16 @@ SELFTEST_CASES: Tuple[SelftestCase, ...] = (
         "plan-frontmatter-missing",
         _mutate_edit("docs/plans/2026-01-01-env.md", "mode: spec-first\n", ""),
         _finding_check("plans", "is required"),
+    ),
+    SelftestCase(
+        "plan-beside-legacy-archive",
+        _mutate_all(
+            _mutate_write(
+                "docs/plans/archive/2025-01-01-old.md", "# Plan: old\n\n**Status:** Done\n"
+            ),
+            _mutate_write("docs/plans/2026-02-02-live.md", "# Plan: live\n\n**Status:** Active\n"),
+        ),
+        _check_plan_beside_legacy_archive,
     ),
     SelftestCase(
         "plan-unknown-req",

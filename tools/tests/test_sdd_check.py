@@ -781,6 +781,63 @@ class TestPlansFamily(GitCase):
         self.assert_finding(report, "status")
 
 
+    def _legacy_archive_and_readmes(self):
+        self.write("docs/plans/archive/2025-01-01-old.md",
+                   "# Plan: old\n\n**Status:** Done\n**Covers:** REQ-FOUND-001\n")
+        self.write("docs/plans/archive/README.md", "# Archive\n")
+        self.write("docs/plans/README.md", "# Plans\n")
+        self.write("docs/plans/notes/README.md", "# Notes\n")
+
+    def test_the_legacy_archive_and_readmes_are_skipped_and_the_archive_is_printed(self):
+        self._legacy_archive_and_readmes()
+        report = self.run_only("plans")
+        self.assertEqual([], [f for f in report.findings if f.family == "plans"], report.render(self.tmp))
+        rendered = report.render(self.tmp)
+        self.assertIn(
+            "legacy plans archive docs/plans/archive (2 files; the first /sdd-finalize sweeps it)",
+            rendered,
+        )
+        self.assertIn("plans", report.families_run)
+
+    def test_a_sibling_of_the_archive_is_still_checked(self):
+        self._legacy_archive_and_readmes()
+        self.write("docs/plans/archived/2025-01-02-x.md", "# Plan: x\n\n**Status:** Done\n")
+        self.write("docs/plans/2026-02-02-live.md", "# Plan: live\n\n**Status:** Active\n")
+        report = self.run_only("plans")
+        anchors = {f.anchor for f in report.findings if "carries no frontmatter" in f.message}
+        self.assertEqual(
+            {"docs/plans/archived/2025-01-02-x.md", "docs/plans/2026-02-02-live.md"}, anchors,
+            report.render(self.tmp),
+        )
+
+    def test_the_git_and_archive_reasons_share_one_skip(self):
+        self._legacy_archive_and_readmes()
+        reason = self.run_only("plans").families_skipped.get("plans")
+        self.assertEqual(
+            "stale-plan rule needs git; legacy plans archive docs/plans/archive "
+            "(2 files; the first /sdd-finalize sweeps it)",
+            reason,
+        )
+
+    def test_a_done_plan_in_the_archive_is_not_stale_after_the_tag(self):
+        (self.tmp / PLAN_REL).unlink()
+        self.write("docs/plans/archive/2026-02-02-later.md", LATER_PLAN)
+        self.init_git()
+        self.commit("baseline with the archived plan")
+        self.git("tag", "v1.0.0")
+        report = self.run_only("plans")
+        self.assertNotIn("predates the latest release tag", report.render(self.tmp))
+
+    def test_the_same_done_plan_outside_the_archive_is_stale(self):
+        (self.tmp / PLAN_REL).unlink()
+        self.write("docs/plans/archive/README.md", "# Archive\n")
+        self.write("docs/plans/2026-02-02-later.md", LATER_PLAN)
+        self.init_git()
+        self.commit("baseline with the live plan")
+        self.git("tag", "v1.0.0")
+        self.assert_finding(self.run_only("plans"), "predates the latest release tag")
+
+
 class TestTreeToMapFamily(BaselineCase):
     def test_unknown_identifier_cited(self):
         self.write("src/env/thing.py", "# implements REQ-FOUND-077\n")
