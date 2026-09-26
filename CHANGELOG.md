@@ -4,7 +4,11 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-09-27
+
+A plan is now a working file: it is never committed, the gate reads nothing under `paths.plans`,
+and `/sdd-finalize` is gone because nothing is left to sweep. The close-out sets the requirement to
+`shipped` in its own PR. Moving a repository from 0.6.x is described in `docs/upgrading.md`.
 
 ### Added
 - Tools: the build status `retired`, allowed only on a `deprecated` requirement, with a selftest case.
@@ -14,16 +18,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 - Tools: a `map-schema` error in `generate` holds back only the requirements index and detail-file status lines.
-- Tools: the gate reads nothing under `paths.plans`; a `check.families.plans` line is reported as a note until it is deleted.
+- Tools: the gate reads nothing under `paths.plans`, and a `paths.plans` that would hide governed documents is a `descriptor` error; a `check.families.plans` line is reported as a note until it is deleted.
 - Skills: a plan is a working file: `sdd-deliver` writes it without committing it, the PR body carries the task list, and `sdd-scaffold` lists `paths.plans` in `.gitignore`.
 - Skills: `sdd-archive` sets the `REQ` to `shipped`, promotes a `SPEC §` only when the maintainer confirms, and pushes the close-out only after the full gate passes.
 - Skills: `sdd-specify` drops the template comment, writes from shipped code only what the code does, and states how to withdraw an unaccepted ADR; `sdd-deliver` drops the plan template's comment.
 - Skills: the router triggers on a code-first request; `sdd-review --post` edits the existing ledger comment instead of posting a second one.
+- Skills: `sdd-review` takes `--lane` before a PR exists and carries forward the `Deferred` rows of the last merged PR on the same paths; `sdd-review`, `sdd-triage` and `sdd-trace` route a repository with no descriptor to `/sdd-scaffold`.
 - Agents: `sdd-implementer` commits the brief's files by explicit path, reports the SHA, and loads `worker_skills` by name; reviewer findings use the ledger's columns; an untested MUST is a blocker.
 - Agents: `sdd-doc-reviewer` flags a solution in ADR Context, a plan citation and a leftover template comment; `sdd-traceability-auditor` flags `packages` that are not the implementing code.
 - References: `sdd-methodology.md` §6 adds `retired` and says the close-out sets `shipped`; §9 defines the plan as a working file and forbids durable documents from citing one.
 - References: `sdd-check.md` owns the gate-invocation rule and the scoped `generate` refusal; `artefact-prose.md` defines ledger rounds and the ledger comment's identity.
 - Templates: the build-status vocabulary gains `retired`; `sdd.yaml` gains `check.rfc2119.sections` and loses `plan` and `plans`; the ADR placeholders steer Context and Decision; `brief.md` gains a `Finding` field.
+- Hooks: `session-start.sh` drops the active-plans line and `/sdd-finalize`; `spec-edit-reminder.sh` is silent on a plan edit; `session-stop.sh` points to the PR body or the ledger.
 - Docs: `README.md` follows the shared Cadasto plugin layout, with badges, requirements, features, and a table of contents; every `docs/` page opens with an orienting paragraph.
 
 ### Removed
