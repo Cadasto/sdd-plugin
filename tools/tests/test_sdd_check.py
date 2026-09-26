@@ -2274,6 +2274,52 @@ class TestGenerateSafety(BaselineCase):
         self.assertTrue(any("[map-schema] ERROR" in line for line in lines), lines)
         self.assertEqual(before, (self.tmp / INDEX_REL).read_bytes())
 
+    def _stale_adr_block_and_a_map_error(self):
+        adr = (self.tmp / "docs/adr/README.md").read_text(encoding="utf-8")
+        self.write(
+            "docs/adr/README.md",
+            adr.replace("| ID | Title | Status | Date | Resolves / amends |\n|---|---|---|---|---|\n", ""),
+        )
+        self.edit(MAP_REL, "status: draft", "status: typo")
+        self.edit(INDEX_REL, "Draft | shipped |", "Draft | landed |")
+        self.edit(REQ_REL, "status: draft", "status: stable")
+
+    def test_a_map_error_still_regenerates_the_blocks_that_read_no_record(self):
+        self._stale_adr_block_and_a_map_error()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertIn("docs/adr/README.md", lines)
+        self.assertIn(
+            "| ID | Title | Status | Date | Resolves / amends |",
+            (self.tmp / "docs/adr/README.md").read_text(encoding="utf-8"),
+        )
+        self.assertTrue(
+            any(line.startswith(INDEX_REL + ":") and "skipped — block 'requirements-index'" in line
+                for line in lines),
+            lines,
+        )
+        self.assertTrue(any("[map-schema] ERROR" in line for line in lines), lines)
+
+    def test_a_map_error_leaves_every_record_derived_output_byte_identical(self):
+        self._stale_adr_block_and_a_map_error()
+        index_before = (self.tmp / INDEX_REL).read_bytes()
+        detail_before = (self.tmp / REQ_REL).read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertEqual(index_before, (self.tmp / INDEX_REL).read_bytes())
+        self.assertEqual(detail_before, (self.tmp / REQ_REL).read_bytes())
+        self.assertNotIn(INDEX_REL, lines)
+        self.assertNotIn(REQ_REL, lines)
+        self.assertTrue(any("detail-file status lines left as they are" in line for line in lines), lines)
+
+    def test_verify_on_a_map_error_diffs_the_adr_block_and_names_the_skip(self):
+        self._stale_adr_block_and_a_map_error()
+        code, lines = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any(line.startswith("+| ID | Title |") for line in lines), lines)
+        self.assertFalse(any(line.startswith("+| [REQ-FOUND-001]") for line in lines), lines)
+        self.assertTrue(any("skipped — block 'requirements-index'" in line for line in lines), lines)
+
     def test_verify_prints_the_refusals_and_exits_one(self):
         # P6: a dry run shows the same refusal a writing run would print.
         self._add_orphan_row()

@@ -120,6 +120,8 @@ ROOT_PRUNED = ("docs",)
 NESTED_PRUNED = (".git", "vendor", "node_modules")
 
 GENERATED_BLOCKS = ("requirements-index", "specifications-index", "adr-index")
+#: The blocks rendered from map records; a map error leaves them as they are.
+RECORD_BLOCKS = ("requirements-index",)
 GENERATED_OPEN = "<!-- sdd:generated %s -->"
 GENERATED_CLOSE = "<!-- /sdd:generated -->"
 
@@ -3476,8 +3478,9 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
 
     Returns ``(exit code, lines)`` — the paths written when ``verify`` is false, or a
     unified diff per stale block when it is true. Two guarantees make a non-``--verify`` run
-    safe to script: the map is validated write-free first (a ``map-schema`` error aborts with
-    no write), and a hand-written index row with no record in the map is refused, not deleted
+    safe to script: the map is validated write-free first (a ``map-schema`` error leaves every
+    record-derived block and detail-file status line as it is, names each, and exits 1, while
+    the blocks that read no record are still regenerated), and a hand-written index row with no record in the map is refused, not deleted
     — the whole run writes nothing when any row would vanish. A descriptor that is missing or
     does not parse fails exactly as ``check`` fails it.
     """
@@ -3486,31 +3489,18 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
     if message:
         return 2, Report.fatal(message).render(root).split("\n")
 
-    report = Report()
-    report.profile = desc.profile
-    report.link_exclusions = list(desc.links_exclude)
-    records, map_ok = _load_records_or_report(desc, report)
-    report.record_count = len(records)
-    if not map_ok:
-        report.mark_run("map-schema")
-        return report.exit_code(), report.render(root).split("\n")
-
-    ctx = Context(root, desc, records)
-
     # Write-free preflight: never rewrite a document from a map that fails its own schema.
     # Forced to ERROR whatever the configured severity — write-safety is not a knob. Only
-    # an ERROR blocks: an unknown record key stays the WARN `check` reports, and is shown.
+    # an ERROR blocks, and only the record-derived output: an unknown record key stays the
+    # WARN `check` reports, and the blocks that read no record are still regenerated.
     preflight = Report()
-    check_map_schema(ctx, preflight, level="ERROR")
-    if preflight.errors():
-        for finding in preflight.findings:
-            report.add("map-schema", finding.level, finding.anchor, finding.message)
-        report.mark_run("map-schema")
-        return report.exit_code(), report.render(root).split("\n")
+    records, map_ok = _load_records_or_report(desc, preflight)
+    ctx = Context(root, desc, records)
+    if map_ok:
+        check_map_schema(ctx, preflight, level="ERROR")
+    records_blocked = bool(preflight.errors())
     warnings = [
-        "[map-schema] %s %s: %s" % (f.level, f.anchor, f.message)
-        for f in preflight.findings
-        if f.level == "WARN"
+        "[map-schema] %s %s: %s" % (f.level, f.anchor, f.message) for f in preflight.findings
     ]
 
     messages: List[str] = []
@@ -3551,6 +3541,13 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
         file_lines = text.split("\n")
         changed = False
         for name, start, end in sorted(known, key=lambda item: item[1], reverse=True):
+            if records_blocked and name in RECORD_BLOCKS:
+                messages.append(
+                    "%s:%d: skipped — block '%s' left as it is, because the traceability map "
+                    "has errors" % (anchor, start, name)
+                )
+                skipped = True
+                continue
             new_content = _expected_block(ctx, name, path)
             current_content = file_lines[start:end - 1]
             if current_content == new_content:
@@ -3576,7 +3573,13 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
                 new_texts[path] = candidate
 
     requirements_dir = desc.requirements_dir()
-    if requirements_dir is not None and requirements_dir.is_dir():
+    if records_blocked and requirements_dir is not None and requirements_dir.is_dir():
+        messages.append(
+            "%s: skipped — requirement detail-file status lines left as they are, because the "
+            "traceability map has errors" % ctx.rel(requirements_dir)
+        )
+        skipped = True
+    elif requirements_dir is not None and requirements_dir.is_dir():
         for record in ctx.records:
             if not record.id:
                 continue
