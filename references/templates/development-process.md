@@ -39,7 +39,7 @@ the lifecycle it tracks belongs to another repository.
 |---|---|---|
 | **Specification** | `status` | `draft` · `stable` · `deprecated` |
 | **Requirement** | `status` | `draft` · `stable` · `deprecated` |
-| **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` |
+| **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` · `retired` |
 | **Plan** | `status` | `active` · `done` · `postponed` · `abandoned` |
 | **ADR** | `status` | `proposed` · `accepted` · `superseded` · `deprecated` |
 | **Upstream** | `state` | `proposed` · `submitted` · `landed-upstream` · `landed` · `rejected` |

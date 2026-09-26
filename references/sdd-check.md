@@ -101,13 +101,13 @@ skipped and named in the summary. Section numbers below are [sdd-methodology.md]
 
 ### descriptor
 
-- `descriptor` — the descriptor parses; `req_style` is `area-prefixed | flat-numeric`; `req_areas` present and non-empty when area-prefixed, absent when flat-numeric; `excluded_areas` disjoint from `req_areas`; `paths.*` and `traceability` exist and match the profile's shape; `check.version` equals the tool's `__version__`; every `check.families` key is a known family and every value `error | warn | off`; `default_mode` valid; `doc_kinds` retains the four normative kinds (`requirement`, `specification`, `adr`, `plan`) — a repository may extend the list, never shrink it below them; `check.code_roots` and `check.test_globs` are lists of strings and every configured code root exists; `check.changelog.max_words` is an integer. Path containment is checked at load, for every command, before anything is read or written: a `paths.*`, `traceability` or `check.*` path that is absolute or climbs out of the repository fails the load with exit 2, naming the line of the offending key.
+- `descriptor` — the descriptor parses; `req_style` is `area-prefixed | flat-numeric`; `req_areas` present and non-empty when area-prefixed, absent when flat-numeric; `excluded_areas` disjoint from `req_areas`; `paths.*` and `traceability` exist and match the profile's shape; `check.version` equals the tool's `__version__`; every `check.families` key is a known family and every value `error | warn | off`; `default_mode` valid; `doc_kinds` retains the four normative kinds (`requirement`, `specification`, `adr`, `plan`) — a repository may extend the list, never shrink it below them; `check.code_roots` and `check.test_globs` are lists of strings and every configured code root exists; `check.changelog.max_words` is an integer; `check.rfc2119.sections` is `section-sign | requirement-id | either`. Path containment is checked at load, for every command, before anything is read or written: a `paths.*`, `traceability` or `check.*` path that is absolute or climbs out of the repository fails the load with exit 2, naming the line of the offending key.
 
 Default severity `error`. Enforces §5 (the identifier scheme and excluded areas) and §3 (the kind vocabulary).
 
 ### map-schema
 
-- `map-schema` — the map parses and yields at least one record; ids unique; id matches the repository's style and, when area-prefixed, an area in `req_areas` and not in `excluded_areas`; `title`, `canonical`, `status`, `implementation` present; `status` and `implementation` in vocabulary; `canonical` is `path#anchor`; list fields are lists of strings; unknown keys warn.
+- `map-schema` — the map parses and yields at least one record; ids unique; id matches the repository's style and, when area-prefixed, an area in `req_areas` and not in `excluded_areas`; `title`, `canonical`, `status`, `implementation` present; `status` and `implementation` in vocabulary; `implementation: retired` only when `status` is `deprecated`; `canonical` is `path#anchor`; list fields are lists of strings; unknown keys warn.
 
 Default severity `error`. Enforces §6 (the per-kind status vocabularies) and §8 (the traceability chain).
 
@@ -125,7 +125,7 @@ Default severity `error`. Enforces §5 (the index links and never duplicates) an
 
 ### plans
 
-- `plans` — every file under `paths.plans` (not `_template.md`) has frontmatter `plan`, `implements`, `mode`, `status`; `plan` equals the filename stem; `status` in vocabulary; `mode` in vocabulary; every `implements` id that looks like a `REQ` has a record; `status: active` while every implemented record is `landed | shipped` and `mode` is `spec-first` → warn; `status: done` while an implemented record is not enforced → warn; `status: done | abandoned` and the plan's last commit is older than the newest tag → error `finished plan predates the latest release tag; run /sdd-finalize` (skipped with a note when there is no git, no tag, or the file is uncommitted).
+- `plans` — every file under `paths.plans` (not `_template.md`, not `README.md`, not the legacy archive `<paths.plans>/archive/`, which is counted and printed as a partial skip on every run) has frontmatter `plan`, `implements`, `mode`, `status`; `plan` equals the filename stem; `status` in vocabulary; `mode` in vocabulary; every `implements` id that looks like a `REQ` has a record; `status: active` while every implemented record is `landed | shipped` and `mode` is `spec-first` → warn; `status: done` while an implemented record is not enforced → warn; `status: done | abandoned` and the plan's last commit is older than the newest tag → error `finished plan predates the latest release tag; run /sdd-finalize` (skipped with a note when there is no git, no tag, or the file is uncommitted).
 
 Default severity `error`. Enforces §9 (finished in place, swept at the release) and §11 (a status line that lies).
 
@@ -143,7 +143,7 @@ Default severity `warn`. Enforces §3 (the kinds and their zones) and §6 (the p
 
 ### rfc2119
 
-- `rfc2119` — a keyword is one of `MUST`, `MUST NOT`, `SHALL`, `SHALL NOT`, `SHOULD`, `SHOULD NOT`, `REQUIRED`, `RECOMMENDED`, `MAY`, `OPTIONAL` as a whole upper-case word, outside fenced code, inline code, HTML comments and frontmatter. In a `specification` kind: a normative section (a heading containing `§`) with no keyword → warn; a lower-case modal (`must`, `shall`, `should`, `may not`) in a sentence with no keyword → warn; malformed forms `MUST to`, `are MUST`, `is MUST`, `MUST MUST`, `NOT NOT`, `SHOULD MUST` → error. Outside a specification: a keyword in a `requirement | adr | plan | reference` kind → error; in `guide | analysis | operations | upstream` → the family's severity; files with the waiver are skipped and counted.
+- `rfc2119` — a keyword is one of `MUST`, `MUST NOT`, `SHALL`, `SHALL NOT`, `SHOULD`, `SHOULD NOT`, `REQUIRED`, `RECOMMENDED`, `MAY`, `OPTIONAL` as a whole upper-case word, outside fenced code, inline code, HTML comments and frontmatter. In a `specification` kind: a normative section with no keyword → warn, where a heading opens a normative section by the convention `check.rfc2119.sections` names: `section-sign` (default; the heading contains `§`), `requirement-id` (the heading names a token matching the repository's `REQ` pattern, on identifier boundaries) or `either`; a specification with no such heading is listed as a partial skip for this rule; a lower-case modal (`must`, `shall`, `should`, `may not`) in a sentence with no keyword → warn; malformed forms `MUST to`, `are MUST`, `is MUST`, `MUST MUST`, `NOT NOT`, `SHOULD MUST` → error. Outside a specification: a keyword in a `requirement | adr | plan | reference` kind → error; in `guide | analysis | operations | upstream` → the family's severity; files with the waiver are skipped and counted.
 
 Default severity `warn` — but the per-kind rules above still error for `requirement`, `adr`, `plan` and
 `reference`, because a binding word in a document that binds nothing is a second source of truth.
@@ -219,8 +219,11 @@ neither flagged nor rewritten.
 names every refusal as a `refused — …` line; it exits 1. Capture what the refusal names, or move it, then
 rerun.
 
-- **Only errors block.** The map is validated write-free first. An ERROR-level map finding — an
-  out-of-vocabulary or malformed record — aborts the run with nothing written. A WARN, such as an unknown
+- **Only errors block, and only the output they feed.** The map is validated write-free first. An
+  ERROR-level map finding — an out-of-vocabulary or malformed record, or a map that cannot be loaded —
+  blocks the record-derived output: every `requirements-index` block and every detail-file status line
+  stays byte-identical, and each block is named by a `skipped` line. The `specifications-index` and
+  `adr-index` blocks read no record and are still regenerated. The run exits 1. A WARN, such as an unknown
   record key, does not block the write, in `generate` as in `check`.
 - **Rows are identified by what they refer to**, not by the raw text of their first cell. A requirements
   row is the `REQ` id found anywhere in its first cell, with backticks, asterisks and link markup

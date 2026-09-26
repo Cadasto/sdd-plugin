@@ -133,7 +133,7 @@ Each kind carries its own vocabulary:
 |---|---|---|
 | **Specification** | `status` | `draft` · `stable` · `deprecated` |
 | **Requirement** | `status` | `draft` · `stable` · `deprecated` |
-| **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` |
+| **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` · `retired` |
 | **Plan** | `status` | `active` · `done` · `postponed` · `abandoned` |
 | **ADR** | `status` | `proposed` · `accepted` · `superseded` · `deprecated` |
 | **Upstream** | `state` | `proposed` · `submitted` · `landed-upstream` · `landed` · `rejected` |
@@ -147,6 +147,10 @@ another repository, not to this one (§10).
 **"Enforced" implementation values** are `in_progress`, `partial`, `landed` and `shipped`. A record with
 one of these carries evidence — at least one `packages`, `tests`, or `operations` entry — and the gate
 fails when it does not.
+
+**`retired`** marks a withdrawn requirement whose identifier is kept only so it is never reused (§14). It
+is allowed only when `status` is `deprecated`, and it owes no evidence. The reverse does not hold: during a
+deprecation cycle the code can still be `shipped`, so `deprecated` never forces `retired`.
 
 ## 7. Two source-of-truth modes
 
@@ -349,6 +353,7 @@ The review-enforced list is meant to shrink.
 | Rule | Enforcement |
 |---|---|
 | Map record shape and status vocabulary | `map-schema` |
+| `retired` only on a `deprecated` requirement | `map-schema` |
 | Canonical home resolves both ways | `map-to-tree` |
 | Evidence on enforced records | `map-to-tree` |
 | Index equals map | `index-sync` |
