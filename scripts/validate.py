@@ -343,6 +343,7 @@ RETIRED_TERMS = (
     _retired("Definition of ", "Done"),
     _retired("allowed-tools", ":"),
     _retired("not yet ", "enforced"),
+    _retired("sdd-", "finalize"),
 )
 ALLOWED_TOOLS_TERM = RETIRED_TERMS[5]  # the retired frontmatter key, also checked directly in agents/
 # CHANGELOG.md and docs/upgrading.md legitimately name a past rename; nothing else may reuse this
