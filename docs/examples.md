@@ -54,7 +54,7 @@ Check: the pull request body carries `Lane: full`, and the spec section's status
 
 ## Refactor with no behaviour change
 
-Maintenance lane: no requirement, no spec edit, no plan file committed.
+Maintenance lane: no requirement, no spec edit, no plan.
 
 Open the pull request with this line in its body, taken from the repository's `docs/development-process.md`:
 
@@ -151,7 +151,7 @@ The format and its rules live in [artefact-prose.md](../references/artefact-pros
 /sdd-deliver <N>
 ```
 
-Given a pull request number, the skill reads the draft's body (the claim line, and the plan path or, on the maintenance lane, the task list) plus the plan file on the branch when there is one, and continues at the first unfinished step. A claim line that names a different session stops it: two sessions on one branch means one of them is thrown away.
+Given a pull request number, the skill reads the draft's body (the claim line and the task list) and continues at the first unfinished step. A claim line that names a different session stops it: two sessions on one branch means one of them is thrown away.
 
 ## Configure a Go repository
 
@@ -173,21 +173,7 @@ Workers load those skills from their brief; the reviewer sits on the per-task ga
 /sdd-scaffold --upgrade
 ```
 
-Re-vendors `tools/sdd-check.py` if the plugin ships a newer copy than `check.version` pins, fills in any descriptor key the 0.6.0 shape adds, wraps a hand-written index table in the generated-block markers without dropping a row, and adds `kind:` to the ten scaffold-owned files it emits (a hand-authored document keeps the maintainer's own `kind:`, added by hand). Plain `/sdd-scaffold` takes the same path when the descriptor has no `check:` block. When a hand-written index row has no matching record in `traceability.yaml`, `generate` refuses to drop it: the run writes nothing and names the row. Capture the requirement with `/sdd-specify`, or delete the stale row by hand, then run again. A note inside the markers is refused the same way; move it outside them. Full procedure: [docs/upgrading.md](upgrading.md).
-
-## Sweep plans at a release
-
-```text
-/sdd-finalize --dry-run
-```
-
-Lists every plan with `status: done` or `abandoned`. A refusal names the document that still links to a candidate, for example `docs/ci.md` citing a plan path. Rewrite the citation to the pull request or the requirement, then:
-
-```text
-/sdd-finalize
-```
-
-The first run in a repository that still has a `docs/plans/archive/` directory sweeps it under the same status test and removes the directory once it is empty. `active` and `postponed` plans are never touched.
+Re-vendors `tools/sdd-check.py` if the plugin ships a newer copy than `check.version` pins, fills in any descriptor key the 0.6.0 shape adds, wraps a hand-written index table in the generated-block markers without dropping a row, and adds `kind:` to the nine scaffold-owned files it emits (a hand-authored document keeps the maintainer's own `kind:`, added by hand). Plain `/sdd-scaffold` takes the same path when the descriptor has no `check:` block. When a hand-written index row has no matching record in `traceability.yaml`, `generate` refuses to drop it: the run writes nothing and names the row. Capture the requirement with `/sdd-specify`, or delete the stale row by hand, then run again. A note inside the markers is refused the same way; move it outside them. Full procedure: [docs/upgrading.md](upgrading.md).
 
 ## Draft a gap for an upstream repository
 

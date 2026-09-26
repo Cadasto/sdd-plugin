@@ -33,7 +33,7 @@ Skills, agents, references and hook scripts are shared by both hosts; manifests 
 - **Cursor manifest**: `.cursor-plugin/plugin.json`: same metadata **plus** explicit top-level path keys (`skills`, `agents`, `rules`, `hooks`). No `mcpServers`: this plugin has no MCP backend. Keep `name`/`version`/`description`/`author`/`license`/`repository`/`keywords` identical to the Claude manifest.
 - **Skills**: `skills/<name>/SKILL.md`, shared by both hosts. The `sdd-*` skills carry `argument-hint` + `allowed-tools` so they are both auto-invoked on intent and user-invocable as `/sdd-*`; `spec-driven-development` is the always-on router.
 - **Agents**: `agents/<name>.md`, context-isolated specialists. Three are report-only; `sdd-implementer` mutates within the files its brief names. Tool grants are enforced by Claude Code only; Cursor subagents inherit every tool, so there the grants hold as contracts the bodies state.
-- **References**: `references/`: the canonical methodology, the schemas, the artefact prose-economy rule (`artefact-prose.md`), the gate's own contract (`sdd-check.md`), the cross-repo gap-draft pattern (`cross-repo-gap.md`), and `references/templates/` (what `sdd-scaffold` emits; its `AGENTS.md` is a user-repo template, not this file, and the link check skips it because its links resolve only once scaffolded). Skills cite these instead of duplicating rules.
+- **References**: `references/`: the canonical methodology, the schemas, the artefact prose-economy rule (`artefact-prose.md`), the gate's own contract (`sdd-check.md`), the cross-repo gap-draft pattern (`cross-repo-gap.md`), the `/sdd-scaffold --upgrade` procedure (`scaffold-upgrade.md`), and `references/templates/` (what `sdd-scaffold` emits; its `AGENTS.md` is a user-repo template, not this file, and the link check skips it because its links resolve only once scaffolded). Skills cite these instead of duplicating rules.
 - **Tools**: `tools/sdd-check.py`, the vendorable drift gate; `/sdd-scaffold` copies it into a consuming repository at `check.script`, pins its version in `check.version`, and wires the real `spec-check` build target to it. `tools/tests/`: its unit tests (`unittest`, no pytest).
 - **Cursor rules**: `rules/*.mdc`, Cursor-only rule guidance (`description` / `globs` / `alwaysApply`), referenced by the Cursor manifest's `rules` path. Shipped: `rules/sdd-context.mdc`.
 - **Hook configs**: Claude `hooks/hooks.json`, object `{ "hooks": { "SessionStart": [...], "PostToolUse": [...], "Stop": [...] } }`, using `${CLAUDE_PLUGIN_ROOT}` in command paths; Cursor `hooks/cursor-hooks.json`, object `{ "version": 1, "hooks": { "sessionStart": [...], "afterFileEdit": [...], "stop": [...] } }`; command paths are **workspace-relative**, **not** `${CLAUDE_PLUGIN_ROOT}`. See [docs/install.md](docs/install.md#cursor) for what is still unverified there.
@@ -47,18 +47,17 @@ Skills, agents, references and hook scripts are shared by both hosts; manifests 
 
 Scope is the **spec / document / traceability layer** and the **delivery pipeline that runs on it**: plan → workers → review → triage → close-out. Exploration is the one end left open; see "Optional: a general engineering plugin" below.
 
-### Skills (9)
+### Skills (8)
 | Skill | Purpose |
 |-------|---------|
 | `spec-driven-development` | Auto-invoked awareness/router: explains the methodology, routes intent, states where an optional general engineering plugin still fits, and blocks code-first work when no `REQ`/spec exists |
 | `sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor, vendor the gate and wire the real `spec-check` target, suggesting `agents.reviewers` from the build manifests (idempotent; `--upgrade` tops up an older scaffold) |
 | `sdd-specify` | The definition layer: author the `REQ` (capability + acceptance), the canonical RFC-2119 `SPEC §`, and the `ADR`; assign identifiers; wire traceability |
-| `sdd-deliver` | The delivery driver: dispatch preconditions, the plan on the branch, `sdd-implementer` fan-out per `agents:`, the per-task gate by lane, round 0 of the ledger, the draft PR, close-out, ready, panel prompts |
+| `sdd-deliver` | The delivery driver: dispatch preconditions, the working plan, `sdd-implementer` fan-out per `agents:`, the per-task gate by lane, round 0 of the ledger, the draft PR, close-out, ready, panel prompts |
 | `sdd-review` | Lane-aware review orchestration: dispatches the SDD reviewers plus the repo's declared reviewers on the full lane, the declared reviewers alone on the maintenance lane; writes one ledger; `--panel` prints the canonical prompt blocks |
 | `sdd-triage` | One review round: enumerate every comment channel, merge into the ledger, verify before fixing, sweep the axis, fix in this PR, resolve, print the re-review prompts |
 | `sdd-trace` | The traceability gate: one-shot context bundle for a `REQ` + whole-tree drift/orphan report (the `spec-check` analogue). Report-only; whether the tests and the build pass is the build gate's job |
-| `sdd-archive` | The close-out inside the implementing PR: flips the plan to `status: done` in place, sets the `SPEC §` and `REQ` statuses and the traceability map, fills the PR body. No move, no index |
-| `sdd-finalize` | The release sweep: as the first step of a version bump, before the tag, deletes `done` and `abandoned` plans after an inbound-link check; the first run also removes a legacy `plans/archive/` |
+| `sdd-archive` | The close-out inside the implementing PR: sets the `REQ` to `shipped` in the traceability map (a `SPEC §` is promoted only when the maintainer confirms) and fills the PR body after the full gate passes |
 
 ### Agents (4)
 | Agent | Purpose |
@@ -77,8 +76,8 @@ Scope is the **spec / document / traceability layer** and the **delivery pipelin
 A general engineering plugin such as superpowers is optional: exploration workflows help before `/sdd-specify`, and everything after that is covered here. The router skill `spec-driven-development` states where the seam lies.
 
 ### Hooks
-- **SessionStart** (`session-start.sh`): detects an SDD repository and prints a context line plus the `/sdd-*` surface and an orientation (branch, plans, PRs, drift-gate verdict), or a scaffold pointer in a non-SDD repo with a `docs/` dir.
-- **PostToolUse** (Claude Code, `spec-edit-reminder.sh`): after an edit to a requirement/spec/ADR/plan or the descriptor/traceability map, reminds to keep the chain in sync (`/sdd-trace` to check; the vendored `generate`, `/sdd-specify` or `/sdd-archive` to regenerate). It is registered on Cursor's `afterFileEdit` too, but that event has no output channel, so Cursor shows no reminder.
+- **SessionStart** (`session-start.sh`): detects an SDD repository and prints a context line plus the `/sdd-*` surface and an orientation (branch, PRs, drift-gate verdict), or a scaffold pointer in a non-SDD repo with a `docs/` dir.
+- **PostToolUse** (Claude Code, `spec-edit-reminder.sh`): after an edit to a requirement/spec/ADR or the descriptor/traceability map, reminds to keep the chain in sync (`/sdd-trace` to check; the vendored `generate`, `/sdd-specify` or `/sdd-archive` to regenerate). It is registered on Cursor's `afterFileEdit` too, but that event has no output channel, so Cursor shows no reminder.
 - **Stop** (Claude Code) / **stop** (Cursor) (`session-stop.sh`): a one-shot nudge when the session made no commit and leaves uncommitted changes in an SDD repository; the second stop in a session passes silently. Opt out per repo with `hooks.stop_nudge: false` in `docs/.sdd.yaml`. Per-host detail: [docs/install.md](docs/install.md#hooks).
 
 ## Development
@@ -95,7 +94,7 @@ claude plugin validate .                       # manifest + component structure 
 claude --plugin-dir /path/to/sdd-plugin        # load the working copy for one session
 ```
 
-CI runs `python3 scripts/validate.py` strictly, then the unit tests, `selftest`, and `bash scripts/hooks-test.sh`. Then run the loop (`/sdd-scaffold` → `/sdd-specify` → `/sdd-deliver` → `/sdd-review` → `/sdd-triage` → `/sdd-archive` → `/sdd-finalize`) on a throwaway repo, and verify skill auto-triggering and the agents on both hosts; the checklist is in [docs/testing.md](docs/testing.md#local-triggering-tests).
+CI runs `python3 scripts/validate.py` strictly, then the unit tests, `selftest`, and `bash scripts/hooks-test.sh`. Then run the loop (`/sdd-scaffold` → `/sdd-specify` → `/sdd-deliver` → `/sdd-review` → `/sdd-triage` → `/sdd-archive`) on a throwaway repo, and verify skill auto-triggering and the agents on both hosts; the checklist is in [docs/testing.md](docs/testing.md#local-triggering-tests).
 
 ### File Conventions
 - Skills go in `skills/<name>/SKILL.md`; agents in `agents/<name>.md`; Cursor rules in `rules/<name>.mdc`. Detail: [docs/authoring.md](docs/authoring.md).
