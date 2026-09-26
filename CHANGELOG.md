@@ -24,12 +24,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Agents: `sdd-traceability-auditor` flags a record whose `packages` are not the implementing code.
 - References: `sdd-methodology.md` §9 forbids durable documents from citing a plan, with a register row.
 - Templates: the requirement, specification, ADR and plan templates' comments say to delete them; the ADR Context and Decision placeholders steer away from the solution and restated mechanics.
-- References: `sdd-methodology.md` §6 defines `landed` as merged and `shipped` as released.
+- References: `sdd-methodology.md` §6: close-out sets `shipped`; `landed` is for merged but not yet usable code.
 - References: `sdd-check.md` owns the gate-invocation rule, with a report-only exception; skills cite it instead of restating it.
-- Skills: `sdd-archive` sets `landed`, flips the plan before the gate, and commits and pushes the close-out.
-- Skills: `sdd-finalize` builds the candidate list before one link check and moves `landed` records to `shipped`.
+- Skills: `sdd-archive` flips the plan before the gate and pushes the close-out only after the full gate passes.
+- Skills: `sdd-finalize` builds the full candidate list before one inbound-link check.
 - Skills: the router triggers on code-first requests; `sdd-specify` writes the ADR index row and states the anchor contract.
-- Skills: `sdd-deliver`, `sdd-review` and `sdd-triage` hand off rounds, the maintainer's review and pre-PR findings explicitly.
+- Skills: `sdd-deliver`, `sdd-review` and `sdd-triage` agree on ledger rounds and on recording the maintainer's review.
 - Skills: `sdd-triage` paginates comment reads and resolves threads through GraphQL; `sdd-review` briefs each reviewer.
 - Agents: `sdd-implementer` commits the brief's files by explicit path, reports the SHA, and loads worker skills by name.
 - Agents: reviewer findings carry ledger severity and anchors; an untested MUST is a blocker.

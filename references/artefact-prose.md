@@ -51,12 +51,9 @@ Dispatched: <reviewers> · Reported: <n> of <m>
   id for the life of the change.
 - `severity` is `blocker | should-fix | nit`. `status` is `open | fixed@<sha> | declined + reason | deferred`.
 - Every fix pass enumerates **the ledger**, never the comment channels.
-- **Rounds.** Round 0 is everything before the PR is marked ready: the in-branch review and the
-  maintainer's review of the draft. Each `/sdd-triage` run that merges newly arrived reviews on a ready PR
-  opens round N+1 and rewrites the heading's round and date; ids continue. A panel prompt's `round <R>` is
-  the round the reviewers are asked to produce: the current round plus one.
-- **Identity.** The ledger is the one PR conversation comment whose first line starts `## Review ledger`.
-  It is edited in place, never re-posted, and never read back as a new finding.
+- **Rounds.** Round 0 is everything before the PR is marked ready, the maintainer's review of the draft
+  included. On a ready PR, each triage of newly arrived reviews opens the next round; ids continue.
+- The ledger is the one PR comment whose first line starts `## Review ledger`, edited in place.
 - **Completion accounting.** The header names which reviewers were dispatched and how many reported. The maintainer's review of the draft is appended to the same line when it is in — `Dispatched: <reviewers>, maintainer · Reported: <n> of <m>` — which is where a ready check finds it; on a `Dispatched: none` ledger the maintainer is then the whole panel.
 - Near-duplicate findings from two reviewers merge under **one** id, with both sources named.
 - Write a finding id as `F12`, or in words — **never as a bare hash-plus-number**, which a hosting platform

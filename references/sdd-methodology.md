@@ -148,9 +148,8 @@ another repository, not to this one (§10).
 one of these carries evidence — at least one `packages`, `tests`, or `operations` entry — and the gate
 fails when it does not.
 
-**`landed`** means the code is merged to the main line; **`shipped`** means it is in a tagged release.
-The close-out in the implementing PR sets `landed` (§9); the release sweep moves every `landed` record to
-`shipped` in the version-bump commit, before the tag.
+The close-out in the implementing PR sets **`shipped`** (§9). **`landed`** is for code that is merged but
+not yet usable, such as work behind a flag.
 
 **`retired`** marks a withdrawn requirement whose identifier is kept only so it is never reused (§14). It
 is allowed only when `status` is `deprecated`, and it owes no evidence. The reverse does not hold: during a
@@ -162,7 +161,7 @@ A purist "spec always precedes code" rule breaks down for bug-fixes and perf wor
 
 | Mode | When | Order |
 |---|---|---|
-| **Spec-first** | New capability, API surface, schema shape, invariant | `REQ → SPEC (Draft) → ADR if fork → Plan → Code → SPEC status → REQ landed → REQ shipped at the release` |
+| **Spec-first** | New capability, API surface, schema shape, invariant | `REQ → SPEC (Draft) → ADR if fork → Plan → Code → SPEC status → REQ shipped` |
 | **Implementation-aligned** | Hardening, perf, DB quirks, bug-fix on shipped code | `Code + migrations → update SPEC § + guide in the same PR → note in spec frontmatter` |
 
 The discipline that keeps mode 2 honest: **"code wins until the spec is updated — in the same PR."** The spec is never allowed to silently lag. This is the encoding of the industry's *reconcile loop*.
@@ -370,7 +369,6 @@ The review-enforced list is meant to shrink.
 | Doc kinds and status vocabularies | `doc-kinds` |
 | Links and fragments resolve | `links` |
 | Finished plans swept at the release | `plans` |
-| `landed` moves to `shipped` at the release | review-enforced — `/sdd-finalize` step 6 |
 | Durable documents never cite a plan | `/sdd-finalize` step 4 in this repository; review-enforced across repositories |
 | Changelog bullet | `changelog` |
 | Generated blocks match | `generated` |

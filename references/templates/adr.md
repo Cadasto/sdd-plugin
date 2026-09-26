@@ -16,7 +16,7 @@ date: <YYYY-MM-DD>
 
 ## Context
 
-<The problem and the forces at play, and why this is an irreversible fork worth recording. Do not name the option chosen: that is the Decision. Cite a PR, commit, REQ or STRAND for background, never a plan (plans are deleted at the release sweep).>
+<The problem and the forces at play, and why this fork is irreversible. Do not name the chosen option; that is the Decision.>
 
 ## Decision
 

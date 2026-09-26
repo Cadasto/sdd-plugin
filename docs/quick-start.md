@@ -104,7 +104,7 @@ When the ledger has no open blocker, resume delivery against the pull request nu
 /sdd-deliver <N>
 ```
 
-Resumed, the skill closes out through `/sdd-archive` (the plan flipped to `status: done` where it lies, the requirement's traceability record set to `implementation: landed`, and the spec section promoted only if you confirm it), runs the full gate before pushing, fills the pull request body, marks the pull request ready, and prints one review-request block per entry in `agents.review_panel.full` for reviewers that run outside the repository. Paste those where they go. A person merges.
+Resumed, the skill closes out through `/sdd-archive` (the plan flipped to `status: done` where it lies, the requirement's traceability record set to `implementation: shipped`, and the spec section promoted only if you confirm it), runs the full gate before pushing, fills the pull request body, marks the pull request ready, and prints one review-request block per entry in `agents.review_panel.full` for reviewers that run outside the repository. Paste those where they go. A person merges.
 
 Check: the plan is still in `docs/plans/` and its frontmatter reads `status: done`; the pull request is no longer a draft.
 
@@ -117,7 +117,7 @@ Finished plans stay in `docs/plans/` until the next version bump. As the first s
 /sdd-finalize
 ```
 
-The dry run lists every plan whose status is `done` or `abandoned` and stops if another document under `docs/` still links to one. Rewrite that citation to the pull request or the requirement, then run without `--dry-run`. The deletions ride in the bump commit, together with every `landed` requirement moved to `shipped`. Plans that are `active` or `postponed` are never touched.
+The dry run lists every plan whose status is `done` or `abandoned` and stops if another document under `docs/` still links to one. Rewrite that citation to the pull request or the requirement, then run without `--dry-run`. The deletions ride in the bump commit. Plans that are `active` or `postponed` are never touched.
 
 ## What you have now
 

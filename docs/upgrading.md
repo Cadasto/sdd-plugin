@@ -35,9 +35,6 @@ review.
    picks one owner, because two status lines can disagree. A plan whose `**Covers:**` line names a
    reserved id with no record gets `implements <id>, which has no record` after the conversion;
    record the id with `/sdd-specify` or drop it from `implements`.
-5. **`landed` and `shipped`.** `/sdd-archive` now sets `implementation: landed` at close-out, and
-   `/sdd-finalize` moves every `landed` record to `shipped` in the version-bump commit. A record already
-   marked `shipped` for code that is merged but not yet released can stay; the next release makes it true.
 
 ## From 0.5.x to 0.6.0
 
