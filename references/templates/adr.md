@@ -1,4 +1,4 @@
-<!-- Template: an Architecture Decision Record. Authored by /sdd-specify.
+<!-- Template: an Architecture Decision Record. Authored by /sdd-specify. Delete this comment in the file you create.
      ONE irreversible decision per ADR. Long flows and schema DDL belong in specs, not here. -->
 ---
 kind: adr
@@ -16,11 +16,11 @@ date: <YYYY-MM-DD>
 
 ## Context
 
-<The forces at play and why this is an irreversible fork worth recording. State the problem, not the solution.>
+<The problem and the forces at play, and why this fork is irreversible. Do not name the chosen option; that is the Decision.>
 
 ## Decision
 
-<The choice taken, stated plainly in one short paragraph.>
+<The choice taken, stated plainly in one short paragraph. Cite the SPEC § that carries the mechanics; do not restate them.>
 
 ## Consequences
 

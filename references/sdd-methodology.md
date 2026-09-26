@@ -33,18 +33,19 @@ The single most important rule: **every document has exactly one job and one alt
 | **Requirement** (`REQ-*`) | What must we deliver? How do we accept it? | Yes (acceptance criteria) | `docs/requirements/` |
 | **Specification** (`SPEC-*`) | How must the system behave / be structured? | **Yes** (RFC-2119) | `docs/specifications/` |
 | **ADR** (`ADR-*`) | Which *irreversible* fork did we take? | Decision record | `docs/adr/` |
-| **Plan** | What exact work implements a slice? | No (tasks) | `docs/plans/` |
 | **Guide** | How do I work in this repo safely? | No | `docs/architecture.md`, … |
 | **Analysis** | What did we measure or compare? | No | `docs/analysis/` |
 | **Operations** | How do operators run the system? | Runbooks | `docs/operations/` |
 | **Reference** | A declared projection or a superseded rationale | No — binds nothing | beside the specs, or `docs/reference/` |
 | **Upstream** | What another repository owes this one (a cross-repo ask) | No — its own state lifecycle | `docs/<upstream>-gap-drafts/` |
 
+A plan is not a document kind. It is a working task list `/sdd-deliver` writes under `docs/plans/` and never commits (§9).
+
 ### The three zones
 
-The nine kinds fall into three zones. The zone decides how a document is read, and what the drift gate enforces on it.
+The eight kinds fall into three zones. The zone decides how a document is read, and what the drift gate enforces on it.
 
-- **Normative** — `requirement`, `specification`, `adr`, `plan`. Each carries a status vocabulary of its own (§6); the specification carries the RFC-2119 force (§4).
+- **Normative** — `requirement`, `specification`, `adr`. Each carries a status vocabulary of its own (§6); the specification carries the RFC-2119 force (§4).
 - **Informative** — `guide`, `analysis`, `operations`, `reference`. Each explains, measures, or projects. None carries a status.
 - **Upstream** — `upstream`. An ask filed at another repository, running its own `state:` lifecycle (§10).
 
@@ -58,7 +59,6 @@ Three rules hold the zones apart:
 
 - **Requirements** carry no file paths and no migration steps — only capability + acceptance + out-of-scope. Acceptance criteria cover the **negative space** too — what the capability must refuse or fail closed on, with the intended failure behaviour — not only the happy paths.
 - **Specifications** carry RFC-2119 prose only — no checkbox task lists, no implementation file paths, no PR-style summaries, no duplicated requirement bodies.
-- **Plans** MUST cite the `REQ-*` / `SPEC-* §` (or ADR) they implement, in the header.
 - **ADRs** cover one decision each; long flows and schema DDL stay in the specs.
 - **Guides** are informative; when a guide disagrees with a spec, **the spec wins and the guide is updated.**
 - **Every document declares its kind** in frontmatter (`kind:`); the vocabulary is the descriptor's `doc_kinds`.
@@ -82,7 +82,7 @@ Statements without a keyword are **informative**. The rule: *don't implement inf
 
 ## 5. Identifier scheme
 
-Stable, citable identifiers thread the whole repo — they appear in commit messages, PR titles, test names, and plan headers. **They must never be renumbered or reused once published** (renumbering is a major doc-version event that breaks every external citation).
+Stable, citable identifiers thread the whole repo — they appear in commit messages, PR titles, test names, and PR bodies. **They must never be renumbered or reused once published** (renumbering is a major doc-version event that breaks every external citation).
 
 | Prefix | Meaning |
 |---|---|
@@ -133,13 +133,12 @@ Each kind carries its own vocabulary:
 |---|---|---|
 | **Specification** | `status` | `draft` · `stable` · `deprecated` |
 | **Requirement** | `status` | `draft` · `stable` · `deprecated` |
-| **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` |
-| **Plan** | `status` | `active` · `done` · `postponed` · `abandoned` |
+| **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` · `retired` |
 | **ADR** | `status` | `proposed` · `accepted` · `superseded` · `deprecated` |
 | **Upstream** | `state` | `proposed` · `submitted` · `landed-upstream` · `landed` · `rejected` |
 | Guide, analysis, operations, reference | — | no status |
 
-> **A `draft` specification is binding; a `draft` plan does not exist — plans start `active`.**
+> **A `draft` specification is binding.**
 
 The upstream kind deliberately spells its key `state`, not `status`: the lifecycle it tracks belongs to
 another repository, not to this one (§10).
@@ -147,6 +146,13 @@ another repository, not to this one (§10).
 **"Enforced" implementation values** are `in_progress`, `partial`, `landed` and `shipped`. A record with
 one of these carries evidence — at least one `packages`, `tests`, or `operations` entry — and the gate
 fails when it does not.
+
+The close-out in the implementing PR sets **`shipped`** (§9). **`landed`** stays in the vocabulary for a
+maintainer who merges code that is not yet usable, such as work behind a flag; no skill sets it.
+
+**`retired`** marks a withdrawn requirement whose identifier is kept only so it is never reused (§14). It
+is allowed only when `status` is `deprecated`, and it owes no evidence. The reverse does not hold: during a
+deprecation cycle the code can still be `shipped`, so `deprecated` never forces `retired`.
 
 ## 7. Two source-of-truth modes
 
@@ -170,7 +176,7 @@ requirements index (one row per REQ)
                           └─→ conformance probes (optional)
 ```
 
-**The plan is not a link in this chain.** It is a working file on the branch that cites the `REQ`/`SPEC §`
+**The plan is not a link in this chain.** It is a working file on the author's disk that names the `REQ`/`SPEC §`
 it implements (§9). The durable record of what shipped is the requirement status, the specification
 section, the ADR, the PR body, the changelog, and git.
 
@@ -187,19 +193,14 @@ regenerates every derived index from one source. Its contract is [sdd-check.md](
 what turns 'we have specs' into 'our specs can't silently rot' — one implementation, one blind-spot list,
 fixed once for every repository.
 
-## 9. The plan lifecycle — a working file, finished in place, swept at the release
+## 9. The plan — a working file, and the close-out
 
-A plan is a **working file on the branch**, not a governed artefact. It is the only place checkbox task
-lists live, and it introduces **no normative statement** — a rule goes in a spec first.
-
-Filename: `docs/plans/YYYY-MM-DD-<slug>.md`. Frontmatter:
-
-| Key | Value |
-|---|---|
-| `plan` | `YYYY-MM-DD-<slug>`, matching the filename |
-| `implements` | the `REQ` / `SPEC §` / `ADR` identifiers this plan delivers |
-| `mode` | `spec-first` or `implementation-aligned` (§7) |
-| `status` | `active` · `done` · `postponed` · `abandoned` |
+A plan is a **working file**, not a document kind. `/sdd-deliver` writes it at
+`<paths.plans>/YYYY-MM-DD-<slug>.md` from the plugin's template, and no one commits it: the scaffold lists
+`<paths.plans>/` in `.gitignore`, the gate reads nothing under that directory, and the draft PR body carries
+the task list from the moment the draft opens. Before that, the plan is the only place checkbox task lists
+live. It introduces **no normative statement** — a rule goes in a spec first. Its header names the
+`REQ` / `SPEC §` / `ADR` it implements and the lane, for the orchestrator's own use.
 
 ### Dispatch preconditions
 
@@ -215,36 +216,23 @@ Five things are confirmed **before the first task is dispatched** — checked, n
 An unmet precondition stops the dispatch and is named. A file of checkboxes cannot refuse to start work;
 a gate can.
 
-### Close-out: four surfaces, in the implementing PR
+### Close-out, in the implementing PR
 
-When the work is done, four things are set in the same PR that lands the code: the affected `SPEC §`
-status, the `REQ` implementation status, the `traceability.yaml` packages/tests/probes, and the PR body.
-The PR body carries the close-out checklist, the identifiers implemented, the verification commands and
-what they returned, and the deferred items.
+When the work is done, the same PR that lands the code sets the `REQ`'s `implementation` to `shipped` (§6)
+with its `traceability.yaml` packages/tests/probes and fills the PR body. A `SPEC §` is promoted to
+`stable` only when the maintainer confirms it, because promotion freezes the contract. The PR body carries
+the close-out checklist, the identifiers implemented, the task list with its ticks, the verification
+commands and what they returned, and the deferred items. Nothing is done to the plan: it is a file on the
+author's disk, and it goes when the author deletes it.
 
-### Archive in place, sweep at the release
-
-The plan's frontmatter is flipped to `status: done` **where the file lies**. It does not move, and there
-is no plans index to update, because there is no plans index. The plan stays on the branch through the
-merge so reviewers can read it.
-
-At the next version bump — as the first step, before the tag — every plan whose `status` is `done` or
-`abandoned` is deleted. Inbound links from `docs/**` are checked first — a link from a file that leaves in the same sweep does not count — and the sweep stops with the list;
-the fix is to cite the PR or the `REQ` instead. A plan whose `status` is `active` or `postponed` is never
-touched.
-
-**Why two steps rather than one.** A moved file's links rot; a status line cannot. Deleting the plan
-inside its own PR would take it away from the round that needs it. Between the flip and the sweep,
-`docs/plans/` holds active, postponed, and recently finished plans, and the `status` line is the only
-state. No index can lag, because there is none.
+**Durable documents never cite a plan.** A requirement, specification or ADR cites the PR, the commit or
+the `REQ` — never a plan, which is not in the repository.
 
 ### Postponed and abandoned work
 
-A postponed plan keeps its file: `status: postponed` plus one line saying what would restart it. A later
-branch flips it back to `active` and continues. Work abandoned before its PR merges goes with the branch.
-Work abandoned after its plan reached the main line is marked `status: abandoned` and swept at the next
-release. A finished plan's leftover items travel to the review ledger's `Deferred` table (§13) or become a
-`deferred`-status `REQ`; they never keep a finished plan alive.
+Work that stops before it ships is recorded on the requirement: `implementation: deferred` (§6), with the
+reason in the PR body or the ledger. A finished slice's leftover items travel to the review ledger's
+`Deferred` table (§13) or become a `deferred`-status `REQ`. The plan file itself records nothing durable.
 
 ## 10. Agent affordances
 
@@ -266,8 +254,7 @@ release. A finished plan's leftover items travel to the review ledger's `Deferre
 - **Rules that exist only in code.** A normative constraint with no `REQ`/spec is invisible to reviewers and agents. Add the `REQ` first.
 - **Happy-path-only acceptance.** Acceptance criteria that never name what the capability must refuse or fail closed on — the negative space is part of the contract (§3, §9).
 - **Mixing kinds.** Tasks in a spec, file paths in a requirement, multiple decisions in one ADR — each erodes the boundaries that make the system legible.
-- **A status line that lies.** A plan left `active` after it shipped, or a `REQ` left `in_progress` after
-  it landed. There is no plans index to rot any more, so the frontmatter is the only state and it has to be true.
+- **A status line that lies.** A `REQ` left `in_progress` after it shipped. The traceability record is the only state, and it has to be true.
 - **Memoir prose.** A specification section or a probe entry states the **current contract only**. History
   — what it used to say, and why it changed — lives in git and in the ADR. A spec that narrates its own
   past is two documents in one file.
@@ -283,7 +270,7 @@ acceptance criteria, a `SPEC §` behaviour, a public API shape, or an error cont
 
 | Obligation | **Full lane** | **Maintenance lane** |
 |---|---|---|
-| Plan file | required, on the branch | optional — a throwaway task list, not committed |
+| Plan file | a working task list on disk, never committed | optional |
 | `REQ` / index / `SPEC §` edits | required | forbidden by definition — needing one makes the change full lane |
 | `traceability.yaml` | updated for landed packages/tests/probes | only when file paths moved, and the drift gate names exactly which rows |
 | `ADR` | when an irreversible fork was taken | never — a maintenance change taking an irreversible fork is full lane |
@@ -349,6 +336,7 @@ The review-enforced list is meant to shrink.
 | Rule | Enforcement |
 |---|---|
 | Map record shape and status vocabulary | `map-schema` |
+| `retired` only on a `deprecated` requirement | `map-schema` |
 | Canonical home resolves both ways | `map-to-tree` |
 | Evidence on enforced records | `map-to-tree` |
 | Index equals map | `index-sync` |
@@ -356,7 +344,7 @@ The review-enforced list is meant to shrink.
 | RFC-2119 only in specifications | `rfc2119` |
 | Doc kinds and status vocabularies | `doc-kinds` |
 | Links and fragments resolve | `links` |
-| Finished plans swept at the release | `plans` |
+| Durable documents never cite a plan | review-enforced — `sdd-doc-reviewer` |
 | Changelog bullet | `changelog` |
 | Generated blocks match | `generated` |
 | Unknown identifier cited in code | `tree-to-map` |
@@ -370,7 +358,7 @@ evidence of absence.
 
 ## 14. What this methodology does not relax
 
-The mechanisms below earned their cost and are untouched by the lanes, the lean plan lifecycle, and the
+The mechanisms below earned their cost and are untouched by the lanes, the working plan, and the
 review thresholds:
 
 - normative topic specs with RFC-2119 force, and "when code and specs disagree, the specs win";
