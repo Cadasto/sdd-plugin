@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: `check.rfc2119.sections` (`section-sign`, `requirement-id`, `either`) chooses which headings open a normative section.
 - Skills: `sdd-scaffold --upgrade` step 4b proposes frontmatter for plans written with bold header lines.
 - References: `traceability-schema.md` § Legacy `**Status:**` lines maps an old status word to a plan `status`.
+- References: `scaffold-upgrade.md` holds the `/sdd-scaffold --upgrade` procedure, moved out of the skill.
+- References: `artefact-prose.md` defines ledger rounds and the ledger comment's identity.
 - Docs: `docs/upgrading.md` gains the 0.6.x to 0.7.0 steps; `docs/testing.md` gains the legacy-plan manual checks.
 
 ### Changed
@@ -22,6 +24,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Agents: `sdd-traceability-auditor` flags a record whose `packages` are not the implementing code.
 - References: `sdd-methodology.md` §9 forbids durable documents from citing a plan, with a register row.
 - Templates: each template's comment says to delete it; the ADR Context and Decision placeholders steer away from the solution and restated mechanics.
+- References: `sdd-methodology.md` §6 defines `landed` as merged and `shipped` as released.
+- References: `sdd-check.md` owns the gate-invocation rule, with a report-only exception; skills cite it instead of restating it.
+- Skills: `sdd-archive` sets `landed`, flips the plan before the gate, and commits and pushes the close-out.
+- Skills: `sdd-finalize` builds the candidate list before one link check and moves `landed` records to `shipped`.
+- Skills: the router triggers on code-first requests; `sdd-specify` writes the ADR index row and states the anchor contract.
+- Skills: `sdd-deliver`, `sdd-review` and `sdd-triage` hand off rounds, the maintainer's review and pre-PR findings explicitly.
+- Skills: `sdd-triage` paginates comment reads and resolves threads through GraphQL; `sdd-review` briefs each reviewer.
+- Agents: `sdd-implementer` commits the brief's files by explicit path, reports the SHA, and loads worker skills by name.
+- Agents: reviewer findings carry ledger severity and anchors; an untested MUST is a blocker.
+- Templates: `brief.md` gains a `Finding` field and reports the commit SHA.
 - Skills: `sdd-finalize` accepts a legacy `**Status:**` line for a file in the legacy archive, after the maintainer confirms.
 - References: `sdd-methodology.md` §6 and the register, `traceability-schema.md` and `sdd-check.md` carry `retired`, the section convention and the scoped refusal.
 - Templates: the build-status vocabulary gains `retired`; `sdd.yaml` gains `check.rfc2119.sections`.

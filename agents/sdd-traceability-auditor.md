@@ -6,9 +6,10 @@ description: >
   requirements index, the canonical specs, the traceability map, plan status, and the code/test tree,
   and returns a structured drift report grouped by gate family. Report-only; works alone; never edits.
   Typical triggers include a pre-release end-to-end check of the spec chain, a periodic traceability
-  health check, and a spec-check CI failure whose cause is unclear. Not for a quick single-REQ bundle
-  (the sdd-trace skill) or tests/build passing (the build gate). See "When to invoke" in the agent
-  body for worked scenarios.
+  health check, and a spec-check CI failure whose cause is unclear. Not for a single-REQ bundle or an
+  in-session drift scan (the sdd-trace skill), or tests/build passing (the build gate); use it when
+  the audit should run in isolated context or needs the judgement findings the gate cannot make. See
+  "When to invoke" in the agent body for worked scenarios.
 model: inherit
 color: yellow
 tools:
@@ -45,10 +46,11 @@ This agent does not restate those rules and does not re-derive a verdict a famil
 
 1. **Run the gate first.** Use the repository's vendored copy at `check.script` (`docs/.sdd.yaml`,
    default `scripts/sdd-check.py`) and run `python3 <check.script> check --root .`. When that file does
-   not exist, report `gate not vendored — route to /sdd-scaffold --upgrade`, run the plugin's own
-   `tools/sdd-check.py check --root .` instead, and discount only a `descriptor` version-pin finding,
-   which then measures the plugin's copy rather than the repository's. When the run exits 2, report the one-line reason as the
-   first finding: the gate could not configure itself, so no family decided anything.
+   not exist, follow the report-only caller rule at the top of `references/sdd-check.md`; the plugin's
+   copy is `${CLAUDE_PLUGIN_ROOT}/tools/sdd-check.py`, or Glob for the installed `tools/sdd-check.py`.
+   When the run exits 2, report the one-line reason first, then stop: the gate could not configure
+   itself, so no family decided anything and the families' inputs are not established. Do not
+   hand-audit them.
 2. **Relay the baseline by family.** Every family listed under `families run:` has decided its own
    scope: report its findings as the gate printed them, grouped by family, each with the owning `sdd-*`
    skill as the fix. Do not re-walk the map, the index, the plans or the tree for a family that ran —
@@ -97,10 +99,10 @@ upstream as a defect in upstream.
 A structured report:
 
 1. **Verdict** — CLEAN, or N drift findings.
-2. **Findings by class** — each with the offending id/path and a one-line recommended fix (which `sdd-*` skill owns it).
+2. **Findings by class** — each in the ledger's columns (`references/artefact-prose.md` § The findings ledger) so `sdd-review` can merge them: severity, the anchor exactly as the gate printed it (`path:line` or a `REQ` id; for a judgement finding, the `path:line` or id it concerns), the finding in one sentence, and the owning `sdd-*` fix. Severity: a gate `ERROR` is a **blocker** (the drift gate is part of the merge gate, methodology §13); a gate `WARN` is **should-fix**; a gate `NOTE` is a **nit**; a judgement finding is **should-fix**, or a **blocker** when it corrupts the canonical home.
 3. **Coverage note** — what was scanned and any area that couldn't be resolved (e.g. an external `canonical` link).
 
-Rank by severity: an exit-2 gate first (nothing was verified), then broken `canonical` links and duplicated prose (they corrupt the source of truth), then plan findings, lying status lines last.
+Order: the exit-2 line first when present; then the families in `references/sdd-check.md` order, errors before warnings within each family; the judgement class last.
 
 ## Edge cases
 
