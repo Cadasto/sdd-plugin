@@ -428,6 +428,14 @@ class TestDescriptorFamily(BaselineCase):
         line = self.line_of(sdd_check.DESCRIPTOR_REL, "sections: heading")
         self.assertEqual("%s:%d" % (sdd_check.DESCRIPTOR_REL, line), finding.anchor)
 
+    def test_rfc2119_sections_error_names_its_own_line_after_families(self):
+        # families: carries its own rfc2119 key; the anchor must not land on it.
+        self.edit(sdd_check.DESCRIPTOR_REL, "      draft-reason: off",
+                  "      draft-reason: off\n    rfc2119:\n      sections: heading")
+        finding = self.assert_finding(self.run_only("descriptor"), "check.rfc2119.sections: 'heading'")
+        line = self.line_of(sdd_check.DESCRIPTOR_REL, "sections: heading")
+        self.assertEqual("%s:%d" % (sdd_check.DESCRIPTOR_REL, line), finding.anchor)
+
     def test_rfc2119_sections_accepts_each_convention(self):
         self.edit(sdd_check.DESCRIPTOR_REL, '    probes_catalogue: ""',
                   '    probes_catalogue: ""\n    rfc2119:\n      sections: either')
@@ -2442,6 +2450,31 @@ class TestGenerateSafety(BaselineCase):
         self.assertNotIn(INDEX_REL, lines)
         self.assertNotIn(REQ_REL, lines)
         self.assertTrue(any("detail-file status lines left as they are" in line for line in lines), lines)
+
+    def test_a_map_that_fails_to_load_still_regenerates_the_adr_block(self):
+        self._stale_adr_block_and_a_map_error()
+        (self.tmp / MAP_REL).unlink()
+        index_before = (self.tmp / INDEX_REL).read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertIn("docs/adr/README.md", lines)
+        self.assertEqual(index_before, (self.tmp / INDEX_REL).read_bytes())
+        self.assertTrue(any("the traceability map is missing" in line for line in lines), lines)
+
+    def test_a_map_error_exits_one_with_nothing_record_derived_to_skip(self):
+        # A file-form requirements path with no requirements-index block: nothing is
+        # named as skipped, yet the map error must still fail the run in both modes.
+        for child in sorted((self.tmp / "docs/requirements").iterdir()):
+            child.unlink()
+        (self.tmp / "docs/requirements").rmdir()
+        self.write("REQUIREMENTS.md", "# Requirements\n\n| ID | Title |\n|---|---|\n| REQ-FOUND-001 | Boundary |\n")
+        self.edit("docs/.sdd.yaml", "profile: full", "profile: lightweight")
+        self.edit("docs/.sdd.yaml", "requirements: docs/requirements", "requirements: REQUIREMENTS.md")
+        self.edit(MAP_REL, "status: draft", "status: typo")
+        for verify in (True, False):
+            code, lines = sdd_check.generate(self.tmp, verify=verify)
+            self.assertEqual(1, code, (verify, lines))
+            self.assertFalse(any("skipped" in line for line in lines), lines)
 
     def test_verify_on_a_map_error_diffs_the_adr_block_and_names_the_skip(self):
         self._stale_adr_block_and_a_map_error()

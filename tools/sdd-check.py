@@ -871,6 +871,9 @@ def _key_line(text: str, dotted: str, value: str = "") -> int:
     for segment in dotted.split("."):
         pattern = re.compile(r"^(\s*)%s\s*:" % re.escape(segment))
         hit = None
+        #: Below the first segment only a direct child matches, so check.rfc2119 is never
+        #: taken for check.families.rfc2119, whichever comes first.
+        child_indent = None
         for index in range(position, len(lines)):
             line = lines[index]
             if not line.strip() or line.lstrip().startswith("#"):
@@ -878,6 +881,11 @@ def _key_line(text: str, dotted: str, value: str = "") -> int:
             indent = len(line) - len(line.lstrip())
             if parent_indent >= 0 and indent <= parent_indent:
                 break
+            if parent_indent >= 0:
+                if child_indent is None:
+                    child_indent = indent
+                elif indent != child_indent:
+                    continue
             match = pattern.match(line)
             if match:
                 hit = (index, len(match.group(1)))
@@ -3636,6 +3644,8 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
                 new_texts[path] = candidate
 
     requirements_dir = desc.requirements_dir()
+    # A map error exits 1 through records_blocked even when no requirements-index block
+    # or detail file exists to be named as skipped (a file-form requirements path).
     if records_blocked and requirements_dir is not None and requirements_dir.is_dir():
         messages.append(
             "%s: skipped — requirement detail-file status lines left as they are, because the "
@@ -3675,7 +3685,7 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
     if verify:
         # The same refusal lines a writing run prints, so a dry run never promises a write
         # the real run would refuse.
-        failed = stale or skipped or bool(refusals)
+        failed = stale or skipped or records_blocked or bool(refusals)
         return (1 if failed else 0), warnings + messages + refusals + diff_lines
     if refusals:
         # A dropped row is data loss: abort the whole run, write nothing, name every row.
@@ -3692,7 +3702,7 @@ def generate(root: Path, verify: bool = False) -> Tuple[int, List[str]]:
             ]
         ctx._texts[str(ctx.abs(path))] = new_texts[path]
         written.append(ctx.rel(path))
-    return (1 if skipped else 0), warnings + messages + sorted(written)
+    return (1 if skipped or records_blocked else 0), warnings + messages + sorted(written)
 
 
 def run_generate(root: Path, verify: bool) -> int:
