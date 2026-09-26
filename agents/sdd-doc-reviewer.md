@@ -39,13 +39,13 @@ Invoke after authoring or editing a `REQ`/`SPEC`/`ADR`, before merging a spec ch
 
 ## Review dimensions by kind
 
-**Requirement** — capability + acceptance + out-of-scope only. Flag: any file paths or implementation/how-to detail; acceptance criteria that aren't observable/testable; acceptance criteria that cover only happy paths (no **negative space** — what the capability must refuse or fail closed on, with the intended failure behaviour); conflated `status` (stability) vs `implementation` (build) axes; a normative rule that belongs in a spec.
+**Requirement** — capability + acceptance + out-of-scope only. Flag: acceptance criteria that restate a spec rule instead of citing its `SPEC §`; any file paths or implementation/how-to detail; acceptance criteria that aren't observable/testable; acceptance criteria that cover only happy paths (no **negative space** — what the capability must refuse or fail closed on, with the intended failure behaviour); conflated `status` (stability) vs `implementation` (build) axes; a normative rule that belongs in a spec.
 
 **Specification** — RFC-2119 normative prose, single canonical home, stable § anchors. Flag: binding statements with no MUST/SHOULD/MAY keyword (or informative text written as if binding); checkbox task lists, file paths, or PR-summary narrative; the same normative statement duplicated in another spec (grep to confirm); a missing/renumbered § anchor; no `Implements:` backlink to a REQ.
 
-**ADR** — one decision; Status/Context/Decision/Consequences. Flag: more than one decision; code depending on a still-`proposed` ADR; long flows/DDL that belong in a spec; missing backlinks (the `STRAND` it resolves, the `REQ`s it amends); consequences that list only upsides.
+**ADR** — one decision; Status/Context/Decision/Consequences. Flag: more than one decision; code depending on a still-`proposed` ADR; long flows/DDL that belong in a spec; missing backlinks (the `STRAND` it resolves, the `REQ`s it amends); consequences that list only upsides; a Context that names the option chosen; a Decision that restates spec mechanics instead of citing the `SPEC §`; a choice cheap to reverse recorded as an ADR.
 
-**All kinds** — an open question settled silently in prose (should be a STRAND/ADR/question); an unstable or reused identifier.
+**All kinds** — an open question settled silently in prose (should be a STRAND/ADR/question); an unstable or reused identifier; a citation of a plan, here or in another repository (methodology §9: plans are deleted at the release sweep); a template's leading instruction comment left in place.
 
 A plan is a working file, not a governed document. Do not review plan headers, and do not flag a plan for its status, its checkboxes, or a missing lifecycle block.
 

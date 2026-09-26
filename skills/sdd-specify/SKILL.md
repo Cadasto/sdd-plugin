@@ -9,7 +9,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 > `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
-Turn intent (often a design note from an exploration session) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds.
+Turn intent (often a design note from an exploration session) into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** when an irreversible decision is made. Read `docs/.sdd.yaml` first for identifier style and paths. Each artefact stays in its own file and lane — this skill bundles the *authoring procedures*, it does **not** merge the document kinds. When a file is created from a template, drop the template's leading `<!-- Template: … -->` comment; it instructs the author and is not part of the document.
 
 If the repo is not scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour has not been explored yet, explore it first: write a design note under `docs/analysis/`, or run the host's brainstorming workflow, and return with the note as input.
 
@@ -17,15 +17,17 @@ If the repo is not scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold
 
 1. Read `docs/.sdd.yaml` for `req_style`, `req_areas`, `req_gap`.
 2. **Assign the next identifier** without collision — area-prefixed (`REQ-<AREA>-NNN`, reject unknown areas) or flat-numeric (next slot at `req_gap` spacing).
-3. From `references/templates/requirement.md`: capability (what + why), **observable, testable** acceptance criteria — covering the **negative space** (what the capability must refuse or fail closed on, with the intended failure behaviour as an observable outcome; the normative *how* lives in the spec, §B), not only happy paths — explicit out-of-scope, and the two status fields (`status: draft`, `implementation: proposed`).
+3. From `references/templates/requirement.md`: capability (what + why), **observable, testable** acceptance criteria — covering the **negative space** (what the capability must refuse or fail closed on, with the intended failure behaviour as an observable outcome; the normative *how* lives in the spec, §B), not only happy paths; each criterion names the behaviour and cites the `SPEC §` that owns its rule rather than restating the rule — explicit out-of-scope, and the two status fields (`status: draft`, `implementation: proposed`).
 4. Add the record to `traceability.yaml` (`references/traceability-schema.md`), then run `sdd-check generate`; the index row and the detail file's status lines are written from the record. Run the gate from the repository's vendored copy at `check.script`, with `--root .`. When the repository has not vendored it, route `check` to `/sdd-scaffold --upgrade` first — the plugin's own `tools/sdd-check.py` fails the version pin — while `generate` and `context`, which do not check the pin, may run from the plugin's copy. When `python3` is unavailable, say so and leave the block for the next run rather than hand-editing it.
 - **No implementation detail** — no file paths, no "how". Track the two status axes separately (`draft` is binding now).
 
 ## B · Specification (`SPEC-* §`) — make or amend normative behaviour
 
-1. Open the **canonical** topic spec under `paths.specifications`. Confirm no other file already owns this prose — never create a second copy.
+1. Open the **canonical** topic spec under `paths.specifications`. Confirm no other file already owns this prose — never create a second copy. Search the other specs by subject (a list, a diagnostic, an exit status), not by wording: a second home usually paraphrases the first, and a small tool split across several specs is where it happens.
 2. **Look up ground truth** for any domain fact in the source named in `.sdd.yaml` (`ground_truth`); never guess.
 3. Write or amend the statement with explicit **RFC-2119** keywords (MUST/SHALL, SHOULD, MAY) and a stable `§N` anchor. No task lists, no file paths, no PR summaries. An amendment to an existing § — one sentence or many — is full-lane work (methodology §12) and goes through steps 4 and 5 like a new §; there is no edit of normative text small enough to skip them.
+
+   **Writing from shipped code (implementation-aligned, methodology §7).** Check every binding sentence against the code before it lands: state what the code does now, no more. A guarantee the code does not give is not a description — it is a spec-first change with a code fix, or it stays out.
 4. **The spec owns the negative space's *how*.** Refusals, `MUST NOT`s, fail-closed behaviour, and the error contract (what failure looks like) are written here with normative force — the `REQ` acceptance criteria only name and cite them (§A).
 5. Set/verify the `Status:` header; add/update the record in `traceability.yaml` (`references/traceability-schema.md`) with the canonical anchor, then run `sdd-check generate`; the requirements index row and the specifications index are written from the record. Run the gate from the repository's vendored copy at `check.script`, with `--root .`. When the repository has not vendored it, route `check` to `/sdd-scaffold --upgrade` first — the plugin's own `tools/sdd-check.py` fails the version pin — while `generate` and `context`, which do not check the pin, may run from the plugin's copy. When `python3` is unavailable, say so and leave the block for the next run rather than hand-editing it.
 - **One canonical home — never duplicate normative prose.** This is the cardinal rule.
@@ -33,8 +35,10 @@ If the repo is not scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold
 ## C · ADR (`ADR-NNNN`) — record an irreversible decision
 
 1. Assign the next sequential number (never reused). From `references/templates/adr.md`: Status (`proposed` → must be `accepted` before code depends on it), Context, Decision, Consequences.
-2. **One decision per ADR.** Long flows/DDL stay in the specs.
-3. Wire traceability: cite the `STRAND` it resolves (and close that strand with a backlink) and the `REQ`s it amends.
+2. **One irreversible decision per ADR.** Long flows/DDL stay in the specs. A choice that is cheap to reverse — a toolchain or library pick swapped in an afternoon — is not an ADR.
+3. **Keep the sections apart.** Context states the problem and the forces, and never names the option chosen; the choice appears first in Decision. Decision names the choice and cites the `SPEC §` that carries the mechanics, rather than restating them.
+4. Wire traceability: cite the `STRAND` it resolves (and close that strand with a backlink) and the `REQ`s it amends. Cite a PR, a commit or a `REQ` for background, never a plan (methodology §9).
+5. **Withdrawing an ADR before it is accepted:** delete the file and its row in the ADR index by hand, in the same change. `sdd-check generate` refuses to drop a row whose document is gone, by design (`references/sdd-check.md` § What a writing run refuses). The number is not reused.
 
 ## Working from a brainstorming design doc
 

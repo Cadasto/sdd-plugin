@@ -1,4 +1,4 @@
-<!-- Template: a working implementation plan. Filename: docs/plans/YYYY-MM-DD-<slug>.md
+<!-- Template: a working implementation plan. Filename: docs/plans/YYYY-MM-DD-<slug>.md Delete this comment in the file you create.
      A plan is a working file on the branch: the only place checkbox task lists live, and it
      introduces NO normative statement (a rule goes in a spec first, via /sdd-specify).
      /sdd-archive flips status to done in place — no move, no index.

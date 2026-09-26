@@ -63,7 +63,8 @@ This agent does not restate those rules and does not re-derive a verdict a famil
 4. **Add the judgement no family can make**, and nothing else: a `canonical` section that resolves and
    carries the backlink but does not actually own the prose it is cited for; normative prose duplicated
    in paraphrase, which survives the `one-home` normalisation; an `Implements:` backlink that names the
-   right id on the wrong behaviour.
+   right id on the wrong behaviour; a record whose `packages` exist but are not the code that implements
+   the requirement, or that leave that code out.
 
 ## Drift classes to report
 

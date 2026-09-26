@@ -16,6 +16,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 - Tools: a `map-schema` error in `generate` holds back only the requirements index and detail-file status lines.
 - Tools: the `plans` family skips `README.md` and the legacy `<paths.plans>/archive/`, printing the archive's file count.
+- Skills: `sdd-specify` drops the template comment, checks implementation-aligned claims against the code, and keeps ADR Context free of the chosen option.
+- Skills: `sdd-specify` states how to withdraw an unaccepted ADR; `sdd-deliver` drops the plan template's comment.
+- Agents: `sdd-doc-reviewer` flags a solution in ADR Context, plan citations, restated spec rules and leftover template comments.
+- Agents: `sdd-traceability-auditor` flags a record whose `packages` are not the implementing code.
+- References: `sdd-methodology.md` §9 forbids durable documents from citing a plan, with a register row.
+- Templates: each template's comment says to delete it; the ADR Context and Decision placeholders steer away from the solution and restated mechanics.
 - Skills: `sdd-finalize` accepts a legacy `**Status:**` line for a file in the legacy archive, after the maintainer confirms.
 - References: `sdd-methodology.md` §6 and the register, `traceability-schema.md` and `sdd-check.md` carry `retired`, the section convention and the scoped refusal.
 - Templates: the build-status vocabulary gains `retired`; `sdd.yaml` gains `check.rfc2119.sections`.

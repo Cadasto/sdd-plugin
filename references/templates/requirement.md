@@ -1,4 +1,4 @@
-<!-- Template: a single requirement. Authored by /sdd-specify. Fill the <...> placeholders.
+<!-- Template: a single requirement. Authored by /sdd-specify. Fill the <...> placeholders. Delete this comment in the file you create.
      A requirement states WHAT + acceptance. It carries NO file paths and NO implementation detail. -->
 ---
 kind: requirement

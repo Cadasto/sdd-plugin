@@ -237,6 +237,10 @@ At the next version bump — as the first step, before the tag — every plan wh
 the fix is to cite the PR or the `REQ` instead. A plan whose `status` is `active` or `postponed` is never
 touched.
 
+**Durable documents never cite a plan.** A requirement, specification or ADR outlives every plan, so it
+cites the PR, the commit or the `REQ` — never a plan, in this repository or in another one, where the
+same sweep deletes it without checking inbound links from here.
+
 **Why two steps rather than one.** A moved file's links rot; a status line cannot. Deleting the plan
 inside its own PR would take it away from the round that needs it. Between the flip and the sweep,
 `docs/plans/` holds active, postponed, and recently finished plans, and the `status` line is the only
@@ -362,6 +366,7 @@ The review-enforced list is meant to shrink.
 | Doc kinds and status vocabularies | `doc-kinds` |
 | Links and fragments resolve | `links` |
 | Finished plans swept at the release | `plans` |
+| Durable documents never cite a plan | `/sdd-finalize` step 3 in this repository; review-enforced across repositories |
 | Changelog bullet | `changelog` |
 | Generated blocks match | `generated` |
 | Unknown identifier cited in code | `tree-to-map` |
