@@ -1,7 +1,7 @@
 ---
 name: spec-driven-development
+description: This skill should be used when the user asks "what is SDD", "explain spec-driven development", "how does the spec workflow work here", "which /sdd command do I use", or asks to implement, build, or add behaviour in a repository with docs/.sdd.yaml before a REQ or spec exists. Explains the methodology, routes intent to the right sdd-* skill, and blocks code-first work. Not for performing an artefact action (sdd-specify, sdd-deliver, sdd-trace, sdd-review).
 allowed-tools: Read, Grep, Glob
-description: This skill should be used when the user asks "what is SDD", "explain spec-driven development", "how does the spec workflow work here", or uses vocabulary like normative, RFC-2119, traceability, drift, ADR, lane, ledger. Explains the methodology and routes intent to the right sdd-* skill. Not for performing an artefact action (use that sdd-* skill).
 ---
 
 # Spec-Driven Development — awareness, routing & integration
@@ -18,8 +18,6 @@ The **specification — not the code, not the prompt — is the source of truth.
 
 ```
 /sdd-specify  →  /sdd-deliver  →  /sdd-review (+ --panel)  →  /sdd-triage  →  /sdd-archive
-                                                                                    │
-                                                             at the next version bump: /sdd-finalize
 ```
 
 ### Route to SDD
@@ -29,7 +27,7 @@ The **specification — not the code, not the prompt — is the source of truth.
 | Set up / extend the SDD docs structure | `sdd-scaffold` |
 | Capture a capability, write normative behaviour, or record a decision (REQ/SPEC/ADR) | `sdd-specify` |
 | Amend an existing spec § — any normative change, one sentence or many, is full lane | `sdd-specify` |
-| Deliver a REQ or plan: preconditions, plan, workers, gates, draft PR | `sdd-deliver` |
+| Deliver a REQ: preconditions, plan, workers, gates, draft PR | `sdd-deliver` |
 | Implement one bounded task from a brief | `sdd-implementer` agent (dispatched by `sdd-deliver`) |
 | Spec-aware review into the ledger; prompt blocks for the panel | `sdd-review` |
 | Work a review round: merge findings, verify, fix, resolve, re-request | `sdd-triage` |
@@ -38,8 +36,7 @@ The **specification — not the code, not the prompt — is the source of truth.
 | Regenerate the indexes and status lines from the map | `sdd-specify` / `sdd-archive` / `sdd-triage` (they run the vendored `generate`) |
 | Does the code satisfy the `SPEC §` it cites, clause by clause | `sdd-spec-conformance-reviewer` agent |
 | Review a *requirement, spec, or ADR* for boundary violations | `sdd-doc-reviewer` agent |
-| Close out the spec status, the requirement status, traceability, and the plan — in the implementing PR | `sdd-archive` |
-| Sweep finished plans at a version bump, before the tag | `sdd-finalize` |
+| Close out the requirement record and the PR body — in the implementing PR | `sdd-archive` |
 
 ## Optional: a general engineering plugin
 
@@ -47,19 +44,18 @@ A general engineering plugin such as superpowers is **optional**. Exploration wo
 are a good way to open a new idea before `/sdd-specify`. Planning, task execution, verification, code
 review, and branch finishing are covered here
 by `/sdd-deliver`, the `sdd-implementer` agent, the review ledger, and the PR-body close-out; running both
-sets over the same work duplicates the loop and splits the plan's home. Plans belong in `docs/plans/`; if a
-tool wants to write them somewhere else, point it at `docs/plans/` rather than keeping a second tree.
+sets over the same work duplicates the loop and splits the plan's home. Plans belong in `paths.plans` in `docs/.sdd.yaml`
+(default `docs/plans/`); if a tool wants to write them somewhere else, point it there rather than keeping a
+second tree.
 
 ## Guardrails this layer enforces
 
 - **No code-first.** If asked to implement behaviour for which **no `REQ` and no spec exist**, do not jump to code. Redirect: explore first if the idea is new, record with `sdd-specify`, then deliver with `sdd-deliver`. The exception is *implementation-aligned* work on shipped code — the spec is updated in the **same** change.
-- **One source of truth, one home for the plan.** The canonical spec is `docs/specifications/` and the
-  plan is `docs/plans/YYYY-MM-DD-<slug>.md`, on the branch. Never let a second tree of design documents or
-  plans become a parallel source of truth.
-- **One home per fact — in process prose too.** The commit body, PR body, changelog, and review comments each carry only what lives nowhere else; cite identifiers (`REQ`/`SPEC §`/plan/SHA) instead of restating. `references/artefact-prose.md`.
+- **One source of truth.** The canonical spec lives in `paths.specifications` (default `docs/specifications/`). A plan is a working file under `paths.plans`, never committed and never a source of truth; never let a second tree of design documents become one either.
+- **One home per fact — in process prose too.** The commit body, PR body, changelog, and review comments each carry only what lives nowhere else; cite identifiers (`REQ`/`SPEC §`/SHA) instead of restating. `references/artefact-prose.md`.
 - **Don't settle open questions silently** — a genuine fork goes to an ADR (`sdd-specify`) or a `STRAND`, or back to brainstorming.
 - **Check the descriptor.** Repo conventions live in `docs/.sdd.yaml`; if it is missing, the repo isn't scaffolded (route to `sdd-scaffold`).
-- **Never hand-edit a generated block.** Every skill that changes the map or the frontmatter runs `sdd-check generate` before it stops. Run the gate from the repository's vendored copy at `check.script`, with `--root .`. When the repository has not vendored it, route `check` to `/sdd-scaffold --upgrade` first — the plugin's own `tools/sdd-check.py` fails the version pin — while `generate` and `context`, which do not check the pin, may run from the plugin's copy. When `python3` is unavailable, it says so and leaves the block for the next run rather than hand-editing it. This skill states the rule for the others to obey; it has no `Bash` grant and performs no artefact work itself.
+- **Never hand-edit a generated block.** Every skill that changes the map or the frontmatter runs `sdd-check generate` before it stops (`references/sdd-check.md`). This skill has no `Bash` grant and performs no artefact work.
 
 ## Reference
 
