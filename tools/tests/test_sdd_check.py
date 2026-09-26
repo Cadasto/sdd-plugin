@@ -463,6 +463,24 @@ class TestMapSchemaFamily(BaselineCase):
         self.edit(MAP_REL, "implementation: shipped", "implementation: done")
         self.assert_finding(self.run_only("map-schema"), "implementation")
 
+    def test_retired_on_a_deprecated_record_is_clean(self):
+        self.edit(MAP_REL, "    status: draft", "    status: deprecated")
+        self.edit(MAP_REL, "implementation: shipped", "implementation: retired")
+        self.edit(MAP_REL, "    packages:\n      - src/env\n    tests:\n      - tests/env_test.py\n", "")
+        report = sdd_check.run_check(self.tmp, only=["map-schema", "map-to-tree"], changelog_all=False)
+        self.assertEqual([], self.levelled(report, "ERROR"), report.render(self.tmp))
+        self.assertNotIn("carries no evidence", report.render(self.tmp))
+
+    def test_retired_on_a_draft_record_is_refused(self):
+        self.edit(MAP_REL, "implementation: shipped", "implementation: retired")
+        finding = self.assert_finding(self.run_only("map-schema"), "belongs only to a deprecated requirement")
+        self.assertIn("'draft'", finding.message)
+
+    def test_deprecated_is_not_a_build_status(self):
+        self.edit(MAP_REL, "    status: draft", "    status: deprecated")
+        self.edit(MAP_REL, "implementation: shipped", "implementation: deprecated")
+        self.assert_finding(self.run_only("map-schema"), "implementation 'deprecated' is not")
+
     def test_canonical_needs_an_anchor(self):
         self.edit(MAP_REL, "canonical: docs/specifications/env.md#1--boundary-req-found-001",
                   "canonical: docs/specifications/env.md")
@@ -2007,6 +2025,12 @@ class TestGenerators(BaselineCase):
     def test_render_requirements_index_matches_the_fixture(self):
         self.assertEqual(EXPECTED_REQUIREMENTS_INDEX, sdd_check.render_requirements_index(self.ctx()))
 
+    def test_a_retired_record_renders_retired(self):
+        self.edit(MAP_REL, "    status: draft", "    status: deprecated")
+        self.edit(MAP_REL, "implementation: shipped", "implementation: retired")
+        rendered = sdd_check.render_requirements_index(self.ctx())
+        self.assertIn("| Deprecated | retired |", rendered)
+
     def test_id_cell_is_plain_when_the_detail_file_is_missing(self):
         (self.tmp / REQ_REL).unlink()
         rendered = sdd_check.render_requirements_index(self.ctx())
@@ -3108,7 +3132,9 @@ class TestSelftest(unittest.TestCase):
         self.assertEqual(0, code, out)
         self.assertIn("SKIP plan-stale-after-tag — git not found", out)
         self.assertIn("PASS descriptor-version-pin", out)
-        self.assertIn("selftest: OK — 26 cases, 1 skipped", out)
+        self.assertIn(
+            "selftest: OK — %d cases, 1 skipped" % (len(sdd_check.SELFTEST_CASES) - 1), out
+        )
         self.assertNotIn("FAIL", out)
 
     def test_selftest_skips_when_git_is_not_on_path(self):

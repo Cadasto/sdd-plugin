@@ -71,7 +71,7 @@ SEVERITIES = ("error", "warn", "off")
 RECORD_FAMILIES = ("map-to-tree", "index-sync", "plans", "tree-to-map", "generated", "draft-reason")
 
 STATUS = ("draft", "stable", "deprecated")
-IMPLEMENTATION = ("proposed", "planned", "in_progress", "partial", "landed", "shipped", "deferred")
+IMPLEMENTATION = ("proposed", "planned", "in_progress", "partial", "landed", "shipped", "deferred", "retired")
 ENFORCED = ("in_progress", "partial", "landed", "shipped")
 PLAN_STATUS = ("active", "done", "postponed", "abandoned")
 MODES = ("spec-first", "implementation-aligned")
@@ -1551,6 +1551,11 @@ def check_map_schema(ctx: Context, report: "Report", level: Optional[str] = None
             add(
                 "%s: implementation '%s' is not %s"
                 % (record.id, record.implementation, " | ".join(IMPLEMENTATION))
+            )
+        if record.implementation == "retired" and record.status and record.status != "deprecated":
+            add(
+                "%s: implementation 'retired' belongs only to a deprecated requirement, not '%s'"
+                % (record.id, record.status)
             )
         if record.canonical:
             path_part, _, anchor_part = record.canonical.partition("#")
@@ -4197,6 +4202,15 @@ SELFTEST_CASES: Tuple[SelftestCase, ...] = (
             "docs/specifications/traceability.yaml", "id: REQ-FOUND-001", "id: REQ-BENCH-001"
         ),
         _finding_check("map-schema", "excluded area"),
+    ),
+    SelftestCase(
+        "map-retired-not-deprecated",
+        _mutate_edit(
+            "docs/specifications/traceability.yaml",
+            "    implementation: shipped",
+            "    implementation: retired",
+        ),
+        _finding_check("map-schema", "belongs only to a deprecated requirement"),
     ),
     SelftestCase(
         "canonical-anchor-missing",
