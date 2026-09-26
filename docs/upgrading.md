@@ -2,6 +2,40 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.6.x to 0.7.0
+
+0.7.0 fits the gate to repositories that keep a registry of requirement ids: a build status for a
+withdrawn requirement, a `generate` that no longer lets one bad map row stop every index, a section
+convention for specifications titled by requirement id, and a `plans` family that leaves a legacy
+archive to `/sdd-finalize`. Work through the steps in order; only the last needs the maintainer's
+review.
+
+1. **Re-vendor.** Run `/sdd-scaffold --upgrade`. It copies the 0.7.0 gate over `check.script` and
+   sets `check.version`; until both happen the `descriptor` family fails the version pin.
+2. **Retired requirements.** A record whose requirement was withdrawn, and whose `implementation`
+   holds a word outside the vocabulary (for example `deprecated`), takes `implementation: retired`
+   and keeps `status: deprecated`. `retired` with any other stability is a `map-schema` error. A
+   retired record owes no evidence. A `map-schema` error no longer stops `generate` from writing the
+   specifications and ADR indexes; the requirements index and the detail-file status lines stay as
+   they are, each named by a `skipped` line, until the map is clean.
+3. **Section convention.** A repository that titles its specification sections by requirement id,
+   such as `## REQ-060 — Title` or `## Topic (REQ-060)`, sets `check.rfc2119.sections:
+   requirement-id` (or `either`, when some headings carry `§` instead). Expect new warnings from
+   sections that carry no keyword; the `rfc2119` family stays at `warn` by default. Leaving the key
+   out keeps 0.6.0's behaviour. The key's meaning is in
+   [traceability-schema.md § The check block](../references/traceability-schema.md#the-check-block).
+4. **Plans.** The `plans` family no longer checks `<paths.plans>/archive/` or any `README.md` under
+   `paths.plans`, and prints the archive's file count on every run as a partial skip. The retired
+   archive-path key stays retired: the gate finds the archive at its fixed location. The first
+   `/sdd-finalize` sweeps the archive, and there it accepts a legacy `**Status:**` line in place of
+   frontmatter once the maintainer confirms the quoted list. A live plan written with bold header
+   lines (`**Status:**`, `**Covers:**`) gets a proposed frontmatter block from
+   `/sdd-scaffold --upgrade`; review each status mapping, then apply it. Once applied, the
+   frontmatter owns the plan's state; a repository whose own tooling reads the `**Status:**` line
+   picks one owner, because two status lines can disagree. A plan whose `**Covers:**` line names a
+   reserved id with no record gets `implements <id>, which has no record` after the conversion;
+   record the id with `/sdd-specify` or drop it from `implements`.
+
 ## From 0.5.x to 0.6.0
 
 0.6.0 ships the gate the rules already implied: one vendored, versioned, self-testing script,
@@ -129,7 +163,7 @@ having actually run, not just been read.
 | The descriptor needs an `agents:` block | `/sdd-deliver` or `/sdd-review` stops with "route to `/sdd-scaffold` to fill that block" | Run `/sdd-scaffold`; a top-up run adds the block and touches no other key. Confirm `agents.reviewers` and the code-index line in `docs/ai-workflow.md` § Orchestration. |
 | The `plans:` axis is gone from traceability records | A `spec-check` that requires `plans:` fails or reports every record | Delete the `plans:` key from each record in `traceability.yaml`; drop that check from your `spec-check`. |
 | `/sdd-archive` no longer moves the plan | Finished plans stay in `docs/plans/` with `status: done` | Nothing to do. Never `git mv` a plan; `/sdd-finalize` deletes finished plans at the next version bump. |
-| `docs/plans/archive/` and the plans index are retired | The legacy directory is still in the tree | The first `/sdd-finalize` run sweeps `done` and `abandoned` plans from it and removes the directory once empty. A plan there without a frontmatter `status` stops the sweep; add the line first. |
+| `docs/plans/archive/` and the plans index are retired | The legacy directory is still in the tree | The first `/sdd-finalize` run sweeps `done` and `abandoned` plans from it and removes the directory once empty. A plan there without a frontmatter `status` stops the sweep; add the line first. From 0.7.0 a legacy `**Status:**` line is accepted there instead; see [From 0.6.x to 0.7.0](#from-06x-to-070). |
 | `paths.plans_archive` is gone from the descriptor | An unread key in `docs/.sdd.yaml` | `/sdd-finalize` removes the line in the same commit, or delete it by hand. |
 | The process-doc templates were rewritten | Your `docs/ai-workflow.md`, `docs/development-process.md`, and `AGENTS.md` still route delivery to a general engineering plugin and describe archive-and-index; the scaffold never overwrites a populated file | Move each file aside, run `/sdd-scaffold`, and merge your local tuning back; or paste § Orchestration, § Review, the lanes, and the PR-body close-out block from the plugin's `references/templates/`. |
 | The PR body carries a `Lane:` line | `/sdd-review` falls back to the plan header, and a maintenance PR has none | Add `Lane: full` or `Lane: maintenance — no normative change` to the body, from the close-out block in `docs/development-process.md`. |

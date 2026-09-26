@@ -6,7 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Tools: the build status `retired`, allowed only on a `deprecated` requirement, with a selftest case.
+- Tools: `check.rfc2119.sections` (`section-sign`, `requirement-id`, `either`) chooses which headings open a normative section.
+- Skills: `sdd-scaffold --upgrade` step 4b proposes frontmatter for plans written with bold header lines.
+- Docs: `docs/upgrading.md` gains the 0.6.x to 0.7.0 steps.
+
 ### Changed
+- Tools: a `map-schema` error in `generate` holds back only the requirements index and detail-file status lines.
+- Tools: the `plans` family skips `README.md` and the legacy `<paths.plans>/archive/`, printing the archive's file count.
+- Skills: `sdd-finalize` accepts a legacy `**Status:**` line for a file in the legacy archive, after the maintainer confirms.
+- References: `sdd-methodology.md` §6 and the register, `traceability-schema.md` and `sdd-check.md` carry `retired`, the section convention and the scoped refusal.
+- Templates: the build-status vocabulary gains `retired`; `sdd.yaml` gains `check.rfc2119.sections`.
 - Docs: `README.md` follows the shared Cadasto plugin layout, with badges, requirements, features, and a table of contents; every `docs/` page opens with an orienting paragraph.
 
 ### Fixed

@@ -1,7 +1,7 @@
 # SDD Plugin
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.6.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.7.0-blue)](CHANGELOG.md)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-D97757?logo=anthropic&logoColor=white)](https://claude.ai/code)
 [![Cursor](https://img.shields.io/badge/Cursor-plugin-000?logo=cursor&logoColor=white)](https://cursor.com)
 [![Keep a Changelog](https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-E05735)](CHANGELOG.md)
@@ -162,7 +162,7 @@ sdd:
 
   check:
     script: scripts/sdd-check.py    # where /sdd-scaffold vendors the gate
-    version: "0.6.0"                # must equal the vendored tool's own version
+    version: "0.7.0"                # must equal the vendored tool's own version
     families: {}                    # per-family error | warn | off overrides — see references/sdd-check.md
 
   # Delivery parameters. /sdd-deliver and /sdd-review read these instead of asking.

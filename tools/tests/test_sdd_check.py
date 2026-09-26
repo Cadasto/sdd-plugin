@@ -8,6 +8,7 @@ import importlib.util
 import io
 import contextlib
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -417,7 +418,7 @@ class TestDescriptorFamily(BaselineCase):
         self.assert_finding(self.run_only("descriptor"), "disjoint")
 
     def test_pinned_version_must_equal_the_tool(self):
-        self.edit(sdd_check.DESCRIPTOR_REL, 'version: "0.6.0"', 'version: "0.5.0"')
+        self.edit(sdd_check.DESCRIPTOR_REL, 'version: "%s"' % sdd_check.__version__, 'version: "0.5.0"')
         self.assert_finding(self.run_only("descriptor"), "version")
 
     def test_rfc2119_sections_vocabulary(self):
@@ -1553,7 +1554,7 @@ class TestReport(BaselineCase):
     def test_first_line_states_what_ran_against_what(self):
         report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
         first = report.render(self.tmp).split("\n")[0]
-        self.assertRegex(first, r"^sdd-check 0\.6\.0 · .* · profile full · 1 REQ records$")
+        self.assertRegex(first, r"^sdd-check %s · .* · profile full · 1 REQ records$" % re.escape(sdd_check.__version__))
 
     def test_finding_line_format(self):
         (self.tmp / SPEC_REL).unlink()
@@ -1664,7 +1665,7 @@ class TestCommandLine(BaselineCase):
         report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
         lines = report.render(self.tmp).split("\n")
         self.assertEqual(2, len(lines), lines)
-        self.assertTrue(lines[0].startswith("sdd-check 0.6.0 · "), lines[0])
+        self.assertTrue(lines[0].startswith("sdd-check %s · " % sdd_check.__version__), lines[0])
         self.assertTrue(lines[1].startswith("sdd-check: FAILED — "), lines[1])
         self.assertIn("docs/.sdd.yaml", lines[1])
         self.assertEqual(2, report.exit_code())
@@ -1749,8 +1750,8 @@ class TestCommandLine(BaselineCase):
     def test_version(self):
         code, out = self.run_main(["--version"])
         self.assertEqual(0, code)
-        self.assertEqual("0.6.0", out.strip())
-        self.assertEqual("0.6.0", sdd_check.__version__)
+        self.assertEqual("0.7.0", out.strip())
+        self.assertEqual("0.7.0", sdd_check.__version__)
 
     def test_only_on_generate_returns_two(self):
         # M1: --only is common to the command line but only `check` honours it; the

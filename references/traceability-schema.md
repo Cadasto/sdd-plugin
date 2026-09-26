@@ -52,7 +52,7 @@ sdd:
 
   check:
     script: scripts/sdd-check.py   # where the vendored gate lives
-    version: "0.6.0"               # must equal the vendored tool's own version
+    version: "0.7.0"               # must equal the vendored tool's own version
     links:
       exclude: []                  # globs; printed in every report when non-empty
     changelog:
