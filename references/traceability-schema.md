@@ -17,7 +17,7 @@ sdd:
   excluded_areas: []                # area-prefixed only; tokens that are deliberately not areas
 
   # The document-kind vocabulary every `kind:` frontmatter value is checked against.
-  doc_kinds: [requirement, specification, adr, plan, guide, analysis, operations, reference, upstream]
+  doc_kinds: [requirement, specification, adr, guide, analysis, operations, reference, upstream]
 
   default_mode: spec-first          # the mode a specification has when its frontmatter names none
 
@@ -25,7 +25,7 @@ sdd:
     requirements: docs/requirements
     specifications: docs/specifications
     adr: docs/adr
-    plans: docs/plans
+    plans: docs/plans              # working plans /sdd-deliver writes and never commits; the gate reads nothing here
 
   traceability: docs/specifications/traceability.yaml
 
@@ -52,7 +52,7 @@ sdd:
 
   check:
     script: scripts/sdd-check.py   # where the vendored gate lives
-    version: "0.6.0"               # must equal the vendored tool's own version
+    version: "0.7.0"               # must equal the vendored tool's own version
     links:
       exclude: []                  # globs; printed in every report when non-empty
     changelog:
@@ -62,15 +62,16 @@ sdd:
                                    # vendor/, node_modules/, every paths.*, the traceability map, check.script
     test_globs: ["*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs"]
     probes_catalogue: ""           # a document whose headings carry PROBE ids; empty = a probe resolves through a cited test
+    rfc2119:
+      sections: section-sign       # what heading opens a normative section: section-sign (§) | requirement-id | either
     families:                      # error | warn | off
       descriptor: error
       map-schema: error
       map-to-tree: error
       index-sync: error
-      plans: error
       tree-to-map: warn
       doc-kinds: warn
-      rfc2119: warn                # the per-kind table in sdd-check.md still errors for requirement/adr/plan/reference
+      rfc2119: warn                # the per-kind table in sdd-check.md still errors for requirement/adr/reference
       one-home: error
       links: error
       changelog: warn
@@ -133,6 +134,7 @@ and, outside them, informative narrative). `full` requires directories.
 | `code_roots` | Where `tree-to-map` looks for cited identifiers — a list of strings, each of which must exist (else a `descriptor` error). Empty means the repository minus `docs/`, `.git/`, `vendor/`, `node_modules/`, every `paths.*`, the `traceability` map and `check.script`. |
 | `test_globs` | What counts as a test file — a list of strings. |
 | `probes_catalogue` | A document whose headings carry `PROBE` ids. Empty means a probe resolves through a cited test. |
+| `rfc2119.sections` | Which headings open a normative section for the `rfc2119` family: `section-sign` (default; the heading contains `§`), `requirement-id` (the heading names a token matching the repository's `REQ` pattern) or `either`. Any other value is a `descriptor` error. |
 | `families` | Per-family severity — `error` · `warn` · `off`. The families and the rules each one applies are in [sdd-check.md](sdd-check.md). |
 
 ### `agents:` fields
@@ -166,7 +168,7 @@ requirements:
     title: Token refresh
     canonical: docs/specifications/auth.md#token-refresh-req-040
     status: draft               # spec stability:   draft | stable | deprecated
-    implementation: landed      # build status:     proposed | planned | in_progress | partial | landed | shipped | deferred
+    implementation: landed      # build status:     proposed | planned | in_progress | partial | landed | shipped | deferred | retired
     packages:
       - internal/auth/refresh
     probes:                     # optional (use_probes)
@@ -184,7 +186,7 @@ requirements:
 | `title` | yes | Short human label (mirrors the index row). |
 | `canonical` | yes | Link to the **single** spec section that owns this requirement's normative prose (`path#anchor`). |
 | `status` | yes | Spec stability — `draft` / `stable` / `deprecated`. `draft` is binding (see methodology §6). |
-| `implementation` | yes | Build status, from the vocabulary in methodology §6 — `proposed` / `planned` / `in_progress` / `partial` / `landed` / `shipped` / `deferred`. The enforced values are `in_progress` / `partial` / `landed` / `shipped`. |
+| `implementation` | yes | Build status, from the vocabulary in methodology §6 — `proposed` / `planned` / `in_progress` / `partial` / `landed` / `shipped` / `deferred` / `retired`. The enforced values are `in_progress` / `partial` / `landed` / `shipped`. `retired` is allowed only when `status` is `deprecated`. |
 | `packages` | when enforced | Source packages/modules that implement it. |
 | `tests` | when enforced | Test files that assert it. |
 | `probes` | optional | `PROBE-*` ids (conformance probes), if `use_probes`. |
@@ -205,26 +207,12 @@ The gate is `sdd-check`; its families and rules are in [sdd-check.md](sdd-check.
 
 `/sdd-trace` reports drift in-session and may run the real `spec_check_target`; the full build gate before a done-claim is `<build_entrypoint> <ci_target>`, and `/sdd-archive` performs the close-out.
 
-## 3. The plan frontmatter
+## 3. The plan
 
-A plan is a working file, not a governed artefact ([sdd-methodology.md §9](sdd-methodology.md)), but its
-frontmatter is machine-read by `/sdd-archive` and `/sdd-finalize`, so it is a contract:
-
-```yaml
----
-plan: <YYYY-MM-DD-slug>
-implements: [<REQ-…>, <SPEC-NAME §N>]
-mode: spec-first          # spec-first | implementation-aligned
-status: active            # active | done | postponed | abandoned
----
-```
-
-| Key | Required | Meaning |
-|---|---|---|
-| `plan` | yes | `YYYY-MM-DD-<slug>`, matching the filename. |
-| `implements` | yes | The identifiers this plan delivers. A plan that cites none is not a plan. |
-| `mode` | yes | Which source-of-truth mode this slice runs in (methodology §7). |
-| `status` | yes | `active` · `done` · `postponed` · `abandoned`. `/sdd-archive` sets `done` in place; `/sdd-finalize` deletes `done` and `abandoned` at the next version bump and never touches `active` or `postponed`. |
+A plan is a working file with no machine contract ([sdd-methodology.md §9](sdd-methodology.md)). `/sdd-deliver`
+writes it under `paths.plans` from the plugin's `references/templates/plan.md` and never commits it; the gate
+reads nothing under that directory. The template's header lines name the identifiers implemented and the
+lane, for the orchestrator alone.
 
 ## 4. Generated blocks
 

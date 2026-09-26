@@ -8,6 +8,8 @@ import importlib.util
 import io
 import contextlib
 import os
+import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -228,7 +230,7 @@ class TestYamlSubset(unittest.TestCase):
     def test_every_yaml_sample_in_the_schema_reference_loads(self):
         reference = TOOLS_DIR.parent / "references" / "traceability-schema.md"
         blocks = yaml_blocks(reference.read_text(encoding="utf-8"))
-        self.assertGreaterEqual(len(blocks), 3, "the schema reference carries no YAML samples")
+        self.assertGreaterEqual(len(blocks), 2, "the schema reference carries no YAML samples")
         for index, block in enumerate(blocks):
             with self.subTest(block=index):
                 if block.lstrip().startswith("---"):
@@ -417,8 +419,28 @@ class TestDescriptorFamily(BaselineCase):
         self.assert_finding(self.run_only("descriptor"), "disjoint")
 
     def test_pinned_version_must_equal_the_tool(self):
-        self.edit(sdd_check.DESCRIPTOR_REL, 'version: "0.6.0"', 'version: "0.5.0"')
+        self.edit(sdd_check.DESCRIPTOR_REL, 'version: "%s"' % sdd_check.__version__, 'version: "0.5.0"')
         self.assert_finding(self.run_only("descriptor"), "version")
+
+    def test_rfc2119_sections_vocabulary(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, '    probes_catalogue: ""',
+                  '    probes_catalogue: ""\n    rfc2119:\n      sections: heading')
+        finding = self.assert_finding(self.run_only("descriptor"), "check.rfc2119.sections: 'heading'")
+        line = self.line_of(sdd_check.DESCRIPTOR_REL, "sections: heading")
+        self.assertEqual("%s:%d" % (sdd_check.DESCRIPTOR_REL, line), finding.anchor)
+
+    def test_rfc2119_sections_error_names_its_own_line_after_families(self):
+        # families: carries its own rfc2119 key; the anchor must not land on it.
+        self.edit(sdd_check.DESCRIPTOR_REL, "      draft-reason: off",
+                  "      draft-reason: off\n    rfc2119:\n      sections: heading")
+        finding = self.assert_finding(self.run_only("descriptor"), "check.rfc2119.sections: 'heading'")
+        line = self.line_of(sdd_check.DESCRIPTOR_REL, "sections: heading")
+        self.assertEqual("%s:%d" % (sdd_check.DESCRIPTOR_REL, line), finding.anchor)
+
+    def test_rfc2119_sections_accepts_each_convention(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, '    probes_catalogue: ""',
+                  '    probes_catalogue: ""\n    rfc2119:\n      sections: either')
+        self.assert_clean(self.run_only("descriptor"))
 
     def test_family_severity_vocabulary(self):
         self.edit(sdd_check.DESCRIPTOR_REL, "rfc2119: warn", "rfc2119: loud")
@@ -462,6 +484,30 @@ class TestMapSchemaFamily(BaselineCase):
     def test_implementation_vocabulary(self):
         self.edit(MAP_REL, "implementation: shipped", "implementation: done")
         self.assert_finding(self.run_only("map-schema"), "implementation")
+
+    def test_retired_on_a_deprecated_record_is_clean(self):
+        self.edit(MAP_REL, "    status: draft", "    status: deprecated")
+        self.edit(MAP_REL, "implementation: shipped", "implementation: retired")
+        self.edit(MAP_REL, "    packages:\n      - src/env\n    tests:\n      - tests/env_test.py\n", "")
+        report = sdd_check.run_check(self.tmp, only=["map-schema", "map-to-tree"], changelog_all=False)
+        self.assertEqual([], self.levelled(report, "ERROR"), report.render(self.tmp))
+        self.assertNotIn("carries no evidence", report.render(self.tmp))
+
+    def test_retired_on_a_draft_record_is_refused(self):
+        self.edit(MAP_REL, "implementation: shipped", "implementation: retired")
+        finding = self.assert_finding(self.run_only("map-schema"), "belongs only to a deprecated requirement")
+        self.assertIn("'draft'", finding.message)
+
+    def test_retired_on_a_stable_record_is_refused(self):
+        self.edit(MAP_REL, "    status: draft", "    status: stable")
+        self.edit(MAP_REL, "implementation: shipped", "implementation: retired")
+        finding = self.assert_finding(self.run_only("map-schema"), "belongs only to a deprecated requirement")
+        self.assertIn("'stable'", finding.message)
+
+    def test_deprecated_is_not_a_build_status(self):
+        self.edit(MAP_REL, "    status: draft", "    status: deprecated")
+        self.edit(MAP_REL, "implementation: shipped", "implementation: deprecated")
+        self.assert_finding(self.run_only("map-schema"), "implementation 'deprecated' is not")
 
     def test_canonical_needs_an_anchor(self):
         self.edit(MAP_REL, "canonical: docs/specifications/env.md#1--boundary-req-found-001",
@@ -660,25 +706,8 @@ class TestIndexSyncFamily(BaselineCase):
 
 
 # ---------------------------------------------------------------------------
-# plans, tree-to-map, draft-reason
+# tree-to-map, draft-reason
 # ---------------------------------------------------------------------------
-PLAN_REL = "docs/plans/2026-01-01-env.md"
-LATER_PLAN = """---
-kind: plan
-plan: 2026-02-02-later
-implements: [REQ-FOUND-001]
-mode: spec-first
-status: done
----
-
-# 2026-02-02 — Later
-
-## Tasks
-
-- [x] Done.
-"""
-
-
 class GitCase(BaselineCase):
     """A baseline repository plus the helpers that turn it into a git work tree."""
 
@@ -705,62 +734,6 @@ class GitCase(BaselineCase):
     def commit(self, message):
         self.git("add", "-A")
         self.git("commit", "-q", "-m", message)
-
-
-class TestPlansFamily(GitCase):
-    def test_missing_mode(self):
-        self.edit(PLAN_REL, "mode: spec-first\n", "")
-        self.assert_finding(self.run_only("plans"), "mode")
-
-    def test_plan_key_must_equal_the_filename(self):
-        self.edit(PLAN_REL, "plan: 2026-01-01-env", "plan: wrong-name")
-        self.assert_finding(self.run_only("plans"), "filename")
-
-    def test_status_vocabulary(self):
-        self.edit(PLAN_REL, "status: done", "status: finished")
-        self.assert_finding(self.run_only("plans"), "status")
-
-    def test_implements_without_a_record(self):
-        self.edit(PLAN_REL, "implements: [REQ-FOUND-001]", "implements: [REQ-FOUND-009]")
-        self.assert_finding(self.run_only("plans"), "no record")
-
-    def test_active_plan_for_a_shipped_requirement_warns(self):
-        self.edit(PLAN_REL, "status: done", "status: active")
-        self.assert_finding(self.run_only("plans"), "still active", level="WARN")
-
-    def test_active_plan_is_fine_when_implementation_aligned(self):
-        self.edit(PLAN_REL, "status: done", "status: active")
-        self.edit(PLAN_REL, "mode: spec-first", "mode: implementation-aligned")
-        self.assert_clean(self.run_only("plans"))
-
-    def test_done_plan_for_an_unenforced_requirement_warns(self):
-        self.edit(MAP_REL, "implementation: shipped", "implementation: proposed")
-        self.assert_finding(self.run_only("plans"), "not enforced", level="WARN")
-
-    def test_done_plan_after_the_tag_is_clean(self):
-        (self.tmp / PLAN_REL).unlink()
-        self.init_git()
-        self.commit("baseline")
-        self.git("tag", "v1.0.0")
-        self.write("docs/plans/2026-02-02-later.md", LATER_PLAN)
-        self.commit("the later plan")
-        self.assert_clean(self.run_only("plans"))
-
-    def test_done_plan_before_the_tag_is_stale(self):
-        (self.tmp / PLAN_REL).unlink()
-        self.write("docs/plans/2026-02-02-later.md", LATER_PLAN)
-        self.init_git()
-        self.commit("baseline with the plan")
-        self.git("tag", "v1.0.0")
-        self.assert_finding(self.run_only("plans"), "predates the latest release tag")
-
-    def test_without_git_only_the_stale_rule_is_skipped(self):
-        self.edit(PLAN_REL, "status: done", "status: finished")
-        report = self.run_only("plans")
-        self.assertEqual("stale-plan rule needs git", report.families_skipped.get("plans"))
-        self.assertIn("plans (stale-plan rule needs git)", report.render(self.tmp))
-        self.assertIn("plans", report.families_run)
-        self.assert_finding(report, "status")
 
 
 class TestTreeToMapFamily(BaselineCase):
@@ -815,10 +788,6 @@ class TestDocKindsFamily(BaselineCase):
         self.write("docs/notes.md", "---\nkind: memo\n---\n\n# Notes\n")
         self.assert_finding(self.run_only("doc-kinds"), "not declared in doc_kinds", level="WARN")
 
-    def test_plan_status_outside_its_vocabulary(self):
-        self.edit(PLAN_REL, "status: done", "status: pending")
-        self.assert_finding(self.run_only("doc-kinds"), "status")
-
     def test_upstream_document_uses_state_not_status(self):
         self.write("docs/upstream/note.md",
                    "---\nkind: upstream\nstatus: proposed\n---\n\n# Upstream note\n")
@@ -845,7 +814,7 @@ class TestDocKindsFamily(BaselineCase):
         self.assert_finding(self.run_only("doc-kinds"), "no kind")
 
     def test_a_template_file_is_checked(self):
-        self.write("docs/plans/_template.md", "# Plan template\n\nFill this in.\n")
+        self.write("docs/requirements/_template.md", "# Requirement template\n\nFill this in.\n")
         self.assert_finding(self.run_only("doc-kinds"), "no kind", level="WARN")
 
     def test_every_document_waived_is_not_a_family_that_ran(self):
@@ -868,6 +837,98 @@ class TestDocKindsFamily(BaselineCase):
 GUIDE_REL = "docs/development-process.md"
 REQ_REL = "docs/requirements/REQ-FOUND-001.md"
 NORMATIVE_SENTENCE = "The service MUST refuse a start with a declared variable absent."
+
+
+class TestPlansOutOfScope(BaselineCase):
+    """A plan is a working file: no family reads paths.plans, and nothing requires it."""
+
+    def test_plans_is_not_a_family_and_plan_is_not_a_kind(self):
+        self.assertNotIn("plans", sdd_check.FAMILIES)
+        self.assertNotIn("plans", sdd_check.DEFAULT_SEVERITY)
+        self.assertNotIn("plans", sdd_check.RECORD_FAMILIES)
+        self.assertEqual(("plans",), sdd_check.RETIRED_FAMILIES)
+        self.assertNotIn("plan", sdd_check.DEFAULT_KINDS)
+        self.assertNotIn("plan", sdd_check.NORMATIVE_KINDS)
+        self.assertNotIn("plan", sdd_check.RFC2119_CITING_KINDS)
+        self.assertNotIn("Plans", sdd_check._CONTEXT_HEADINGS)
+
+    def test_a_plan_is_read_by_no_family(self):
+        # A keyword, a dead link, no frontmatter, a kind the descriptor no longer lists,
+        # and a legacy archive: every family that reads the docs tree would report one of
+        # these, so a clean full run proves the directory is pruned before any family looks.
+        self.write(
+            "docs/plans/2026-03-03-scratch.md",
+            "# Plan\n\nThe service MUST do this.\n\nSee [gone](nope.md).\n\n- [ ] T1\n",
+        )
+        self.write("docs/plans/_template.md", "---\nkind: plan\n---\n\n# Template\n")
+        self.write("docs/plans/archive/2025-01-01-old.md", "**Status:** Done\n")
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assert_clean(report)
+
+    def test_a_plans_directory_outside_docs_is_pruned_too(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "    plans: docs/plans", "    plans: work/plans")
+        # docs/plans is an ordinary docs directory once paths.plans points elsewhere.
+        shutil.rmtree(self.tmp / "docs/plans")
+        self.write(
+            "work/plans/2026-03-03-scratch.md",
+            "The service MUST do this.\n\n[gone](nope.md)\n",
+        )
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assert_clean(report)
+
+    def test_a_declared_plans_directory_need_not_exist(self):
+        shutil.rmtree(self.tmp / "docs/plans")
+        self.assert_clean(self.run_only("descriptor"))
+
+    def test_the_retired_plans_family_key_is_a_note(self):
+        for value in ("error", "off"):
+            self.edit(
+                sdd_check.DESCRIPTOR_REL,
+                "      tree-to-map: warn",
+                "      plans: %s\n      tree-to-map: warn" % value,
+            )
+            report = self.run_only("descriptor")
+            self.assert_finding(report, "check.families.plans", level="NOTE")
+            self.assertEqual(0, report.exit_code())
+            self.edit(sdd_check.DESCRIPTOR_REL, "      plans: %s\n" % value, "")
+
+    def test_plan_is_still_accepted_as_an_extension_kind(self):
+        self.edit(
+            sdd_check.DESCRIPTOR_REL,
+            "doc_kinds: [requirement, specification, adr, guide",
+            "doc_kinds: [requirement, specification, adr, plan, guide",
+        )
+        self.assert_clean(self.run_only("descriptor"))
+
+    def _assert_unsafe_plans_path(self, value):
+        self.edit(sdd_check.DESCRIPTOR_REL, "    plans: docs/plans", "    plans: %s" % value)
+        self.assert_finding(self.run_only("descriptor"), "paths.plans", family="descriptor")
+        # Nothing is pruned: a dead link in an ADR is still reported.
+        self.write("docs/adr/0002-dead.md", "---\nkind: adr\nstatus: accepted\n---\n\n# ADR\n\n[gone](nope.md)\n")
+        self.assert_finding(self.run_only("links"), "no such file")
+
+    def test_an_empty_plans_path_is_refused_and_prunes_nothing(self):
+        self._assert_unsafe_plans_path('""')
+
+    def test_plans_path_on_the_docs_root_is_refused_and_prunes_nothing(self):
+        self._assert_unsafe_plans_path("docs")
+
+    def test_plans_path_on_the_repository_root_is_refused_and_prunes_nothing(self):
+        self._assert_unsafe_plans_path(".")
+
+    def test_plans_path_on_another_document_directory_is_refused_and_prunes_nothing(self):
+        self._assert_unsafe_plans_path("docs/adr")
+
+    def test_a_plans_path_with_a_parent_step_is_still_pruned(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "    plans: docs/plans", "    plans: docs/../docs/plans")
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assert_clean(report)
+
+    def test_the_context_bundle_has_no_plans_section(self):
+        desc = sdd_check.Descriptor.load(self.tmp)
+        ctx = sdd_check.Context(self.tmp, desc, sdd_check.load_map(desc))
+        bundle = sdd_check.context_bundle(ctx, "REQ-FOUND-001")
+        self.assertNotIn("Plans", bundle)
 
 
 class TestProseHelpers(unittest.TestCase):
@@ -906,11 +967,6 @@ class TestRfc2119Family(BaselineCase):
     def test_keyword_in_a_requirement(self):
         self.edit(REQ_REL, "- A start with every declared variable set is accepted.",
                   "- " + NORMATIVE_SENTENCE)
-        self.assert_finding(self.run_only("rfc2119"), "RFC-2119")
-
-    def test_keyword_in_a_plan(self):
-        self.edit(PLAN_REL, "- [x] Read the declared variables when the service starts.",
-                  "- [x] " + NORMATIVE_SENTENCE)
         self.assert_finding(self.run_only("rfc2119"), "RFC-2119")
 
     def test_keyword_in_an_adr(self):
@@ -1010,6 +1066,67 @@ class TestRfc2119Family(BaselineCase):
         self.assertIn("rfc2119", report.families_run)
         self.assertIn("§", report.families_skipped.get("rfc2119", ""))
 
+    # check.rfc2119.sections: which headings open a normative section
+    def set_sections(self, value):
+        self.edit(sdd_check.DESCRIPTOR_REL, '    probes_catalogue: ""',
+                  '    probes_catalogue: ""\n    rfc2119:\n      sections: %s' % value)
+
+    def drop_keywords(self):
+        self.edit(SPEC_REL, "The service MUST read every declared variable from the environment when it starts.",
+                  "The service reads every declared variable from the environment when it starts.")
+        self.edit(SPEC_REL, "The service MUST refuse to start when a declared variable is absent.",
+                  "The service refuses to start when a declared variable is absent.")
+
+    def sectionless(self, report):
+        return report.families_skipped.get("rfc2119", "")
+
+    def test_by_default_an_id_only_heading_is_not_a_section(self):
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001)")
+        report = self.run_only("rfc2119")
+        self.assertIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+        self.assertIn("the § section rule", self.sectionless(report))
+
+    def test_requirement_id_counts_a_heading_that_names_an_id(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001)")
+        report = self.run_only("rfc2119")
+        self.assertNotIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+        self.assertFalse(
+            [f for f in report.findings if "carries no RFC-2119 keyword" in f.message],
+            report.render(self.tmp),
+        )
+
+    def test_requirement_id_warns_on_a_section_without_a_keyword(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001)")
+        self.drop_keywords()
+        self.assert_finding(self.run_only("rfc2119"), "is normative and carries no RFC-2119 keyword",
+                            level="WARN")
+
+    def test_requirement_id_does_not_count_a_section_sign_heading(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## §1 — Boundary")
+        report = self.run_only("rfc2119")
+        self.assertIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+        self.assertIn("the requirement-id section rule", self.sectionless(report))
+
+    def test_requirement_id_matches_on_identifier_boundaries(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001x, XREQ-FOUND-001)")
+        report = self.run_only("rfc2119")
+        self.assertIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+
+    def test_either_counts_both_kinds_of_heading(self):
+        self.set_sections("either")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## §1 — Boundary")
+        self.write(SPEC_REL, (self.tmp / SPEC_REL).read_text(encoding="utf-8")
+                   + "\n## Reload (REQ-FOUND-001)\n\nThe service reads the variables once.\n")
+        report = self.run_only("rfc2119")
+        self.assertNotIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+        warned = [f.message for f in report.findings if "carries no RFC-2119 keyword" in f.message]
+        self.assertEqual(1, len(warned), report.render(self.tmp))
+        self.assertIn("Reload (REQ-FOUND-001)", warned[0])
+
 
 # ---------------------------------------------------------------------------
 # A document with no declared kind takes its kind from its location
@@ -1045,7 +1162,11 @@ class TestEffectiveKindFallback(BaselineCase):
         self.strip_all_kinds()
         report = self.run_only("doc-kinds")
         findings = [f for f in report.findings if "declares no kind" in f.message]
-        stripped = [str(p) for p in sorted((self.tmp / "docs").rglob("*.md"))]
+        # docs/plans is pruned from every family, so its file is not among the findings.
+        plans = self.tmp / "docs/plans"
+        stripped = [
+            str(p) for p in sorted((self.tmp / "docs").rglob("*.md")) if plans not in p.parents
+        ]
         self.assertEqual(len(stripped), len(findings), report.render(self.tmp))
 
 
@@ -1275,13 +1396,13 @@ class TestLinksFamily(BaselineCase):
         self.assertTrue(finding.anchor.startswith("decisions/README.md:"), finding.anchor)
 
     def test_an_exclusion_glob_skips_the_file_and_is_printed(self):
-        self.edit(PLAN_REL, "## Tasks", "## Tasks\n\n[x](gone.md)")
+        self.write("docs/notes-link.md", "---\nkind: guide\n---\n\n[x](gone.md)\n")
         self.assert_finding(self.run_only("links"), "no such file")
-        self.edit(sdd_check.DESCRIPTOR_REL, "      exclude: []", '      exclude: ["docs/plans/**"]')
+        self.edit(sdd_check.DESCRIPTOR_REL, "      exclude: []", '      exclude: ["docs/notes-link.md"]')
         report = self.run_only("links")
         self.assert_clean(report)
-        self.assertEqual(["docs/plans/**"], report.link_exclusions)
-        self.assertIn("link exclusions: docs/plans/**", report.render(self.tmp).split("\n"))
+        self.assertEqual(["docs/notes-link.md"], report.link_exclusions)
+        self.assertIn("link exclusions: docs/notes-link.md", report.render(self.tmp).split("\n"))
 
     def test_a_percent_encoded_space_is_decoded(self):
         self.write("docs/a file.md", "---\nkind: guide\n---\n\n# A file\n")
@@ -1405,7 +1526,7 @@ class TestReport(BaselineCase):
     def test_first_line_states_what_ran_against_what(self):
         report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
         first = report.render(self.tmp).split("\n")[0]
-        self.assertRegex(first, r"^sdd-check 0\.6\.0 · .* · profile full · 1 REQ records$")
+        self.assertRegex(first, r"^sdd-check %s · .* · profile full · 1 REQ records$" % re.escape(sdd_check.__version__))
 
     def test_finding_line_format(self):
         (self.tmp / SPEC_REL).unlink()
@@ -1471,7 +1592,7 @@ class TestReport(BaselineCase):
         self.assertEqual(1, report.exit_code())
         rendered = report.render(self.tmp)
         self.assertIn("[map-schema] ERROR docs/specifications/traceability.yaml: ", rendered)
-        for family in ("map-to-tree", "index-sync", "plans", "tree-to-map"):
+        for family in ("map-to-tree", "index-sync", "tree-to-map"):
             self.assertEqual("map unavailable", report.families_skipped.get(family), rendered)
 
     def test_unparseable_map_names_the_file_and_line(self):
@@ -1484,8 +1605,8 @@ class TestReport(BaselineCase):
 
     def test_note_never_changes_the_exit_code(self):
         report = sdd_check.Report()
-        report.mark_run("plans")
-        report.add("plans", "NOTE", "docs/plans/x.md", "a note")
+        report.mark_run("doc-kinds")
+        report.add("doc-kinds", "NOTE", "docs/x.md", "a note")
         self.assertEqual(0, report.exit_code())
 
     def test_a_run_in_which_no_family_ran_is_not_exit_zero(self):
@@ -1516,7 +1637,7 @@ class TestCommandLine(BaselineCase):
         report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
         lines = report.render(self.tmp).split("\n")
         self.assertEqual(2, len(lines), lines)
-        self.assertTrue(lines[0].startswith("sdd-check 0.6.0 · "), lines[0])
+        self.assertTrue(lines[0].startswith("sdd-check %s · " % sdd_check.__version__), lines[0])
         self.assertTrue(lines[1].startswith("sdd-check: FAILED — "), lines[1])
         self.assertIn("docs/.sdd.yaml", lines[1])
         self.assertEqual(2, report.exit_code())
@@ -1601,8 +1722,8 @@ class TestCommandLine(BaselineCase):
     def test_version(self):
         code, out = self.run_main(["--version"])
         self.assertEqual(0, code)
-        self.assertEqual("0.6.0", out.strip())
-        self.assertEqual("0.6.0", sdd_check.__version__)
+        self.assertEqual("0.7.0", out.strip())
+        self.assertEqual("0.7.0", sdd_check.__version__)
 
     def test_only_on_generate_returns_two(self):
         # M1: --only is common to the command line but only `check` honours it; the
@@ -1739,8 +1860,8 @@ class TestDescriptorRules(BaselineCase):
         self.assert_clean(self.run_only("descriptor"))
 
     def test_doc_kinds_must_keep_the_normative_kinds(self):
-        self.edit(sdd_check.DESCRIPTOR_REL, "specification, adr, plan, guide", "specification, adr, guide")
-        self.assert_finding(self.run_only("descriptor"), "plan", family="descriptor")
+        self.edit(sdd_check.DESCRIPTOR_REL, "specification, adr, guide", "specification, guide")
+        self.assert_finding(self.run_only("descriptor"), "adr", family="descriptor")
 
 
 class TestMapSchemaRules(BaselineCase):
@@ -1855,46 +1976,6 @@ class TestIndexSyncRules(BaselineCase):
         self.assert_finding(self.run_only("index-sync"), "Implementation", family="index-sync")
 
 
-class TestPlansRules(GitCase):
-    def test_mode_vocabulary(self):
-        self.edit(PLAN_REL, "mode: spec-first", "mode: vibes")
-        self.assert_finding(self.run_only("plans"), "mode", family="plans")
-
-    def test_a_scalar_implements_is_checked_like_a_list(self):
-        self.edit(PLAN_REL, "implements: [REQ-FOUND-001]", "implements: REQ-FOUND-009")
-        self.assert_finding(self.run_only("plans"), "REQ-FOUND-009", family="plans")
-
-    def test_missing_plans_directory_skips_the_family(self):
-        (self.tmp / PLAN_REL).unlink()
-        (self.tmp / "docs/plans").rmdir()
-        report = self.run_only("plans")
-        self.assertEqual("no plans directory", report.families_skipped.get("plans"))
-        self.assertNotIn("plans", report.families_run)
-
-    def test_a_repository_without_a_tag_skips_the_stale_rule(self):
-        self.init_git()
-        self.commit("baseline")
-        report = self.run_only("plans")
-        self.assertEqual("stale-plan rule needs a release tag", report.families_skipped.get("plans"))
-        self.assertIn("plans", report.families_run)
-
-    def test_an_uncommitted_finished_plan_is_noted(self):
-        (self.tmp / PLAN_REL).unlink()
-        self.init_git()
-        self.commit("baseline")
-        self.git("tag", "v1.0.0")
-        self.write("docs/plans/2026-02-02-later.md", LATER_PLAN)
-        report = self.run_only("plans")
-        self.assert_clean(report)
-        notes = [f for f in self.levelled(report, "NOTE") if "not committed" in f.message]
-        self.assertTrue(notes, report.render(self.tmp))
-
-    def test_unparseable_frontmatter_is_named(self):
-        self.write("docs/plans/2026-03-03-broken.md",
-                   "---\nplan: 2026-03-03-broken\n\timplements: [REQ-FOUND-001]\n---\n\n# Broken\n")
-        self.assert_finding(self.run_only("plans"), "frontmatter does not parse", family="plans")
-
-
 class TestTreeToMapRules(BaselineCase):
     def test_the_baseline_test_file_cites_its_requirement(self):
         self.assertIn("REQ-FOUND-001", (self.tmp / "tests/env_test.py").read_text())
@@ -2006,6 +2087,12 @@ class TestGenerators(BaselineCase):
 
     def test_render_requirements_index_matches_the_fixture(self):
         self.assertEqual(EXPECTED_REQUIREMENTS_INDEX, sdd_check.render_requirements_index(self.ctx()))
+
+    def test_a_retired_record_renders_retired(self):
+        self.edit(MAP_REL, "    status: draft", "    status: deprecated")
+        self.edit(MAP_REL, "implementation: shipped", "implementation: retired")
+        rendered = sdd_check.render_requirements_index(self.ctx())
+        self.assertIn("| Deprecated | retired |", rendered)
 
     def test_id_cell_is_plain_when_the_detail_file_is_missing(self):
         (self.tmp / REQ_REL).unlink()
@@ -2249,6 +2336,80 @@ class TestGenerateSafety(BaselineCase):
         self.assertEqual(1, code, lines)
         self.assertTrue(any("[map-schema] ERROR" in line for line in lines), lines)
         self.assertEqual(before, (self.tmp / INDEX_REL).read_bytes())
+
+    def _stale_adr_block_and_a_map_error(self):
+        adr = (self.tmp / "docs/adr/README.md").read_text(encoding="utf-8")
+        self.write(
+            "docs/adr/README.md",
+            adr.replace("| ID | Title | Status | Date | Resolves / amends |\n|---|---|---|---|---|\n", ""),
+        )
+        self.edit(MAP_REL, "status: draft", "status: typo")
+        self.edit(INDEX_REL, "Draft | shipped |", "Draft | landed |")
+        self.edit(REQ_REL, "status: draft", "status: stable")
+        self.edit(SPEC_INDEX_REL, "| Draft | spec-first |", "| Stable | spec-first |")
+
+    def test_a_map_error_still_regenerates_the_blocks_that_read_no_record(self):
+        self._stale_adr_block_and_a_map_error()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertIn("docs/adr/README.md", lines)
+        self.assertIn(
+            "| ID | Title | Status | Date | Resolves / amends |",
+            (self.tmp / "docs/adr/README.md").read_text(encoding="utf-8"),
+        )
+        self.assertIn(SPEC_INDEX_REL, lines)
+        self.assertIn("| Draft | spec-first |", (self.tmp / SPEC_INDEX_REL).read_text(encoding="utf-8"))
+        self.assertTrue(
+            any(line.startswith(INDEX_REL + ":") and "skipped — block 'requirements-index'" in line
+                for line in lines),
+            lines,
+        )
+        self.assertTrue(any("[map-schema] ERROR" in line for line in lines), lines)
+
+    def test_a_map_error_leaves_every_record_derived_output_byte_identical(self):
+        self._stale_adr_block_and_a_map_error()
+        index_before = (self.tmp / INDEX_REL).read_bytes()
+        detail_before = (self.tmp / REQ_REL).read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertEqual(index_before, (self.tmp / INDEX_REL).read_bytes())
+        self.assertEqual(detail_before, (self.tmp / REQ_REL).read_bytes())
+        self.assertNotIn(INDEX_REL, lines)
+        self.assertNotIn(REQ_REL, lines)
+        self.assertTrue(any("detail-file status lines left as they are" in line for line in lines), lines)
+
+    def test_a_map_that_fails_to_load_still_regenerates_the_adr_block(self):
+        self._stale_adr_block_and_a_map_error()
+        (self.tmp / MAP_REL).unlink()
+        index_before = (self.tmp / INDEX_REL).read_bytes()
+        code, lines = sdd_check.generate(self.tmp, verify=False)
+        self.assertEqual(1, code, lines)
+        self.assertIn("docs/adr/README.md", lines)
+        self.assertEqual(index_before, (self.tmp / INDEX_REL).read_bytes())
+        self.assertTrue(any("the traceability map is missing" in line for line in lines), lines)
+
+    def test_a_map_error_exits_one_with_nothing_record_derived_to_skip(self):
+        # A file-form requirements path with no requirements-index block: nothing is
+        # named as skipped, yet the map error must still fail the run in both modes.
+        for child in sorted((self.tmp / "docs/requirements").iterdir()):
+            child.unlink()
+        (self.tmp / "docs/requirements").rmdir()
+        self.write("REQUIREMENTS.md", "# Requirements\n\n| ID | Title |\n|---|---|\n| REQ-FOUND-001 | Boundary |\n")
+        self.edit("docs/.sdd.yaml", "profile: full", "profile: lightweight")
+        self.edit("docs/.sdd.yaml", "requirements: docs/requirements", "requirements: REQUIREMENTS.md")
+        self.edit(MAP_REL, "status: draft", "status: typo")
+        for verify in (True, False):
+            code, lines = sdd_check.generate(self.tmp, verify=verify)
+            self.assertEqual(1, code, (verify, lines))
+            self.assertFalse(any("skipped" in line for line in lines), lines)
+
+    def test_verify_on_a_map_error_diffs_the_adr_block_and_names_the_skip(self):
+        self._stale_adr_block_and_a_map_error()
+        code, lines = sdd_check.generate(self.tmp, verify=True)
+        self.assertEqual(1, code, lines)
+        self.assertTrue(any(line.startswith("+| ID | Title |") for line in lines), lines)
+        self.assertFalse(any(line.startswith("+| [REQ-FOUND-001]") for line in lines), lines)
+        self.assertTrue(any("skipped — block 'requirements-index'" in line for line in lines), lines)
 
     def test_verify_prints_the_refusals_and_exits_one(self):
         # P6: a dry run shows the same refusal a writing run would print.
@@ -3022,7 +3183,6 @@ class TestContextBundle(BaselineCase):
             "Traceability record",
             "Canonical section",
             "Acceptance criteria",
-            "Plans",
             "Tests citing it",
             "Open strands",
         ]
@@ -3030,7 +3190,6 @@ class TestContextBundle(BaselineCase):
         self.assertEqual(positions, sorted(positions), bundle)
         self.assertIn("**Implements:** REQ-FOUND-001", bundle)
         self.assertIn("A start with every declared variable set is accepted.", bundle)
-        self.assertIn("docs/plans/2026-01-01-env.md: done", bundle)
         self.assertIn("tests/env_test.py", bundle)
         self.assertIn("Open strands\nnone", bundle)
 
@@ -3084,10 +3243,8 @@ class TestSelftest(unittest.TestCase):
         self.assertEqual(0, code, buffer.getvalue())
         self.assertIn("selftest: OK", buffer.getvalue())
 
-    def test_selftest_survives_a_missing_git(self):
-        # M3: the stale-plan case shells out to git via an unguarded helper. A missing
-        # binary must fail only that one case — never abort the whole run with a raw
-        # traceback after the cases before it already printed PASS.
+    def test_selftest_needs_no_git(self):
+        # No selftest case shells out, so a machine without git runs every case.
         original_run = sdd_check.subprocess.run
 
         def fake_run(cmd, *args, **kwargs):
@@ -3103,44 +3260,10 @@ class TestSelftest(unittest.TestCase):
         finally:
             sdd_check.subprocess.run = original_run
         out = buffer.getvalue()
-        # L1.9: a missing git is a skip with its reason, not a false FAILED (this used to
-        # expect `FAIL plan-stale-after-tag` and exit 1).
         self.assertEqual(0, code, out)
-        self.assertIn("SKIP plan-stale-after-tag — git not found", out)
-        self.assertIn("PASS descriptor-version-pin", out)
-        self.assertIn("selftest: OK — 26 cases, 1 skipped", out)
+        self.assertIn("selftest: OK — %d cases" % len(sdd_check.SELFTEST_CASES), out)
+        self.assertNotIn("SKIP", out)
         self.assertNotIn("FAIL", out)
-
-    def test_selftest_skips_when_git_is_not_on_path(self):
-        original = sdd_check.shutil.which
-        sdd_check.shutil.which = lambda name: None
-        try:
-            buffer = io.StringIO()
-            with contextlib.redirect_stdout(buffer):
-                code = sdd_check.selftest()
-        finally:
-            sdd_check.shutil.which = original
-        self.assertEqual(0, code, buffer.getvalue())
-        self.assertIn("SKIP plan-stale-after-tag — git not found", buffer.getvalue())
-
-    def test_a_git_that_is_present_but_fails_is_still_a_failure(self):
-        original_run = sdd_check.subprocess.run
-
-        def failing_run(cmd, *args, **kwargs):
-            # Only the mutation's own git calls (check=True) fail; the gate's reads still run.
-            if cmd and cmd[0] == "git" and kwargs.get("check"):
-                raise sdd_check.subprocess.CalledProcessError(128, cmd)
-            return original_run(cmd, *args, **kwargs)
-
-        sdd_check.subprocess.run = failing_run
-        try:
-            buffer = io.StringIO()
-            with contextlib.redirect_stdout(buffer):
-                code = sdd_check.selftest()
-        finally:
-            sdd_check.subprocess.run = original_run
-        self.assertEqual(1, code, buffer.getvalue())
-        self.assertIn("FAIL plan-stale-after-tag", buffer.getvalue())
 
     def test_selftest_is_mutation_detectable(self):
         original = sdd_check.CHECKS["links"]
