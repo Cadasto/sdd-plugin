@@ -8,7 +8,7 @@ A tiny per-repo config so the skills stay repo-agnostic. **Every skill reads it 
 
 ```yaml
 sdd:
-  profile: full                     # full | lightweight
+  profile: formal                   # formal | informative (methodology §1a)
 
   # Identifier style for requirements. Pick one and never switch (it would renumber IDs).
   req_style: area-prefixed          # area-prefixed | flat-numeric
@@ -25,9 +25,11 @@ sdd:
     requirements: docs/requirements
     specifications: docs/specifications
     adr: docs/adr
-    plans: docs/plans              # working plans /sdd-deliver writes and never commits; the gate reads nothing here
+    constitution: docs/architecture.md   # informative profile only
 
   traceability: docs/specifications/traceability.yaml
+
+  forge: auto                       # auto | github | azure-devops | none — how sdd-pr reaches the pull request
 
   # The single build entry point. Every check is a target so CI and humans run the same thing.
   build_entrypoint: make            # make | task | just | npm
@@ -99,7 +101,7 @@ sdd:
 
 | Field | Meaning |
 |---|---|
-| `profile` | `full` or `lightweight` — how much structure this repository's docs tree has. See **Profiles** below. |
+| `profile` | `formal` (alias `full`, one release) or `informative` — see methodology §1a and **Profiles** below. `lightweight` is read as `formal` with a file-form requirements index and reported as a note. |
 | `req_style` | `area-prefixed` (`REQ-AUTH-001`) or `flat-numeric` (`REQ-050`). Drives how `/sdd-specify` assigns the next ID. |
 | `req_areas` | The allowed area tokens (area-prefixed only). New areas are a deliberate, reviewed addition. |
 | `req_gap` | Spacing for flat-numeric IDs so new requirements slot in without renumbering. |
@@ -107,19 +109,23 @@ sdd:
 | `doc_kinds` | The document-kind vocabulary a document's `kind:` frontmatter is checked against (methodology §3). |
 | `default_mode` | The source-of-truth mode a specification has when its own frontmatter names none (methodology §7). |
 | `paths.*` | Where each document kind lives. Skills resolve all locations from here. |
+| `paths.constitution` | Informative profile: the one binding document (default `docs/architecture.md`). Ignored on formal. |
 | `traceability` | Path to the traceability map. |
 | `build_entrypoint` / `ci_target` / `spec_check_target` | The build tool and the target names `/sdd-trace` and the delivery gates invoke. |
 | `use_probes` / `use_strands` | Toggle the optional `PROBE`/`STRAND` machinery. |
 | `upstream` | The upstream relations this repository has: one scalar repo, or a map of named relations with `repo`, `role`, `authority` and `gap_drafts` (see [cross-repo-gap.md](cross-repo-gap.md)). |
 | `ground_truth` | The named "look it up, don't guess" source for domain facts. One source, or an ordered list consulted first to last; a local checkout is a cache, not the basis of a claim. |
 | `check.*` | The shared gate's configuration. See **The check block** below. |
+| `forge` | `auto` (default: read from the remote URL), `github`, `azure-devops` or `none` — how `sdd-pr` reaches the pull request ([review.md](review.md) § The tool). |
 | `hooks.stop_nudge` | Whether the plugin's session-stop nudge is enabled in this repository. `true` by default. |
 
 ### Profiles
 
-`profile: lightweight` means `paths.requirements` may name a **file** (a single registry index, no detail
-files) and `paths.specifications` may name a **file** (one document that carries the normative sections
-and, outside them, informative narrative). `full` requires directories.
+On the **formal** profile `paths.requirements` may name a directory or a **file** (a single registry
+index, no detail files), and `paths.specifications` a directory or a **file** (one document that carries
+the normative sections and, outside them, informative narrative). On the **informative** profile the
+requirements, specifications, ADR paths and the traceability map are optional, and only
+`paths.constitution` binds code.
 
 > Legacy scalar `ground_truth` and scalar `upstream` remain valid.
 
@@ -209,10 +215,8 @@ The gate is `sdd-check`; its families and rules are in [sdd-check.md](sdd-check.
 
 ## 3. The plan
 
-A plan is a working file with no machine contract ([sdd-methodology.md §9](sdd-methodology.md)). `/sdd-deliver`
-writes it under `paths.plans` from the plugin's `references/templates/plan.md` and never commits it; the gate
-reads nothing under that directory. The template's header lines name the identifiers implemented and the
-lane, for the orchestrator alone.
+A plan has no machine contract and no descriptor key; it is a git-ignored working file, and the gate reads
+nothing git ignores ([sdd-methodology.md §9](sdd-methodology.md)).
 
 ## 4. Generated blocks
 

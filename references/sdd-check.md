@@ -97,12 +97,19 @@ link exclusions: …
 
 Twelve families. Each one has a default severity, which a repository overrides per family in
 `check.families` (`error` · `warn` · `off`). A family that is `off`, or that is left out by `--only`, is
-skipped and named in the summary. No family reads `paths.plans`: a plan is a working file
-([sdd-methodology.md](sdd-methodology.md) §9). Section numbers below are [sdd-methodology.md](sdd-methodology.md).
+skipped and named in the summary. No family reads a git-ignored file, so a working plan or a scratch note
+is never a document ([sdd-methodology.md](sdd-methodology.md) §9). Section numbers below are
+[sdd-methodology.md](sdd-methodology.md).
+
+**Profiles.** `profile: formal` runs every family. `profile: informative` (§1a) runs `descriptor`,
+`doc-kinds`, `links`, `changelog` and `generated` only, whatever `check.families` says; the other seven are
+listed under `skipped:` with the reason `profile informative`. On that profile the traceability map,
+`paths.requirements`, `paths.specifications` and `paths.adr` are optional, an absent map is no records
+rather than an error, and `constitution` joins `doc_kinds`.
 
 ### descriptor
 
-- `descriptor` — the descriptor parses; `req_style` is `area-prefixed | flat-numeric`; `req_areas` present and non-empty when area-prefixed, absent when flat-numeric; `excluded_areas` disjoint from `req_areas`; `paths.requirements`, `paths.specifications`, `paths.adr` and `traceability` exist and match the profile's shape (`paths.plans` is a working directory the gate never reads and need not exist, but it may not be empty or name the repository root, `docs`, another `paths.*` entry or the traceability map, because every family skips it); `check.version` equals the tool's `__version__`; every `check.families` key is a known family and every value `error | warn | off` (a key naming a retired family, `plans`, is a NOTE until the line is deleted); `default_mode` valid; `doc_kinds` retains the three normative kinds (`requirement`, `specification`, `adr`) — a repository may extend the list, never shrink it below them; `check.code_roots` and `check.test_globs` are lists of strings and every configured code root exists; `check.changelog.max_words` is an integer; `check.rfc2119.sections` is `section-sign | requirement-id | either`. Path containment is checked at load, for every command, before anything is read or written: a `paths.*`, `traceability` or `check.*` path that is absolute or climbs out of the repository fails the load with exit 2, naming the line of the offending key.
+- `descriptor` — the descriptor parses; `req_style` is `area-prefixed | flat-numeric`; `req_areas` present and non-empty when area-prefixed, absent when flat-numeric; `excluded_areas` disjoint from `req_areas`; `profile` is `formal | informative` (`full` reads as `formal`; `lightweight` reads as `formal` and is a NOTE); `paths.requirements`, `paths.specifications`, `paths.adr` and `traceability` exist on the formal profile (`requirements` and `specifications` may name a file); a declared `paths.constitution` is a file on the informative profile; a `paths.plans` line is a NOTE until it is deleted; `check.version` equals the tool's `__version__`; every `check.families` key is a known family and every value `error | warn | off` (a key naming a retired family, `plans`, is a NOTE until the line is deleted); `default_mode` valid; `doc_kinds` retains the three normative kinds (`requirement`, `specification`, `adr`) — a repository may extend the list, never shrink it below them; `check.code_roots` and `check.test_globs` are lists of strings and every configured code root exists; `check.changelog.max_words` is an integer; `check.rfc2119.sections` is `section-sign | requirement-id | either`. Path containment is checked at load, for every command, before anything is read or written: a `paths.*`, `traceability` or `check.*` path that is absolute or climbs out of the repository fails the load with exit 2, naming the line of the offending key.
 
 Default severity `error`. Enforces §5 (the identifier scheme and excluded areas) and §3 (the kind vocabulary).
 
@@ -120,7 +127,7 @@ Default severity `error`. Enforces §5 (the single canonical home), §6 (an "enf
 
 ### index-sync
 
-- `index-sync` — the requirements index (the `README.md` of `paths.requirements`, or the file itself under the lightweight profile) has a table whose rows carry `REQ` ids; the parse yields at least one row; an id that carries more than one row is an error; a table carrying ids whose header names no `Stability` or no `Implementation` column is a warning; every row id has a record and every record has a row; the row's stability and implementation cells (columns found by header text `Stability`/`Status` and `Implementation`/`Impl.`, else the last two columns; case-insensitive compare) equal the record; a requirement detail file (`<paths.requirements>/<id>*.md`, full profile) has frontmatter `status` and `implementation` equal to the record; a specification's frontmatter `requirements:` list, when present, equals the set of records whose canonical points into it (warn).
+- `index-sync` — the requirements index (the `README.md` of `paths.requirements`, or the file itself when it names a file) has a table whose rows carry `REQ` ids; the parse yields at least one row; an id that carries more than one row is an error; a table carrying ids whose header names no `Stability` or no `Implementation` column is a warning; every row id has a record and every record has a row; the row's stability and implementation cells (columns found by header text `Stability`/`Status` and `Implementation`/`Impl.`, else the last two columns; case-insensitive compare) equal the record; a requirement detail file (`<paths.requirements>/<id>*.md`, when it names a directory) has frontmatter `status` and `implementation` equal to the record; a specification's frontmatter `requirements:` list, when present, equals the set of records whose canonical points into it (warn).
 
 Default severity `error`. Enforces §5 (the index links and never duplicates) and §6 (the map owns both axes).
 
@@ -132,7 +139,7 @@ Default severity `warn`. Enforces §5 (a published id is never invented or reuse
 
 ### doc-kinds
 
-- `doc-kinds` — every `*.md` under `docs/` (and under any `paths.*` outside it), never under `paths.plans`, has frontmatter opening on line 1 or right after a leading HTML comment block, with `kind:` in `doc_kinds` (missing or unknown → the family's severity); a normative kind's `status`/`state` value is in that kind's vocabulary (error); a `kind: upstream` document uses `state:` and not `status:` (error); an informative kind carrying `status:` → warn; a document that cannot be read or is not valid UTF-8 → error, never treated as empty. A document that declares no kind is treated, for the other families, as the kind its location implies — `paths.specifications` → specification, then `paths.requirements` → requirement (only that file when it names a file), `paths.adr` → adr, otherwise guide — while `doc-kinds` still reports the missing declaration.
+- `doc-kinds` — every `*.md` under `docs/` (and under any `paths.*` outside it) that git does not ignore has frontmatter opening on line 1 or right after a leading HTML comment block, with `kind:` in `doc_kinds` (missing or unknown → the family's severity); a normative kind's `status`/`state` value is in that kind's vocabulary (error); a `kind: upstream` document uses `state:` and not `status:` (error); an informative kind carrying `status:` → warn; a document that cannot be read or is not valid UTF-8 → error, never treated as empty. A document that declares no kind is treated, for the other families, as the kind its location implies — `paths.specifications` → specification, then `paths.requirements` → requirement (only that file when it names a file), `paths.adr` → adr, otherwise guide — while `doc-kinds` still reports the missing declaration.
 
 Default severity `warn`. Enforces §3 (the kinds and their zones) and §6 (the per-kind vocabularies).
 

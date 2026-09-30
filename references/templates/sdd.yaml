@@ -2,7 +2,7 @@
 # Edit to match this repo's conventions, then never switch req_style (it would renumber IDs).
 # Full field reference: the sdd plugin's `references/traceability-schema.md`.
 sdd:
-  profile: full                     # full | lightweight
+  profile: formal                   # formal | informative (methodology §1a)
 
   req_style: area-prefixed          # area-prefixed | flat-numeric
   req_areas: [FOUND]                # required iff req_style == area-prefixed; add areas deliberately
@@ -10,7 +10,7 @@ sdd:
   excluded_areas: []                # area-prefixed only; tokens that are deliberately not areas
 
   # The document-kind vocabulary every `kind:` frontmatter value is checked against.
-  doc_kinds: [requirement, specification, adr, guide, analysis, operations, reference, upstream]
+  doc_kinds: [requirement, specification, adr, guide, analysis, operations, reference, upstream, constitution]
 
   default_mode: spec-first          # the mode a specification has when its frontmatter names none
 
@@ -18,9 +18,11 @@ sdd:
     requirements: docs/requirements
     specifications: docs/specifications
     adr: docs/adr
-    plans: docs/plans               # working plans /sdd-deliver writes and never commits; the gate reads nothing here
+    constitution: docs/architecture.md   # informative profile only
 
   traceability: docs/specifications/traceability.yaml
+
+  forge: auto                       # auto | github | azure-devops | none — how sdd-pr reaches the pull request
 
   build_entrypoint: make            # make | task | just | npm
   ci_target: ci                     # the full PR gate
