@@ -31,7 +31,7 @@ AGENTS.md
 .github/PULL_REQUEST_TEMPLATE.md
 ```
 
-It also adds `.sdd/` to `.gitignore`, because that is where each branch's findings file lives.
+It also adds `/.sdd/` to `.gitignore`, a scratch folder for working files. Each branch's findings file lives in the clone's git directory instead, so it needs no ignore line and every worktree sees it.
 
 It fills the `agents:` block of `docs/.sdd.yaml` with example values, and the code-index line in `docs/ai-workflow.md` § Orchestration. When it finds `go.mod`, `composer.json`, or `package.json`, it suggests a value for `agents.reviewers`. Review both before going on. Name the reviewer agent your repository uses, or leave the list empty and expect the per-task gate to report itself unconfigured in step 3.
 
@@ -84,7 +84,7 @@ The skill runs as the orchestrator and stops at each gate:
 2. **Lane.** A new capability is the full lane. The lane is passed to the review and written into the pull request body.
 3. **Workers.** The skill creates a feature branch and dispatches one `sdd-implementer` per task, on the model and parallelism the `agents:` block declares. Each brief quotes the clauses the task must satisfy. The worker writes each test first and shows that it fails with the guard removed. It names `REQ-AUTH-001` in its test names and its commit message, never in doc comments, and reports anything wrong outside its brief as en-route findings. The orchestrator keeps its own task list; nothing about the plan is committed.
 4. **Per-task gate.** With `task_review: lane`, the reviewers named in `agents.reviewers` check each task on the full lane. An empty list is reported as an unconfigured gate, and the skill asks before continuing.
-5. **First review pass.** After the full gate, `/sdd-review` reads the branch and writes its findings into `.sdd/findings/feat--auth-refresh.md` (git-ignored). `/sdd-triage` fixes the critical and important ones before any pull request exists.
+5. **First review pass.** After the full gate, `/sdd-review` reads the branch and writes its findings into the branch's findings file; `sdd-pr status` prints where it is. `/sdd-triage` fixes the critical and important ones before any pull request exists.
 6. **Draft pull request.** Opened as a draft, with `Lane: full` under *Spec and traceability*. Anything still open is mirrored to its inline threads.
 
 Then it stops and waits for you.

@@ -13,7 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 - Tools: the findings file lives in the clone's shared git directory, `<git-common-dir>/sdd/findings/<branch-slug>.md`, which every worktree sees and no worktree removal deletes; a file left at `.sdd/findings/` moves there on first use, and `status` prints the path.
 - Tools: `sdd-pr status` says `Mergeable: no` with no pull request, a closed one or an unreachable forge, prints `Mergeable: merged` and the file to delete once the pull request merged, numbers the open lines, points `Next` at `post` while a blocking line is not mirrored, and at routing while suggestions are left.
+- Skills: `sdd-review`, `sdd-triage` and `sdd-deliver` write the findings file only through `sdd-pr`; `sdd-deliver --close-out` routes every suggestion left, to a *Known gaps* line, a deferred requirement or a tracker issue, or drops it.
 - References: `review.md` names the new location, the commands and the routing of suggestions; the review state counts suggestions not routed and lists routed ones.
+- Hooks: `session-start.sh` reads the findings file from the clone's git directory.
+- Skills: `sdd-scaffold` ignores `/.sdd/` as a scratch folder and accepts an existing `.sdd/` line.
 
 ## [0.8.1] - 2026-10-01
 

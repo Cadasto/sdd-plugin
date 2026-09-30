@@ -54,7 +54,7 @@ Scope is the **spec / document / traceability layer** and the **delivery pipelin
 | `sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor, vendor the gate and wire the real `spec-check` target, suggesting `agents.reviewers` from the build manifests (idempotent; `--upgrade` tops up an older scaffold) |
 | `sdd-specify` | The definition layer: author the `REQ` (capability + acceptance), the canonical RFC-2119 `SPEC §`, and the `ADR`; assign identifiers; wire traceability |
 | `sdd-deliver` | The delivery driver: the dispatch gate by profile and lane, `sdd-implementer` fan-out per `agents:`, the per-task gate, the first review pass, the draft PR, the close-out (`--close-out`: `REQ` shipped, `generate`, the PR body), ready, panel prompts |
-| `sdd-review` | One review pass over the range since the last one: dispatches the reviewers the profile, lane and changed file kinds call for, writes their lines into `.sdd/findings/<branch>.md`, mirrors the blocking ones with `sdd-pr`; `--panel` prints the canonical prompt blocks |
+| `sdd-review` | One review pass over the range since the last one: dispatches the reviewers the profile, lane and changed file kinds call for, writes their lines into the branch's findings file with `sdd-pr add`, mirrors the blocking ones with `sdd-pr`; `--panel` prints the canonical prompt blocks |
 | `sdd-triage` | Works the file's open critical and important findings: verify before fixing, fix in this branch, flip the lines, mirror, and after the maintainer's review one scoped re-review when anything changed |
 | `sdd-trace` | The traceability gate: one-shot context bundle for a `REQ` + whole-tree drift/orphan report (the `spec-check` analogue); `--audit` dispatches the auditor. Report-only; whether the tests and the build pass is the build gate's job |
 
@@ -70,7 +70,7 @@ Scope is the **spec / document / traceability layer** and the **delivery pipelin
 | Tool | Purpose |
 |------|---------|
 | `sdd-check` | The vendored drift gate (`check`, `generate`, `context`, `selftest`): checks the traceability chain in both directions, lints the prose rules that can be checked mechanically, generates every derived index from one source, prints a requirement's context bundle, and tests itself; reads the profile |
-| `sdd-pr` | The findings file and its forge mirror (`status`, `scope`, `pull`, `post`, `resolve`): GitHub and Azure DevOps backends behind one interface; `status` prints `Mergeable` and `Next`; `post`, `resolve` and `status --write-body` keep a review-state block in the PR body |
+| `sdd-pr` | The findings file and its forge mirror (`status`, `scope`, `pull`, `post`, `resolve`, `add`, `flip`, `record`, `rename`): GitHub and Azure DevOps backends behind one interface; `add`, `flip`, `record`, `rename` own every write to the file, which lives in the clone's git directory; `status` prints `Mergeable` and `Next`; `post`, `resolve` and `status --write-body` keep a review-state block in the PR body |
 
 ### Optional: a general engineering plugin
 A general engineering plugin such as superpowers is optional: exploration workflows help before `/sdd-specify`, and everything after that is covered here. The router skill `spec-driven-development` states where the seam lies.

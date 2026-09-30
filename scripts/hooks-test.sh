@@ -111,8 +111,8 @@ esac
 r="$(setup_repo)"; state="$(newdir state)"
 if commit_all "$r"; then
   git -C "$r" checkout -q -b feat/x
-  mkdir -p "$r/.sdd/findings"
-  cat > "$r/.sdd/findings/feat--x.md" <<'MD'
+  mkdir -p "$r/.git/sdd/findings"
+  cat > "$r/.git/sdd/findings/feat--x.md" <<'MD'
 # Findings — feat/x
 Base: main
 Reviewed abc1234 · 2026-09-30 · claude: go-reviewer (1 of 1)
@@ -129,8 +129,14 @@ Reviewed abc1234 · 2026-09-30 · claude: go-reviewer (1 of 1)
 - a.go:5 · five · by: claude
 MD
   f_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep '^› findings')"
+  [ "$f_line" = "› findings: 1 critical, 1 important open, 2 suggestions (.git/sdd/findings/feat--x.md)" ] \
+    && ok "session-start counts the branch's open findings in the clone's git directory" || bad "findings line was '$f_line'"
+  # A file 0.8.0 left inside the checkout is still read, until sdd-pr moves it.
+  mkdir -p "$r/.sdd/findings"
+  mv "$r/.git/sdd/findings/feat--x.md" "$r/.sdd/findings/feat--x.md"
+  f_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep '^› findings')"
   [ "$f_line" = "› findings: 1 critical, 1 important open, 2 suggestions (.sdd/findings/feat--x.md)" ] \
-    && ok "session-start counts the branch's open findings" || bad "findings line was '$f_line'"
+    && ok "session-start still reads a findings file left in the checkout" || bad "legacy findings line was '$f_line'"
 fi
 
 # --- session-start: a vendored gate with no verdict is reported, not silenced ---------

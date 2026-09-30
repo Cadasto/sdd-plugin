@@ -2,6 +2,22 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.8.1
+
+The findings file moves out of the checkout into the clone's git directory, `sdd-pr` makes every change
+to it, and suggestions are routed before merge instead of dying with the file.
+
+1. **Nothing to move by hand.** The first `sdd-pr` command on a branch moves its
+   `.sdd/findings/<branch>.md` into `<git-common-dir>/sdd/findings/`, where every worktree of the clone
+   finds it, and says so. When two checkouts hold a file for the same branch, the second is named and
+   left in place: fold its lines in with `sdd-pr add -`, then delete it. The `.sdd/` ignore line may
+   stay; `/.sdd/` is the anchored form a new scaffold writes.
+2. **Stop editing the file.** `sdd-pr add`, `flip`, `record` and `rename` replace every hand edit; the
+   skills already call them. A branch renamed under its findings uses `sdd-pr rename --from <old>`.
+3. **Suggestions left on open branches.** Route each before merge, with `sdd-pr flip <path:line>
+   --deferred "<where>"` or `--dropped`; `/sdd-deliver --close-out` asks for it.
+4. **Before a pull request opens**, `sdd-pr status` now says `Mergeable: no — no pull request`.
+
 ## From 0.8.0 to 0.8.1
 
 Pull requests now carry a review-state block in their body, and a pass on which no reviewer reported no

@@ -50,7 +50,8 @@ knowledge base in which only the constitution binds).
 
 ## Review
 
-**Findings live in `.sdd/findings/<branch>.md`** (git-ignored, one per branch, any agent may write it) and,
+**Findings live in the branch's findings file** (one per branch, in the clone's git directory, which every
+worktree sees; `sdd-pr status` prints its path, and `sdd-pr add`, `flip` and `record` write it) and,
 when a pull request exists, in its inline threads, which `sdd-pr` keeps in step with the file. Three
 severities: critical and important are resolved before merge and are the only ones mirrored; suggestions
 are captured and never block. Every critical or important finding carries evidence. Nothing else about
@@ -66,7 +67,7 @@ block, filled in.
 Review commits <a>..<b> of <repository>, and only those. Read docs/ai-workflow.md § Review.
 Report critical and important findings only, each with evidence (what you ran, or the two
 sentences that disagree) and a one-line fix; write anything smaller as a suggestion.
-If you work on this machine, append your lines to .sdd/findings/<branch>.md in its grammar.
+If you work on this machine, pipe your lines in that grammar to: <plugin root>/tools/sdd-pr.py add -
 If you work on the pull request, post one review with one inline comment per finding, its
 first word **critical** or **important**; post nothing else, and do not restate the PR body.
 ──────────────────────────────────────────────────────────────────────────────
