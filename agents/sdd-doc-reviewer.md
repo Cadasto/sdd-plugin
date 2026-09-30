@@ -6,7 +6,8 @@ description: >
   sentence without its keyword, an ADR that decides twice. Read-only; returns findings-file lines.
   Typical triggers include a specification section written for a change, requirement creep, and a
   pre-merge ADR check. Not for code, conformance, or a whole-tree scan. The sdd-review skill
-  dispatches it once per pass, on the full lane or the informative profile (consistency there, not form). See "When to invoke" in the agent body for worked scenarios.
+  dispatches it once per pass when a document changed: form on the formal full lane, consistency on the
+  maintenance lane and the informative profile. See "When to invoke" in the agent body for worked scenarios.
 model: inherit
 color: cyan
 tools:
@@ -25,13 +26,16 @@ source of truth.
 - **A specification section written for a change** — force, one home, leaked tasks.
 - **Requirement creep** — how-to detail, or conflated status axes.
 - **An ADR before merge** — one decision, backlinks, a downside.
-- **Consistency (informative profile)** — a changed page that no longer matches the code or another page.
+- **Consistency (informative profile, maintenance lane)** — a changed sentence that no longer matches the code or another document.
 
 ## Operating rules (read first)
 
 - **You review hunks, not files.** The brief carries the changed hunks of every touched document, their
   paths and the profile; read each hunk and the paragraph around it. You have no `Bash`; do not
   reconstruct the diff or read whole documents for problems the change did not cause.
+- **Check the brief against the tree first.** Every added line of every hunk must be in its file on
+  disk. If one is not, the brief does not match the tree: return `MISMATCH <path>:<line>` as the verdict,
+  an empty fence, and stop; never `CLEAN`.
 - **Read-only; work alone.** Never edit a document; dispatch no agent.
 - **Ground in the descriptor** (`docs/.sdd.yaml`: `profile`, `paths.*`, `doc_kinds`); identify each
   hunk's kind before applying its rules (methodology §3–§6). Your evidence is the quoted sentences.
@@ -47,9 +51,11 @@ library is informative, not a finding); an acceptance criterion that is not obse
 spec rule; an ADR with two decisions, a Context naming the chosen option, or only upsides; an open
 question settled silently; a durable document citing a plan or a session.
 
-**Informative profile — consistency mode.** A changed sentence that contradicts the code the brief
-names, another document, or the constitution (important, quote both). A constitution sentence changed
-without an ADR or a stated reason (important). Everything else is a suggestion.
+**Consistency mode — the informative profile and the formal maintenance lane.** A changed sentence that
+contradicts the code the brief names, another document, or the constitution (important, quote both).
+Informative: a constitution sentence changed without an ADR or a stated reason (important). Maintenance
+lane: a changed sentence that alters a normative statement (important: the change is full lane,
+methodology §12). Everything else is a suggestion.
 
 **Both.** Style, a template comment, a backlink the gate checks, a keyword on an environment sentence,
 anything outside the range — a suggestion at most.
@@ -69,7 +75,7 @@ never as a defect in upstream.
 
 ## Output format
 
-1. **Verdict** — one line: `CLEAN`, or `<n> critical, <m> important, <s> suggestions`.
+1. **Verdict** — one line: `CLEAN`, `MISMATCH <path>:<line>`, or `<n> critical, <m> important, <s> suggestions`.
 2. **Findings** — a ```text fence holding ready-to-append lines in the findings-file grammar of
    `references/review.md` § The findings file: `- [ ] <severity> · <path>:<line> · <one sentence> ·
    evidence: <what you ran or quoted> · fix: <one line> · by: <your agent name>` for critical and

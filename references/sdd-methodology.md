@@ -288,8 +288,8 @@ acceptance criteria, a `SPEC §` behaviour, a public API shape, or an error cont
 | `REQ` / index / `SPEC §` edits | required | forbidden by definition — needing one makes the change full lane |
 | `traceability.yaml` | updated for landed packages/tests/probes | only when file paths moved, and the drift gate names exactly which rows |
 | `ADR` | when an irreversible fork was taken | never — a maintenance change taking an irreversible fork is full lane |
-| SDD reviewer agents | dispatched | skipped — there is no spec delta to review |
-| Review scope | code + conformance + traceability | code review only |
+| SDD reviewer agents | dispatched | `sdd-doc-reviewer` alone, for consistency, when a document changed |
+| Review scope | code + conformance + traceability | code review, and document consistency when a document changed |
 | PR body | review lens + identifiers touched | one line: `Lane: maintenance — no normative change` |
 | The drift gate (`spec-check`) | runs | **runs** — the map may never rot, in either lane |
 
@@ -355,12 +355,13 @@ The review-enforced list is meant to shrink.
 | Lanes | review-enforced — `/sdd-review` |
 | Critical and important findings carry evidence and sit in the range | review-enforced — `/sdd-review` |
 | No open critical or important finding at merge | `sdd-pr status` |
+| The pull request carries the review state for its head | `sdd-pr status` |
 | The pass budget | review-enforced — `/sdd-triage` |
 | Collapse before you add | review-enforced |
 | Mutation-detectability | the build gate's tests |
 
 **The review layer meets the bar it imposes.** Every pass writes a `Reviewed` line naming the reviewers
-dispatched and how many reported.
+dispatched and how many reported; a pass that dispatched none writes none, so its range stays open.
 
 ## 14. What this methodology does not relax
 

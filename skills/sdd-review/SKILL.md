@@ -17,17 +17,17 @@ Read `docs/.sdd.yaml` first (`profile`, `paths.*`, `forge`, the build targets, `
 2. **Lane (formal profile only).** From the PR body's `Lane:` line, or `--lane`. The test is methodology §12 — did a normative statement change meaning? — answered from the range's document hunks, never from a path. `--lane maintenance` on an existing PR limits this pass and does not rewrite the body.
 3. **Dispatch, by profile and by what changed.** Each dispatch gets the range, `git diff <range> -- <its paths>`, the profile, the sentences under review and the file's `## Resolved` lines. Report-only, in parallel:
    - code, tests or other files (build, CI, configuration) changed → each reviewer in `agents.reviewers`, told to run the tests it needs for evidence;
-   - formal, full lane, code implementing a cited `SPEC §` changed → `sdd-spec-conformance-reviewer`, once, with the guard-removal check for every MUST in the range; informative → the same agent only when the range touches something a constitution sentence binds, with those sentences quoted;
-   - formal full lane or informative, a document changed → `sdd-doc-reviewer`, once, with the changed hunks of every touched document (form on formal, consistency on informative);
+   - formal, full lane, code implementing a cited `SPEC §` changed, or a MUST or SHOULD sentence changed with no code → `sdd-spec-conformance-reviewer`, once, with the guard-removal check for every MUST in the range, and for a sentence alone the code and tests it describes; informative → the same agent only when the range touches something a constitution sentence binds, with those sentences quoted;
+   - a document changed → `sdd-doc-reviewer`, once, with the changed hunks of every touched document: form on the formal full lane; consistency with the code and the other documents on the maintenance lane and the informative profile;
    - nothing else: the drift gate ran in the full gate; the auditor is `/sdd-trace --audit`.
-   A dispatch that died is re-run once; a second death shows in the `Reviewed` line's `(<n> of <m>)`.
+   A dispatch that died, or returned `MISMATCH`, is re-run once, with the diff rebuilt from this checkout; a second failure shows in the `Reviewed` line's `(<n> of <m>)`. A range that called for no reviewer gets no `Reviewed` line: say so and leave it open for the maintainer's own review (`review.md` § The findings file).
 4. **Merge into the file** `.sdd/findings/<branch-slug>.md` (created from the grammar in `review.md` when absent): critical and important under `## Open`, suggestions under `## Suggestions` (at most ten new, then "and n more"). Merge two lines about one defect, naming both in `by:`; drop a line with nothing in the range and no evidence. Add `Reviewed <HEAD sha> · <date> · <agent>: <reviewers> (<n> of <m>)`.
 5. **Mirror.** With a pull request, push, then `sdd-pr post` (it refuses an unpushed HEAD). Then `sdd-pr status`.
 6. **Panel prompts (`--panel`).** Print one block per name in `agents.review_panel.<lane>` (`full` on the informative profile), filled from the repository's `docs/ai-workflow.md` § Review with the range from step 1. An outside reviewer on this machine appends to the findings file; one elsewhere posts inline threads, which `sdd-pr pull` brings in.
 
 ## Guardrails
 
-- **Run it once before the maintainer's review, and once after the triage of that review when it changed code (`references/review.md` § Passes) — never after every slice.**
+- **Run it once before the maintainer's review, and once after the triage of that review when it changed anything, a document included (`references/review.md` § Passes) — never after every slice.**
 - **The agents edit nothing; this skill writes only the findings file; `/sdd-triage` fixes.**
 - **Never a summary comment on the pull request; never a second pass over the same range.**
 - **The build gate is not this skill; read its output before claiming green.**

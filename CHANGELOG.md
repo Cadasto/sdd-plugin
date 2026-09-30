@@ -6,9 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Tools: `sdd-pr` keeps a generated review-state block in the pull request's body, rewritten in place by `post`, `resolve` and the new `status --write-body`: the verdict at the head, the passes, the counts and each deferral; `status` counts a missing or stale block against `Mergeable`, and reports unbalanced markers, a body over the forge's limit or a checkout without the findings file instead of writing.
+- References: `review.md` gains the deferred state, `- [~] … · deferred: <where>`, which `sdd-pr resolve` answers and closes; the review state lists each deferral.
+
+### Changed
+- Skills: `sdd-triage` flips a deferral to `- [~]`, and `sdd-deliver --close-out` writes the review state before it marks the pull request ready.
+- References: methodology §13 registers the review state as a `sdd-pr status` check.
+- Templates: `development-process.md` § The PR body and `ai-workflow.md` § Review name the review-state block.
+
 ### Fixed
+- Skills: a follow-up that only edits documents is reviewed: `sdd-review` sends a changed document to `sdd-doc-reviewer` on both lanes, for consistency on the maintenance lane, and a changed MUST or SHOULD sentence to `sdd-spec-conformance-reviewer` with the code it describes; `sdd-triage` re-reviews a document-only fix after the maintainer's review; a range that called for no reviewer gets no `Reviewed` line.
+- Agents: `sdd-doc-reviewer` stops with `MISMATCH` when a hunk in its brief is not in the file on disk, instead of reporting clean.
+- Tools: `sdd-pr` does not count a `Reviewed` line on which no reviewer reported, `(0 of <m>)`, as a pass, and `status` names a document change since the last pass.
+- References: methodology §12 sends a changed document to `sdd-doc-reviewer` on the maintenance lane; `docs/examples.md` says the same.
 - Tools: `sdd-pr post` writes each thread's `forge:` id back on GitHub, whose per-review comment listing carries no line; an id still not read back is taken from the pull request's threads.
 - Tools: `sdd-pr` stops with exit 2 when `--pr` names a pull request whose branch or head this checkout does not hold, or `--branch` a branch that is not checked out, and names the worktree to run from; the findings file's `Base:` follows a retargeted pull request.
+- Docs: `docs/upgrading.md` covers the `Deferred` rows of a pull request that merged before its last fixes were pushed, and gains the steps from 0.8.x; `docs/quick-start.md` matches the re-review rule.
 
 ## [0.8.0] - 2026-09-30
 
