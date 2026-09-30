@@ -23,17 +23,19 @@ Reviewed 9c1e2ab · 2026-09-30 · cursor: go-reviewer (1 of 1)
 ## Resolved
 - [x] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: cursor · fixed 4f0a1c2
 - [-] important · scripts/run.sh:12 · Ctrl-C leaves the sampler running · by: claude · declined: the trap on line 3 covers it; checked with kill -INT
+- [~] important · internal/auth/refresh.go:140 · a refused refresh is not logged · by: cursor · deferred: SPEC-AUTH § Known gaps
 
 ## Suggestions
 - internal/auth/refresh.go:120 · rename `tok` to `token` · by: cursor
 ```
 
-One finding is one line: `- [ ]` open, `- [x]` fixed, `- [-]` declined, then fields separated by ` · `
-(space, middle dot, space): the severity, `path:line`, one plain sentence, then any of `evidence:`,
-`fix:`, `by:`, `forge:` (the pull request's thread id), `fixed <sha>`, `declined: <reason>`, and the
-markers `unanchored` and `mirrored` that `sdd-pr` writes. A suggestion line has no checkbox. Each pass
-adds one `Reviewed` line: the commit it read, the agent, the reviewers dispatched and how many reported.
-The last one is where the next pass starts.
+One finding is one line: `- [ ]` open, `- [x]` fixed, `- [-]` declined, `- [~]` deferred, then fields
+separated by ` · ` (space, middle dot, space): the severity, `path:line`, one plain sentence, then any of
+`evidence:`, `fix:`, `by:`, `forge:` (the pull request's thread id), `fixed <sha>`, `declined: <reason>`,
+`deferred: <where>`, and the markers `unanchored` and `mirrored` that `sdd-pr` writes. A suggestion line
+has no checkbox. Each pass adds one `Reviewed` line: the commit it read, the agent, the reviewers
+dispatched and how many reported. The last one is where the next pass starts. A pass that dispatched no
+reviewer adds none, so its range stays open; `sdd-pr` does not count a `(0 of 0)` line.
 
 ## Severity
 
@@ -67,15 +69,20 @@ other instances inside the range go on the same line.
 
 ## The forge mirror
 
-With a pull request, `sdd-pr` keeps its inline threads and the file in step; nothing else about findings
-is posted.
+With a pull request, `sdd-pr` keeps its inline threads, and one block in its body, in step with the
+file; nothing else about findings is posted.
 
 - `pull` appends each unresolved thread the file does not know as an open finding with its `forge:` id;
   a thread with no severity word is `important`.
 - `post` publishes the open critical and important findings without a `forge:` id as one review, one
   inline thread each, and writes the ids back; a finding the forge already carries adopts that thread's
   id instead. A line outside the diff is marked `unanchored` and listed in the review body.
-- `resolve` answers each resolved finding's thread (`fixed in <sha>` or `declined: <reason>`) and closes it.
+- `resolve` answers each resolved finding's thread (`fixed in <sha>`, `declined: <reason>` or
+  `deferred: <where>`) and closes it.
+- The review state: `post`, `resolve` and `status --write-body` rewrite one block in the body, between
+  `<!-- sdd:review-state -->` and `<!-- /sdd:review-state -->`, from the file: the verdict at the head,
+  the passes, the counts, each deferral. It names no finding and is never edited by hand; a body
+  rewritten without it gets it back on the next write.
 
 The backend is GitHub or Azure DevOps, from `forge:` in the descriptor, else the remote URL, else `none`;
 with `none` the file is the whole record and every skill still works.
@@ -83,15 +90,16 @@ with `none` the file is the whole record and every skill still works.
 ## Resolution
 
 A fix flips the line to `- [x]` with `fixed <sha>`; a decline flips it to `- [-]` with
-`declined: <reason>`, and is not argued in a thread. Only the maintainer defers; a deferred finding
-leaves the file as `implementation: deferred` on its requirement, a *Known gaps* line in the
-specification, or nothing. A finding has no id, and commit messages never name one.
+`declined: <reason>`, and is not argued in a thread. Only the maintainer defers: the line flips to
+`- [~]` with `deferred: <where>`, the *Known gaps* line in the specification, the `REQ` that took
+`implementation: deferred`, or `dropped by the maintainer`; the review state lists each one. A finding
+has no id, and commit messages never name one.
 
 ## Passes
 
 One pass before the pull request is marked ready, the maintainer's review, and at most one pass over the
-fixes, dispatching only the reviewers whose file kinds changed. After that only a new critical finding
-reopens review; otherwise the orchestrator stops and shows the open list.
+fixes, a document-only fix included, dispatching only the reviewers whose file kinds changed. After that
+only a new critical finding reopens review; otherwise the orchestrator stops and shows the open list.
 
 ## Keywords added during review
 
@@ -105,8 +113,9 @@ extension signed in (Azure DevOps). `--pr` defaults to the branch's open pull re
 `--branch` must name the checkout, or the command stops and names the worktree to run from. `Base:`
 follows a retargeted pull request.
 
-- `status [--pr N]` — the open counts and lines; on a forge, the threads the file does not know and the
-  checks; then `Mergeable: yes` or `Mergeable: no — <reasons>`, and `Next: <command>`.
+- `status [--pr N] [--write-body]` — the open counts and lines; on a forge, the threads the file does not
+  know, the checks and whether the review state is current; then `Mergeable: yes` or
+  `Mergeable: no — <reasons>`, and `Next: <command>`. `--write-body` rewrites the review state first.
 - `scope [--json] [--all]` — the range the next pass reads (`--all`: the whole branch) and its paths by kind; `range: empty` when nothing is new.
 - `pull`, `post [--dry-run]`, `resolve` — § The forge mirror. `--version` prints the version.
 

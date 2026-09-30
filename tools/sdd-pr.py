@@ -23,9 +23,10 @@ __version__ = "0.8.0"
 SEVERITIES = ("critical", "important", "suggestion")
 BLOCKING = ("critical", "important")
 SEP = " · "
-FIELD_KEYS = ("evidence", "fix", "by", "forge", "declined")
+FIELD_KEYS = ("evidence", "fix", "by", "forge", "declined", "deferred")
 FLAGS = ("unanchored", "mirrored")
 SECTIONS = ("Open", "Resolved", "Suggestions")
+STATE_START, STATE_END = "<!-- sdd:review-state -->", "<!-- /sdd:review-state -->"
 DESCRIPTOR = os.path.join("docs", ".sdd.yaml")
 DEFAULT_TEST_GLOBS = ("*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs")
 CODE_SUFFIXES = (
@@ -80,7 +81,7 @@ class Finding:
         return "%s:%s" % (self.path, self.line) if self.line else self.path
 
     def render(self) -> str:
-        box = {"open": "- [ ] ", "fixed": "- [x] ", "declined": "- [-] ", "suggestion": "- "}[self.status]
+        box = {"open": "- [ ] ", "fixed": "- [x] ", "declined": "- [-] ", "deferred": "- [~] ", "suggestion": "- "}[self.status]
         parts = [self.anchor] + ([self.text] if self.text else [])
         if self.status != "suggestion":
             parts.insert(0, self.severity)
@@ -89,13 +90,13 @@ class Finding:
                 parts.append("%s: %s" % (key, self.fields[key]))
         if self.status == "fixed" and self.fixed:
             parts.append("fixed " + self.fixed)
-        if self.status == "declined":
-            parts.append("declined: " + self.fields.get("declined", ""))
+        if self.status in ("declined", "deferred"):
+            parts.append("%s: %s" % (self.status, self.fields.get(self.status, "")))
         parts.extend(self.flags)
         return box + SEP.join(parts)
 
 
-LINE_RE = re.compile(r"^- (\[( |x|X|-)\] )?(.*)$")
+LINE_RE = re.compile(r"^- (\[( |x|X|-|~)\] )?(.*)$")
 
 
 def parse_line(raw: str, lineno: int, section: str = "") -> Finding:
@@ -109,7 +110,7 @@ def parse_line(raw: str, lineno: int, section: str = "") -> Finding:
     box = match.group(2)
     parts = [p.strip() for p in match.group(3).split(SEP.strip())]
     parts = [p for p in parts if p != ""]
-    status = "suggestion" if box is None else {" ": "open", "x": "fixed", "X": "fixed", "-": "declined"}[box]
+    status = "suggestion" if box is None else {" ": "open", "x": "fixed", "X": "fixed", "-": "declined", "~": "deferred"}[box]
     if box is None and parts and parts[0] in SEVERITIES:
         # A writer who left out the checkbox still named the severity.
         status = "open" if parts[0] in BLOCKING else "suggestion"
@@ -154,20 +155,36 @@ class Findings:
 
     @property
     def resolved(self) -> List[Finding]:
-        return [f for f in self.items if f.status in ("fixed", "declined")]
+        return [f for f in self.items if f.status in ("fixed", "declined", "deferred")]
 
     @property
     def suggestions(self) -> List[Finding]:
         return [f for f in self.items if f.status == "suggestion"]
 
+    @property
+    def passes(self) -> List[Tuple[str, str, str, str]]:
+        """The Reviewed lines that dispatched a reviewer; a `(0 of 0)` line reviewed nothing."""
+        return [r for r in self.reviewed if not _no_reviewer(r[3])]
+
+    def unreviewed_passes(self) -> List[str]:
+        """The shas of `(0 of 0)` lines written after the last real pass."""
+        last = max([i for i, r in enumerate(self.reviewed) if not _no_reviewer(r[3])], default=-1)
+        return [r[0] for r in self.reviewed[last + 1:]]
+
     def last_reviewed_sha(self) -> Optional[str]:
-        return self.reviewed[-1][0] if self.reviewed else None
+        return self.passes[-1][0] if self.passes else None
 
     def forge_ids(self) -> set:
         return {f.fields["forge"] for f in self.items if f.fields.get("forge")}
 
 
 REVIEWED_RE = re.compile(r"^Reviewed (\S+) · (\S+) · ([^:]+): (.*)$")
+COUNT_RE = re.compile(r"\((\d+) of (\d+)\)\s*$")
+
+
+def _no_reviewer(reviewers: str) -> bool:
+    match = COUNT_RE.search(reviewers)
+    return bool(match) and match.group(2) == "0"
 TITLE = "# Findings — "
 
 
@@ -271,7 +288,45 @@ def comment_body(finding: Finding) -> str:
 def reply_for(finding: Finding) -> str:
     if finding.status == "fixed":
         return "fixed in %s" % (finding.fixed or "this branch")
-    return "declined: %s" % finding.fields.get("declined", "")
+    return "%s: %s" % (finding.status, finding.fields.get(finding.status, ""))
+
+
+def review_state(fs: Findings, head: str) -> str:
+    """The review-state block for the pull request's body: the file projected, never a second store."""
+    blocking = [f for f in fs.items if f.severity in BLOCKING and f.status != "suggestion"]
+    count = {s: len([f for f in blocking if f.status == s or f.severity == s]) for s in BLOCKING + ("fixed", "declined", "deferred")}
+    opened = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
+    if any(opened.values()):
+        verdict = "%d critical and %d important open" % (opened["critical"], opened["important"])
+    else:
+        verdict = "no critical or important finding open" if fs.passes else "not reviewed"
+    out = [STATE_START, "**Review state at `%s`:** %s" % (head[:7], verdict)]
+    out += ["- Pass at `%s`, %s, %s: %s" % (sha[:7], date, agent, reviewers) for sha, date, agent, reviewers in fs.passes]
+    if not fs.passes:
+        out.append("- Passes: none")
+    suggestions = len(fs.suggestions)
+    out.append("- Findings: %d critical and %d important; %d fixed, %d declined, %d deferred; %d suggestion%s not worked"
+               % (count["critical"], count["important"], count["fixed"], count["declined"], count["deferred"],
+                  suggestions, "" if suggestions == 1 else "s"))
+    out += ["- Deferred: %s at `%s`, %s: %s" % (f.severity, f.anchor, f.text, f.fields.get("deferred", ""))
+            for f in blocking if f.status == "deferred"]
+    return "\n".join(out + [STATE_END])
+
+
+STATE_RE = re.compile(re.escape(STATE_START) + r".*?" + re.escape(STATE_END), re.S)
+
+
+def read_state(body: str) -> Optional[str]:
+    match = STATE_RE.search(body or "")
+    return match.group(0) if match else None
+
+
+def splice(body: str, block: str) -> str:
+    """The body with its review-state block replaced in place, or appended when it has none."""
+    body = body or ""
+    if STATE_RE.search(body):
+        return STATE_RE.sub(lambda _: block, body, count=1)
+    return (body.rstrip("\n") + "\n\n" if body.strip() else "") + block + "\n"
 
 
 # ---------------------------------------------------------------- git and the descriptor
@@ -413,7 +468,13 @@ class Forge:
     def post(self, number: int, sha: str, body: str, comments: List[dict]) -> List[str]:
         raise CliError("no forge configured")
 
-    def resolve(self, number: int, thread_id: str, reply: str, fixed: bool) -> None:
+    def resolve(self, number: int, thread_id: str, reply: str, state: str) -> None:  # fixed | declined | deferred
+        raise CliError("no forge configured")
+
+    def body(self, number: int) -> str:
+        raise CliError("no forge configured")
+
+    def set_body(self, number: int, body: str) -> None:
         raise CliError("no forge configured")
 
 
@@ -514,7 +575,13 @@ class GitHubForge(Forge):
             ids.append(str(chosen.get("id", "")))
         return ids
 
-    def resolve(self, number, thread_id, reply, fixed):
+    def body(self, number):
+        return _json(run_cli(["gh", "pr", "view", str(number), "--json", "body"])).get("body") or ""
+
+    def set_body(self, number, body):
+        run_cli(["gh", "pr", "edit", str(number), "--body-file", "-"], stdin=body)
+
+    def resolve(self, number, thread_id, reply, state):
         owner, name = self._owner_name()
         run_cli(["gh", "api", "repos/%s/%s/pulls/%d/comments/%s/replies" % (owner, name, number, thread_id),
                  "--method", "POST", "--input", "-"], stdin=json.dumps({"body": reply}))
@@ -610,11 +677,18 @@ class AzureDevOpsForge(Forge):
                 "status": "active", "comments": [{"parentCommentId": 0, "commentType": 1, "content": body}]})
         return ids
 
-    def resolve(self, number, thread_id, reply, fixed):
+    def resolve(self, number, thread_id, reply, state):
         route = ["threadId=%s" % thread_id]
         self._invoke(number, "pullRequestThreadComments", route, "POST",
                      {"parentCommentId": 1, "content": reply, "commentType": 1})
-        self._invoke(number, "pullRequestThreads", route, "PATCH", {"status": "fixed" if fixed else "wontFix"})
+        status = {"fixed": "fixed", "declined": "wontFix", "deferred": "closed"}[state]
+        self._invoke(number, "pullRequestThreads", route, "PATCH", {"status": status})
+
+    def body(self, number):
+        return self.pr(number)["raw"].get("description") or ""
+
+    def set_body(self, number, body):
+        run_cli(["az", "repos", "pr", "update", "--id", str(number), "--description", body, "-o", "json"] + self._org())
 
 
 def _short_ref(ref: str) -> str:
@@ -739,6 +813,25 @@ class Session:
         save_findings(self.root, self.fs)
 
 
+def write_state(session: Session, pr: dict) -> None:
+    """Rewrite the pull request's review-state block from the file; send nothing when it is current."""
+    if pr["head"] and pr["head"] != session.head:
+        raise CliError("local HEAD %s is not the pull request's head %s; push first"
+                       % (session.head[:7], pr["head"][:7]))
+    body = session.forge.body(pr["number"])
+    new = splice(body, review_state(session.fs, pr["head"] or session.head))
+    if new != body:
+        session.forge.set_body(pr["number"], new)
+
+
+def refresh_state(session: Session, pr: dict) -> None:
+    """After post and resolve: keep the block in step, and say so when it cannot be."""
+    try:
+        write_state(session, pr)
+    except CliError as exc:
+        print("sdd-pr: review state not written: %s" % str(exc).splitlines()[0], file=sys.stderr)
+
+
 def cmd_scope(session: Session, args) -> int:
     if args.pr is not None and session.forge.name != "none":
         session.pr()
@@ -757,6 +850,9 @@ def cmd_scope(session: Session, args) -> int:
 def cmd_status(session: Session, args) -> int:
     fs = session.fs
     pr, unreachable = None, ""
+    if args.write_body:
+        session.need_forge()
+        write_state(session, session.pr())
     if session.forge.name != "none":
         try:
             pr = session.pr(required=False)
@@ -767,11 +863,13 @@ def cmd_status(session: Session, args) -> int:
     last = fs.last_reviewed_sha()
     rng = review_range(session.root, fs, session.base(), session.head)
     files = changed_files(session.root, rng, session.globs)
-    # Anything but documents is a change to review: code, tests, build, CI, configuration.
     code_changed = bool(files["code"] or files["tests"] or files["other"])
-    since = "code changed" if code_changed else "no code change"
+    changed = code_changed or bool(files["documents"])
+    since = "code changed" if code_changed else "documents changed" if changed else "no change"
     print("branch %s · base %s · head %s · last reviewed %s (%s since)"
           % (session.branch, session.base(), session.head[:7], (last or "none")[:7], since))
+    for sha in fs.unreviewed_passes():
+        print("Reviewed %s dispatched no reviewer; not a pass" % sha[:7])
     counts = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
     print("open: %d critical, %d important · suggestions: %d"
           % (counts["critical"], counts["important"], len(fs.suggestions)))
@@ -783,10 +881,10 @@ def cmd_status(session: Session, args) -> int:
         parts = ["%d %s" % (counts[s], s) for s in BLOCKING if counts[s]]
         reasons.append(", ".join(parts) + " open")
     nxt = "/sdd-triage" if reasons else ""
-    if code_changed and last:
+    if changed and last:
         # Steers Next only: after the pass budget is spent, a fix does not reopen review.
         nxt = nxt or "/sdd-review"
-    elif not last and (code_changed or files["documents"]):
+    elif not last and changed:
         reasons.append("not reviewed yet")
         nxt = nxt or "/sdd-review"
 
@@ -807,6 +905,10 @@ def cmd_status(session: Session, args) -> int:
                 if unknown:
                     reasons.append("%d unresolved threads not open in the file" % len(unknown))
                     nxt = nxt or "sdd-pr pull --pr %d" % pr["number"]
+                state = read_state(session.forge.body(pr["number"]))
+                if state != review_state(fs, pr["head"] or session.head):
+                    reasons.append("the review state on the pull request is %s" % ("missing" if state is None else "stale"))
+                    nxt = nxt or "sdd-pr status --write-body --pr %d" % pr["number"]
                 if checks == "fail":
                     reasons.append("checks failing")
                     nxt = nxt or "fix the failing checks"
@@ -868,6 +970,7 @@ def cmd_post(session: Session, args) -> int:
     candidates = [f for f in candidates if not f.fields.get("forge")]
     if adopted and not args.dry_run:
         session.save()
+        refresh_state(session, pr)
     if not candidates:
         print("post: nothing to post; %d already on the forge" % adopted)
         return 0
@@ -906,6 +1009,7 @@ def cmd_post(session: Session, args) -> int:
     if missing:
         missing = [f for f in missing if f not in adopt(session, pr, missing)]
     session.save()
+    refresh_state(session, pr)
     print("post: %d thread%s on PR %d, %d not anchored%s"
           % (len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),
              "; %d without an id read back" % len(missing) if missing else ""))
@@ -935,10 +1039,11 @@ def cmd_resolve(session: Session, args) -> int:
         thread_id = finding.fields.get("forge")
         if not thread_id or "mirrored" in finding.flags:
             continue
-        session.forge.resolve(pr["number"], thread_id, reply_for(finding), finding.status == "fixed")
+        session.forge.resolve(pr["number"], thread_id, reply_for(finding), finding.status)
         finding.flags.append("mirrored")
         done += 1
         session.save()
+    refresh_state(session, pr)
     print("resolve: %d thread%s answered and closed on PR %d" % (done, "" if done == 1 else "s", pr["number"]))
     return 0
 
@@ -965,6 +1070,8 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--all", action="store_true", help="the whole branch, not the range since the last pass")
         if name == "post":
             cmd.add_argument("--dry-run", action="store_true")
+        if name == "status":
+            cmd.add_argument("--write-body", action="store_true", help="rewrite the review state in the PR body")
     return parser
 
 
