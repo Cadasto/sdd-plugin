@@ -49,6 +49,10 @@ class CheckoutError(CliError):
     """The pull request or --branch named is not what this checkout has."""
 
 
+class StateError(CliError):
+    """The pull request body's review-state markers are not one balanced pair."""
+
+
 def run_cli(argv: List[str], stdin: Optional[str] = None) -> str:
     """Run one external command and return its standard output. The one door to the outside."""
     try:
@@ -163,12 +167,12 @@ class Findings:
 
     @property
     def passes(self) -> List[Tuple[str, str, str, str]]:
-        """The Reviewed lines that dispatched a reviewer; a `(0 of 0)` line reviewed nothing."""
-        return [r for r in self.reviewed if not _no_reviewer(r[3])]
+        """The Reviewed lines some reviewer reported on; a `(0 of m)` line reviewed nothing."""
+        return [r for r in self.reviewed if not _nobody_reported(r[3])]
 
     def unreviewed_passes(self) -> List[str]:
-        """The shas of `(0 of 0)` lines written after the last real pass."""
-        last = max([i for i, r in enumerate(self.reviewed) if not _no_reviewer(r[3])], default=-1)
+        """The shas of `(0 of m)` lines written after the last real pass."""
+        last = max([i for i, r in enumerate(self.reviewed) if not _nobody_reported(r[3])], default=-1)
         return [r[0] for r in self.reviewed[last + 1:]]
 
     def last_reviewed_sha(self) -> Optional[str]:
@@ -182,9 +186,9 @@ REVIEWED_RE = re.compile(r"^Reviewed (\S+) · (\S+) · ([^:]+): (.*)$")
 COUNT_RE = re.compile(r"\((\d+) of (\d+)\)\s*$")
 
 
-def _no_reviewer(reviewers: str) -> bool:
+def _nobody_reported(reviewers: str) -> bool:
     match = COUNT_RE.search(reviewers)
-    return bool(match) and match.group(2) == "0"
+    return bool(match) and match.group(1) == "0"
 TITLE = "# Findings — "
 
 
@@ -313,19 +317,32 @@ def review_state(fs: Findings, head: str) -> str:
     return "\n".join(out + [STATE_END])
 
 
-STATE_RE = re.compile(re.escape(STATE_START) + r".*?" + re.escape(STATE_END), re.S)
+START_LINE = re.compile(r"^%s[ \t]*$" % re.escape(STATE_START), re.M)
+END_LINE = re.compile(r"^%s[ \t]*$" % re.escape(STATE_END), re.M)
+
+
+def _state_span(body: str) -> Optional[Tuple[int, int]]:
+    """Where the block sits: markers count only as whole lines, and only as one balanced pair."""
+    starts, ends = list(START_LINE.finditer(body)), list(END_LINE.finditer(body))
+    if not starts and not ends:
+        return None
+    if len(starts) != 1 or len(ends) != 1 or ends[0].start() < starts[0].start():
+        raise StateError("the review-state markers in the pull request body are not one balanced pair")
+    return starts[0].start(), ends[0].end()
 
 
 def read_state(body: str) -> Optional[str]:
-    match = STATE_RE.search(body or "")
-    return match.group(0) if match else None
+    body = (body or "").replace("\r\n", "\n")
+    span = _state_span(body)
+    return body[span[0]:span[1]] if span else None
 
 
 def splice(body: str, block: str) -> str:
     """The body with its review-state block replaced in place, or appended when it has none."""
-    body = body or ""
-    if STATE_RE.search(body):
-        return STATE_RE.sub(lambda _: block, body, count=1)
+    body = (body or "").replace("\r\n", "\n")
+    span = _state_span(body)
+    if span:
+        return body[:span[0]] + block + body[span[1]:]
     return (body.rstrip("\n") + "\n\n" if body.strip() else "") + block + "\n"
 
 
@@ -452,6 +469,7 @@ class Forge:
     """What the commands need from a forge. Local git supplies the diff on every forge."""
 
     name = "none"
+    body_limit = 65536  # characters the forge takes in a pull request body
 
     def pr_for_branch(self, branch: str) -> Optional[dict]:  # {"number", "head", "base", "draft", "url"}
         raise CliError("no forge configured")
@@ -596,6 +614,7 @@ class AzureDevOpsForge(Forge):
     """Azure DevOps through `az`: pull-request threads with their native status."""
 
     name = "azure-devops"
+    body_limit = 4000
 
     def __init__(self, org: str = "", project: str = "", repo: str = ""):
         self.org, self.project, self.repo = org, project, repo
@@ -688,7 +707,7 @@ class AzureDevOpsForge(Forge):
         return self.pr(number)["raw"].get("description") or ""
 
     def set_body(self, number, body):
-        run_cli(["az", "repos", "pr", "update", "--id", str(number), "--description", body, "-o", "json"] + self._org())
+        self._invoke(number, "pullRequests", [], "PATCH", {"description": body})
 
 
 def _short_ref(ref: str) -> str:
@@ -816,6 +835,9 @@ class Session:
             pass
         return "main"
 
+    def has_file(self) -> bool:
+        return os.path.exists(findings_path(self.root, self.branch))
+
     def need_forge(self) -> None:
         if self.forge.name == "none":
             raise CliError("no forge configured (forge: none, or a remote the tool does not recognise)")
@@ -828,21 +850,50 @@ class Session:
 
 def write_state(session: Session, pr: dict) -> None:
     """Rewrite the pull request's review-state block from the file; send nothing when it is current."""
+    if not session.has_file():
+        raise CliError("no findings file for %s here; run where the file is" % session.branch)
     if pr["head"] and pr["head"] != session.head:
-        raise CliError("local HEAD %s is not the pull request's head %s; push first"
+        raise CliError("local HEAD %s is not the pull request's head %s; push or pull first"
                        % (session.head[:7], pr["head"][:7]))
     body = session.forge.body(pr["number"])
     new = splice(body, review_state(session.fs, pr["head"] or session.head))
-    if new != body:
+    if len(new) > session.forge.body_limit:
+        raise CliError("the body would be %d characters with the review state, over the %d the forge takes; shorten it"
+                       % (len(new), session.forge.body_limit))
+    if new != body.replace("\r\n", "\n"):
         session.forge.set_body(pr["number"], new)
 
 
 def refresh_state(session: Session, pr: dict) -> None:
     """After post and resolve: keep the block in step, and say so when it cannot be."""
+    if not session.has_file():
+        return
     try:
         write_state(session, pr)
     except CliError as exc:
         print("sdd-pr: review state not written: %s" % str(exc).splitlines()[0], file=sys.stderr)
+
+
+def state_problem(session: Session, pr: dict) -> Tuple[str, str]:
+    """What is wrong with the review state on the pull request, and what to run; ("", "") when current."""
+    try:
+        body = session.forge.body(pr["number"])
+    except CliError as exc:
+        return ("the review state on the pull request was not read (%s)" % str(exc).splitlines()[0],
+                "sdd-pr status --pr %d" % pr["number"])
+    try:
+        state = read_state(body)
+    except StateError as exc:
+        return str(exc), "repair the review-state markers in the pull request body"
+    expected = review_state(session.fs, pr["head"] or session.head)
+    if state == expected:
+        return "", ""
+    size = len(splice(body, expected))
+    if size > session.forge.body_limit:
+        return ("the pull request body is too long to carry the review state (%d of %d characters)"
+                % (size, session.forge.body_limit), "shorten the pull request body")
+    return ("the review state on the pull request is %s" % ("missing" if state is None else "stale"),
+            "sdd-pr status --write-body --pr %d" % pr["number"])
 
 
 def cmd_scope(session: Session, args) -> int:
@@ -882,7 +933,7 @@ def cmd_status(session: Session, args) -> int:
     print("branch %s · base %s · head %s · last reviewed %s (%s since)"
           % (session.branch, session.base(), session.head[:7], (last or "none")[:7], since))
     for sha in fs.unreviewed_passes():
-        print("Reviewed %s dispatched no reviewer; not a pass" % sha[:7])
+        print("Reviewed %s: no reviewer reported; not a pass" % sha[:7])
     counts = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
     print("open: %d critical, %d important · suggestions: %d"
           % (counts["critical"], counts["important"], len(fs.suggestions)))
@@ -894,8 +945,9 @@ def cmd_status(session: Session, args) -> int:
         parts = ["%d %s" % (counts[s], s) for s in BLOCKING if counts[s]]
         reasons.append(", ".join(parts) + " open")
     nxt = "/sdd-triage" if reasons else ""
-    if changed and last:
-        # Steers Next only: after the pass budget is spent, a fix does not reopen review.
+    if code_changed and last:
+        # Steers Next only: after the pass budget is spent, a fix does not reopen review. A change to
+        # documents alone does not steer: the close-out's own commit is one.
         nxt = nxt or "/sdd-review"
     elif not last and changed:
         reasons.append("not reviewed yet")
@@ -918,10 +970,13 @@ def cmd_status(session: Session, args) -> int:
                 if unknown:
                     reasons.append("%d unresolved threads not open in the file" % len(unknown))
                     nxt = nxt or "sdd-pr pull --pr %d" % pr["number"]
-                state = read_state(session.forge.body(pr["number"]))
-                if state != review_state(fs, pr["head"] or session.head):
-                    reasons.append("the review state on the pull request is %s" % ("missing" if state is None else "stale"))
-                    nxt = nxt or "sdd-pr status --write-body --pr %d" % pr["number"]
+                if not session.has_file():
+                    print("review state not checked: no findings file here")
+                else:
+                    problem, repair = state_problem(session, pr)
+                    if problem:
+                        reasons.append(problem)
+                        nxt = nxt or repair
                 if checks == "fail":
                     reasons.append("checks failing")
                     nxt = nxt or "fix the failing checks"
@@ -972,6 +1027,13 @@ def cmd_pull(session: Session, args) -> int:
 def cmd_post(session: Session, args) -> int:
     session.need_forge()
     pr = session.pr()
+    code = _post(session, args, pr)
+    if not args.dry_run:
+        refresh_state(session, pr)
+    return code
+
+
+def _post(session: Session, args, pr: dict) -> int:
     fs = session.fs
     candidates = [f for f in fs.open if f.severity in BLOCKING and not f.fields.get("forge")]
     if not candidates:
@@ -983,7 +1045,6 @@ def cmd_post(session: Session, args) -> int:
     candidates = [f for f in candidates if not f.fields.get("forge")]
     if adopted and not args.dry_run:
         session.save()
-        refresh_state(session, pr)
     if not candidates:
         print("post: nothing to post; %d already on the forge" % adopted)
         return 0
@@ -1026,7 +1087,6 @@ def cmd_post(session: Session, args) -> int:
         except CliError as exc:
             print("sdd-pr: ids not read back: %s" % str(exc).splitlines()[0], file=sys.stderr)
     session.save()
-    refresh_state(session, pr)
     print("post: %d thread%s on PR %d, %d not anchored%s"
           % (len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),
              "; %d without an id read back" % len(missing) if missing else ""))

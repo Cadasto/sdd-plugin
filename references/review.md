@@ -35,7 +35,9 @@ separated by ` · ` (space, middle dot, space): the severity, `path:line`, one p
 `deferred: <where>`, and the markers `unanchored` and `mirrored` that `sdd-pr` writes. A suggestion line
 has no checkbox. Each pass adds one `Reviewed` line: the commit it read, the agent, the reviewers
 dispatched and how many reported. The last one is where the next pass starts. A pass that dispatched no
-reviewer adds none, so its range stays open; `sdd-pr` does not count a `(0 of 0)` line.
+reviewer adds none, so its range stays open until one reads it, or the maintainer's own review is
+recorded as `Reviewed <sha> · <date> · maintainer: <name> (1 of 1)`; `sdd-pr` does not count a line on
+which no reviewer reported, `(0 of <m>)`.
 
 ## Severity
 
@@ -47,7 +49,8 @@ reviewer adds none, so its range stays open; `sdd-pr` does not count a `(0 of 0)
 - **suggestion** — anything else worth writing down: wording, keyword form, parity the gate does not flag,
   style, a cheap refactor, a test that could be stronger.
 
-Critical and important findings are resolved (fixed, or declined with the reason) before merge, and only
+Critical and important findings are resolved (fixed, declined with the reason, or deferred by the
+maintainer) before merge, and only
 they are mirrored. Suggestions: at most ten per pass, then "and n more"; never posted, never worked
 unless the maintainer names one, dropped with the file. Unsure between important and suggestion: write
 suggestion.
@@ -80,9 +83,11 @@ file; nothing else about findings is posted.
 - `resolve` answers each resolved finding's thread (`fixed in <sha>`, `declined: <reason>` or
   `deferred: <where>`) and closes it.
 - The review state: `post`, `resolve` and `status --write-body` rewrite one block in the body, between
-  `<!-- sdd:review-state -->` and `<!-- /sdd:review-state -->`, from the file: the verdict at the head,
-  the passes, the counts, each deferral. It names no finding and is never edited by hand; a body
-  rewritten without it gets it back on the next write.
+  the whole-line markers `<!-- sdd:review-state -->` and `<!-- /sdd:review-state -->`, from the file: the
+  verdict at the head, the passes, the counts, each deferral. It carries no finding id and is never
+  edited by hand; a body rewritten without it gets it back on the next write. Markers that are not one
+  balanced pair, a body the forge's limit cannot hold, and a checkout without the file are reported,
+  never written over.
 
 The backend is GitHub or Azure DevOps, from `forge:` in the descriptor, else the remote URL, else `none`;
 with `none` the file is the whole record and every skill still works.

@@ -99,7 +99,7 @@ Review the draft as you would any pull request, with inline comments on the line
 /sdd-triage
 ```
 
-Triage pulls your unresolved threads into the findings file; a comment with no severity word counts as important. It checks each finding against the code and the cited spec section before fixing anything. Fixes land in this branch, each line in the file is flipped to fixed or declined with a reason, and your threads are answered and resolved. When the fixes changed code, triage runs one more review pass over them.
+Triage pulls your unresolved threads into the findings file; a comment with no severity word counts as important. It checks each finding against the code and the cited spec section before fixing anything. Fixes land in this branch, each line in the file is flipped to fixed or declined with a reason (or deferred, when you say so), and your threads are answered and resolved. When the fixes changed anything, documents included, triage runs one more review pass over them.
 
 When `sdd-pr status` shows nothing open, close out:
 
