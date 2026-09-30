@@ -1,16 +1,16 @@
 # SDD Plugin
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.7.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.8.0-blue)](CHANGELOG.md)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-D97757?logo=anthropic&logoColor=white)](https://claude.ai/code)
 [![Cursor](https://img.shields.io/badge/Cursor-plugin-000?logo=cursor&logoColor=white)](https://cursor.com)
 [![Keep a Changelog](https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-E05735)](CHANGELOG.md)
 
 Spec-Driven Development (SDD) for AI coding assistants, for teams that want the specification, not the code and not the prompt, to be the source of truth in any repository and any language. It adds skills, agents, hooks, a Cursor rule, and a vendored drift gate for **[Claude Code](https://docs.claude.com/en/docs/claude-code/plugins)** and **[Cursor](https://cursor.com/docs/plugins)**, so requirements, RFC-2119 specifications, and ADRs carry stable identifiers, a machine-checked traceability map ties them to code and tests, and CI fails on drift.
 
-The plugin owns the spec, document, and traceability layer and the delivery pipeline that runs on it: plan, worker fan-out, review, triage, and close-out. It operates on documentation (`docs/*.md`, a requirements index, a traceability map, `AGENTS.md`), so it is language-agnostic, and each repository declares its conventions in a small `docs/.sdd.yaml` descriptor. It does not own exploration before a requirement exists; a [general engineering plugin](#optional-a-general-engineering-plugin) can cover that end. Language-specific code review comes from the reviewers each repository declares, such as the go-coding plugin's `go-reviewer` ([example](docs/examples.md#configure-a-go-repository)).
+The plugin owns the spec, document, and traceability layer and the delivery pipeline that runs on it: worker fan-out, review, triage, and close-out. It operates on documentation (`docs/*.md`, a requirements index, a traceability map, `AGENTS.md`), so it is language-agnostic, and each repository declares its conventions in a small `docs/.sdd.yaml` descriptor. It does not own exploration before a requirement exists; a [general engineering plugin](#optional-a-general-engineering-plugin) can cover that end. Language-specific code review comes from the reviewers each repository declares, such as the go-coding plugin's `go-reviewer` ([example](docs/examples.md#configure-a-go-repository)).
 
-**Requirements.** A Claude Code or Cursor host. The plugin is pure Markdown + JSON: no build step and no MCP server. Installing it needs nothing else. To get full value, the repository you apply SDD to should expose a single build entry point (`make`, `task`, `just`, or `npm`) with a `spec-check` target; `/sdd-scaffold` adds missing targets and wires `spec-check` to the vendored gate, which needs Python 3.9 or later. `/sdd-deliver` opens pull requests with the forge CLI (`gh` on GitHub).
+**Requirements.** A Claude Code or Cursor host. The plugin is pure Markdown + JSON: no build step and no MCP server. Installing it needs nothing else. To get full value, the repository you apply SDD to should expose a single build entry point (`make`, `task`, `just`, or `npm`) with a `spec-check` target; `/sdd-scaffold` adds missing targets and wires `spec-check` to the vendored gate, which needs Python 3.9 or later. Mirroring findings to a pull request needs `gh` (GitHub) or `az` with the `azure-devops` extension (Azure DevOps); with neither, everything works on the local findings file.
 
 ## Table of contents
 
@@ -29,10 +29,10 @@ The plugin owns the spec, document, and traceability layer and the delivery pipe
 
 - **Requirements, specs, and decisions:** `/sdd-specify` writes the `REQ`, the RFC-2119 `SPEC §`, and the `ADR`, assigns stable identifiers, and wires the traceability map.
 - **Drift gate:** `sdd-check`, one vendored Python file, checks the chain `REQ → SPEC § → ADR → code → test` in both directions and fails the build on drift.
-- **Delivery pipeline:** `/sdd-deliver` takes one requirement from the dispatch preconditions through `sdd-implementer` workers and round 0 of review to a draft pull request.
-- **One review ledger:** `/sdd-review` and `/sdd-triage` merge findings from the SDD reviewers, the repository's own reviewers, and outside reviewers into one numbered ledger per pull request.
-- **Two lanes:** a change that alters a normative statement takes the full lane; a refactor or other maintenance change skips the SDD reviewer agents, and the drift gate runs in both.
-- **Close-out:** `/sdd-archive` sets the requirement to `shipped` and fills the pull request body inside the implementing pull request; a plan is a working file the gate never reads.
+- **Delivery pipeline:** `/sdd-deliver` takes one change from the dispatch gate through `sdd-implementer` workers and a first review pass to a draft pull request, and closes it out (`--close-out`) inside that pull request.
+- **Findings, not ledgers:** `/sdd-review` writes evidence-backed findings into a git-ignored per-branch file that Claude, Cursor and you can read; `sdd-pr` mirrors the critical and important ones to the pull request's inline threads on GitHub or Azure DevOps and answers "what is open, is it mergeable, what next".
+- **Two profiles:** formal (requirements, RFC-2119 specifications, the traceability map and the drift gate) and informative (a knowledge base plus one binding architecture document, for repositories where code leads).
+- **Two lanes:** on the formal profile, a change that alters a normative statement takes the full lane; a refactor or other maintenance change skips the SDD reviewer agents, and the drift gate runs in both.
 - **Config-driven:** the `docs/.sdd.yaml` descriptor sets identifier style, paths, build targets, and delivery parameters, so the same skills serve a flat-numeric library or an area-prefixed service unchanged.
 - **Session hooks:** an orientation line at session start, a traceability reminder after a spec edit, and a one-shot nudge when a session ends with uncommitted work.
 
@@ -56,10 +56,10 @@ See [docs/install.md](docs/install.md) for marketplace, local-development, updat
 ```text
 /sdd-scaffold                          # lay down the docs/ tree + .sdd.yaml in this repo
 /sdd-specify add a capability for <X>  # capture the REQ, write the normative SPEC, record any ADR
-/sdd-deliver REQ-...                   # preconditions → working plan → workers → round 0 → draft PR
-/sdd-review <PR> --panel               # print the prompt blocks for outside reviewers (--post writes the ledger)
-/sdd-triage <PR>                       # each review round: merge, verify, fix, resolve, re-request
-/sdd-archive REQ-...                   # close out the REQ record and the PR body — in its PR
+/sdd-deliver REQ-...                   # preconditions → workers → review pass → draft PR
+/sdd-review --panel                    # print the prompt blocks for outside reviewers
+/sdd-triage                            # work the open findings: verify, fix, flip, mirror
+/sdd-deliver <PR> --close-out          # set the REQ shipped and write the PR body — in its PR
 ```
 
 The walkthrough is [docs/quick-start.md](docs/quick-start.md); prompts by use case are in [docs/examples.md](docs/examples.md).
@@ -68,31 +68,30 @@ The walkthrough is [docs/quick-start.md](docs/quick-start.md); prompts by use ca
 
 ### Skills
 
-Seven `/sdd-*` skills, each also usable as a slash command, plus an always-on router.
+Six `/sdd-*` skills, each also usable as a slash command, plus an always-on router.
 
 | Skill | Use it to… |
 |---|---|
 | `spec-driven-development` | Auto-invoked awareness and router: explains the methodology, routes intent, states where an optional general engineering plugin still fits, and blocks jumping to code when no requirement or spec exists yet |
 | `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor, suggesting `agents.reviewers` from the build manifests (idempotent: fills gaps, never clobbers) |
 | `/sdd-specify` | The definition layer: capture a capability (`REQ`), write RFC-2119 normative behaviour into the canonical spec (`SPEC §`), and record decisions (`ADR`); assigns identifiers and wires traceability |
-| `/sdd-deliver` | The delivery driver: check the dispatch preconditions, write the working plan, fan `sdd-implementer` workers out per the descriptor's `agents:` block, gate each task by lane, open round 0 of the ledger and the draft PR, then close out and mark it ready |
-| `/sdd-review` | Lane-aware review orchestration: dispatch the SDD reviewers plus the repo's declared reviewers on the full lane, the declared reviewers alone on the maintenance lane, and write one numbered ledger; `--panel` prints the canonical prompt blocks |
-| `/sdd-triage` | One review round: enumerate every comment channel, merge the findings into the ledger, verify before fixing, sweep the pattern class, fix in this PR, resolve, and print the re-review prompts |
-| `/sdd-trace` | The traceability gate: assemble the one-shot context bundle for a `REQ`, and report drift and orphans (the `spec-check` analogue). Report-only |
-| `/sdd-archive` | The close-out inside the implementing PR: set the `REQ` to `shipped` in the traceability map (a `SPEC §` is promoted only when you confirm) and fill the PR body after the full gate passes |
+| `/sdd-deliver` | The delivery driver: the dispatch gate, `sdd-implementer` workers per the descriptor's `agents:` block, the per-task gate, the first review pass, the draft PR; `--close-out` sets the `REQ` to `shipped` (a `SPEC §` is promoted only when you confirm) and writes the PR body |
+| `/sdd-review` | One review pass over the commits since the last one: dispatch the reviewers the profile, lane and changed files call for, write their findings into `.sdd/findings/<branch>.md`, and mirror the blocking ones to the pull request; `--panel` prints the canonical prompt blocks |
+| `/sdd-triage` | Work the open findings: verify each, fix in this branch, flip the lines, mirror to the pull request, and run one scoped re-review when code changed |
+| `/sdd-trace` | The traceability gate: assemble the one-shot context bundle for a `REQ`, and report drift and orphans (the `spec-check` analogue); `--audit` dispatches the isolated whole-tree audit. Report-only |
 
 ### Agents
 
-The three reviewers declare no `Write` or `Edit`. `sdd-doc-reviewer` holds only `Read`, `Grep`, and `Glob`, so it is read-only outright. The other two add `Bash` for read-only scoping (`git diff`, `git log`), which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and it inherits every other tool the host offers, the repository's MCP servers included.
+The three reviewers declare no `Write` or `Edit` and return findings-file lines with evidence. `sdd-doc-reviewer` holds only `Read`, `Grep`, and `Glob`, so it is read-only outright. The other two add `Bash` — to run tests and, for the conformance reviewer, to remove a guard in a scratch worktree — which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and it inherits every other tool the host offers, the repository's MCP servers included.
 
 Claude Code enforces these grants. Cursor's subagent frontmatter carries no tool grant, and a subagent inherits every tool, so on Cursor both the reviewers' no-edit rule and the implementer's no-spawn rule are contracts the agent bodies state, not sandboxes. Cursor's `subagentStart` hook is the enforceable path and is not shipped yet.
 
 | Agent | Purpose |
 |---|---|
-| `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans (the `spec-check` analogue) |
-| `sdd-doc-reviewer` | Reviews an SDD document (requirement, spec, or ADR; **not** code) for boundary violations: mixed document kinds, duplicated normative prose, missing RFC-2119 force, unstable identifiers |
-| `sdd-spec-conformance-reviewer` | Judges whether implemented code satisfies the normative `SPEC §` and `REQ` acceptance criteria it cites, clause by clause: the conformance pass (not code quality, drift, or test-passing) |
-| `sdd-implementer` | Implements one bounded task from a delivery brief: reads the `SPEC §` the brief cites, cites `REQ`/`PROBE` ids in test names and its commit message, verifies with the command the brief names, and returns `En-route findings` |
+| `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans, dispatched by `/sdd-trace --audit` |
+| `sdd-doc-reviewer` | Reviews the changed hunks of the documents a change touched (**not** code): two homes for one rule, sentences that disagree, missing RFC-2119 force; consistency only on the informative profile |
+| `sdd-spec-conformance-reviewer` | Judges whether changed code satisfies the binding sentences it cites, clause by clause, running the tests and removing each touched guard as evidence |
+| `sdd-implementer` | Implements one bounded task from a brief: reads the quoted clauses, writes each test first and proves it can fail, cites `REQ`/`PROBE` ids in test names and its commit message, and returns `En-route findings` |
 
 ### The gate
 
@@ -109,10 +108,14 @@ Run it directly with:
 
 Full contract: [references/sdd-check.md](references/sdd-check.md).
 
+### The review tool
+
+`sdd-pr` (`python3 <plugin root>/tools/sdd-pr.py`, not vendored) keeps a branch's findings file and its pull request in step: `status` prints the open counts, `Mergeable: yes|no` and the next command; `scope` prints the range the next review pass reads; `pull`, `post` and `resolve` mirror findings to and from the inline threads on GitHub or Azure DevOps. With `forge: none`, `status` and `scope` work from the file alone. Contract: [references/review.md](references/review.md).
+
 ### Hooks
 
-- **SessionStart:** detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a context line, the available `/sdd-*` surface, and a short orientation: branch and tree state, open pull requests when the forge CLI answers, and the drift gate's verdict when it is vendored.
-- **PostToolUse** *(Claude Code)*: after an edit to a requirement, spec, ADR, or the traceability map, reminds you to keep the traceability chain in sync: `/sdd-trace` to check it, `/sdd-specify`, `/sdd-archive`, or the vendored `generate` command to regenerate. Cursor's `afterFileEdit` event has no output channel, so there is no reminder on Cursor ([install notes](docs/install.md#cursor)).
+- **SessionStart:** detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a context line, the available `/sdd-*` surface, and a short orientation: the profile, the plugin version (Claude Code), branch and tree state, the branch's open findings, and the drift gate's verdict when it is vendored.
+- **PostToolUse** *(Claude Code)*: after an edit to a requirement, spec, ADR, or the traceability map, reminds you to keep the traceability chain in sync: `/sdd-trace` to check it, `/sdd-specify`, `/sdd-deliver --close-out`, or the vendored `generate` command to regenerate; on the informative profile only a constitution edit prints one. Cursor's `afterFileEdit` event has no output channel, so there is no reminder on Cursor ([install notes](docs/install.md#cursor)).
 - **Stop** *(Claude Code)* / **stop** *(Cursor)*: a one-shot nudge when the session made no commit and leaves uncommitted changes in an SDD repository; the second stop in the same session passes silently. Opt out per repo with `hooks.stop_nudge: false` in `docs/.sdd.yaml`.
 
 ### Cursor
@@ -139,20 +142,21 @@ A general engineering plugin such as superpowers is optional: exploration workfl
 
 ```yaml
 sdd:
-  profile: full                     # full | lightweight
+  profile: formal                   # formal | informative
 
   req_style: area-prefixed          # area-prefixed | flat-numeric
-  req_areas: [FOUND, EHR, CLIN, AUTH]   # only for area-prefixed
+  req_areas: [FOUND, AUTH, API, DATA]   # only for area-prefixed
   excluded_areas: []                # area-prefixed only; tokens deliberately not areas
-  doc_kinds: [requirement, specification, adr, guide, analysis, operations, reference, upstream]
+  doc_kinds: [requirement, specification, adr, guide, analysis, operations, reference, upstream, constitution]
   default_mode: spec-first          # the mode a specification has when its frontmatter names none
 
   paths:
     requirements: docs/requirements
     specifications: docs/specifications
     adr: docs/adr
-    plans: docs/plans
+    constitution: docs/architecture.md   # informative profile only
   traceability: docs/specifications/traceability.yaml
+  forge: auto                       # auto | github | azure-devops | none
   build_entrypoint: make            # make | task | just | npm
   ci_target: ci                     # `make ci`, `task ci`, `npm run ci`
   spec_check_target: spec-check
@@ -160,7 +164,7 @@ sdd:
 
   check:
     script: scripts/sdd-check.py    # where /sdd-scaffold vendors the gate
-    version: "0.7.0"                # must equal the vendored tool's own version
+    version: "0.8.0"                # must equal the vendored tool's own version
     families: {}                    # per-family error | warn | off overrides — see references/sdd-check.md
 
   # Delivery parameters. /sdd-deliver and /sdd-review read these instead of asking.
@@ -193,12 +197,13 @@ What each check covers and the manual smoke test are in [docs/testing.md](docs/t
 - [docs/quick-start.md](docs/quick-start.md): one capability from idea to a ready pull request
 - [docs/examples.md](docs/examples.md): prompts by use case
 - [docs/install.md](docs/install.md): install on both hosts
-- [docs/upgrading.md](docs/upgrading.md): moving a repository from 0.4.x or 0.5.x
+- [docs/upgrading.md](docs/upgrading.md): moving a repository from an earlier version
 - [docs/testing.md](docs/testing.md): validate and dogfood
 - [docs/versioning.md](docs/versioning.md): SemVer and release steps
 - [docs/authoring.md](docs/authoring.md): skill, agent, and rule authoring conventions
 - [references/sdd-methodology.md](references/sdd-methodology.md): the methodology this plugin encodes
-- [references/artefact-prose.md](references/artefact-prose.md): the ledger and the prose rules
+- [references/review.md](references/review.md): the findings file, severities, evidence and the forge mirror
+- [references/artefact-prose.md](references/artefact-prose.md): the prose rules
 
 ## License
 

@@ -1,17 +1,26 @@
 ## Summary
 
-<!-- What does this PR change, and why? -->
+<!-- What changed and why, in prose. Name the decisions taken and the alternatives not taken. -->
+
+## Docs
+
+<!-- The references, skills, agents and docs pages this change touches or reconciles; the methodology section each rule cites. -->
+
+## Verification
+
+- `./scripts/validate.sh` — <what the output said>
+- `python3 -m unittest discover -s tools/tests` and `python3 tools/sdd-check.py selftest` — <result, when `tools/` changed>
+- `claude plugin validate .` — <result>
+- red before green / can-fail proof: <the tests that failed first, the guards removed>
+
+## Notes for review
+
+<!-- Where to look hardest; what is out of scope; a known gap left on purpose. Omit when there is nothing to say. -->
 
 ## Checklist
 
-- [ ] `./scripts/validate.sh` passes (or `claude plugin validate .` if Python is unavailable)
-- [ ] `claude plugin validate .` passes
-- [ ] Skill / agent triggering tested locally (see [docs/testing.md](../docs/testing.md))
-- [ ] Cursor install tested locally when manifest, rule, or hook content changed (see [docs/install.md](../docs/install.md#cursor))
-- [ ] Both manifests kept in sync when metadata changed: `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`
-- [ ] Methodology rules cite `references/sdd-methodology.md` rather than restating them; no normative rule duplicated
-- [ ] No internal/private repo names, absolute paths, or org-private details added (this repo may be public)
-- [ ] Disclosure grep clean over the tree, `CHANGELOG.md`, and the commit messages on this branch
-- [ ] Version bumped and [CHANGELOG.md](../CHANGELOG.md) updated (if component content changed); see [docs/versioning.md](../docs/versioning.md)
-- [ ] Docs synced (AGENTS.md, README.md, `hooks/session-start.sh`) when components were added or renamed
-- [ ] `python3 -m unittest discover -s tools/tests` and `python3 tools/sdd-check.py selftest` pass when `tools/` changed
+- [ ] Scoped to one logical change
+- [ ] The gates above pass locally and their output was read
+- [ ] CHANGELOG entry under Unreleased, when the change is user-visible; version bumped per [docs/versioning.md](../docs/versioning.md) at release
+- [ ] Both manifests kept in sync, and AGENTS.md, README.md, the Cursor rule and `hooks/session-start.sh` synced when components changed
+- [ ] No internal or private repository names, absolute paths or organisation-private details; disclosure grep clean over the tree, `CHANGELOG.md` and this branch's commit messages

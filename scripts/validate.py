@@ -344,17 +344,41 @@ RETIRED_TERMS = (
     _retired("allowed-tools", ":"),
     _retired("not yet ", "enforced"),
     _retired("sdd-", "finalize"),
+    _retired("Review ", "ledger"),
+    _retired("review ", "ledger"),
+    _retired("round ", "0"),
+    _retired("carried ", "from"),
+    _retired("completion ", "accounting"),
+    _retired("Deferred ", "table"),
+    _retired(".sdd/", "reviewers"),
+    _retired("Claim: ", "session"),
+    _retired("fixed", "@"),
+    _retired("sweep the ", "axis"),
+    _retired("--from ", "F"),
+    _retired("sdd-", "archive"),
+    _retired("paths.", "plans"),
+    _retired("templates/", "plan.md"),
+    _retired("should-", "fix"),
+    _retired("block", "er"),
 )
 ALLOWED_TOOLS_TERM = RETIRED_TERMS[5]  # the retired frontmatter key, also checked directly in agents/
-# CHANGELOG.md and docs/upgrading.md legitimately name a past rename; nothing else may reuse this
-# vocabulary, including this script itself — RETIRED_TERMS is built from parts above precisely so
-# a third, self-referential exemption is unnecessary.
-RETIRED_VOCAB_EXEMPT_FILES = {"CHANGELOG.md", "docs/upgrading.md"}
+# CHANGELOG.md, docs/upgrading.md and the upgrade procedure legitimately name a past rename, and the
+# gate, its contract and its tests name the retired descriptor keys they report; nothing else may
+# reuse this vocabulary, including this script itself — RETIRED_TERMS is built from parts above
+# precisely so a self-referential exemption is unnecessary.
+RETIRED_VOCAB_EXEMPT_FILES = {
+    "CHANGELOG.md",
+    "docs/upgrading.md",
+    "references/scaffold-upgrade.md",
+    "references/sdd-check.md",
+    "tools/sdd-check.py",
+    "tools/tests/test_sdd_check.py",
+}
 
 
 def validate_retired_vocabulary():
-    """None of RETIRED_TERMS may appear in any git-tracked file outside CHANGELOG.md /
-    docs/upgrading.md. The 'allowed-tools' key is scoped to agents/ — that is where it is a
+    """None of RETIRED_TERMS may appear in any git-tracked file outside
+    RETIRED_VOCAB_EXEMPT_FILES. The 'allowed-tools' key is scoped to agents/ — that is where it is a
     foot-gun, and validate_md_components() already flags it there; this repeats the term list
     for one shared exemption rule, not the check."""
     for path in _tracked_files("*"):
@@ -370,6 +394,58 @@ def validate_retired_vocabulary():
                 continue
             if term in text:
                 err(f"{rel}: retired term {term!r} — see docs/upgrading.md")
+
+
+# Word budgets for the review and delivery path. Prose on this path grows one reasonable sentence at
+# a time; a budget the validator enforces is what stops it. A change that needs more words raises
+# the number here, in the same pull request, with the maintainer's yes.
+WORD_BUDGETS = {
+    "skills/sdd-review/SKILL.md": 700,
+    "skills/sdd-triage/SKILL.md": 700,
+    "skills/sdd-deliver/SKILL.md": 1300,
+    "references/review.md": 1100,
+    "references/artefact-prose.md": 800,
+    "agents/sdd-doc-reviewer.md": 800,
+    "agents/sdd-spec-conformance-reviewer.md": 850,
+    "agents/sdd-traceability-auditor.md": 850,
+    "agents/sdd-implementer.md": 1200,
+    "references/templates/ai-workflow.md": 1000,
+    "references/templates/development-process.md": 1200,
+}
+
+
+def validate_word_budgets():
+    """Each budgeted file stays at or under its word count (whitespace-split, like `wc -w`)."""
+    for rel, budget in WORD_BUDGETS.items():
+        path = ROOT / rel
+        if not path.exists():
+            err(f"{rel}: budgeted file is missing")
+            continue
+        words = len(path.read_text().split())
+        if words > budget:
+            err(f"{rel}: {words} words, budget {budget} — cut, or raise the budget with the maintainer's yes")
+
+
+# Skills, agents, templates and hooks never call a forge CLI directly: sdd-pr's backends do, and the
+# docs that say which CLI a backend needs. The pattern is built from parts, like RETIRED_TERMS, so
+# this file does not trip its own check.
+FORGE_CLI_RE = re.compile("g" + r"h (pr|api|repo)\b|a" + r"z (repos|devops)\b")
+FORGE_CLI_EXEMPT = ("tools/", "docs/install.md", "references/review.md", "CHANGELOG.md")
+
+
+def validate_forge_neutrality():
+    """No tracked file outside FORGE_CLI_EXEMPT names a forge CLI command."""
+    for path in _tracked_files("*"):
+        rel = str(path.relative_to(ROOT))
+        if rel.startswith(FORGE_CLI_EXEMPT):
+            continue
+        try:
+            text = path.read_text()
+        except (OSError, UnicodeDecodeError):
+            continue
+        m = FORGE_CLI_RE.search(text)
+        if m:
+            err(f"{rel}: names the forge CLI ({m.group(0)!r}) — go through sdd-pr (references/review.md § The tool)")
 
 
 def _yaml_child_block(text: str, key: str) -> str:
@@ -398,22 +474,23 @@ def _yaml_child_block(text: str, key: str) -> str:
 
 
 def validate_tool_version(manifests):
-    """The vendored gate's own __version__, the template's pinned check.version, and both
+    """The vendored gate's and sdd-pr's own __version__, the template's pinned check.version, and both
     manifests' version must all agree — drift here means the wrong gate ships with the plugin.
     Read as text, never imported: tools/sdd-check.py is a vendorable artefact."""
     versions = {}
 
-    tool_path = ROOT / "tools" / "sdd-check.py"
-    if tool_path.is_file():
-        m = re.search(r'^__version__\s*=\s*"([^"]+)"', tool_path.read_text(), re.MULTILINE)
-        if m:
-            versions["tools/sdd-check.py"] = m.group(1)
+    for tool in ("sdd-check.py", "sdd-pr.py"):
+        tool_path = ROOT / "tools" / tool
+        if tool_path.is_file():
+            m = re.search(r'^__version__\s*=\s*"([^"]+)"', tool_path.read_text(), re.MULTILINE)
+            if m:
+                versions[f"tools/{tool}"] = m.group(1)
+            else:
+                err(f"tools/{tool}: no __version__ = \"...\" assignment found")
+            if not tool_path.stat().st_mode & 0o111:
+                err(f"tools/{tool}: not executable (chmod +x)")
         else:
-            err("tools/sdd-check.py: no __version__ = \"...\" assignment found")
-        if not tool_path.stat().st_mode & 0o111:
-            err("tools/sdd-check.py: not executable (chmod +x)")
-    else:
-        err("missing tools/sdd-check.py")
+            err(f"missing tools/{tool}")
 
     template_path = ROOT / "references" / "templates" / "sdd.yaml"
     if template_path.is_file():
@@ -476,6 +553,8 @@ def main():
 
     validate_links()
     validate_retired_vocabulary()
+    validate_word_budgets()
+    validate_forge_neutrality()
     validate_tool_version(manifests)
 
 
@@ -488,4 +567,5 @@ if __name__ == "__main__":
         sys.exit(1)
     print("OK: manifests, dual-host parity, component paths, kebab-case names, "
           "hook configs and scripts, skills, agents, commands, rules, links, "
-          "retired vocabulary, and tool/template/manifest version agreement are valid")
+          "retired vocabulary, word budgets, forge-neutral text, and tool/template/manifest "
+          "version agreement are valid")

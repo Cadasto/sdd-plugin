@@ -12,7 +12,7 @@ sdd:
 
   # Identifier style for requirements. Pick one and never switch (it would renumber IDs).
   req_style: area-prefixed          # area-prefixed | flat-numeric
-  req_areas: [FOUND, EHR, CLIN, AUTH]   # required iff req_style == area-prefixed
+  req_areas: [FOUND, AUTH, API, DATA]   # required iff req_style == area-prefixed
   req_gap: 10                       # decadal gap for flat-numeric (REQ-010, REQ-020, …)
   excluded_areas: []                # area-prefixed only; tokens that are deliberately not areas
 

@@ -104,7 +104,7 @@ dirty="$(tmo 5 git status --porcelain 2>/dev/null | wc -l | tr -d '[:space:]')"
 # written, degrade to silence rather than nudging on every stop.
 : > "$STATE_DIR/$key.nudged" 2>/dev/null || exit 0
 
-msg="This session made no commit and leaves $dirty uncommitted change(s). Record progress before stopping: commit the work, or update the PR body or the ledger, or say why not. This nudge fires once; stopping again passes."
+msg="This session made no commit and leaves $dirty uncommitted change(s). Record progress before stopping: commit the work, or update the PR body or the findings file, or say why not. This nudge fires once; stopping again passes."
 
 if [ "$host" = claude ]; then
   echo "$msg" >&2

@@ -7,7 +7,7 @@ This page is for contributors adding or changing a skill, agent, or Cursor rule 
 - **Components are kebab-case** and namespaced `<plugin>:<component>` (for example `sdd:sdd-specify`). A component's frontmatter `name` MUST equal its directory (skills) or filename stem (agents); `scripts/validate.py` enforces this.
 - `skills/<name>/SKILL.md` (includes user-invoked slash commands) · `agents/<name>.md` · `rules/<name>.mdc`. Shared reference material (the methodology, the schemas, the scaffold templates) lives in top-level `references/`. The legacy `commands/<name>.md` layout is not used.
 - Skill/command prefix is `sdd-`; the awareness skill is `spec-driven-development` (kept distinct from the plugin name `sdd` to avoid a `sdd:sdd` collision).
-- **`tools/` is the one shipped, vendorable artefact, not another skill, agent, or rule.** `tools/sdd-check.py` is a single, executable, standard-library-only Python file (3.9+) that `/sdd-scaffold` copies into a consuming repository; its unit tests live in `tools/tests/` (`unittest`, no pytest). `scripts/` is this repository's own validation and never imports it: read it as text or shell out to it, the way a consuming repository would.
+- **`tools/` holds the two shipped programs, not another skill, agent, or rule.** Each is a single, executable, standard-library-only Python file (3.9+): `tools/sdd-check.py`, the gate `/sdd-scaffold` copies into a consuming repository, and `tools/sdd-pr.py`, the findings file's forge mirror, run from the plugin root and never vendored. Every forge call in `sdd-pr` goes through one `run_cli()` the tests replace. Their unit tests live in `tools/tests/` (`unittest`, no pytest). `scripts/` is this repository's own validation and never imports them: read them as text or shell out to them, the way a consuming repository would.
 
 ## Skill vs agent vs rule
 
@@ -19,6 +19,7 @@ This page is for contributors adding or changing a skill, agent, or Cursor rule 
   - The body is the agent's **system prompt**: open it in second person ("You are a report-only specialist that…"), then continue imperatively.
   - Call an agent **read-only** only when its grant genuinely is. `Bash` writes (`sed -i`, a redirect), so an agent holding it is report-only, and its body should say that no-edit is a contract it keeps rather than a sandbox.
   - A worker agent is kept from spawning workers by denying `Agent` (and its older name `Task`) through `disallowedTools:`, which leaves every other tool reachable; the reviewers keep allowlists because their no-edit contract matters more than reach. That denial is load-bearing, not an oversight.
+  - The three reviewers share one *Rules every finding meets* section and one *Output format* (findings-file lines with evidence), both owned by `references/review.md`; change all three together.
   - Both grants are Claude Code fields. Cursor subagents inherit every tool, so on Cursor the same rules hold as contracts stated in the body; write the body so it stands alone.
 - **Cursor rule:** a Cursor-only `.mdc` with `description` / `globs` / `alwaysApply` mirroring the router. See `rules/sdd-context.mdc`.
 
@@ -34,6 +35,9 @@ For skills the `description` is always-on metadata. Keep it lean and in the thir
 - **Operate on Markdown, not source code.** The `sdd-*` skills operate on documents; the one component that touches source is the `sdd-implementer` agent, and only inside the files its brief names. The skills read and write docs, the requirements index, the traceability map, and `AGENTS.md`. They are language-agnostic by construction and **read `docs/.sdd.yaml` first** rather than hard-coding paths or identifier styles.
 - **Enforce boundaries; don't invent rules.** A skill keeps document kinds separate, identifiers stable, and the chain intact. It never adds a normative rule that isn't already in a spec.
 - **Verification is part of the skill.** A skill that lands an artefact runs (or instructs the agent to run) the relevant gate before claiming done.
+- **Name no forge CLI.** A skill, agent, template or hook reaches the pull request through `sdd-pr`, never `gh` or `az` directly; `scripts/validate.py` fails a file that does.
+- **Stay within the word budget.** The review and delivery path has per-file budgets in `scripts/validate.py` (`WORD_BUDGETS`); a change that needs more words raises the number in the same pull request, with the maintainer's yes.
+- **Retired vocabulary stays retired.** `RETIRED_TERMS` in `scripts/validate.py` lists the words the ledger, the plan lifecycle and the archive skill used; only the changelog, the upgrade documents and the gate that reports the retired keys may name them.
 
 ## Public-safety constraint
 

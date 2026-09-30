@@ -89,6 +89,50 @@ case "$claude_out" in
   *) bad "session-start Claude payload produced no orientation line" ;;
 esac
 
+# --- session-start: the profile, and the plugin version on Claude Code only ------------
+r="$(setup_repo)"; state="$(newdir state)"
+want_ver="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT/.claude-plugin/plugin.json" | head -n1)"
+v_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" CLAUDE_PLUGIN_ROOT="$ROOT")"
+case "$v_out" in
+  *"› sdd plugin $want_ver"*) ok "session-start prints the plugin version when CLAUDE_PLUGIN_ROOT is set" ;;
+  *) bad "session-start printed no '› sdd plugin $want_ver' line: $v_out" ;;
+esac
+case "$v_out" in
+  *"(profile formal)"*) ok "session-start names the profile (a descriptor with none reads as formal)" ;;
+  *) bad "session-start context line names no profile: $v_out" ;;
+esac
+nv_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"
+case "$nv_out" in
+  *"› sdd plugin"*) bad "session-start printed a version line without CLAUDE_PLUGIN_ROOT" ;;
+  *) ok "session-start prints no version line when the host names no plugin root" ;;
+esac
+
+# --- session-start: the branch's open findings -----------------------------------------
+r="$(setup_repo)"; state="$(newdir state)"
+if commit_all "$r"; then
+  git -C "$r" checkout -q -b feat/x
+  mkdir -p "$r/.sdd/findings"
+  cat > "$r/.sdd/findings/feat--x.md" <<'MD'
+# Findings — feat/x
+Base: main
+Reviewed abc1234 · 2026-09-30 · claude: go-reviewer (1 of 1)
+
+## Open
+- [ ] critical · a.go:1 · one · by: claude
+- [ ] important · a.go:2 · two · by: claude
+
+## Resolved
+- [x] important · a.go:3 · three · by: claude · fixed abc1234
+
+## Suggestions
+- a.go:4 · four · by: claude
+- a.go:5 · five · by: claude
+MD
+  f_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep '^› findings')"
+  [ "$f_line" = "› findings: 1 critical, 1 important open, 2 suggestions (.sdd/findings/feat--x.md)" ] \
+    && ok "session-start counts the branch's open findings" || bad "findings line was '$f_line'"
+fi
+
 # --- session-start: a vendored gate with no verdict is reported, not silenced ---------
 r="$(setup_repo)"; state="$(newdir state)"
 mkdir -p "$r/scripts"
@@ -151,6 +195,10 @@ if commit_all "$r"; then
   fi
   [ "$c_rc" -eq 0 ] && [ "$valid" = yes ] && ok "session-stop on Cursor exits 0 with a followup_message JSON object" \
     || bad "Cursor stop exit $c_rc, reply not a followup_message object: $c_out"
+  case "$c_out" in
+    *"the findings file"*) ok "the stop nudge names the PR body or the findings file" ;;
+    *) bad "the stop nudge does not name the findings file: $c_out" ;;
+  esac
   [ "$c_rc2" -eq 0 ] && [ -z "$c_out2" ] && ok "session-stop on Cursor is silent on the second stop" \
     || bad "second Cursor stop exit $c_rc2, output '$c_out2' (expected 0 and nothing)"
 fi
@@ -180,7 +228,7 @@ fi
 # --- HOME, XDG_STATE_HOME and CLAUDE_PLUGIN_DATA all unset -----------------------------
 # The state falls back to a per-user temp directory; TMPDIR points it inside this run's temp dir.
 # The session start must record HEAD there, so the first stop nudges and the second passes — and
-# nothing (gh's device-id, a state file) may land in the repository.
+# nothing (a state file) may land in the repository.
 r="$(setup_repo)"; htmp="$(newdir htmp)"
 if commit_all "$r"; then
   homeless() { env -u HOME -u XDG_STATE_HOME -u CLAUDE_PLUGIN_DATA -u CLAUDE_FILE_PATH TMPDIR="$htmp" bash "$HOOKS/$1.sh"; }
@@ -265,6 +313,17 @@ printf 'sdd:\n  paths:\n    requirements: docs/REQUIREMENTS.md\n  traceability: 
 case "$( cd "$lite" && hook spec-edit-reminder "$state" CLAUDE_FILE_PATH="$lite/docs/REQUIREMENTS.md" </dev/null )" in
   *"Edited a requirement"*) ok "reminder fires for a lightweight file-form requirements path" ;;
   *) bad "reminder missed the lightweight file-form requirements path" ;;
+esac
+
+# The informative profile: only an edit to the constitution prints a reminder.
+info="$(newdir info)"; mkdir -p "$info/docs/specifications"
+printf 'sdd:\n  profile: informative\n  paths:\n    constitution: docs/architecture.md\n' > "$info/docs/.sdd.yaml"
+i_spec="$( cd "$info" && hook spec-edit-reminder "$state" CLAUDE_FILE_PATH="$info/docs/specifications/client.md" </dev/null )"
+[ -z "$i_spec" ] && ok "reminder is silent for a knowledge-base page on the informative profile" \
+  || bad "reminder fired for an informative-profile page: $i_spec"
+case "$( cd "$info" && hook spec-edit-reminder "$state" CLAUDE_FILE_PATH="$info/docs/architecture.md" </dev/null )" in
+  *"Edited the constitution"*) ok "reminder names the constitution on the informative profile" ;;
+  *) bad "reminder missed the constitution edit on the informative profile" ;;
 esac
 
 # A descriptor written without the sdd: wrapper still names its traceability file.
