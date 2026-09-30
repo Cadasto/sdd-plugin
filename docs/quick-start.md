@@ -1,13 +1,13 @@
 # Quick start
 
-This walkthrough is for a first-time user: it takes one capability from idea to a ready pull request with the `/sdd-*` skills, in a repository that has never been scaffolded. Written for sdd 0.8.0 on Claude Code with a GitHub remote, on the formal profile. Cursor installation and hook wiring differ; see [install.md](install.md).
+This walkthrough is for a first-time user. It takes one capability from idea to a ready pull request with the `/sdd-*` skills, in a repository that has never been scaffolded. It was written for sdd 0.8.0 on Claude Code with a GitHub remote, on the formal profile. Cursor installation and hook wiring differ; see [install.md](install.md).
 
 The assistant's wording varies between runs. The files each step produces, and the gates it stops at, do not. Check those.
 
 ## Before you start
 
 - Claude Code with the plugin installed: see [install.md](install.md).
-- A git repository with a GitHub remote and the `gh` CLI signed in. `/sdd-deliver` opens the draft pull request with it.
+- A git repository with a GitHub remote and the `gh` CLI signed in. `/sdd-deliver` opens the draft pull request with it, and `sdd-pr` mirrors findings to it.
 - One build entry point. This walkthrough uses `make`; `task`, `just`, and `npm` work the same way.
 
 The example capability is refreshing an expired access token in a service that issues API tokens. Replace it with your own; the steps do not change.
@@ -18,7 +18,7 @@ The example capability is refreshing an expired access token in a service that i
 /sdd-scaffold formal area-prefixed make
 ```
 
-The skill asks for the profile first — formal here; informative keeps `docs/` as a knowledge base bound only by a `docs/architecture.md` constitution — then for the requirement areas and the ground-truth source for your domain facts, and creates:
+The skill asks for the profile first. This walkthrough uses formal; informative keeps `docs/` as a knowledge base bound only by a `docs/architecture.md` constitution. It then asks for the requirement areas and the ground-truth source for your domain facts, and creates:
 
 ```text
 docs/
@@ -31,11 +31,13 @@ AGENTS.md
 .github/PULL_REQUEST_TEMPLATE.md
 ```
 
-and adds `.sdd/` to `.gitignore`: that is where each branch's findings file lives.
+It also adds `.sdd/` to `.gitignore`, because that is where each branch's findings file lives.
 
-It fills the `agents:` block of `docs/.sdd.yaml` with example values and the code-index line in `docs/ai-workflow.md` § Orchestration, and it suggests a value for `agents.reviewers` when it finds `go.mod`, `composer.json`, or `package.json`. Review both before going on: name the reviewer agent your repository uses, or leave the list empty and expect the per-task gate to report itself unconfigured in step 3.
+It fills the `agents:` block of `docs/.sdd.yaml` with example values, and the code-index line in `docs/ai-workflow.md` § Orchestration. When it finds `go.mod`, `composer.json`, or `package.json`, it suggests a value for `agents.reviewers`. Review both before going on. Name the reviewer agent your repository uses, or leave the list empty and expect the per-task gate to report itself unconfigured in step 3.
 
-It vendors the drift gate too: `tools/sdd-check.py` is copied from the plugin into the repository at `check.script` (`scripts/sdd-check.py` by default), the copy's own version is pinned into `check.version`, and the real `spec-check` target is wired into your `Makefile` (`python3 scripts/sdd-check.py selftest && python3 scripts/sdd-check.py check`, not a stub). It then runs `generate` before the first `check`, because a freshly scaffolded repository's index blocks still hold placeholder rows the `generated` family would otherwise reject. That first `check` still reports failures of its own: the starter `traceability.yaml` carries no records yet, which is a `map-schema` error by design, so every record-dependent family is skipped with the reason `map unavailable`. That is the expected first state, not a defect, and it clears once `/sdd-specify` writes the first requirement, in step 2.
+It vendors the drift gate too. `tools/sdd-check.py` is copied from the plugin to `check.script` (`scripts/sdd-check.py` by default), and the copy's version is pinned in `check.version`. The real `spec-check` target is wired into your `Makefile`: `python3 scripts/sdd-check.py selftest && python3 scripts/sdd-check.py check`, not a stub.
+
+The skill runs `generate` before the first `check`, because a fresh scaffold's index blocks still hold placeholder rows that the `generated` family would reject. That first `check` still fails. The starter `traceability.yaml` has no records yet, which is a `map-schema` error by design, so every family that needs records is skipped with the reason `map unavailable`. This is the expected first state. It clears once `/sdd-specify` writes the first requirement in step 2.
 
 Check: `docs/.sdd.yaml` exists and carries an `agents:` block and a `check:` block naming the vendored gate. From the next session on, a one-line banner names the `/sdd-*` surface whenever you open the repository.
 
@@ -68,7 +70,7 @@ Check:
 /sdd-trace REQ-AUTH-001
 ```
 
-The bundle shows the index row, the traceability record, and the spec section it points to. A broken link is reported here, before any code exists. `/sdd-trace` gets this from the gate directly: `python3 scripts/sdd-check.py context REQ-AUTH-001` prints the same bundle from a shell, without going through the skill.
+The bundle shows the index row, the traceability record, and the spec section it points to, so a broken link shows up here, before any code exists. The skill takes the bundle from the gate: `python3 scripts/sdd-check.py context REQ-AUTH-001` prints the same thing from a shell.
 
 ## 3. Deliver it
 
@@ -80,7 +82,7 @@ The skill runs as the orchestrator and stops at each gate:
 
 1. **Dispatch gate.** Five preconditions: the requirement has acceptance criteria, the spec sections exist, any ADR is accepted, the failure behaviour is cited from the requirement and the spec, and the verification commands are known. An unmet one stops the run and is named. Fix it with `/sdd-specify` and run again.
 2. **Lane.** A new capability is the full lane. The lane is passed to the review and written into the pull request body.
-3. **Workers.** A feature branch, then one `sdd-implementer` per task, on the model and parallelism the `agents:` block declares. Each brief quotes the clauses the task must satisfy; the worker writes each test first and shows it fails with the guard removed, names `REQ-AUTH-001` in its test names and its commit message (never in doc comments), and reports anything wrong outside its brief as en-route findings. The orchestrator keeps its own task list; nothing about the plan is committed.
+3. **Workers.** The skill creates a feature branch and dispatches one `sdd-implementer` per task, on the model and parallelism the `agents:` block declares. Each brief quotes the clauses the task must satisfy. The worker writes each test first and shows that it fails with the guard removed. It names `REQ-AUTH-001` in its test names and its commit message, never in doc comments, and reports anything wrong outside its brief as en-route findings. The orchestrator keeps its own task list; nothing about the plan is committed.
 4. **Per-task gate.** With `task_review: lane`, the reviewers named in `agents.reviewers` check each task on the full lane. An empty list is reported as an unconfigured gate, and the skill asks before continuing.
 5. **First review pass.** After the full gate, `/sdd-review` reads the branch and writes its findings into `.sdd/findings/feat--auth-refresh.md` (git-ignored). `/sdd-triage` fixes the critical and important ones before any pull request exists.
 6. **Draft pull request.** Opened as a draft, with `Lane: full` under *Spec and traceability*. Anything still open is mirrored to its inline threads.
@@ -97,7 +99,7 @@ Review the draft as you would any pull request, with inline comments on the line
 /sdd-triage
 ```
 
-Triage pulls your unresolved threads into the findings file (a comment with no severity word counts as important), verifies each one against the code and the cited spec section before fixing it, fixes in this branch, flips each line to fixed or declined with a reason, and answers and resolves your threads. When the fixes changed code, it runs one review pass over them.
+Triage pulls your unresolved threads into the findings file; a comment with no severity word counts as important. It checks each finding against the code and the cited spec section before fixing anything. Fixes land in this branch, each line in the file is flipped to fixed or declined with a reason, and your threads are answered and resolved. When the fixes changed code, triage runs one more review pass over them.
 
 When `sdd-pr status` shows nothing open, close out:
 
@@ -105,7 +107,7 @@ When `sdd-pr status` shows nothing open, close out:
 /sdd-deliver <N> --close-out
 ```
 
-The close-out sets the requirement's traceability record to `implementation: shipped` (the spec section is promoted only if you confirm it), runs the full gate before pushing, writes the pull request body, marks the pull request ready, and prints one review-request block per entry in `agents.review_panel.full` for reviewers that run outside the repository. Paste those where they go. A person merges.
+The close-out sets the requirement's traceability record to `implementation: shipped`; the spec section is promoted only if you confirm it. It runs the full gate before pushing, writes the pull request body and marks the pull request ready. Last, it prints one review-request block per entry in `agents.review_panel.full`, for reviewers that run outside the repository. Paste those where they go. A person merges.
 
 Check: the requirement's record reads `implementation: shipped`, the pull request is no longer a draft, and its body has Summary, Spec and traceability, Verification and the checklist.
 

@@ -30,7 +30,7 @@ The plugin owns the spec, document, and traceability layer and the delivery pipe
 - **Requirements, specs, and decisions:** `/sdd-specify` writes the `REQ`, the RFC-2119 `SPEC §`, and the `ADR`, assigns stable identifiers, and wires the traceability map.
 - **Drift gate:** `sdd-check`, one vendored Python file, checks the chain `REQ → SPEC § → ADR → code → test` in both directions and fails the build on drift.
 - **Delivery pipeline:** `/sdd-deliver` takes one change from the dispatch gate through `sdd-implementer` workers and a first review pass to a draft pull request, and closes it out (`--close-out`) inside that pull request.
-- **Findings, not ledgers:** `/sdd-review` writes evidence-backed findings into a git-ignored per-branch file that Claude, Cursor and you can read; `sdd-pr` mirrors the critical and important ones to the pull request's inline threads on GitHub or Azure DevOps and answers "what is open, is it mergeable, what next".
+- **A findings file per branch:** `/sdd-review` writes findings, each with its evidence, into a git-ignored file that Claude, Cursor and you can all read. `sdd-pr` mirrors the critical and important ones to the pull request's inline threads on GitHub or Azure DevOps, and tells you what is open, whether the branch is mergeable, and what to run next.
 - **Two profiles:** formal (requirements, RFC-2119 specifications, the traceability map and the drift gate) and informative (a knowledge base plus one binding architecture document, for repositories where code leads).
 - **Two lanes:** on the formal profile, a change that alters a normative statement takes the full lane; a refactor or other maintenance change skips the SDD reviewer agents, and the drift gate runs in both.
 - **Config-driven:** the `docs/.sdd.yaml` descriptor sets identifier style, paths, build targets, and delivery parameters, so the same skills serve a flat-numeric library or an area-prefixed service unchanged.
@@ -82,7 +82,7 @@ Six `/sdd-*` skills, each also usable as a slash command, plus an always-on rout
 
 ### Agents
 
-The three reviewers declare no `Write` or `Edit` and return findings-file lines with evidence. `sdd-doc-reviewer` holds only `Read`, `Grep`, and `Glob`, so it is read-only outright. The other two add `Bash` — to run tests and, for the conformance reviewer, to remove a guard in a scratch worktree — which makes their no-edit guarantee a contract they keep rather than a sandbox that enforces it. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and it inherits every other tool the host offers, the repository's MCP servers included.
+The three reviewers declare no `Write` or `Edit` and return findings-file lines with evidence. `sdd-doc-reviewer` holds only `Read`, `Grep`, and `Glob`, so it is read-only outright. The other two also hold `Bash`, to run tests and, for the conformance reviewer, to remove a guard in a scratch worktree. Because `Bash` can write, not editing is a promise those two keep rather than a limit the host enforces. `sdd-implementer` is the one agent that writes. It declares a denylist rather than an allowlist: `Agent` and `Task` are denied, so it cannot dispatch further agents, and it inherits every other tool the host offers, the repository's MCP servers included.
 
 Claude Code enforces these grants. Cursor's subagent frontmatter carries no tool grant, and a subagent inherits every tool, so on Cursor both the reviewers' no-edit rule and the implementer's no-spawn rule are contracts the agent bodies state, not sandboxes. Cursor's `subagentStart` hook is the enforceable path and is not shipped yet.
 
@@ -128,7 +128,7 @@ Full contract: [references/sdd-check.md](references/sdd-check.md).
 Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Close out
 ```
 
-SDD treats a structured, versioned specification as the authoritative description of a system. This plugin encodes the *spec-anchored* rung, where specs are living, version-controlled contracts, and adds the governance machinery that mainstream toolkits such as GitHub Spec Kit, AWS Kiro, and Tessl leave to the team: **stable identifiers, a machine-checked traceability map, and CI that fails on drift.** Its job is to keep the specification the source of truth and the chain `REQ → SPEC § → ADR → code → test` intact from the first requirement to the merged PR.
+SDD treats a structured, versioned specification as the authoritative description of a system. This plugin encodes the *spec-anchored* rung, where specs are living, version-controlled contracts, and adds the governance machinery that mainstream toolkits such as GitHub Spec Kit, AWS Kiro, and Tessl leave to the team: stable identifiers, a machine-checked traceability map, and CI that fails on drift. Its job is to keep the specification the source of truth and the chain `REQ → SPEC § → ADR → code → test` intact from the first requirement to the merged PR.
 
 The rules behind each step, the rigour ladder, and the sources are in the [methodology](references/sdd-methodology.md#2-the-canonical-loop).
 
@@ -138,7 +138,7 @@ A general engineering plugin such as superpowers is optional: exploration workfl
 
 ## The project descriptor
 
-`/sdd-scaffold` writes `docs/.sdd.yaml`; every other skill reads it. It is what keeps the plugin repo-agnostic. An excerpt (the full template, with every key, is [references/templates/sdd.yaml](references/templates/sdd.yaml)):
+`/sdd-scaffold` writes `docs/.sdd.yaml`, and every other skill reads it; that is how one plugin serves repositories with different conventions. An excerpt (the full template, with every key, is [references/templates/sdd.yaml](references/templates/sdd.yaml)):
 
 ```yaml
 sdd:

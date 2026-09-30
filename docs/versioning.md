@@ -12,19 +12,21 @@ While on the `0.x` line, treat the plugin as pre-stable: a breaking change may s
 
 ## Release steps
 
-1. Bump `version` in **both** manifests (they must agree): `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`. Keep `description`, `author`, `license`, `repository`, and `keywords` identical across both; `scripts/validate.py` enforces this parity. In the same step, bump `tools/sdd-check.py`'s `__version__` and `references/templates/sdd.yaml`'s `check.version` to match; `scripts/validate.py` fails when the tool, the template pin, and the manifests disagree. A repository that already vendored the gate picks up the new version by running `/sdd-scaffold --upgrade`.
-2. Update the version badge at the top of [README.md](../README.md) to the new version.
+Steps 1 to 4 and 6 belong in the pull request that carries the release's changes, with the changelog notes still under `## [Unreleased]`. Steps 5, 7 and 8 happen on `main` after that pull request merges, so the release commit only dates the changelog.
+
+1. Bump `version` in both manifests, `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`, and keep their `description`, `author`, `license`, `repository`, and `keywords` identical. In the same step, bump the `__version__` of `tools/sdd-check.py` and `tools/sdd-pr.py`, and `check.version` in `references/templates/sdd.yaml`. `scripts/validate.py` fails when any of these disagree. A repository that already vendored the gate picks up the new version with `/sdd-scaffold --upgrade`.
+2. Update the version badge at the top of [README.md](../README.md).
 3. Run `./scripts/validate.sh` and `claude plugin validate .`.
-4. **Dogfood:** load the working copy (`claude --plugin-dir /path/to/sdd-plugin`) and run the full loop on a throwaway repo on **both** hosts; see [testing.md](testing.md).
-5. Fold the accumulated `## [Unreleased]` notes into a dated `## [X.Y.Z] - YYYY-MM-DD` section in [CHANGELOG.md](../CHANGELOG.md) (Keep a Changelog, groups in order Added, Changed, Deprecated, Removed, Fixed, Security; see [AGENTS.md](../AGENTS.md#changelog-style)).
-6. Sync the docs surface (AGENTS.md, README.md) with what shipped. Keep the `/sdd-*` list in `hooks/session-start.sh` in step when a skill is added or renamed.
+4. Dogfood: load the working copy (`claude --plugin-dir /path/to/sdd-plugin`) and run the full loop on a throwaway repo on both hosts; see [testing.md](testing.md).
+5. Fold the `## [Unreleased]` notes into a dated `## [X.Y.Z] - YYYY-MM-DD` section in [CHANGELOG.md](../CHANGELOG.md). The groups follow Keep a Changelog, in the order Added, Changed, Deprecated, Removed, Fixed, Security ([AGENTS.md](../AGENTS.md#changelog-style)).
+6. Sync AGENTS.md and README.md with what ships. When a skill is added or renamed, update the `/sdd-*` list in `hooks/session-start.sh` too.
 7. Commit (`chore(release): vX.Y.Z`) and tag: `git tag -a vX.Y.Z -m "sdd-plugin vX.Y.Z"`.
-8. Push commits and the tag: `git push origin main --follow-tags`.
+8. Push the commit and the tag: `git push origin main --follow-tags`.
 9. **Update the marketplace entry.** The release is not live until this lands; see below.
 
 ## No MCP coupling
 
-This plugin has **no companion MCP server**, so there is no server-compatibility version to align.
+This plugin has no companion MCP server, so there is no server version to keep in step.
 
 ## Marketplace
 
@@ -32,8 +34,8 @@ This plugin is listed in the [Cadasto marketplace](https://github.com/Cadasto/pl
 
 After step 8, update the entry in `Cadasto/plugin-marketplace`:
 
-1. Bump that entry's `version` **and** `source.ref` to the new `vX.Y.Z` together (validation there rejects a mismatch).
-2. Bump the catalog's own `metadata.version`: a plugin minor or major is a catalog **minor**, a plugin patch is a catalog **patch**.
+1. Bump that entry's `version` and `source.ref` to the new `vX.Y.Z` together; the catalog's validation rejects a mismatch.
+2. Bump the catalog's own `metadata.version`: a plugin minor or major release is a catalog minor, a plugin patch is a catalog patch.
 3. Add a `CHANGELOG.md` line and run `python3 scripts/validate.py --fix`.
 
 See the catalog's [docs/versioning.md](https://github.com/Cadasto/plugin-marketplace/blob/main/docs/versioning.md).

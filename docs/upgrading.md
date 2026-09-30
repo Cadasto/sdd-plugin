@@ -4,10 +4,11 @@ This page is for maintainers of a repository scaffolded by an earlier version of
 
 ## From 0.7.x to 0.8.0
 
-0.8.0 replaces the review ledger with a git-ignored findings file per branch, mirrored to the pull
-request's inline threads by `sdd-pr`; folds `/sdd-archive` into `/sdd-deliver --close-out`; takes
-plans out of the plugin; and adds a second profile, informative. `/sdd-scaffold --upgrade` proposes
-steps 2 to 4 and applies each only on your yes, because each edits something the repository already has.
+0.8.0 replaces the review ledger with a git-ignored findings file per branch, which `sdd-pr` mirrors
+to the pull request's inline threads. It folds `/sdd-archive` into `/sdd-deliver --close-out`, takes
+plans out of the plugin, and adds a second profile, informative. `/sdd-scaffold --upgrade` proposes
+steps 2 to 4 and applies each only when you say yes, because each one edits something the repository
+already has.
 
 1. **Re-vendor.** Run `/sdd-scaffold --upgrade`. It copies the 0.8.0 gate over `check.script` and sets
    `check.version`.
@@ -16,7 +17,10 @@ steps 2 to 4 and applies each only on your yes, because each edits something the
    names it until you do). `forge: auto` is the default and may be left out; set `github`,
    `azure-devops` or `none` to override the remote URL.
 3. **Ignore and delete.** Add `.sdd/` to `.gitignore`. Delete `docs/.sdd/reviewers/`: a decline that
-   should hold for future changes becomes a specification sentence or an ADR instead.
+   should hold for future changes becomes a specification sentence or an ADR instead. The gate now
+   reads nothing git ignores, committed plans under an ignored directory included, and a tracked
+   document that links to a git-ignored file fails the `links` family. Point such a link at the pull
+   request or commit instead.
 4. **Process documents.** Re-emit `docs/ai-workflow.md`, `docs/development-process.md` and
    `.github/PULL_REQUEST_TEMPLATE.md` from the templates, keeping this repository's own lines under
    § Orchestration.
@@ -27,10 +31,10 @@ steps 2 to 4 and applies each only on your yes, because each edits something the
 6. **Commands.** `/sdd-archive` is `/sdd-deliver <PR> --close-out`. `/sdd-review` takes `--pr N` instead
    of a positional PR number and has no `--post`; `/sdd-triage` has no `--from`. "What is open, is it
    mergeable, what next" is `python3 <plugin root>/tools/sdd-pr.py status`.
-7. **The informative profile** is optional and per repository: `--upgrade` never changes a profile on
-   its own. A repository that switches writes `profile: informative`, adds `docs/architecture.md` from
-   the plugin's `references/templates/constitution.md`, and may keep or drop its map; the gate then runs
-   only `descriptor`, `doc-kinds`, `links`, `changelog` and `generated`.
+7. **The informative profile** is optional and chosen per repository; `--upgrade` never changes a
+   profile on its own. A repository that switches writes `profile: informative` and adds
+   `docs/architecture.md` from the plugin's `references/templates/constitution.md`. It may keep or drop
+   its map. The gate then runs only `descriptor`, `doc-kinds`, `links`, `changelog` and `generated`.
 
 ## From 0.6.x to 0.7.0
 

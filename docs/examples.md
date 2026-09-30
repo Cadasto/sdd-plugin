@@ -2,7 +2,7 @@
 
 This page is for users whose repository is already scaffolded. It collects recipes with one goal each: the prompt to type, what happens, and what to check. New to the plugin? Start with the [quick start](quick-start.md).
 
-Every `/sdd-*` skill also triggers on plain phrasing (the phrases quoted in its description, such as "add a requirement" or "cut the release"), so the slash form is a convenience, not a requirement. The example repository issues API tokens; its requirements use the `AUTH` area and its spec is `SPEC-AUTH`.
+Every `/sdd-*` skill also triggers on plain phrasing, such as "add a requirement" or "review this branch", so you never have to type the slash form. The example repository issues API tokens; its requirements use the `AUTH` area and its spec is `SPEC-AUTH`.
 
 ## Ask where a statement belongs
 
@@ -10,7 +10,7 @@ Every `/sdd-*` skill also triggers on plain phrasing (the phrases quoted in its 
 Should "a refresh with a revoked token fails closed" be a requirement or a spec section?
 ```
 
-The router skill answers without touching a file: the requirement names the observable outcome as an acceptance criterion, the spec section owns the normative *how*: the `MUST NOT`, the error contract. It then points at `/sdd-specify`. Use it whenever you are unsure which document kind you are about to write.
+The router skill answers without touching a file. The requirement names the observable outcome as an acceptance criterion; the spec section owns the normative *how*, meaning the `MUST NOT` and the error contract. Then it points you at `/sdd-specify`. Ask it whenever you are unsure which kind of document you are about to write.
 
 ## Turn a design note into documents
 
@@ -48,7 +48,7 @@ Fix the code on the same branch, starting from a test that fails on the bug, the
 /sdd-review --lane full
 ```
 
-The lane test is whether a normative statement changed meaning, answered from the document hunks, so the conformance and document reviewers are dispatched alongside the repository's own.
+The review decides the lane by asking whether a normative statement changed meaning, and reads the answer from the changed document lines. Here one did, so the conformance and document reviewers run alongside the repository's own.
 
 Check: the pull request body carries `Lane: full`, and the spec section's status is not lagging behind the code.
 
@@ -76,21 +76,21 @@ One bundle: the index row, the traceability record, the canonical spec section, 
 /sdd-trace
 ```
 
-With no argument, a drift scan of the whole map against the tree, grouped by orphan class: a canonical link to a missing anchor, a listed test that does not exist, a requirement marked `shipped` with no packages. When `spec-check` fails in CI and the cause is unclear:
+With no argument, it scans the whole map against the tree and groups what it finds by gate family: a canonical link to a missing anchor, a listed test that does not exist, a requirement marked `shipped` with no packages. Before a release, or when `spec-check` fails in CI and the cause is unclear:
 
 ```text
-Run a whole-repo traceability audit before we tag the release.
+/sdd-trace --audit
 ```
 
-That dispatches the `sdd-traceability-auditor` agent in its own context and returns a ranked report. Nothing is edited.
+That dispatches the `sdd-traceability-auditor` agent in its own context. It runs the same gate, checks by hand what the gate skipped, and edits nothing.
 
-`/sdd-trace REQ-AUTH-001` gets its bundle from the vendored gate. The same bundle, from a shell rather than a skill:
+`/sdd-trace REQ-AUTH-001` gets its bundle from the vendored gate. You can print the same bundle from a shell:
 
 ```text
 python3 scripts/sdd-check.py context REQ-AUTH-001
 ```
 
-Useful in CI, or any script that wants a requirement's context without a session running.
+That is useful in CI, or in any script that needs a requirement's context without a session running.
 
 ## Check code against the spec it cites
 
@@ -112,7 +112,7 @@ The `sdd-doc-reviewer` agent checks the changed hunks for boundary violations: i
 /sdd-review --panel
 ```
 
-Prints one review-request block per name in `agents.review_panel.<lane>`, filled from the repository's `docs/ai-workflow.md` § Review with the commit range to read. Paste each block to the reviewer it names. A reviewer on this machine appends lines to the findings file; one working on the pull request posts inline comments, which `sdd-pr pull` brings in.
+Prints one review-request block per name in `agents.review_panel.<lane>`, filled from the repository's `docs/ai-workflow.md` § Review with the commit range to read. Paste each block to the reviewer it names. An outside reviewer working on this machine appends lines to the findings file. One working on the pull request posts inline comments, and `sdd-pr pull` brings them in.
 
 ## Work the open findings
 
@@ -120,7 +120,7 @@ Prints one review-request block per name in `agents.review_panel.<lane>`, filled
 /sdd-triage
 ```
 
-The open critical and important lines of `.sdd/findings/<branch>.md` are the whole list; each is verified before it is fixed, the fix lands in this branch, and the line is flipped. An excerpt of the file:
+The open critical and important lines of `.sdd/findings/<branch>.md` are the whole to-do list. Each one is checked before it is fixed, the fix lands in this branch, and the line is flipped. An excerpt of the file:
 
 ```markdown
 # Findings — feat/auth-refresh
@@ -156,7 +156,7 @@ The format and its rules live in [review.md](../references/review.md).
 /sdd-deliver <N>
 ```
 
-Given a pull request number, the skill reads the findings file, `sdd-pr status` and the pull request body, and continues at the first unfinished step. Two sessions on one branch each need their own worktree.
+Given a pull request number, the skill reads the findings file, `sdd-pr status` and the pull request body, and carries on at the first unfinished step. Two sessions on one branch take turns on one checkout; git will not check out the same branch in two worktrees.
 
 ## Work on the informative profile
 
@@ -166,7 +166,7 @@ A repository where the code leads and `docs/` is a knowledge base: `profile: inf
 /sdd-deliver add a retry to the HTTP client
 ```
 
-No requirement is needed to start. The workers change the code, the documents that describe the client are reconciled in the same branch, and the review pass is the code reviewer plus `sdd-doc-reviewer` checking consistency; the conformance reviewer runs only when the change touches a constitution sentence. `sdd-check check` runs `descriptor`, `doc-kinds`, `links`, `changelog` and `generated`, and lists the map families as skipped.
+No requirement is needed to start. The workers change the code, and the documents that describe the client are brought up to date in the same branch. The review pass is the code reviewer plus `sdd-doc-reviewer` checking consistency. The conformance reviewer runs only when the change touches a constitution sentence. `sdd-check check` runs `descriptor`, `doc-kinds`, `links`, `changelog` and `generated`, and lists the map families as skipped.
 
 ## Configure a Go repository
 
@@ -188,7 +188,11 @@ Workers load those skills from their brief; the reviewer sits on the per-task ga
 /sdd-scaffold --upgrade
 ```
 
-Re-vendors `tools/sdd-check.py` if the plugin ships a newer copy than `check.version` pins, fills in any descriptor key the 0.6.0 shape adds, wraps a hand-written index table in the generated-block markers without dropping a row, and adds `kind:` to the nine scaffold-owned files it emits (a hand-authored document keeps the maintainer's own `kind:`, added by hand). Plain `/sdd-scaffold` takes the same path when the descriptor has no `check:` block. When a hand-written index row has no matching record in `traceability.yaml`, `generate` refuses to drop it: the run writes nothing and names the row. Capture the requirement with `/sdd-specify`, or delete the stale row by hand, then run again. A note inside the markers is refused the same way; move it outside them. From 0.7.x it also proposes the 0.8.0 changes — drop the plans path, rename `profile: full` to `formal`, ignore `.sdd/`, re-emit the process documents — and applies each only on your yes. Full procedure: [docs/upgrading.md](upgrading.md).
+The upgrade re-vendors `tools/sdd-check.py` when the plugin ships a newer copy than `check.version` pins, and fills in any descriptor key the repository lacks. It wraps a hand-written index table in the generated-block markers without dropping a row, and adds `kind:` to the nine files the scaffold emits. A document you wrote yourself keeps its own `kind:`, which you add by hand. Plain `/sdd-scaffold` takes the same path when the descriptor has no `check:` block.
+
+When a hand-written index row has no matching record in `traceability.yaml`, `generate` refuses to drop it: the run writes nothing and names the row. Capture the requirement with `/sdd-specify`, or delete the stale row by hand, then run again. A note inside the markers is refused the same way; move it outside them.
+
+From 0.7.x the upgrade also proposes the 0.8.0 changes: drop the plans path, rename `profile: full` to `formal`, ignore `.sdd/`, and re-emit the process documents. Each is applied only when you say yes. The full procedure is in [docs/upgrading.md](upgrading.md).
 
 ## Draft a gap for an upstream repository
 
@@ -198,4 +202,4 @@ Advanced, and only when `docs/.sdd.yaml` declares an `upstream` that also practi
 /sdd-specify draft an upstream gap: the SDK needs a refresh-token grant
 ```
 
-The draft is written in the upstream's conventions (its identifier style, RFC-2119, acceptance criteria), so it drops straight into the upstream's spec tree, and it is stored locally with its lifecycle tracked. The rules are in [cross-repo-gap.md](../references/cross-repo-gap.md). For anything the repository consumes, the upstream's semantics are ground truth and the local documents are corrected, never the other way round.
+The draft is written in the upstream's conventions (its identifier style, RFC-2119, acceptance criteria), so it drops straight into the upstream's spec tree. It is stored locally, and its lifecycle is tracked. The rules are in [cross-repo-gap.md](../references/cross-repo-gap.md). For anything the repository consumes, the upstream's semantics are ground truth and the local documents are corrected, never the other way round.
