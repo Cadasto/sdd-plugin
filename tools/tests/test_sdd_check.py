@@ -943,6 +943,15 @@ class TestPlansOutOfScope(GitCase):
         self.write(self.PLAN, self.PLAN_TEXT)
         self.assert_clean(sdd_check.run_check(self.tmp, only=None, changelog_all=False))
 
+    def test_a_tracked_plan_under_an_ignore_rule_is_read_by_no_family(self):
+        # A repository that committed its plans before 0.7.0 ignored the directory keeps them
+        # tracked; an ignore rule that matches them still keeps every family out.
+        self.init_git()
+        self.write(self.PLAN, self.PLAN_TEXT)
+        self.commit("a plan committed before the directory was ignored")
+        self.write(".gitignore", "docs/plans/\n")
+        self.assert_clean(sdd_check.run_check(self.tmp, only=None, changelog_all=False))
+
     def test_an_unignored_plan_is_an_ordinary_document(self):
         # can-fail control: the same file, not ignored, is read like any other document.
         self.init_git()

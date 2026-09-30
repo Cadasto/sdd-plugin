@@ -72,7 +72,9 @@ def git_routes(branch="feat/x", head=HEAD, remote="git@github.com:o/r.git", name
         (git("rev-parse", "--abbrev-ref", "HEAD"), branch + "\n"),
         (git("rev-parse", "HEAD"), head + "\n"),
         (git("rev-parse", "--verify", "--quiet"), lambda argv, _: argv[-1].split("^")[0] + "\n"),
+        (git("merge-base", "--is-ancestor"), ""),
         (git("merge-base"), MB + "\n"),
+        (git("symbolic-ref"), "origin/main\n"),
         (git("remote", "get-url", "origin"), remote + "\n"),
         (git("diff", "--name-only"), names),
         (git("diff"), diff),
@@ -188,15 +190,22 @@ class TestFileModel(RepoCase):
         self.assertEqual(2, code)
         self.assertIn("line %d" % lineno, err)
 
-    def test_a_line_in_the_wrong_section_is_malformed(self):
-        text = FILE_OPEN_IMPORTANT.replace("- [ ] important · a.go:5", "- [x] important · a.go:5")
-        with self.assertRaises(sdd_pr.FileError) as caught:
-            sdd_pr.parse(text)
-        self.assertIn("belongs under ## Resolved", str(caught.exception))
-        text = FILE_CLEAN.replace("- [x] important · a.go:5", "- [ ] important · a.go:5")
-        with self.assertRaises(sdd_pr.FileError) as caught:
-            sdd_pr.parse(text)
-        self.assertIn("belongs under ## Open", str(caught.exception))
+    def test_a_line_is_filed_by_its_checkbox_wherever_it_stands(self):
+        # Flipped in place under ## Open, as review.md § Resolution says to.
+        flipped = FILE_OPEN_IMPORTANT.replace("- [ ] important · a.go:5", "- [x] important · a.go:5").replace(
+            "by: claude\n", "by: claude · fixed abc1234\n", 1)
+        fs = sdd_pr.parse(flipped)
+        self.assertEqual(([], 1), (fs.open, len(fs.resolved)))
+        self.assertIn("## Resolved\n- [x] important · a.go:5", sdd_pr.render(fs))
+        # Appended at the end of the file by an outside reviewer, after ## Suggestions, with its Reviewed line.
+        appended = FILE_CLEAN + "- [ ] critical · b.go:7 · leaks a handle · by: cursor\nReviewed abc1234 · 2026-09-30 · cursor: go-reviewer (1 of 1)\n"
+        fs = sdd_pr.parse(appended)
+        self.assertEqual(["critical"], [f.severity for f in fs.open])
+        self.assertEqual(2, len(fs.reviewed))
+        self.assertEqual(1, len(fs.suggestions))
+        # An upper-case X is a fixed line, not a malformed one.
+        fs = sdd_pr.parse(FILE_CLEAN.replace("- [x] important", "- [X] important"))
+        self.assertEqual("fixed", fs.resolved[0].status)
 
     def test_a_sentence_that_looks_like_a_field_stays_the_sentence(self):
         line = "- [ ] important · a.go:1 · fixed width breaks the table · by: claude"
@@ -232,6 +241,32 @@ class TestScope(RepoCase):
         data = json.loads(out)
         self.assertEqual("9c1e2ab..HEAD", data["range"])
         self.assertEqual(["a.go"], data["files"]["code"])
+
+    def test_scope_without_file_or_pr_uses_the_remote_default_branch(self):
+        self.descriptor(forge="none")
+        routes = git_routes(names="a.go\n")
+        routes.insert(0, (git("symbolic-ref"), "origin/master\n"))
+        fake = self.use(routes)
+        code, out, err = self.run_main("scope")
+        self.assertEqual(0, code, err)
+        self.assertTrue(fake.called("merge-base", "master", "HEAD"), fake.calls)
+        # No local master: the remote-tracking ref is used instead.
+        routes.insert(0, (git("rev-parse", "--verify", "--quiet"),
+                          lambda argv, _: "" if argv[-1] == "master^{commit}" else argv[-1].split("^")[0] + "\n"))
+        fake = self.use(routes)
+        code, out, err = self.run_main("scope")
+        self.assertEqual(0, code, err)
+        self.assertTrue(fake.called("merge-base", "origin/master", "HEAD"), fake.calls)
+
+    def test_scope_after_a_rebase_falls_back_to_the_merge_base(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OPEN_IMPORTANT.replace(HEAD[:7], "9c1e2ab", 1))
+        routes = git_routes(names="a.go\n")
+        routes.insert(0, (git("merge-base", "--is-ancestor"), sdd_pr.CliError("not an ancestor")))
+        self.use(routes)
+        code, out, _ = self.run_main("scope")
+        self.assertEqual(0, code)
+        self.assertIn("range: %s..HEAD" % MB, out)
 
     def test_scope_is_empty_when_head_is_the_reviewed_commit(self):
         self.descriptor(forge="none")
@@ -300,6 +335,12 @@ class TestStatus(RepoCase):
         self.descriptor(forge="github")
         self.use(git_routes(remote="https://gitlab.example.org/o/r.git"))
         self.assertEqual("github", sdd_pr.detect_forge(str(self.root)).name)
+        self.descriptor(forge="auto")
+        self.use(git_routes(remote="https://dev.azure.com/org/My%20Project/_git/my.gitops"))
+        forge = sdd_pr.detect_forge(str(self.root))
+        self.assertEqual(("https://dev.azure.com/org", "My Project", "my.gitops"), (forge.org, forge.project, forge.repo))
+        self.use(git_routes(remote="git@ssh.dev.azure.com:v3/org/proj/repo.git"))
+        self.assertEqual("repo", sdd_pr.detect_forge(str(self.root)).repo)
 
     def _gh_routes(self, draft=False, checks=(), threads=()):
         pr = {
@@ -327,7 +368,7 @@ class TestStatus(RepoCase):
         threads = [gh_thread(101, "a.go", 3, "please rename"), gh_thread(102, "b.go", 4, "**critical** leak")]
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(threads=threads))
         _, out, _ = self.run_main("status")
-        self.assertIn("2 unresolved threads not in the file", out)
+        self.assertIn("2 unresolved threads not open in the file", out)
         self.assertIn("Next: sdd-pr pull --pr 7", out)
         # Nothing open, HEAD moved since the last pass with a code file changed → review.
         self.use(
@@ -337,6 +378,7 @@ class TestStatus(RepoCase):
         )
         _, out, _ = self.run_main("status")
         self.assertIn("code changed since", out)
+        self.assertIn("Mergeable: yes", out)
         self.assertIn("Next: /sdd-review", out)
         # Nothing open, a draft → mark ready.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(draft=True))
@@ -416,6 +458,22 @@ class TestPull(GitHubCase):
         self.run_main("pull")
         self.assertEqual(text, self.read_findings())
 
+    def test_pull_reopens_a_resolved_line_whose_thread_is_open_again(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN.replace("by: claude · fixed", "by: claude · forge: 77 · fixed").replace(
+            HEAD[:7] + "\n\n## Suggestions", HEAD[:7] + " · mirrored\n\n## Suggestions"))
+        reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), HEAD + "\n")
+        self.use([reviewed_at_head] + self.routes(threads=[gh_thread(77, "a.go", 5, "not fixed, see line 6")]))
+        _, out, _ = self.run_main("status")
+        self.assertIn("1 unresolved threads not open in the file", out)
+        self.assertIn("Mergeable: no", out)
+        code, _, err = self.run_main("pull")
+        self.assertEqual(0, code, err)
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual(["77"], [f.fields.get("forge") for f in fs.open])
+        self.assertEqual([], fs.open[0].flags)
+        self.assertIsNone(fs.open[0].fixed)
+
     def test_pull_creates_the_file_when_absent(self):
         self.descriptor(forge="github")
         self.use(self.routes(threads=[gh_thread(101, "a.go", 12, "a comment")]))
@@ -472,13 +530,16 @@ class TestPullAzure(AzureCase):
             az_thread(13, "c.go", 7, "won't", status="wontFix"),
             az_thread(14, "d.go", 8, "closed", status="closed"),
             {"id": 15, "status": "active", "comments": [{"content": "general remark", "author": {"displayName": "M"}}]},
+            az_thread(16, "e.go", 9, "waiting on the author", status="pending"),
+            dict(az_thread(17, "f.go", 3, "removed"), isDeleted=True),
         ]
         fake = self.use(self.routes(threads=threads))
         code, _, err = self.run_main("pull")
         self.assertEqual(0, code, err)
         text = self.read_findings()
         self.assertIn("- [ ] important · a.go:5 · the retry ignores cancellation · by: Maint · forge: 11", text)
-        for tid in ("12", "13", "14", "15"):
+        self.assertIn("e.go:9 · waiting on the author · by: Maint · forge: 16", text)
+        for tid in ("12", "13", "14", "15", "17"):
             self.assertNotIn("forge: %s" % tid, text)
         invoke = fake.called("az", "devops", "invoke")[0]
         self.assertIn("pullRequestThreads", invoke)

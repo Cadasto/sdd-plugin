@@ -30,7 +30,7 @@ The argument is the `REQ`, a task in words, or — to resume — the PR number. 
     - both profiles — run the full gate on the branch as it stands and read it; when it is red, stop with nothing pushed. Write the PR body from `docs/development-process.md` § The PR body in full, push, mark ready. Nothing else is required; the maintainer merges.
 11. **Print the panel prompts.** Run `/sdd-review --panel`: print the blocks for a person to paste to reviewers outside the repository, and stop.
 
-**Resuming.** Run this skill against the PR number: the findings file, `sdd-pr status` and the PR body are the state. Before a pull request exists, the findings file and your own working notes are. Two sessions on one branch: each gets its own worktree. Re-enter at the first step not yet done.
+**Resuming.** Run this skill against the PR number: the findings file, `sdd-pr status` and the PR body are the state. Before a pull request exists, the findings file and your own working notes are. Two sessions on one branch take turns on one checkout. Re-enter at the first step not yet done.
 
 ## Guardrails
 

@@ -1354,6 +1354,11 @@ class Context:
         if self._docs_files is None:
             listing = self.git("ls-files", "--cached", "--others", "--exclude-standard", "-z")
             kept = None if listing is None else {rel for rel in listing.split("\0") if rel}
+            if kept is not None:
+                # A file committed before its directory was ignored is still tracked; the ignore
+                # rule that now matches it keeps it out all the same.
+                ignored = self.git("ls-files", "--cached", "--ignored", "--exclude-standard", "-z") or ""
+                kept -= {rel for rel in ignored.split("\0") if rel}
             found: List[Path] = []
             for root in self.desc.docs_roots():
                 if root.is_file() and root.suffix == ".md":

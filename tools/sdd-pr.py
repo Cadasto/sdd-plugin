@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import unquote
 
 __version__ = "0.8.0"
 
@@ -90,23 +91,26 @@ class Finding:
         return box + SEP.join(parts)
 
 
-LINE_RE = re.compile(r"^- (\[( |x|-)\] )?(.*)$")
+LINE_RE = re.compile(r"^- (\[( |x|X|-)\] )?(.*)$")
 
 
-def parse_line(raw: str, lineno: int, section: str) -> Finding:
-    """One finding line. The first field after ``path:line`` is always the sentence, so a
-    sentence that starts with ``fixed`` or holds a colon is never read as a field."""
+def parse_line(raw: str, lineno: int, section: str = "") -> Finding:
+    """One finding line, classified by its checkbox wherever it stands: a line flipped in place,
+    or appended at the end of the file, is filed under its section on the next write. The first
+    field after ``path:line`` is always the sentence, so a sentence that starts with ``fixed`` or
+    holds a colon is never read as a field."""
     match = LINE_RE.match(raw.rstrip())
     if not match:
         raise FileError("line %d: not a finding line" % lineno)
     box = match.group(2)
     parts = [p.strip() for p in match.group(3).split(SEP.strip())]
     parts = [p for p in parts if p != ""]
-    status = "suggestion" if box is None else {" ": "open", "x": "fixed", "-": "declined"}[box]
-    if section == "Suggestions" and box is not None:
-        raise FileError("line %d: a suggestion has no checkbox" % lineno)
-    if section in ("Open", "Resolved") and box is None:
-        raise FileError("line %d: a finding under ## %s needs a checkbox" % (lineno, section))
+    status = "suggestion" if box is None else {" ": "open", "x": "fixed", "X": "fixed", "-": "declined"}[box]
+    if box is None and parts and parts[0] in SEVERITIES:
+        # A writer who left out the checkbox still named the severity.
+        status = "open" if parts[0] in BLOCKING else "suggestion"
+        if status == "suggestion":
+            parts = parts[1:]
     if status != "suggestion":
         if not parts or parts[0] not in BLOCKING + ("suggestion",):
             raise FileError("line %d: first field must be a severity (%s)" % (lineno, ", ".join(SEVERITIES)))
@@ -176,7 +180,7 @@ def parse(text: str) -> Findings:
             fs.base = line[len("Base:"):].strip()
             continue
         match = REVIEWED_RE.match(line)
-        if match and not section:
+        if match:
             fs.reviewed.append((match.group(1), match.group(2), match.group(3), match.group(4)))
             continue
         if line.startswith("## "):
@@ -185,12 +189,7 @@ def parse(text: str) -> Findings:
                 raise FileError("line %d: unknown section %r" % (index, section))
             continue
         if line.startswith("- ") and section:
-            finding = parse_line(line, index, section)
-            if section == "Open" and finding.status != "open":
-                raise FileError("line %d: a resolved line belongs under ## Resolved" % index)
-            if section == "Resolved" and finding.status == "open":
-                raise FileError("line %d: an open line belongs under ## Open" % index)
-            fs.items.append(finding)
+            fs.items.append(parse_line(line, index, section))
             continue
         raise FileError("line %d: unexpected text %r" % (index, line[:60]))
     return fs
@@ -324,14 +323,28 @@ def resolve_sha(root: str, sha: str) -> str:
         return ""
 
 
+def base_ref(root: str, base: str) -> str:
+    """The base as a ref this clone has: the local branch, else its remote-tracking copy."""
+    if resolve_sha(root, base) or not resolve_sha(root, "origin/" + base):
+        return base
+    return "origin/" + base
+
+
 def review_range(root: str, fs: Findings, base: str, head: str, whole: bool = False) -> Optional[str]:
-    """The range the next pass reads, or ``None`` when nothing is new (review.md § Scope)."""
+    """The range the next pass reads, or ``None`` when nothing is new (review.md § Scope). A last
+    pass that is no longer an ancestor of HEAD (the branch was rebased) restarts at the merge base."""
     last = None if whole else fs.last_reviewed_sha()
     if last:
-        if resolve_sha(root, last) == head:
+        full = resolve_sha(root, last)
+        if full == head:
             return None
-        return "%s..HEAD" % last
-    merge_base = git(root, "merge-base", base, "HEAD").strip()
+        if full:
+            try:
+                git(root, "merge-base", "--is-ancestor", full, "HEAD")
+                return "%s..HEAD" % last
+            except CliError:
+                pass
+    merge_base = git(root, "merge-base", base_ref(root, base), "HEAD").strip()
     if merge_base == head:
         return None
     return "%s..HEAD" % merge_base
@@ -542,11 +555,14 @@ class AzureDevOpsForge(Forge):
             context = thread.get("threadContext") or {}
             if not context.get("filePath"):
                 continue
+            if thread.get("isDeleted"):
+                continue
             first = (thread.get("comments") or [{}])[0]
             start = context.get("rightFileStart") or context.get("leftFileStart") or {}
             out.append({
                 "id": str(thread.get("id", "")), "node": str(thread.get("id", "")),
-                "resolved": thread.get("status") != "active", "path": context["filePath"].lstrip("/"),
+                "resolved": thread.get("status") not in ("active", "pending"),
+                "path": context["filePath"].lstrip("/"),
                 "line": start.get("line", ""), "body": first.get("content", ""),
                 "author": (first.get("author") or {}).get("displayName", ""),
             })
@@ -584,9 +600,11 @@ def _azure_from_remote(url: str) -> Optional[AzureDevOpsForge]:
     for pattern in patterns:
         match = re.match(pattern, url)
         if match:
-            org = match.group("org")
+            org = unquote(match.group("org"))
             host = "https://%s.visualstudio.com" % org if "visualstudio.com" in url else "https://dev.azure.com/" + org
-            return AzureDevOpsForge(host, match.group("project"), match.group("repo").replace(".git", ""))
+            repo = unquote(match.group("repo"))
+            repo = repo[: -len(".git")] if repo.endswith(".git") else repo
+            return AzureDevOpsForge(host, unquote(match.group("project")), repo)
     if "dev.azure.com" in url or "visualstudio.com" in url:
         return AzureDevOpsForge()
     return None
@@ -640,6 +658,7 @@ class Session:
         return self._pr
 
     def base(self) -> str:
+        """The file's base, else the pull request's, else the remote's default branch, else main."""
         if self.fs.base:
             return self.fs.base
         if self.forge.name != "none":
@@ -649,6 +668,12 @@ class Session:
                     return pr["base"]
             except CliError:
                 pass
+        try:
+            default = git(self.root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD").strip()
+            if default:
+                return default[len("origin/"):] if default.startswith("origin/") else default
+        except CliError:
+            pass
         return "main"
 
     def need_forge(self) -> None:
@@ -695,7 +720,7 @@ def cmd_status(session: Session, args) -> int:
         reasons.append(", ".join(parts) + " open")
     nxt = "/sdd-triage" if reasons else ""
     if code_changed and last:
-        reasons.append("code changed since the last review")
+        # Steers Next only: after the pass budget is spent, a fix does not reopen review.
         nxt = nxt or "/sdd-review"
     elif not last and (code_changed or files["documents"]):
         reasons.append("not reviewed yet")
@@ -710,13 +735,13 @@ def cmd_status(session: Session, args) -> int:
             if pr is None:
                 print("forge: %s · no pull request" % session.forge.name)
             else:
-                known = fs.forge_ids()
-                unknown = [t for t in session.forge.threads(pr["number"]) if not t["resolved"] and t["id"] not in known]
+                shown_open = {f.fields["forge"] for f in fs.open if f.fields.get("forge")}
+                unknown = [t for t in session.forge.threads(pr["number"]) if not t["resolved"] and t["id"] not in shown_open]
                 checks = session.forge.checks(pr["number"])
-                print("forge: %s · PR %d (%s) · %d unresolved threads not in the file · checks: %s"
+                print("forge: %s · PR %d (%s) · %d unresolved threads not open in the file · checks: %s"
                       % (session.forge.name, pr["number"], "draft" if pr["draft"] else "ready", len(unknown), checks))
                 if unknown:
-                    reasons.append("%d unresolved threads not in the file" % len(unknown))
+                    reasons.append("%d unresolved threads not open in the file" % len(unknown))
                     nxt = nxt or "sdd-pr pull --pr %d" % pr["number"]
                 if checks == "fail":
                     reasons.append("checks failing")
@@ -740,9 +765,20 @@ def cmd_pull(session: Session, args) -> int:
     pr = session.pr()
     fs = session.fs
     known = fs.forge_ids()
+    by_id = {f.fields["forge"]: f for f in fs.resolved if f.fields.get("forge")}
     added = 0
     for thread in session.forge.threads(pr["number"]):
-        if thread["resolved"] or not thread["id"] or thread["id"] in known:
+        if thread["resolved"] or not thread["id"]:
+            continue
+        reopened = by_id.get(thread["id"])
+        if reopened is not None:
+            # The thread is open again on the forge (a decline rejected, a fix disputed): so is the line.
+            reopened.status, reopened.fixed = "open", None
+            reopened.fields.pop("declined", None)
+            reopened.flags = [flag for flag in reopened.flags if flag != "mirrored"]
+            added += 1
+            continue
+        if thread["id"] in known:
             continue
         fields = {"by": thread["author"] or "forge", "forge": thread["id"]}
         fs.items.append(Finding("open", severity_of(thread["body"]), thread["path"], str(thread["line"] or ""),
