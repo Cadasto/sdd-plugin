@@ -479,9 +479,10 @@ class GitHubForge(Forge):
                                 % (owner, name, number, review["id"])])) or []
         ids = []
         for comment in comments:
-            # Match on the body as well as the anchor, so two findings on one line keep their own ids.
-            match = [p for p in posted if (p.get("path"), p.get("line"), p.get("body")) ==
-                     (comment["path"], comment["line"], comment["body"])]
+            # The per-review listing carries no `line`: match on the path and the body, which tells two
+            # findings on one line apart, and on the line only where the listing has one.
+            match = [p for p in posted if (p.get("path"), p.get("body")) == (comment["path"], comment["body"])
+                     and (p.get("line") or p.get("original_line")) in (None, comment["line"])]
             chosen = match[0] if match else {}
             if chosen:
                 posted.remove(chosen)
@@ -804,16 +805,8 @@ def cmd_post(session: Session, args) -> int:
         return 0
     # A finding the forge already carries (an id that was not read back, a post interrupted before
     # the file was saved) adopts that thread's id and is never published a second time.
-    existing = {(t["path"], str(t["line"]), first_sentence(t["body"])): t["id"]
-                for t in session.forge.threads(pr["number"]) if t["id"]}
-    adopted = 0
-    for finding in list(candidates):
-        thread_id = existing.get((finding.path, finding.line, first_sentence(comment_body(finding))))
-        if thread_id:
-            finding.fields["forge"] = thread_id
-            finding.flags = [flag for flag in finding.flags if flag != "unanchored"]
-            candidates.remove(finding)
-            adopted += 1
+    adopted = len(adopt(session, pr, candidates))
+    candidates = [f for f in candidates if not f.fields.get("forge")]
     if adopted and not args.dry_run:
         session.save()
     if not candidates:
@@ -850,10 +843,29 @@ def cmd_post(session: Session, args) -> int:
             finding.flags.remove("unanchored")
     for finding in unanchored:
         finding.flags.append("unanchored")
+    missing = [f for f in anchored if not f.fields.get("forge")]
+    if missing:
+        missing = [f for f in missing if f not in adopt(session, pr, missing)]
     session.save()
-    print("post: %d thread%s on PR %d, %d not anchored"
-          % (len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored)))
+    print("post: %d thread%s on PR %d, %d not anchored%s"
+          % (len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),
+             "; %d without an id read back" % len(missing) if missing else ""))
     return 0
+
+
+def adopt(session: Session, pr: dict, findings: List[Finding]) -> List[Finding]:
+    """Give each finding the forge already carries its thread's id, matched on the path, the line
+    and the first sentence; return the findings that took one."""
+    existing = {(t["path"], str(t["line"]), first_sentence(t["body"])): t["id"]
+                for t in session.forge.threads(pr["number"]) if t["id"]}
+    taken = []
+    for finding in findings:
+        thread_id = existing.get((finding.path, finding.line, first_sentence(comment_body(finding))))
+        if thread_id:
+            finding.fields["forge"] = thread_id
+            finding.flags = [flag for flag in finding.flags if flag != "unanchored"]
+            taken.append(finding)
+    return taken
 
 
 def cmd_resolve(session: Session, args) -> int:

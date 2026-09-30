@@ -596,8 +596,10 @@ class TestPost(GitHubCase):
 
         extra = [
             (lambda a: a[:2] == ["gh", "api"] and "--method" in a and "POST" in a and a[2].endswith("/reviews"), review),
+            # As GitHub answers it: the per-review listing carries no line.
             (lambda a: a[:2] == ["gh", "api"] and "/reviews/900/comments" in a[2],
-             lambda argv, _: json.dumps([dict(c, id=4242) for c in sent["payload"]["comments"]])),
+             lambda argv, _: json.dumps([{"id": 4242, "path": c["path"], "body": c["body"]}
+                                         for c in sent["payload"]["comments"]])),
         ]
         self.use(self.routes(diff=DIFF, extra=extra))
         code, out, err = self.run_main("post")
@@ -639,6 +641,32 @@ class TestPost(GitHubCase):
         thread = gh_thread(4242, "a.go", 5, body)
         self.use(self.routes(threads=[thread], diff=DIFF, extra=extra))
         code, _, err = self.run_main("post")
+        self.assertEqual(0, code, err)
+        self.assertEqual(1, len(posts))
+        self.assertIn("in the diff · evidence: ran it · fix: guard · by: claude · forge: 4242", self.read_findings())
+
+    def test_post_takes_the_id_from_the_threads_when_the_review_reads_none_back(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_TWO_OPEN)
+        posts = []
+
+        def review(argv, stdin):
+            posts.append(json.loads(stdin))
+            return json.dumps({"id": 900})
+
+        def threads(argv, stdin):
+            # The thread exists on the forge only once the review is posted.
+            if not posts:
+                return json.dumps(gh_threads([]))
+            return json.dumps(gh_threads([gh_thread(4242, "a.go", 5, posts[0]["comments"][0]["body"])]))
+
+        extra = [
+            (lambda a: a[:2] == ["gh", "api"] and "--method" in a and "POST" in a and a[2].endswith("/reviews"), review),
+            (lambda a: a[:2] == ["gh", "api"] and "/reviews/900/comments" in a[2], json.dumps([])),
+            (lambda a: a[:3] == ["gh", "api", "graphql"] and not any("resolveReviewThread" in x for x in a), threads),
+        ]
+        self.use(self.routes(diff=DIFF, extra=extra))
+        code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
         self.assertEqual(1, len(posts))
         self.assertIn("in the diff · evidence: ran it · fix: guard · by: claude · forge: 4242", self.read_findings())
