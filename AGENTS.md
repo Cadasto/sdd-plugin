@@ -14,7 +14,7 @@ This plugin encodes the **spec-anchored** rung of SDD: the specification (not th
 
 The authoritative, public-safe statement of the methodology (the rigour ladder, the document kinds and their zones, RFC-2119 discipline, the identifier scheme, status per document kind, the traceability chain, the two source-of-truth modes, the two profiles, delivery, the two lanes, the review discipline, and the anti-patterns) lives in **[`references/sdd-methodology.md`](references/sdd-methodology.md)**. Skills cite it rather than restating it; treat it as canonical and keep the rules in one place. The machine-readable formats (`traceability.yaml` records and the `.sdd.yaml` descriptor) are in **[`references/traceability-schema.md`](references/traceability-schema.md)**.
 
-The loop: `Specify → (Clarify) → Plan → Tasks → Implement → Verify → Archive`, under a constitution of document-kind boundaries.
+The loop: `Specify → (Clarify) → Plan → Tasks → Implement → Verify → Close out`, under a constitution of document-kind boundaries.
 
 ## Public-safety constraint (IMPORTANT)
 
@@ -55,7 +55,7 @@ Scope is the **spec / document / traceability layer** and the **delivery pipelin
 | `sdd-specify` | The definition layer: author the `REQ` (capability + acceptance), the canonical RFC-2119 `SPEC §`, and the `ADR`; assign identifiers; wire traceability |
 | `sdd-deliver` | The delivery driver: the dispatch gate by profile and lane, `sdd-implementer` fan-out per `agents:`, the per-task gate, the first review pass, the draft PR, the close-out (`--close-out`: `REQ` shipped, `generate`, the PR body), ready, panel prompts |
 | `sdd-review` | One review pass over the range since the last one: dispatches the reviewers the profile, lane and changed file kinds call for, writes their lines into `.sdd/findings/<branch>.md`, mirrors the blocking ones with `sdd-pr`; `--panel` prints the canonical prompt blocks |
-| `sdd-triage` | Works the file's open critical and important findings: verify before fixing, fix in this branch, flip the lines, mirror, one scoped re-review when code changed |
+| `sdd-triage` | Works the file's open critical and important findings: verify before fixing, fix in this branch, flip the lines, mirror, and after the maintainer's review one scoped re-review when code changed |
 | `sdd-trace` | The traceability gate: one-shot context bundle for a `REQ` + whole-tree drift/orphan report (the `spec-check` analogue); `--audit` dispatches the auditor. Report-only; whether the tests and the build pass is the build gate's job |
 
 ### Agents (4)
@@ -104,7 +104,7 @@ CI runs `python3 scripts/validate.py` strictly, then the unit tests, `selftest`,
 - Skill bodies are imperative and **cite `references/sdd-methodology.md`** rather than restating rules; every `sdd-*` skill **reads `docs/.sdd.yaml` first** instead of hard-coding paths/identifier styles.
 
 ### Documentation Sync
-When adding or renaming components, update in lockstep: **AGENTS.md** (component tables), **README.md** (tables), **CHANGELOG.md**, the Cursor rule **`rules/sdd-context.mdc`** (it carries its own `/sdd-*` list), the `/sdd-*` list in **`hooks/session-start.sh`**, **`references/sdd-check.md`** when the gate's own contract changes, and **`references/review.md`** when the findings file, the severities or `sdd-pr`'s contract change. A skill, agent or template on the review and delivery path keeps within its entry in `WORD_BUDGETS` (`scripts/validate.py`). Cursor reads the same skills/agents/rules paths, so no separate Cursor-only component list is required. When a machine format changes in `references/traceability-schema.md`, update `references/templates/traceability.yaml`, `references/templates/sdd.yaml`, and every skill or agent that names a record field, in the same commit. `tools/sdd-check.py`'s and `tools/sdd-pr.py`'s `__version__` and `references/templates/sdd.yaml`'s `check.version` move together with both manifests' `version`.
+When adding or renaming components, update in lockstep: **AGENTS.md** (component tables), **README.md** (tables), **CHANGELOG.md**, the Cursor rule **`rules/sdd-context.mdc`** (it carries its own `/sdd-*` list), the `/sdd-*` list in **`hooks/session-start.sh`**, **`references/sdd-check.md`** when the gate's own contract changes, and **`references/review.md`** when the findings file, the severities or `sdd-pr`'s contract change. Every skill, and each agent or template on the review and delivery path, keeps within its entry in `WORD_BUDGETS` (`scripts/validate.py`). Cursor reads the same skills/agents/rules paths, so no separate Cursor-only component list is required. When a machine format changes in `references/traceability-schema.md`, update `references/templates/traceability.yaml`, `references/templates/sdd.yaml`, and every skill or agent that names a record field, in the same commit. `tools/sdd-check.py`'s and `tools/sdd-pr.py`'s `__version__` and `references/templates/sdd.yaml`'s `check.version` move together with both manifests' `version`.
 
 ### CHANGELOG style
 - Entries go under `## [Unreleased]` while work is in flight and fold into the next `## [X.Y.Z] - YYYY-MM-DD` section at release.

@@ -36,7 +36,7 @@ For skills the `description` is always-on metadata. Keep it lean and in the thir
 - **Enforce boundaries; don't invent rules.** A skill keeps document kinds separate, identifiers stable, and the chain intact. It never adds a normative rule that isn't already in a spec.
 - **Verification is part of the skill.** A skill that lands an artefact runs (or instructs the agent to run) the relevant gate before claiming done.
 - **Name no forge CLI.** A skill, agent, template or hook reaches the pull request through `sdd-pr`, never `gh` or `az` directly; `scripts/validate.py` fails a file that does.
-- **Stay within the word budget.** The review and delivery path has per-file budgets in `scripts/validate.py` (`WORD_BUDGETS`); a change that needs more words raises the number in the same pull request, with the maintainer's yes.
+- **Stay within the word budget.** Every skill, and each file on the review and delivery path, has a budget in `scripts/validate.py` (`WORD_BUDGETS`); a change that needs more words raises the number in the same pull request, with the maintainer's yes.
 - **Retired vocabulary stays retired.** `RETIRED_TERMS` in `scripts/validate.py` lists the words the ledger, the plan lifecycle and the archive skill used; only the changelog, the upgrade documents and the gate that reports the retired keys may name them.
 
 ## Public-safety constraint

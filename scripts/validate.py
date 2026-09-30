@@ -396,13 +396,17 @@ def validate_retired_vocabulary():
                 err(f"{rel}: retired term {term!r} — see docs/upgrading.md")
 
 
-# Word budgets for the review and delivery path. Prose on this path grows one reasonable sentence at
-# a time; a budget the validator enforces is what stops it. A change that needs more words raises
+# Word budgets for every skill and for the review and delivery path. Prose grows one reasonable
+# sentence at a time; a budget the validator enforces is what stops it. A change that needs more words raises
 # the number here, in the same pull request, with the maintainer's yes.
 WORD_BUDGETS = {
     "skills/sdd-review/SKILL.md": 700,
     "skills/sdd-triage/SKILL.md": 700,
-    "skills/sdd-deliver/SKILL.md": 1300,
+    "skills/sdd-deliver/SKILL.md": 1250,
+    "skills/sdd-scaffold/SKILL.md": 1260,
+    "skills/sdd-specify/SKILL.md": 960,
+    "skills/sdd-trace/SKILL.md": 570,
+    "skills/spec-driven-development/SKILL.md": 780,
     "references/review.md": 1100,
     "references/artefact-prose.md": 800,
     "agents/sdd-doc-reviewer.md": 800,
