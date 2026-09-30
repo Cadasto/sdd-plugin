@@ -16,9 +16,18 @@ Compare the plugin's tool version (`python3 <plugin-root>/tools/sdd-check.py --v
 
 The pin itself is owned by `references/sdd-check.md` § Vendoring and the version pin.
 
-## 3. Add the starter changelog and the plans ignore line, if missing
+## 3. Add the starter changelog and the `.sdd/` ignore line, if missing
 
-When `check.changelog.path` (default `CHANGELOG.md`) does not exist, create it exactly as the fresh path's step 3c does. Never overwrite one that already has content. When `.gitignore` has no line for `<paths.plans>/`, append one, as the fresh path's step 3d does.
+When `check.changelog.path` (default `CHANGELOG.md`) does not exist, create it exactly as the fresh path's step 3c does. Never overwrite one that already has content. When `.gitignore` has no `.sdd/` line, append one, as the fresh path's step 3d does.
+
+## 3b. From 0.7.x to 0.8.0: propose, then apply on the maintainer's yes
+
+These changes edit what the repository already has, so each is proposed and applied only when the maintainer confirms it:
+
+- delete `docs/.sdd/reviewers/` — declines now live in the findings file, and a decline that should hold becomes a specification sentence or an ADR;
+- delete the `paths.plans` line (the gate reports it as a NOTE until then) and rename `profile: full` to `profile: formal`;
+- re-emit `docs/ai-workflow.md`, `docs/development-process.md` and `.github/PULL_REQUEST_TEMPLATE.md` from the templates, keeping the repository's own lines under § Orchestration;
+- an open pull request keeps its old review comment as history: copy its open rows once into the branch's findings file by hand, and never edit that comment again.
 
 ## 4. Add missing `kind:` frontmatter
 
@@ -45,7 +54,7 @@ When `--verify` prints no refusal, run the real `sdd-check generate`, then `sdd-
 
 List:
 
-- every descriptor key added, whether the starter changelog was created, and whether the plans ignore line was added;
+- every descriptor key added, whether the starter changelog was created, whether the `.sdd/` ignore line was added, and each 0.8.0 change proposed and whether it was applied;
 - the re-vendor outcome (old → new version, or "already current");
 - every `kind:` line added;
 - every README wrapped, and the build-target wiring proposed;

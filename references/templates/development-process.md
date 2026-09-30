@@ -4,15 +4,16 @@ kind: guide
 
 # Development process — the SDD constitution
 
-How work flows in this repository. The **specification is the source of truth**; code is derived from it
-and measured against it. When they disagree the spec wins — except a section explicitly marked
-*implementation-aligned* (see "Two source-of-truth modes").
+How work flows in this repository. The **specification is the source of truth**; when code and spec
+disagree the spec wins — except a section marked *implementation-aligned*, or on the informative profile,
+where code leads and only the constitution binds.
 
 ## Document kinds
 
 Every document has one job and one altitude. Don't mix them. Every document under `docs/` declares its
-job in a `kind:` frontmatter key, and the vocabulary of nine is the descriptor's `doc_kinds` in
-[`.sdd.yaml`](.sdd.yaml). The eight fall into three zones, and the zone decides how a document is read.
+job in a `kind:` frontmatter key from the descriptor's `doc_kinds` in [`.sdd.yaml`](.sdd.yaml); the zone
+decides how it is read. On the informative profile one more kind, `constitution`, is the only document
+that binds code.
 
 | Zone | Kind | Answers | Status | Location |
 |---|---|---|---|---|
@@ -26,13 +27,10 @@ job in a `kind:` frontmatter key, and the vocabulary of nine is the descriptor's
 | Upstream | **Upstream** | What another repository owes this one | `state` | `docs/<name>-gap-drafts/` |
 
 **Authority.** Where an informative document and a normative one disagree, the normative one wins and the
-informative document is corrected. An informative document may carry a process imperative; it is never the
-only home of a product-contract rule — it cites the owning `SPEC §`.
+informative document is corrected; it never holds the only copy of a product-contract rule.
 
-**Status per kind.** Each normative kind carries its own status vocabulary. A requirement carries two of
-them and they are tracked separately: `status` says how settled the wording is, `implementation` says how
-much is built. An informative kind carries no status. The upstream kind spells its key `state`, because
-the lifecycle it tracks belongs to another repository.
+**Status per kind.** A requirement tracks two axes separately: `status` (how settled the wording is) and
+`implementation` (how much is built). An informative kind carries no status.
 
 | Kind | Key | Values |
 |---|---|---|
@@ -43,16 +41,13 @@ the lifecycle it tracks belongs to another repository.
 | **Upstream** | `state` | `proposed` · `submitted` · `landed-upstream` · `landed` · `rejected` |
 | Guide, analysis, operations, reference | — | no status |
 
-- Requirements: capability + acceptance + out-of-scope. **No** file paths or implementation detail.
-- Specifications: RFC-2119 prose only. **No** task lists, file paths, or duplicated requirement bodies.
-- Plans: a working task list `/sdd-deliver` writes under `docs/plans/` and never commits; the PR body carries the tasks. A plan states no rule.
-- ADRs: one decision each.
+Requirements hold capability, acceptance and out-of-scope, no implementation detail; specifications hold
+RFC-2119 prose only; an ADR holds one decision.
 
 ## Identifiers
 
-Stable and citable; they appear in commits, code, and test names. **Never renumbered or reused once
-published.** This repo's `REQ` style and paths are declared in [`.sdd.yaml`](.sdd.yaml). Each requirement's
-normative prose has a **single canonical home** — the requirements index only links to it.
+Stable and citable, in commits and test names; **never renumbered or reused once published**. Normative
+prose has a **single canonical home**.
 
 ## The flow
 
@@ -60,95 +55,93 @@ normative prose has a **single canonical home** — the requirements index only 
 REQ (capability + acceptance)            [gate: worth doing]
  └─ SPEC § (RFC-2119, Status: Draft)      [gate: single home, no duplicate prose]
      └─ ADR (only if an irreversible fork) [gate: Accepted before code]
-         └─ PLAN (tasks + verification, a working file)  [gate: dispatch preconditions]
+         └─ TASKS (a working list, never committed)  [gate: dispatch preconditions]
              └─ CODE + TESTS (tests cite ids)  [gate: tests green + drift gate green]
                  └─ update traceability; promote the SPEC § only if confirmed  [gate: same PR]
-                     └─ update REQ status; fill the PR body  [gate: PR-body close-out]
+                     └─ update REQ status; write the PR body  [/sdd-deliver --close-out]
 ```
 
-The whole close-out — the requirement status, the traceability update and the PR body — lands in the
-**same PR** that implements the slice. No follow-up PR. The plan is a working file on the author's disk;
-nothing is done to it.
+The close-out lands in the **same PR** as the slice. No follow-up PR.
 
 ## The gate
 
-The drift gate is one tool, `sdd-check`, vendored into this repository at the descriptor's `check.script`
-and run by `<build_entrypoint> <spec_check_target>`. It checks the traceability map against the tree and
-the tree against the map, the index against the map, the declared
-document kinds, the links and their fragments, the RFC-2119 and one-home prose rules, the changelog
-bullets, and the generated blocks; each family's severity is set in [`.sdd.yaml`](.sdd.yaml) under
-`check.families`. The derived indexes are written by `sdd-check generate`, never by hand.
+The drift gate is one tool, `sdd-check`, vendored at the descriptor's `check.script` and run by
+`<build_entrypoint> <spec_check_target>`. It checks the map against the tree both ways, the index, the
+document kinds, links, the RFC-2119 and one-home rules, changelog bullets and generated blocks; each
+family's severity is set under `check.families`. The derived indexes are written by `sdd-check generate`,
+never by hand.
 
 ## Two source-of-truth modes
 
 - **Spec-first** (new behaviour): the spec leads, code follows.
 - **Implementation-aligned** (hardening / perf / bug-fix on shipped code): code may lead, **but the spec
-  is updated in the same PR**. *"Code wins until the spec is updated — in the same PR."* Never let the spec
-  silently lag.
+  is updated in the same PR**.
 
 ## Dispatch preconditions
 
-Five things are confirmed **before the first task is dispatched** — checked, not ticked in a file. A `REQ`
-with acceptance criteria exists; the affected `SPEC §` exist or a new § is called out; any needed ADR is
-`Accepted`; the **negative space** is cited from the `REQ` acceptance criteria and the `SPEC §` that owns
-the failure behaviour (what must refuse or fail closed, and how); the verification commands are known. An
-unmet precondition stops the dispatch and is named.
+Five things are confirmed **before the first task is dispatched**: a `REQ` with acceptance criteria; the
+affected `SPEC §` (or a new § called out); any needed ADR `Accepted`; the **negative space** cited from the
+acceptance criteria and the `SPEC §` that owns the failure behaviour; the verification commands. An unmet
+precondition stops the dispatch. On the informative profile: a clear task and a known verification
+command.
 
 ## The two lanes
 
-The lane test is one question, answered in one line of the PR body: **does this change alter any normative
-statement** — a `REQ`'s acceptance criteria, a `SPEC §` behaviour, a public API shape, an error contract?
+Formal profile only. The lane test is one question, answered on the PR body's `Lane:` line: **does this
+change alter any normative statement** — acceptance criteria, a `SPEC §` behaviour, an API shape, an
+error contract?
 
-- **Full lane** — new capability, any change to API shape, behaviour, or error contract, any spec
-  amendment. Owes the `REQ`/spec edits, the traceability update, the SDD reviewers, and a PR body
-  with the review lens and the identifiers touched. Its PR body carries `Lane: full`.
-- **Maintenance lane** — refactors, moves and splits, performance work, dependency bumps, tooling,
-  documentation polish, and a bug-fix whose fix makes the code match an **existing** spec statement. Owes
-  green tests, a green drift gate, and one PR-body line: its PR body carries
-  `Lane: maintenance — no normative change`. A bug-fix that reveals the **spec** was wrong is full lane.
+- **Full lane** — new capability or any such change, spec amendments included. Owes the `REQ`/spec edits,
+  the traceability update and the SDD reviewers.
+- **Maintenance lane** — refactors, moves, performance, dependency bumps, tooling, documentation polish,
+  and a bug-fix that makes the code match an **existing** spec statement. Owes green tests and a green
+  drift gate; the PR body may be short. A bug-fix that reveals the **spec** was wrong is full lane.
 
-The drift gate runs in **both** lanes — the map may never rot. The guard against a mislabelled lane is a
-ratchet, not a diff check: any newly added or materially changed requirement owes observable acceptance
-criteria and its own canonical `SPEC §`, whatever lane the change claims.
+The drift gate runs in **both** lanes. Any newly added or materially changed requirement owes observable
+acceptance criteria and its own canonical `SPEC §`, whatever lane the change claims.
 
-## The PR body — the close-out record
+## The PR body
 
-The PR body is where the close-out lives. Copy this block (a repo may also keep it as
-`.github/PULL_REQUEST_TEMPLATE.md`):
+The pull request body is read by the maintainer and by the next agent. Copy this block; the scaffold also
+writes it to `.github/PULL_REQUEST_TEMPLATE.md`:
 
-````markdown
-Lane: <full | maintenance — no normative change>
-Implements: <REQ-…> · <SPEC-NAME §N> · <ADR-NNNN>
-Claim: session <id> · worktree <path or none>
+```markdown
+## Summary
+<What changed and why, in prose. Name the decisions taken and the alternatives not taken. Link the
+REQ / SPEC § anchors (formal) or the architecture sections (informative) the change implements or amends.>
 
-Review lens: <what to look at; what is out of scope>
-Verified: `<command>` → <what the output said>
+## Spec and traceability            <!-- informative profile: "## Docs" -->
+Lane: <full | maintenance — no normative change>     <!-- formal profile only -->
+- <REQ-…> — <planned → shipped> in the traceability map and the index
+- <SPEC-… §N> — <amended | promoted to stable | unchanged>
+- <PROBE-…, ADR-…, or the docs/ pages reconciled>
 
-Tasks:
-- [x] T1 — <task>
-- [ ] T2 — <task>
+## Verification
+- `<build_entrypoint> <ci_target>` — <what the output said>
+- red before green: <the tests that failed before the change>
+- can-fail proof: <the guards removed and the tests that then failed>
 
-Close-out
-- [ ] Code and tests complete, and the verification output was read — not assumed
-- [ ] Negative space exercised: refusal and failure paths tested; each new runtime failure mode maps to the error-contract `SPEC §`
-- [ ] `REQ` implementation status set; `SPEC §` promoted only if the maintainer confirmed it
-- [ ] `traceability.yaml` updated (packages / tests / probes)
-- [ ] `sdd-check generate` run; the index tables and status lines match the map
-- [ ] Deferred items and workers' en-route findings are in the ledger's `Deferred` table
-- [ ] Any code the orchestrator wrote itself is named here, with why the task could not be made self-contained
-````
+## Notes for review                  <!-- omit when there is nothing to say -->
+- <where to look hardest; what is out of scope; a known gap left on purpose>
 
-Findings for the change live in **one review ledger comment** on the same PR, updated per round. See
-[ai-workflow.md](ai-workflow.md) § Review.
+## Checklist
+- [ ] Scoped to one logical change
+- [ ] The full gate passes locally and its output was read
+- [ ] CHANGELOG entry under Unreleased, when the change is user-visible
+- [ ] Traceability and documents updated for what landed
+- [ ] Conventional Commits, citing the identifiers the change touches
+```
+
+No session claim, no commit list, no task ticks, no finding ids: findings are in the findings file and the
+review threads (`ai-workflow.md` § Review).
 
 ## Artefact prose — one home per fact
 
-The commit body, PR body, changelog, and review comments each carry only what lives nowhere else — cite
-identifiers (`REQ`/`SPEC §`/SHA) instead of restating. The spec owns normative behaviour; the commit
-body owns the *why* of this change; the PR body owns the *review lens* (what to look at, how it was
-verified); the changelog owns the one-line, user-facing delta. Don't retell the same story across all four.
+The commit body, PR body, changelog, and review threads each carry only what lives nowhere else — cite
+identifiers (`REQ`/`SPEC §`/SHA) instead of restating: the spec owns behaviour, the commit the *why*, the
+PR body the summary and verification, the changelog the user-facing line.
 
 ## Open questions
 
-Never settle an open question silently in a PR. Raise a `STRAND` (if enabled), draft an ADR, or ask. Never
-add a normative rule that exists only in code — add the `REQ`/spec first.
+Never settle an open question silently in a PR: raise a `STRAND` (if enabled), draft an ADR, or ask.
+Never add a rule that exists only in code.

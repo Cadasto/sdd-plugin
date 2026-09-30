@@ -109,8 +109,8 @@ class TestYamlSubset(unittest.TestCase):
         )
 
     def test_block_sequence_of_scalars(self):
-        text = "areas:\n  - FOUND\n  - EHR\n"
-        self.assertEqual({"areas": ["FOUND", "EHR"]}, sdd_check.load_yaml(text))
+        text = "areas:\n  - FOUND\n  - AUTH\n"
+        self.assertEqual({"areas": ["FOUND", "AUTH"]}, sdd_check.load_yaml(text))
 
     def test_block_sequence_of_mappings(self):
         text = (
@@ -239,7 +239,7 @@ class TestYamlSubset(unittest.TestCase):
                 else:
                     self.assertIsInstance(sdd_check.load_yaml(block), dict)
         descriptor = sdd_check.load_yaml(blocks[0])["sdd"]
-        self.assertEqual("full", descriptor["profile"])
+        self.assertEqual("formal", descriptor["profile"])
         self.assertEqual("error", descriptor["check"]["families"]["descriptor"])
         self.assertEqual("off", descriptor["check"]["families"]["draft-reason"])
         self.assertEqual([], descriptor["agents"]["worker_skills"])
@@ -450,16 +450,95 @@ class TestDescriptorFamily(BaselineCase):
         self.edit(sdd_check.DESCRIPTOR_REL, "      draft-reason: off", "      lanes: error")
         self.assert_finding(self.run_only("descriptor"), "unknown family")
 
-    def test_full_profile_requires_a_directory(self):
+    def test_formal_profile_accepts_a_file_form_requirements_index(self):
         self.write("docs/requirements.md", (self.tmp / "docs/requirements/README.md").read_text())
-        self.edit(sdd_check.DESCRIPTOR_REL, "requirements: docs/requirements", "requirements: docs/requirements.md")
-        self.assert_finding(self.run_only("descriptor"), "profile full requires a directory")
-
-    def test_lightweight_profile_accepts_a_file(self):
-        self.write("docs/requirements.md", (self.tmp / "docs/requirements/README.md").read_text())
-        self.edit(sdd_check.DESCRIPTOR_REL, "profile: full", "profile: lightweight")
+        self.edit(sdd_check.DESCRIPTOR_REL, "profile: full", "profile: formal")
         self.edit(sdd_check.DESCRIPTOR_REL, "requirements: docs/requirements", "requirements: docs/requirements.md")
         self.assert_clean(self.run_only("descriptor"))
+
+    def test_an_unknown_profile_is_an_error(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "profile: full", "profile: strict")
+        self.assert_finding(self.run_only("descriptor"), "formal | informative")
+
+
+class TestProfiles(BaselineCase):
+    """formal (full still read) and informative; lightweight folds into formal with a note."""
+
+    def _set_profile(self, value):
+        self.edit(sdd_check.DESCRIPTOR_REL, "profile: full", "profile: %s" % value)
+
+    def _check(self):
+        return sdd_check.run_check(self.tmp, None, False)
+
+    def test_formal_is_the_new_name_and_full_still_works(self):
+        for value in ("formal", "full"):
+            self._set_profile(value)
+            report = self._check()
+            self.assertEqual(report.exit_code(), 0, report.render(self.tmp))
+            self.assertEqual("formal", report.profile)
+            self._set_profile_back(value)
+
+    def _set_profile_back(self, value):
+        self.edit(sdd_check.DESCRIPTOR_REL, "profile: %s" % value, "profile: full")
+
+    def test_lightweight_is_a_note_and_still_runs(self):
+        self._set_profile("lightweight")
+        report = self._check()
+        self.assertEqual(report.exit_code(), 0, report.render(self.tmp))
+        self.assert_finding(report, "lightweight", level="NOTE", family="descriptor")
+
+    def test_informative_profile_runs_without_a_map(self):
+        self._set_profile("informative")
+        (self.tmp / MAP_REL).unlink()
+        shutil.rmtree(self.tmp / "docs" / "requirements")
+        report = self._check()
+        self.assertEqual(report.exit_code(), 0, report.render(self.tmp))
+        for fam in ("map-schema", "map-to-tree", "index-sync", "tree-to-map", "rfc2119", "one-home", "draft-reason"):
+            self.assertEqual("profile informative", report.families_skipped.get(fam), fam)
+        for fam in ("descriptor", "doc-kinds", "links", "changelog", "generated"):
+            self.assertIn(fam, report.families_run, fam)
+        self.assertEqual([], [f for f in report.findings if f.level in ("ERROR", "WARN")], report.render(self.tmp))
+
+    def test_informative_profile_skips_a_family_the_descriptor_names(self):
+        # The families block lists map-schema: error explicitly, and the profile still wins.
+        self.assertIn("      map-schema: error", (self.tmp / sdd_check.DESCRIPTOR_REL).read_text())
+        self._set_profile("informative")
+        report = self._check()
+        self.assertEqual(report.exit_code(), 0, report.render(self.tmp))
+        self.assertEqual("profile informative", report.families_skipped.get("map-schema"))
+
+    def test_informative_profile_reads_the_constitution_kind(self):
+        self._set_profile("informative")
+        self.write(
+            "docs/architecture.md",
+            "---\nkind: constitution\n---\n# Architecture\n\nThe transport MUST be the only place that builds a URL.\n",
+        )
+        report = self._check()
+        self.assertEqual(report.exit_code(), 0, report.render(self.tmp))
+        self.assertEqual(
+            [], [f for f in report.findings if f.anchor.startswith("docs/architecture.md")], report.render(self.tmp)
+        )
+
+    def test_the_constitution_kind_is_informative_elsewhere_too(self):
+        # can-fail control for the kind: on formal a constitution kind is unknown unless listed.
+        self.write("docs/architecture.md", "---\nkind: constitution\n---\n# Architecture\n")
+        report = self.run_only("doc-kinds")
+        self.assert_finding(report, "kind 'constitution' is not declared", level="WARN")
+
+    def test_a_declared_constitution_must_exist_on_informative(self):
+        self._set_profile("informative")
+        self.edit(
+            sdd_check.DESCRIPTOR_REL, "    adr: docs/adr\n", "    adr: docs/adr\n    constitution: docs/arch.md\n"
+        )
+        self.assert_finding(self.run_only("descriptor"), "paths.constitution")
+        self.write("docs/arch.md", "---\nkind: constitution\n---\n# Architecture\n")
+        self.assert_clean(self.run_only("descriptor"))
+
+    def test_paths_plans_is_a_note(self):
+        self.edit(sdd_check.DESCRIPTOR_REL, "    adr: docs/adr\n", "    adr: docs/adr\n    plans: docs/plans\n")
+        report = self._check()
+        self.assertEqual(report.exit_code(), 0, report.render(self.tmp))
+        self.assert_finding(report, "paths.plans", level="NOTE", family="descriptor")
 
 
 MAP_REL = "docs/specifications/traceability.yaml"
@@ -839,46 +918,58 @@ REQ_REL = "docs/requirements/REQ-FOUND-001.md"
 NORMATIVE_SENTENCE = "The service MUST refuse a start with a declared variable absent."
 
 
-class TestPlansOutOfScope(BaselineCase):
-    """A plan is a working file: no family reads paths.plans, and nothing requires it."""
+class TestPlansOutOfScope(GitCase):
+    """A plan is a working file: no family reads it, and the gate knows no plan path."""
+
+    PLAN = "docs/plans/2026-03-03-scratch.md"
+    PLAN_TEXT = "# Plan\n\nThe service MUST do this.\n\nSee [gone](nope.md).\n\n- [ ] T1\n"
 
     def test_plans_is_not_a_family_and_plan_is_not_a_kind(self):
         self.assertNotIn("plans", sdd_check.FAMILIES)
         self.assertNotIn("plans", sdd_check.DEFAULT_SEVERITY)
         self.assertNotIn("plans", sdd_check.RECORD_FAMILIES)
+        self.assertNotIn("plans", sdd_check.DEFAULT_PATHS)
         self.assertEqual(("plans",), sdd_check.RETIRED_FAMILIES)
         self.assertNotIn("plan", sdd_check.DEFAULT_KINDS)
         self.assertNotIn("plan", sdd_check.NORMATIVE_KINDS)
         self.assertNotIn("plan", sdd_check.RFC2119_CITING_KINDS)
         self.assertNotIn("Plans", sdd_check._CONTEXT_HEADINGS)
 
-    def test_a_plan_is_read_by_no_family(self):
-        # A keyword, a dead link, no frontmatter, a kind the descriptor no longer lists,
-        # and a legacy archive: every family that reads the docs tree would report one of
-        # these, so a clean full run proves the directory is pruned before any family looks.
-        self.write(
-            "docs/plans/2026-03-03-scratch.md",
-            "# Plan\n\nThe service MUST do this.\n\nSee [gone](nope.md).\n\n- [ ] T1\n",
-        )
-        self.write("docs/plans/_template.md", "---\nkind: plan\n---\n\n# Template\n")
-        self.write("docs/plans/archive/2025-01-01-old.md", "**Status:** Done\n")
-        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
-        self.assert_clean(report)
+    def test_a_git_ignored_plan_is_read_by_no_family(self):
+        # A keyword, a dead link and no frontmatter: every family that reads the docs tree
+        # would report one of these, so a clean full run proves an ignored file is skipped.
+        self.init_git()
+        self.write(".gitignore", "docs/plans/\n")
+        self.write(self.PLAN, self.PLAN_TEXT)
+        self.assert_clean(sdd_check.run_check(self.tmp, only=None, changelog_all=False))
 
-    def test_a_plans_directory_outside_docs_is_pruned_too(self):
-        self.edit(sdd_check.DESCRIPTOR_REL, "    plans: docs/plans", "    plans: work/plans")
-        # docs/plans is an ordinary docs directory once paths.plans points elsewhere.
-        shutil.rmtree(self.tmp / "docs/plans")
-        self.write(
-            "work/plans/2026-03-03-scratch.md",
-            "The service MUST do this.\n\n[gone](nope.md)\n",
-        )
-        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
-        self.assert_clean(report)
+    def test_a_tracked_plan_under_an_ignore_rule_is_read_by_no_family(self):
+        # A repository that committed its plans before 0.7.0 ignored the directory keeps them
+        # tracked; an ignore rule that matches them still keeps every family out.
+        self.init_git()
+        self.write(self.PLAN, self.PLAN_TEXT)
+        self.commit("a plan committed before the directory was ignored")
+        self.write(".gitignore", "docs/plans/\n")
+        self.assert_clean(sdd_check.run_check(self.tmp, only=None, changelog_all=False))
 
-    def test_a_declared_plans_directory_need_not_exist(self):
-        shutil.rmtree(self.tmp / "docs/plans")
-        self.assert_clean(self.run_only("descriptor"))
+    def test_a_link_to_a_git_ignored_file_is_refused(self):
+        # The plan is on this disk, so the link resolves here, and in no clean checkout.
+        self.init_git()
+        self.write(".gitignore", "docs/plans/\n")
+        self.write(self.PLAN, self.PLAN_TEXT)
+        self.write("docs/adr/0002-cites.md", "---\nkind: adr\nstatus: accepted\n---\n\n# ADR\n\n[plan](../plans/2026-03-03-scratch.md)\n")
+        self.assert_finding(self.run_only("links"), "git-ignored", family="links")
+        # can-fail control: the same link to a file git keeps resolves.
+        self.write(".gitignore", "")
+        report = self.run_only("links")
+        self.assertEqual([], [f for f in report.findings if f.anchor.startswith("docs/adr/0002-cites.md")], report.render(self.tmp))
+
+    def test_an_unignored_plan_is_an_ordinary_document(self):
+        # can-fail control: the same file, not ignored, is read like any other document.
+        self.init_git()
+        self.write(self.PLAN, self.PLAN_TEXT)
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assertTrue([f for f in report.findings if f.anchor.startswith(self.PLAN)], report.render(self.tmp))
 
     def test_the_retired_plans_family_key_is_a_note(self):
         for value in ("error", "off"):
@@ -899,32 +990,6 @@ class TestPlansOutOfScope(BaselineCase):
             "doc_kinds: [requirement, specification, adr, plan, guide",
         )
         self.assert_clean(self.run_only("descriptor"))
-
-    def _assert_unsafe_plans_path(self, value):
-        self.edit(sdd_check.DESCRIPTOR_REL, "    plans: docs/plans", "    plans: %s" % value)
-        self.assert_finding(self.run_only("descriptor"), "paths.plans", family="descriptor")
-        # Nothing is pruned: a dead link in an ADR is still reported.
-        self.write("docs/adr/0002-dead.md", "---\nkind: adr\nstatus: accepted\n---\n\n# ADR\n\n[gone](nope.md)\n")
-        report = self.run_only("links")
-        hits = [f for f in report.findings if f.anchor.startswith("docs/adr/0002-dead.md")]
-        self.assertTrue(hits and "nope.md" in hits[0].message, report.render(self.tmp))
-
-    def test_an_empty_plans_path_is_refused_and_prunes_nothing(self):
-        self._assert_unsafe_plans_path('""')
-
-    def test_plans_path_on_the_docs_root_is_refused_and_prunes_nothing(self):
-        self._assert_unsafe_plans_path("docs")
-
-    def test_plans_path_on_the_repository_root_is_refused_and_prunes_nothing(self):
-        self._assert_unsafe_plans_path(".")
-
-    def test_plans_path_on_another_document_directory_is_refused_and_prunes_nothing(self):
-        self._assert_unsafe_plans_path("docs/adr")
-
-    def test_a_plans_path_with_a_parent_step_is_still_pruned(self):
-        self.edit(sdd_check.DESCRIPTOR_REL, "    plans: docs/plans", "    plans: docs/../docs/plans")
-        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
-        self.assert_clean(report)
 
     def test_the_context_bundle_has_no_plans_section(self):
         desc = sdd_check.Descriptor.load(self.tmp)
@@ -1164,11 +1229,7 @@ class TestEffectiveKindFallback(BaselineCase):
         self.strip_all_kinds()
         report = self.run_only("doc-kinds")
         findings = [f for f in report.findings if "declares no kind" in f.message]
-        # docs/plans is pruned from every family, so its file is not among the findings.
-        plans = self.tmp / "docs/plans"
-        stripped = [
-            str(p) for p in sorted((self.tmp / "docs").rglob("*.md")) if plans not in p.parents
-        ]
+        stripped = sorted((self.tmp / "docs").rglob("*.md"))
         self.assertEqual(len(stripped), len(findings), report.render(self.tmp))
 
 
@@ -1528,7 +1589,7 @@ class TestReport(BaselineCase):
     def test_first_line_states_what_ran_against_what(self):
         report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
         first = report.render(self.tmp).split("\n")[0]
-        self.assertRegex(first, r"^sdd-check %s · .* · profile full · 1 REQ records$" % re.escape(sdd_check.__version__))
+        self.assertRegex(first, r"^sdd-check %s · .* · profile formal · 1 REQ records$" % re.escape(sdd_check.__version__))
 
     def test_finding_line_format(self):
         (self.tmp / SPEC_REL).unlink()
@@ -1724,8 +1785,8 @@ class TestCommandLine(BaselineCase):
     def test_version(self):
         code, out = self.run_main(["--version"])
         self.assertEqual(0, code)
-        self.assertEqual("0.7.0", out.strip())
-        self.assertEqual("0.7.0", sdd_check.__version__)
+        self.assertEqual("0.8.0", out.strip())
+        self.assertEqual("0.8.0", sdd_check.__version__)
 
     def test_only_on_generate_returns_two(self):
         # M1: --only is common to the command line but only `check` honours it; the

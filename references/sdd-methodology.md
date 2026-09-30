@@ -2,7 +2,7 @@
 
 The single source of truth for the rules this plugin's skills enforce. Skills cite this file rather than restating it, so it can evolve in one place. It is **language-agnostic**: a documentation-and-process architecture, not a code pattern.
 
-> **Guiding principle.** The **specification — not the code and not the prompt — is the source of truth.** Code is derived from it and continuously measured against it. When they disagree, the spec wins, *unless* a section is explicitly marked implementation-aligned (see §7).
+> **Guiding principle.** The **specification — not the code and not the prompt — is the source of truth.** Code is derived from it and continuously measured against it. When they disagree, the spec wins, *unless* a section is explicitly marked implementation-aligned (see §7) or the repository runs the informative profile, where code leads and only the constitution binds (§1a).
 
 ## 1. The rigour ladder — and where this plugin sits
 
@@ -16,10 +16,30 @@ There is no single SDD; there is a ladder of ambition (Böckeler, Thoughtworks, 
 
 **This plugin targets rung 2 (spec-anchored)** and adds the governance machinery the mainstream toolkits (GitHub Spec Kit, AWS Kiro, Tessl) leave to the team: stable identifiers, a machine-checked traceability map, and CI that fails on drift.
 
+## 1a. Two profiles
+
+A repository declares how much of this methodology binds it, in `docs/.sdd.yaml` → `profile`.
+
+| | **formal** | **informative** |
+|---|---|---|
+| What `docs/` is | the contract: requirements, RFC-2119 specifications, ADRs, a traceability map | a knowledge base: architecture, behaviour as it is, decisions |
+| What binds code | every normative sentence of the specifications the change cites | the binding sentences of one constitution document (`paths.constitution`, default `docs/architecture.md`) |
+| Identifiers and the map | required (§5, §8) | optional; used where the repository already has them |
+| Source-of-truth order | spec-first by default; implementation-aligned for hardening (§7) | code leads; the documents the change affects are reconciled in the same change |
+| Lanes | full or maintenance (§12) | one lane |
+| The drift gate | every family | `descriptor`, `doc-kinds`, `links`, `changelog`, `generated` |
+| Review pass | code reviewers, conformance reviewer, one document reviewer | code reviewers, one document reviewer in consistency mode, the conformance reviewer only against the constitution when the change touches what it binds |
+| Starting a delivery | the dispatch preconditions of §9 | the task is clear and the verification command is known |
+
+Both profiles share the same skills, the same findings file and the same review discipline (§13). The
+informative profile is the one to choose when a specification written before the code would be a guess,
+or when the cost of keeping fine-grained requirements checked exceeds what they protect; it still refuses
+a change that contradicts the architecture, because the constitution binds.
+
 ## 2. The canonical loop
 
 ```
-Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Archive
+Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Close out
 ```
 
 Capture the **what and the why** — requirements, invariants, acceptance criteria — **not** redundant *how-to* an agent can infer from the existing code. Architectural constraints and business rules are high-value; restating obvious mechanics is noise.
@@ -33,17 +53,18 @@ The single most important rule: **every document has exactly one job and one alt
 | **Requirement** (`REQ-*`) | What must we deliver? How do we accept it? | Yes (acceptance criteria) | `docs/requirements/` |
 | **Specification** (`SPEC-*`) | How must the system behave / be structured? | **Yes** (RFC-2119) | `docs/specifications/` |
 | **ADR** (`ADR-*`) | Which *irreversible* fork did we take? | Decision record | `docs/adr/` |
-| **Guide** | How do I work in this repo safely? | No | `docs/architecture.md`, … |
+| **Guide** | How do I work in this repo safely? | No | `docs/*.md` |
 | **Analysis** | What did we measure or compare? | No | `docs/analysis/` |
 | **Operations** | How do operators run the system? | Runbooks | `docs/operations/` |
 | **Reference** | A declared projection or a superseded rationale | No — binds nothing | beside the specs, or `docs/reference/` |
 | **Upstream** | What another repository owes this one (a cross-repo ask) | No — its own state lifecycle | `docs/<upstream>-gap-drafts/` |
+| **Constitution** (informative profile) | What must every change respect? | **Yes** — its MUST sentences, and only those (§1a) | `paths.constitution`, default `docs/architecture.md` |
 
-A plan is not a document kind. It is a working task list `/sdd-deliver` writes under `docs/plans/` and never commits (§9).
+A plan is not a document kind; it is a working file outside `docs/`, never committed (§9).
 
 ### The three zones
 
-The eight kinds fall into three zones. The zone decides how a document is read, and what the drift gate enforces on it.
+The first eight kinds fall into three zones; the zone decides how a document is read, and what the drift gate enforces on it. The constitution exists only on the informative profile, where it is the one binding document and carries no status.
 
 - **Normative** — `requirement`, `specification`, `adr`. Each carries a status vocabulary of its own (§6); the specification carries the RFC-2119 force (§4).
 - **Informative** — `guide`, `analysis`, `operations`, `reference`. Each explains, measures, or projects. None carries a status.
@@ -65,7 +86,7 @@ Three rules hold the zones apart:
 
 ### Normative vs narrative
 
-`docs/specifications/` carries the **normative** statements (what code and tests are measured against). A design **narrative** (`docs/architecture.md`: diagrams, module map, "why it's shaped this way") may exist alongside, but if the two disagree, the specs win. This keeps the narrative readable prose without becoming an accidental second source of truth.
+`docs/specifications/` carries the **normative** statements (what code and tests are measured against). A design **narrative** (diagrams, module map, "why it's shaped this way") may exist alongside, but if the two disagree, the specs win. (On the informative profile `docs/architecture.md` is the constitution instead.) This keeps the narrative readable prose without becoming an accidental second source of truth.
 
 ## 4. RFC-2119 keyword discipline
 
@@ -176,9 +197,8 @@ requirements index (one row per REQ)
                           └─→ conformance probes (optional)
 ```
 
-**The plan is not a link in this chain.** It is a working file on the author's disk that names the `REQ`/`SPEC §`
-it implements (§9). The durable record of what shipped is the requirement status, the specification
-section, the ADR, the PR body, the changelog, and git.
+**The plan is not a link in this chain** (§9). The durable record of what shipped is the requirement
+status, the specification section, the ADR, the PR body, the changelog, and git.
 
 Tests cite the `REQ` (and `PROBE`) ids they realise in their names, and the implementing commit cites them in its message, so the chain stays greppable. **Doc comments are not a carrier.** A doc comment is written for whoever reads the API and follows the language's own convention; the map, the commit history, and the test names carry the identifiers.
 
@@ -193,46 +213,41 @@ regenerates every derived index from one source. Its contract is [sdd-check.md](
 what turns 'we have specs' into 'our specs can't silently rot' — one implementation, one blind-spot list,
 fixed once for every repository.
 
-## 9. The plan — a working file, and the close-out
+## 9. Delivery — the dispatch preconditions and the close-out
 
-A plan is a **working file**, not a document kind. `/sdd-deliver` writes it at
-`<paths.plans>/YYYY-MM-DD-<slug>.md` from the plugin's template, and no one commits it: the scaffold lists
-`<paths.plans>/` in `.gitignore`, the gate reads nothing under that directory, and the draft PR body carries
-the task list from the moment the draft opens. Before that, the plan is the only place checkbox task lists
-live. It introduces **no normative statement** — a rule goes in a spec first. Its header names the
-`REQ` / `SPEC §` / `ADR` it implements and the lane, for the orchestrator's own use.
+How the orchestrator plans is not this methodology's business; a plan is a working file outside `docs/`,
+git-ignored. It introduces **no normative statement** — a rule goes in a specification first.
 
 ### Dispatch preconditions
 
-Five things are confirmed **before the first task is dispatched** — checked, not ticked in a file:
+On the formal profile, five things are confirmed **before the first task is dispatched** — checked, not
+ticked in a file:
 
 1. A `REQ` with acceptance criteria exists.
 2. The affected `SPEC §` exist, or a new § is called out.
 3. Any needed `ADR` is `Accepted`.
 4. The negative space is **cited** from the `REQ` acceptance criteria and the `SPEC §` that owns the
-   failure behaviour — what the change must refuse or fail closed on — not restated in the plan.
+   failure behaviour — what the change must refuse or fail closed on — not restated.
 5. The verification commands are known.
 
-An unmet precondition stops the dispatch and is named. A file of checkboxes cannot refuse to start work;
-a gate can.
+An unmet precondition stops the dispatch and is named. On the informative profile the task is clear and
+the verification command is known (§1a).
 
-### Close-out, in the implementing PR
+### Close-out — the last step of `/sdd-deliver`
 
 When the work is done, the same PR that lands the code sets the `REQ`'s `implementation` to `shipped` (§6)
-with its `traceability.yaml` packages/tests/probes and fills the PR body. A `SPEC §` is promoted to
-`stable` only when the maintainer confirms it, because promotion freezes the contract. The PR body carries
-the close-out checklist, the identifiers implemented, the task list with its ticks, the verification
-commands and what they returned, and the deferred items. Nothing is done to the plan: it is a file on the
-author's disk, and it goes when the author deletes it.
+with its `traceability.yaml` packages/tests/probes, runs `sdd-check generate`, and writes the PR body. A
+`SPEC §` is promoted to `stable` only when the maintainer confirms it, because promotion freezes the
+contract.
 
-**Durable documents never cite a plan.** A requirement, specification or ADR cites the PR, the commit or
-the `REQ` — never a plan, which is not in the repository.
+**Durable documents never cite a plan or a session.** A requirement, specification or ADR cites the PR,
+the commit or the `REQ` — never a plan, which is not in the repository.
 
 ### Postponed and abandoned work
 
 Work that stops before it ships is recorded on the requirement: `implementation: deferred` (§6), with the
-reason in the PR body or the ledger. A finished slice's leftover items travel to the review ledger's
-`Deferred` table (§13) or become a `deferred`-status `REQ`. The plan file itself records nothing durable.
+reason in the PR body. A leftover the maintainer keeps becomes a `deferred` requirement or one line under
+the specification's *Known gaps*; the rest is dropped.
 
 ## 10. Agent affordances
 
@@ -264,13 +279,12 @@ reason in the PR body or the ledger. A finished slice's leftover items travel to
 
 ## 12. Ceremony proportional to contract change — the two lanes
 
-Ceremony is owed to a change of contract, not to a volume of code. **The lane test is one question,
+On the formal profile, ceremony is owed to a change of contract, not to a volume of code. **The lane test is one question,
 answered in one line of the PR body: does this change alter any normative statement** — a `REQ`'s
 acceptance criteria, a `SPEC §` behaviour, a public API shape, or an error contract?
 
 | Obligation | **Full lane** | **Maintenance lane** |
 |---|---|---|
-| Plan file | a working task list on disk, never committed | optional |
 | `REQ` / index / `SPEC §` edits | required | forbidden by definition — needing one makes the change full lane |
 | `traceability.yaml` | updated for landed packages/tests/probes | only when file paths moved, and the drift gate names exactly which rows |
 | `ADR` | when an irreversible fork was taken | never — a maintenance change taking an irreversible fork is full lane |
@@ -294,40 +308,30 @@ which is exactly what a diff check invites. A mislabel that slips through surfac
 conformance review.
 
 **The lane belongs to the change, not to the repository.** It is declared per PR. `.sdd.yaml` learns no
-lane field.
+lane field. The informative profile has one lane.
 
 ## 13. Review discipline
 
-**Two gates.** The merge gate is: the code is correct; every MUST the change touches has a named test
-that fails when the guard is removed; the code conforms to the cited `SPEC §`; the drift gate is green.
-Everything else — index polish, header alignment, citation parity, trimming — is **non-blocking by
-definition** and goes to the review ledger's `Deferred` table. It is not a review round.
+**The merge gate.** The code is correct; every binding sentence the change touches has a named test that
+fails when its guard is removed; the code conforms to the sentences it cites (all specifications on the
+formal profile, the constitution on the informative one); the drift gate is green; no critical or
+important finding is open. Everything else is a suggestion ([review.md](review.md) § Severity).
 
-**The ledger is the default review format, not a remedy.** All findings for a change live in one
-numbered comment on the PR, updated in place each round, whatever channel they arrived through. Format
-and rules: [artefact-prose.md](artefact-prose.md). The `Deferred` table is the carrier for a non-blocking
-finding; it is rolled forward into the next change that touches the area. A review leftover does not
-become a tracker issue — that fragments the work away from the change that caused it.
+**Findings live in the branch's findings file** and, when there is a pull request, in its inline threads
+— nowhere else. Format, severities, scope, evidence, the mirror, resolution, the pass budget:
+[review.md](review.md).
 
-**Materiality threshold.** A reviewer reports **blockers and should-fix findings by default; nits only
-when they are asked for.** An empty axis or an uncited artefact is not automatically drift — "this does
-not map" is a legitimate steady state. Never recommend meta-commentary whose only purpose is to satisfy
-a checker.
+**Scope is the change.** A pass reads the commit range since the last pass. What the change did not
+touch is a suggestion at most.
 
 **Verify before fixing.** A finding is a claim, and so is a reviewer's proposed correction. Both are
-checked against the code and the spec before either is applied. A correction that is wrong and applied
-propagates into every artefact that cites it.
+checked against the code and the documents before either is applied.
 
-**Sweep the axis, not the instance.** For each confirmed defect, census the pattern class before
-resolving it. One fixed instance of a class that recurs is a finding deferred, not a finding closed.
+**Collapse before you add.** A requirement amended during review may not accrete per-incident
+corollaries; each residual folds into the existing invariant or replaces it.
 
-**Collapse before you add.** A `REQ` amended during review may not accrete per-incident corollaries; each
-new residual folds into the existing invariant or replaces it. This is **not** "do not amend mid-review" —
-the in-review amendment loop is where much of the value is.
-
-**Settled adjudications are remembered.** A declined finding, with the reason it was declined, is written
-to the repository's reviewer memory at `docs/.sdd/reviewers/<agent-name>.md`, so the same finding is not
-re-raised the next round. The reviewer agents read that file; the triage step writes it.
+**Decisions that bind go where decisions live.** A decline that should hold for future changes becomes a
+specification sentence or an ADR (formal), or a constitution sentence (informative) — never a side file.
 
 **The enforcement register.** A rule without a failing check is a wish. Every hard rule in this
 methodology names its enforcement — a `sdd-check` family, a build target, a hook, or `review-enforced`.
@@ -348,18 +352,20 @@ The review-enforced list is meant to shrink.
 | Changelog bullet | `changelog` |
 | Generated blocks match | `generated` |
 | Unknown identifier cited in code | `tree-to-map` |
-| Lanes | review-enforced — `/sdd-review` step 0 |
-| Materiality and collapse-before-add | review-enforced |
+| Lanes | review-enforced — `/sdd-review` |
+| Critical and important findings carry evidence and sit in the range | review-enforced — `/sdd-review` |
+| No open critical or important finding at merge | `sdd-pr status` |
+| The pass budget | review-enforced — `/sdd-triage` |
+| Collapse before you add | review-enforced |
 | Mutation-detectability | the build gate's tests |
 
-**The review layer meets the bar it imposes.** A fan-out of reviewers records which members were
-dispatched and how many reported. A panel that cannot say whether all its members reported is not
-evidence of absence.
+**The review layer meets the bar it imposes.** Every pass writes a `Reviewed` line naming the reviewers
+dispatched and how many reported.
 
 ## 14. What this methodology does not relax
 
-The mechanisms below earned their cost and are untouched by the lanes, the working plan, and the
-review thresholds:
+The mechanisms below earned their cost and are untouched by the lanes, the profiles, and the review
+severities:
 
 - normative topic specs with RFC-2119 force, and "when code and specs disagree, the specs win";
 - spec-first for new capability, including the pre-code spec review;

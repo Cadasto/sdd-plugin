@@ -28,9 +28,10 @@ The linked docs are **canonical** — defer to them rather than duplicating thei
 
 ## Workflow (short form)
 
-`REQ` (what + acceptance) → `SPEC §` (RFC-2119) → `ADR` (if an irreversible fork) → `PLAN` (a working task
-list, never committed) → `CODE + TESTS` (tests cite ids) → update traceability → update `REQ` status and fill
-the PR body — all in the same PR that implements it. A `SPEC §` is promoted only when the maintainer
+`REQ` (what + acceptance) → `SPEC §` (RFC-2119) → `ADR` (if an irreversible fork) → `CODE + TESTS` (tests
+cite ids) → update traceability → update `REQ` status and write the PR body (`/sdd-deliver --close-out`) —
+all in the same PR that implements it. Review findings live in the git-ignored `.sdd/findings/<branch>.md`;
+`sdd-pr status` says what is open. A `SPEC §` is promoted only when the maintainer
 confirms. New behaviour is *spec-first*; hardening shipped code is *implementation-aligned* (code may lead,
 spec updated in the same PR).
 

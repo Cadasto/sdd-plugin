@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart hook (host-agnostic): when a Spec-Driven Development repository is detected, print one
-# context line plus the available /sdd-* surface, then a short orientation — branch and tree state,
-# open pull requests, and the drift-gate verdict. Every external command is optional and
+# context line plus the available /sdd-* surface, then a short orientation — the plugin version, branch
+# and tree state, the branch's open findings, and the drift-gate verdict. Every external command is optional and
 # guarded; each is time-limited when the `timeout` binary is on PATH, and still runs — untimed, not
 # skipped — when it isn't (see tmo() below). The script ALWAYS exits 0, so a missing or slow tool
 # prints nothing rather than blocking the session — except the vendored drift gate, whose missing
@@ -154,7 +154,16 @@ emit() {
 
 # ---------------------------------------------------------------- orientation
 if is_sdd_repo; then
-  add "› Spec-Driven Development repo detected — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR) · /sdd-deliver (plan → workers → draft PR) · /sdd-review (spec-aware review + panel prompts) · /sdd-triage (work a review round) · /sdd-trace (traceability/drift) · /sdd-archive (close out the REQ in its PR) · /sdd-scaffold. A plan is a working file, never committed. Run /sdd-trace + the build's spec-check before claiming done."
+  profile="$(desc_get sdd profile)"
+  [ -n "$profile" ] || profile="$(desc_get "" profile)"
+  case "$profile" in ''|full|lightweight) profile=formal ;; esac
+  add "› Spec-Driven Development repo detected (profile $profile) — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR, or a knowledge-base page) · /sdd-deliver (workers → review → draft PR → close-out) · /sdd-review (review pass into the findings file) · /sdd-triage (work the open findings) · /sdd-trace (traceability, --audit) · /sdd-scaffold. Run /sdd-trace + the build's spec-check before claiming done."
+
+  # 0. The plugin version, when the host says where the plugin lives (Claude Code only; Cursor sets no such variable).
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -r "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" ]; then
+    ver="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | head -n1)"
+    [ -n "$ver" ] && add "› sdd plugin $ver"
+  fi
 
   # 1. Branch and working-tree state.
   if have git && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -189,35 +198,17 @@ if is_sdd_repo; then
     fi
   fi
 
-  # 2. Open pull requests, only when the forge CLI is installed and answers. Numbers are printed as
-  # `PR <n>`; any failure, timeout or unexpected payload prints nothing.
-  # Only when a home for gh's own state exists: with HOME and XDG_STATE_HOME both unset, gh
-  # writes its device-id under the current directory — i.e. into the repository being opened.
-  if have gh && { [ -n "${HOME:-}" ] || [ -n "${XDG_STATE_HOME:-}" ]; }; then
-    pj="$(tmo 3 gh pr list --state open --limit 5 --json number,title,isDraft 2>/dev/null)"
-    case "${pj:-}" in
-      \[*)
-        recs="$(printf '%s' "$pj" | awk '{ gsub(/\},[[:space:]]*\{/, "}\n{"); print }')"
-        pr_list=""
-        while IFS= read -r rec; do
-          [ -n "$rec" ] || continue
-          num="$(printf '%s' "$rec" | grep -oE '"number":[[:space:]]*[0-9]+' | head -n1 | grep -oE '[0-9]+')"
-          [ -n "$num" ] || continue
-          ttl="$(printf '%s' "$rec" | sed -n 's/.*"title":[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
-          draft=""
-          if printf '%s' "$rec" | grep -qE '"isDraft"[[:space:]]*:[[:space:]]*true'; then
-            draft=" (draft)"
-          fi
-          entry="PR $num"
-          [ -n "$ttl" ] && entry="$entry $ttl"
-          entry="$entry$draft"
-          if [ -z "$pr_list" ]; then pr_list="$entry"; else pr_list="$pr_list · $entry"; fi
-        done <<EOF
-$recs
-EOF
-        [ -n "$pr_list" ] && add "› open pull requests: $pr_list"
-        ;;
-    esac
+  # 2. The branch's findings file (references/review.md), when there is one. `sdd-pr status` says the
+  # rest — the pull request, its threads and whether the branch is mergeable.
+  if have git && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    cur="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+    ff=".sdd/findings/$(printf '%s' "$cur" | sed 's#/#--#g').md"
+    if [ -n "$cur" ] && [ -f "$ff" ]; then
+      c="$(grep -c '^- \[ \] critical' "$ff" 2>/dev/null)"
+      i="$(grep -c '^- \[ \] important' "$ff" 2>/dev/null)"
+      s="$(awk '/^## /{ sec = $0; next } sec == "## Suggestions" && /^- / { n++ } END { print n + 0 }' "$ff" 2>/dev/null)"
+      add "› findings: ${c:-0} critical, ${i:-0} important open, ${s:-0} suggestions ($ff)"
+    fi
   fi
 
   # 3. The drift gate's own verdict, when the gate is vendored here.

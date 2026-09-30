@@ -1,38 +1,39 @@
 ---
 name: sdd-review
-description: This skill should be used when the user asks to "run the SDD review", "review this PR for spec conformance", "review the branch before the draft PR", or "print the review prompts for the panel". Dispatches the reviewers the lane calls for and writes one numbered ledger; `--panel` prints the prompt blocks. Not for fixing what the ledger holds (sdd-triage) or authoring documents (sdd-specify).
-argument-hint: "[PR number or REQ-id] [--lane full|maintenance] [--panel] [--post]"
-allowed-tools: Agent, Task, Bash, Read, Grep, Glob
+description: This skill should be used when the user asks to "run the SDD review", "review this branch", "review this PR", or "print the review prompts for the panel". Reviews the commits since the last pass with the reviewers the profile, lane and changed files call for, writes the findings into the branch's findings file, and mirrors critical and important ones to the pull request when there is one. Not for fixing findings (sdd-triage) or authoring documents (sdd-specify).
+argument-hint: "[--lane full|maintenance] [--all] [--panel] [--pr N]"
+allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 ---
 
-# Review — one spec-aware review round, written as one ledger
+# Review — one pass into the findings file
 
-> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
+> `references/…` and `tools/…` resolve from the plugin root: `${CLAUDE_PLUGIN_ROOT}/…` on Claude Code, or Glob for the installed copy. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
 
-Sequence a spec-aware review and write its findings as one ledger. Read `docs/.sdd.yaml` first for `paths.*`, the build targets, and the `agents:` block. No descriptor, or a descriptor with no `agents:` block, routes to `/sdd-scaffold` and stops.
-
-This runs best on the branch, before the draft PR opens: the same findings cost the same to produce either way, and caught early they fold into the slice as ordinary work instead of becoming visible review rounds.
+Read `docs/.sdd.yaml` first (`profile`, `paths.*`, `forge`, the build targets, `agents:`); without a descriptor or an `agents:` block, route to `/sdd-scaffold` and stop. What a finding must meet is `references/review.md`. No pull request is required. Pass `--pr N`, when given, to every `sdd-pr` call.
 
 ## Steps
 
-0. **Detect the lane.** Read the lane from the `Lane:` line in the PR body if a PR exists, and corroborate it against the diff: a change with edits under `paths.requirements`, `paths.specifications` or `paths.adr`, or that alters an API shape or an error contract, is full lane whatever the line says. A third input is the touched specifications' frontmatter `mode:` — an `implementation-aligned` specification edited alongside code is still full lane; the mode says how the amendment is reviewed, not whether it is. Record which source was used. If there is no PR yet, take `--lane`, which `/sdd-deliver` passes, and corroborate it against the diff the same way.
-1. **Scope the change.** Resolve the `REQ` / `SPEC §` under review — from the argument or the PR body — the PR if one exists (on GitHub, `gh pr view`), and the base branch. The scope is the branch diff against its base.
-2. **Dispatch, per lane.** Pass each dispatch the resolved `REQ` / `SPEC §` and the base branch. On the **full lane**, dispatch `sdd-traceability-auditor` and `sdd-spec-conformance-reviewer` in parallel, plus every reviewer named in `agents.reviewers`. Dispatch `sdd-doc-reviewer` once per touched requirement, specification, or ADR, naming its path — it has no Bash to find the diff. On the **maintenance lane**, dispatch only the reviewers named in `agents.reviewers`. The SDD reviewer agents are not dispatched — there is no spec delta to review. Run every reviewer report-only; nothing is posted from inside a reviewer.
-3. **Account for completion.** Record which reviewers were dispatched and how many reported. A dispatch that died and was not re-run is a gap, and the ledger header says so.
-4. **Write the ledger.** Before writing round 0, carry forward the `Deferred` rows of the last merged PR that touched the same paths (find its merge with `git log --first-parent -1 --format=%H <base> -- <paths>`), with `carried from` set to that PR. Write **one** ledger comment, not one comment per finding — the format and its rules are in `references/artefact-prose.md` § The findings ledger. Allocate ids from the next free `F<n>`; an id already in the ledger keeps its number. Merge near-duplicate findings from two reviewers under one id and name both sources. Blockers and should-fix in the table. Nits and the polish classes of methodology §13 go straight to `Deferred`, whatever severity a reviewer gave them. Before the PR is ready this is **round 0**, held in-session until the draft opens; on a ready PR the findings join the round `/sdd-triage` has open. On the maintenance lane with `agents.reviewers` empty, the accounting line reads `Dispatched: none — agents.reviewers is empty · Reported: 0 of 0` and the ledger is not marked clean — an empty list is an unconfigured gate, never a clean one. It becomes clean only when the maintainer's review is recorded in the accounting line with no open blocker (artefact-prose.md, completion accounting).
-5. **Post (with `--post`, or when asked).** Edit the PR's existing ledger comment in place; post one (on GitHub, `gh pr comment`) only when the PR has none.
-6. **Panel prompts (with `--panel`).** Print one prompt block per name in `agents.review_panel.<lane>`, filled from the canonical text in the repo's `docs/ai-workflow.md` § Review — the repository's copy, not a version retyped here. Nothing in the repository can start those reviewers; the blocks are for a person to paste.
+1. **Scope.** With a pull request, `sdd-pr pull` first, so the maintainer's threads are in the file. Then `sdd-pr scope` (`--all` for the whole branch, only when the maintainer asks): the range since the last `Reviewed` line, or the whole branch on the first pass, and the changed paths by kind. `range: empty`: print `sdd-pr status` and stop.
+2. **Lane (formal profile only).** From the PR body's `Lane:` line, or `--lane`. The test is methodology §12 — did a normative statement change meaning? — answered from the range's document hunks, never from a path. `--lane maintenance` on an existing PR limits this pass and does not rewrite the body.
+3. **Dispatch, by profile and by what changed.** Each dispatch gets the range, `git diff <range> -- <its paths>`, the profile, the sentences under review and the file's `## Resolved` lines. Report-only, in parallel:
+   - code, tests or other files (build, CI, configuration) changed → each reviewer in `agents.reviewers`, told to run the tests it needs for evidence;
+   - formal, full lane, code implementing a cited `SPEC §` changed → `sdd-spec-conformance-reviewer`, once, with the guard-removal check for every MUST in the range; informative → the same agent only when the range touches something a constitution sentence binds, with those sentences quoted;
+   - formal full lane or informative, a document changed → `sdd-doc-reviewer`, once, with the changed hunks of every touched document (form on formal, consistency on informative);
+   - nothing else: the drift gate ran in the full gate; the auditor is `/sdd-trace --audit`.
+   A dispatch that died is re-run once; a second death shows in the `Reviewed` line's `(<n> of <m>)`.
+4. **Merge into the file** `.sdd/findings/<branch-slug>.md` (created from the grammar in `review.md` when absent): critical and important under `## Open`, suggestions under `## Suggestions` (at most ten new, then "and n more"). Merge two lines about one defect, naming both in `by:`; drop a line with nothing in the range and no evidence. Add `Reviewed <HEAD sha> · <date> · <agent>: <reviewers> (<n> of <m>)`.
+5. **Mirror.** With a pull request, push, then `sdd-pr post` (it refuses an unpushed HEAD). Then `sdd-pr status`.
+6. **Panel prompts (`--panel`).** Print one block per name in `agents.review_panel.<lane>` (`full` on the informative profile), filled from the repository's `docs/ai-workflow.md` § Review with the range from step 1. An outside reviewer on this machine appends to the findings file; one elsewhere posts inline threads, which `sdd-pr pull` brings in.
 
 ## Guardrails
 
-- **Deliberate, not an automatic gate.** Run it when asked, and as round 0 of `/sdd-deliver` — not after every implementation slice.
-- **Neither the dispatched agents nor this skill edits anything: fixing what the ledger holds is `/sdd-triage`.**
-- **This is not the test gate** — whether the build passes is the build's job; read its output before claiming green.
-- **One ledger. Never one comment per finding.**
+- **Run it once before the maintainer's review, and once after the triage of that review when it changed code (`references/review.md` § Passes) — never after every slice.**
+- **The agents edit nothing; this skill writes only the findings file; `/sdd-triage` fixes.**
+- **Never a summary comment on the pull request; never a second pass over the same range.**
+- **The build gate is not this skill; read its output before claiming green.**
 
 ## Reference
 
-- `references/artefact-prose.md` — the findings ledger: its heading, completion accounting, table columns, id and status vocabularies, and the `Deferred` table.
-- `references/sdd-methodology.md` — §12 the two lanes; §13 the two gates and the materiality threshold.
-- `references/sdd-check.md` — the mechanical baseline `sdd-traceability-auditor` runs before this skill's own findings; this skill does not re-run the gate itself.
-- The agents: `sdd-traceability-auditor` (map versus tree), `sdd-spec-conformance-reviewer` (code versus the cited `SPEC §`), `sdd-doc-reviewer` (one document against its kind contract).
+- `references/review.md` — the findings file, severity, scope, evidence, the mirror, the tool.
+- `references/sdd-methodology.md` — §1a the profiles, §12 the lanes, §13 the merge gate and the pass budget.
+- The agents: `sdd-spec-conformance-reviewer`, `sdd-doc-reviewer`, and those `agents.reviewers` names.

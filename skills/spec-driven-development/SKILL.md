@@ -1,65 +1,57 @@
 ---
 name: spec-driven-development
-description: This skill should be used when the user asks "what is SDD", "explain spec-driven development", "how does the spec workflow work here", "which /sdd command do I use", or asks to implement, build, or add behaviour in a repository with docs/.sdd.yaml before a REQ or spec exists. Explains the methodology, routes intent to the right sdd-* skill, and blocks code-first work. Not for performing an artefact action (sdd-specify, sdd-deliver, sdd-trace, sdd-review).
+description: This skill should be used when the user asks "what is SDD", "explain spec-driven development", "how does the spec workflow work here", "which /sdd command do I use", or asks to implement, build, or add behaviour in a repository with docs/.sdd.yaml before a REQ or spec exists. Explains the methodology, routes intent to the right sdd-* skill, and blocks code-first work. Not for performing an artefact action (the sdd-* skills do that).
 allowed-tools: Read, Grep, Glob
 ---
 
-# Spec-Driven Development — awareness, routing & integration
+# Spec-Driven Development — awareness and routing
 
 > `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
 
-The always-on layer for SDD. It does no artefact work itself; it explains the methodology, routes to the skill that does the work, and states where an optional general engineering plugin still fits. Ground every answer in `references/sdd-methodology.md` — do not improvise rules.
+The always-on layer: it explains the methodology, routes to the skill that does the work, and does no artefact work itself. Ground every answer in `references/sdd-methodology.md`; never improvise a rule.
 
 ## Core idea (state this when explaining SDD)
 
-The **specification — not the code, not the prompt — is the source of truth.** Code is derived from it and measured against it; when they disagree the spec wins (unless a section is explicitly *implementation-aligned*). This plugin targets the **spec-anchored** rung, backed by stable identifiers, a machine-checked traceability map, and CI that fails on drift. Full detail: `references/sdd-methodology.md`.
+The **specification — not the code, not the prompt — is the source of truth.** Code is derived from it and measured against it; when they disagree the spec wins, unless a section is explicitly *implementation-aligned*. The plugin targets the **spec-anchored** rung: stable identifiers, a machine-checked traceability map, and CI that fails on drift.
+
+**Two profiles** (methodology §1a): `formal` is the above — requirements, RFC-2119 specifications, ADRs and the map, all checked; `informative` keeps `docs/` as a knowledge base where code leads and only one constitution document binds.
 
 ## The delivery surface
 
 ```
-/sdd-specify  →  /sdd-deliver  →  /sdd-review (+ --panel)  →  /sdd-triage  →  /sdd-archive
+/sdd-specify  →  /sdd-deliver  →  /sdd-review (+ --panel)  →  /sdd-triage  →  /sdd-deliver --close-out
 ```
-
-### Route to SDD
 
 | Intent | Route to |
 |---|---|
-| Set up / extend the SDD docs structure | `sdd-scaffold` |
-| Capture a capability, write normative behaviour, or record a decision (REQ/SPEC/ADR) | `sdd-specify` |
-| Amend an existing spec § — any normative change, one sentence or many, is full lane | `sdd-specify` |
-| Deliver a REQ: preconditions, plan, workers, gates, draft PR | `sdd-deliver` |
+| Set up or extend the SDD docs structure | `sdd-scaffold` |
+| Capture a capability, make behaviour normative, record a decision, amend a spec § (any normative change is full lane) | `sdd-specify` |
+| Deliver a change: the dispatch gate, workers, gates, the first review pass, the draft PR | `sdd-deliver` |
 | Implement one bounded task from a brief | `sdd-implementer` agent (dispatched by `sdd-deliver`) |
-| Spec-aware review into the ledger; prompt blocks for the panel | `sdd-review` |
-| Work a review round: merge findings, verify, fix, resolve, re-request | `sdd-triage` |
-| Traceability / drift / spec-check / a REQ's context | `sdd-trace` |
-| Run the drift gate or lint the docs (report-only) | `sdd-trace` |
-| Regenerate the indexes and status lines from the map | `sdd-specify` / `sdd-archive` / `sdd-triage` (they run the vendored `generate`) |
+| A review pass into the branch's findings file; panel prompts | `sdd-review` |
+| Work the open findings: verify, fix, flip, mirror; after the maintainer's review, one scoped re-review | `sdd-triage` |
+| What is open, is it mergeable, what next | `sdd-pr status` (`tools/sdd-pr.py`) |
+| Traceability, drift, the drift gate, lint, a REQ's context (report-only); `--audit` for the isolated whole-tree audit | `sdd-trace` |
+| Regenerate the indexes and status lines from the map | the vendored `generate`, run by `sdd-specify`, `sdd-deliver` and `sdd-triage` |
 | Does the code satisfy the `SPEC §` it cites, clause by clause | `sdd-spec-conformance-reviewer` agent |
-| Review a *requirement, spec, or ADR* for boundary violations | `sdd-doc-reviewer` agent |
-| Close out the requirement record and the PR body — in the implementing PR | `sdd-archive` |
+| Review a requirement, spec or ADR for boundary violations | `sdd-doc-reviewer` agent |
+| Close out the requirement and write the PR body, in the implementing PR | `sdd-deliver --close-out` |
 
 ## Optional: a general engineering plugin
 
-A general engineering plugin such as superpowers is **optional**. Exploration workflows like brainstorming
-are a good way to open a new idea before `/sdd-specify`. Planning, task execution, verification, code
-review, and branch finishing are covered here
-by `/sdd-deliver`, the `sdd-implementer` agent, the review ledger, and the PR-body close-out; running both
-sets over the same work duplicates the loop and splits the plan's home. Plans belong in `paths.plans` in `docs/.sdd.yaml`
-(default `docs/plans/`); if a tool wants to write them somewhere else, point it there rather than keeping a
-second tree.
+A general engineering plugin such as superpowers is **optional**. Its exploration workflows (brainstorming) are a good way to open an idea before `/sdd-specify`. Planning, execution, verification, review and branch finishing are covered here — `/sdd-deliver`, `sdd-implementer`, the findings file, the close-out — and running both over the same work duplicates the loop. How the orchestrator plans is its own business: a plan is a git-ignored working file outside `docs/`.
 
 ## Guardrails this layer enforces
 
-- **No code-first.** If asked to implement behaviour for which **no `REQ` and no spec exist**, do not jump to code. Redirect: explore first if the idea is new, record with `sdd-specify`, then deliver with `sdd-deliver`. The exception is *implementation-aligned* work on shipped code — the spec is updated in the **same** change.
-- **One source of truth.** The canonical spec lives in `paths.specifications` (default `docs/specifications/`). A plan is a working file under `paths.plans`, never committed and never a source of truth; never let a second tree of design documents become one either.
-- **One home per fact — in process prose too.** The commit body, PR body, changelog, and review comments each carry only what lives nowhere else; cite identifiers (`REQ`/`SPEC §`/SHA) instead of restating. `references/artefact-prose.md`.
-- **Don't settle open questions silently** — a genuine fork goes to an ADR (`sdd-specify`) or a `STRAND`, or back to brainstorming.
-- **Check the descriptor.** Repo conventions live in `docs/.sdd.yaml`; if it is missing, the repo isn't scaffolded (route to `sdd-scaffold`).
-- **Never hand-edit a generated block.** Every skill that changes the map or the frontmatter runs `sdd-check generate` before it stops (`references/sdd-check.md`). This skill has no `Bash` grant and performs no artefact work.
+- **No code-first (formal profile).** When asked to implement behaviour that no `REQ` and no spec covers, do not jump to code: explore if the idea is new, record it with `sdd-specify`, deliver with `sdd-deliver`. The exception is *implementation-aligned* work on shipped code, whose spec is updated in the **same** change. On the informative profile, route the change to `sdd-deliver`: a clear task and a known verification command are enough.
+- **One source of truth.** The canonical spec lives in `paths.specifications` (default `docs/specifications/`); a plan is never committed and never a source of truth, and no second tree of design documents may become one.
+- **One home per fact, in process prose too** — commit body, PR body, changelog and review threads each carry only what lives nowhere else and cite identifiers (`REQ`/`SPEC §`/SHA) instead of restating (`references/artefact-prose.md`).
+- **Never settle an open question silently** — an ADR (`sdd-specify`), a `STRAND`, or back to brainstorming.
+- **Check the descriptor.** No `docs/.sdd.yaml` means the repo isn't scaffolded: route to `sdd-scaffold`.
+- **Never hand-edit a generated block**; every skill that changes the map or the frontmatter runs `sdd-check generate` before it stops (`references/sdd-check.md`). This skill has no `Bash` grant.
 
 ## Reference
 
-- `references/sdd-methodology.md` — the authoritative grounding (ladder, document kinds, RFC-2119, identifiers, traceability, two modes, the working plan, lanes, review discipline, anti-patterns).
-- `references/sdd-check.md` — the vendored drift gate's commands, families, and report format.
-- `references/traceability-schema.md` — the `traceability.yaml` and `.sdd.yaml` schemas.
-- `references/artefact-prose.md` — one home per fact, the findings ledger, the prose register.
+- `references/sdd-methodology.md` — the grounding: ladder, profiles, document kinds, RFC-2119, identifiers, traceability, modes, delivery, lanes, review discipline, anti-patterns.
+- `references/review.md` — the findings file, severities, evidence and the forge mirror.
+- `references/sdd-check.md` · `references/traceability-schema.md` · `references/artefact-prose.md`.

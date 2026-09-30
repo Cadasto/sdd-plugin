@@ -1,19 +1,19 @@
 # Artefact prose economy — one home per fact
 
-The single-canonical-home rule ([sdd-methodology.md](sdd-methodology.md) §5) applied to the **process prose** around a change — the commit, the PR body, the changelog, and the review/resolution comments. It exists because agent-to-agent workflows retell the same story three or four times (commit body ≈ PR body ≈ changelog ≈ review comment), and every retelling is a second source of truth: drift waiting to happen and noise for the next agent to wade through.
+The single-canonical-home rule ([sdd-methodology.md](sdd-methodology.md) §5) applied to the **process prose** around a change — the commit, the PR body, the changelog, and review threads and replies. Agent-to-agent workflows retell the same story three or four times (commit body ≈ PR body ≈ changelog ≈ review comment), and every retelling is a second source of truth: drift waiting to happen and noise for the next agent.
 
-> **Principle.** Each fact has exactly one home. Every other artefact **cites the identifier** — `REQ` / `SPEC §` / `ADR` / `PROBE` / commit SHA / finding — instead of restating the prose. Prefer a citation over a paragraph.
+> **Principle.** Each fact has exactly one home. Every other artefact **cites the identifier** — `REQ` / `SPEC §` / `ADR` / `PROBE` / commit SHA — instead of restating the prose. Prefer a citation over a paragraph.
 
 ## Where each kind of prose lives
 
 | Artefact | Its one job | Must **not** contain | Anchors it cites |
 |---|---|---|---|
 | **Spec §** | Normative *what / how it must behave* (RFC-2119) | Task lists, file paths, PR-style narrative | `REQ` |
-| **Commit body** | The *why* of **this** change — rationale, tradeoff — one tight paragraph | A re-listing of the diff; restated spec prose | `REQ` / `SPEC §` / `ADR` |
-| **PR body** | The *review lens* — what to look at, what's out of scope, how it was verified, which IDs it touches | A re-explanation of the spec; a second changelog | `REQ` / `SPEC §`; the commit range |
+| **Commit body** | The *why* of **this** change — rationale, tradeoff — one tight paragraph | A re-listing of the diff; restated spec prose; a finding | `REQ` / `SPEC §` / `ADR` |
+| **PR body** | For a person and an agent: Summary, Spec and traceability (or Docs), Verification, Notes for review, Checklist ([development-process.md](templates/development-process.md) § The PR body) | A re-explanation of the spec; a second changelog; a commit list | `REQ` / `SPEC §` |
 | **Changelog** | The *user-facing delta* — one subsystem-led line per bullet | Rationale, design narrative (those are in the commit/ADR) | optional `REQ` |
-| **Review comment** | One finding, anchored to `file:line` (+ the `SPEC §` it violates, if normative) | Essays; re-litigation of settled points | `SPEC §` / finding id |
-| **Resolution comment** | That a finding is fixed — one line + the fixing commit SHA | A re-description of the fix (it's in the diff) | the finding + commit SHA |
+| **Review thread** | One finding on the line it concerns: severity, one sentence, evidence, fix ([review.md](review.md)) | Essays; instances outside the range | `SPEC §` |
+| **Thread reply** | `fixed in <sha>` or `declined: <reason>`, one line | A re-description of the fix (it's in the diff) | the commit SHA |
 
 Two rules on that table are enforced by the shared gate ([sdd-check.md](sdd-check.md)) — the `changelog`
 and `one-home` families — and are written here so the tool and the reviewer apply the same rule:
@@ -25,59 +25,18 @@ and `one-home` families — and are written here so the tool and the reviewer ap
   cites the anchor instead of repeating the sentence. A consolidation that changes a `MUST`'s
   force while moving it is not a move — it is an amendment, and is reviewed as one.
 
-## The findings ledger
-
-Policy — why one ledger, why the `Deferred` table is the carrier, why completion is accounted — lives in
-[sdd-methodology.md](sdd-methodology.md) §13; this section gives the format.
-
-````markdown
-## Review ledger — round N (reviewer, date)
-Dispatched: <reviewers> · Reported: <n> of <m>
-| id | severity | anchor | finding | status |
-|---|---|---|---|---|
-| F1 | blocker | <path>:214 | one sentence, plain words | fixed@abc1234 |
-| F2 | should-fix | docs/specifications/<topic>.md §4 | one sentence, plain words | open |
-| F3 | nit | CHANGELOG.md | one sentence, plain words | deferred |
-
-## Deferred
-| id | item | carried from | owner |
-|---|---|---|---|
-| F3 | <the item, in a few words> | this PR | next change touching <area> |
-````
-
-**Rules**
-
-- Ids are `F<n>`, taken from the next free number and **append-only across rounds**. A finding keeps its
-  id for the life of the change.
-- `severity` is `blocker | should-fix | nit`. `status` is `open | fixed@<sha> | declined + reason | deferred`; whoever lands a fix sets its row to `fixed@<sha>`.
-- Every fix pass enumerates **the ledger**, never the comment channels.
-- **Rounds.** Round 0 is everything before the PR is marked ready, the maintainer's review of the draft
-  included. On a ready PR, each triage of newly arrived reviews opens the next round; ids continue.
-- The ledger is the one PR comment whose first line starts `## Review ledger`, edited in place.
-- **Completion accounting.** The header names which reviewers were dispatched and how many reported. The maintainer's review of the draft is appended to the same line when it is in — `Dispatched: <reviewers>, maintainer · Reported: <n> of <m>` — which is where a ready check finds it; on a `Dispatched: none` ledger the maintainer is then the whole panel.
-- Near-duplicate findings from two reviewers merge under **one** id, with both sources named.
-- Write a finding id as `F12`, or in words — **never as a bare hash-plus-number**, which a hosting platform
-  renders as a link to an unrelated issue or pull request. That is a false citation, and every tool that
-  scans for issue and pull-request references will read it that way.
-
-## Writing for an agent reader
-
-Most of this text is written by one agent and read by another (a reviewer agent, a fixer agent). Tune for that reader:
-
-- **Terse, identifier-anchored, complete enough to act on, zero ceremony.** No preamble, no summary-of-a-summary, no restating what a cited artefact already says.
-- **A citation beats a retelling.** "Implements `REQ-AUTH-003` / `SPEC-WIRE §4`; rationale in `ADR-0007`." — not a paragraph re-deriving the decision.
-- **Keep the essential once.** The one thing that lives *here and nowhere else* stays: the *why* in the commit, the *review lens* in the PR, the *user-facing line* in the changelog, the *finding* in the review comment. Everything that merely echoes a cited artefact is cut.
-
 ## Prose register
 
-Most of this text is written by one agent and read by another, so the test is whether the text is
-**unambiguous**, not whether it is polished.
+Most of this text is written by one agent and read by another, so the test is whether it is
+**unambiguous and complete enough to act on**, not whether it is polished.
 
-- **Plain words. One idea per sentence.**
+- **Plain words. One idea per sentence.** No preamble, no summary of a summary.
+- **A citation beats a retelling.** "Implements `REQ-AUTH-003` / `SPEC-WIRE §4`; rationale in `ADR-0007`." — not a paragraph re-deriving the decision.
+- **Keep the essential once.** The *why* in the commit, the *review lens* in the PR, the *user-facing line* in the changelog, the *finding* in its thread. Everything that echoes a cited artefact is cut.
 - **Explain a term the first time it is used, or drop it.** A term that is neither explained nor droppable
   belongs in the document that defines it, cited by identifier.
-- This applies to **review findings and resolution comments** as much as to specifications and changelogs.
-  A finding that is hard to read costs a round in the same way a finding that is wrong does.
+- **Never write a bare hash-plus-number** in prose that a hosting platform renders: it becomes a link to an
+  unrelated issue or pull request, a false citation.
 - A word budget may **never** cut an identifier, a path, or the reason a finding is a finding.
 
 ## What this does *not* touch
@@ -88,7 +47,6 @@ Most of this text is written by one agent and read by another, so the test is wh
 
 ## Related
 
-- [sdd-methodology.md](sdd-methodology.md) §5 (single canonical home), §8 (cite identifiers when crossing the chain), §11 (duplicated prose is an anti-pattern).
-- [sdd-methodology.md](sdd-methodology.md) §13 (two gates, the materiality threshold, the ledger as the default).
-- `sdd-review` writes the ledger; `sdd-triage` maintains it round to round.
+- [sdd-methodology.md](sdd-methodology.md) §5 (single canonical home), §8 (cite identifiers when crossing the chain), §11 (duplicated prose is an anti-pattern), §13 (the merge gate).
+- [review.md](review.md) — the findings file, severities, evidence, and what a review thread carries.
 - The scaffolded repo restates the short form in `AGENTS.md` and `docs/ai-workflow.md` so every consuming repo inherits it.

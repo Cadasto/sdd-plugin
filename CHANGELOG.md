@@ -4,6 +4,41 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-09-30
+
+The review ledger is gone. Findings live in a git-ignored file per branch that any agent on the machine
+can read and write; when a pull request exists, one tool mirrors the critical and important ones to its
+inline threads on GitHub or Azure DevOps and says what is open and whether the branch is mergeable. A
+second profile, informative, keeps the documents as a knowledge base and binds code to one constitution.
+Plans and the close-out skill leave the plugin. Moving a repository from 0.7.x is described in
+`docs/upgrading.md`.
+
+### Added
+- Tools: `tools/sdd-pr.py` — `status`, `scope`, `pull`, `post`, `resolve` for the findings file and its mirror on GitHub or Azure DevOps, with unit tests; not vendored.
+- References: `review.md` — the findings file, three severities, scope, evidence, the forge mirror, resolution, the pass budget, the tool contract.
+- References: methodology §1a — the formal and informative profiles; `traceability-schema.md` gains `profile: informative`, `paths.constitution` and `forge`.
+- Templates: `constitution.md` — the one binding document of the informative profile; the scaffold also writes `.github/PULL_REQUEST_TEMPLATE.md`.
+- Skills: `sdd-trace --audit`; `sdd-deliver --close-out`; `sdd-scaffold` asks the profile and ignores `.sdd/`.
+- Scripts: `validate.py` enforces word budgets, the `sdd-pr` version pin, forge-neutral text and the retired review vocabulary.
+- Hooks: `session-start.sh` prints the plugin version, the profile and the open-findings count.
+
+### Changed
+- Skills: `sdd-review` reads the range since the last pass, dispatches by profile and by what changed, writes the findings file and mirrors to the pull request; `--all`, `--panel`, `--pr`.
+- Skills: `sdd-triage` works the file's open critical and important lines, fixes small edits in-session, flips lines, mirrors, and re-reviews once when code changed.
+- Skills: `sdd-deliver` starts on the informative profile without a requirement, reviews before the draft PR opens, briefs workers with quoted clauses, and closes out itself.
+- Agents: the three reviewers share one rules section and return findings-file lines with evidence; `sdd-spec-conformance-reviewer` runs the tests and the guard-removal check; `sdd-doc-reviewer` reviews hunks.
+- Agents: `sdd-implementer` reads quoted clauses, writes the test first, proves it fails with the guard removed, and starts a bug fix from a failing reproduction.
+- Tools: `sdd-check` accepts `profile: formal | informative`, skips the map families on informative, reads `kind: constitution`, skips git-ignored documents, and reports `paths.plans` and `profile: lightweight` as notes.
+- Templates: `ai-workflow.md` § Review and the panel prompt use the findings file; `development-process.md` § The PR body is Summary, Spec and traceability, Verification, Notes for review, Checklist; `brief.md` gains `Clauses` and `Reproduce`.
+- References: methodology §13 is the merge gate and the pass budget; `artefact-prose.md` keeps the prose rules only; formal accepts a file-form requirements index.
+- Hooks: `spec-edit-reminder.sh` speaks only for the constitution on the informative profile; `session-stop.sh` names the findings file.
+
+### Removed
+- Skills: `sdd-archive` (now `sdd-deliver --close-out`); the review ledger, finding ids, rounds, the `Deferred` carry-forward, `--from`, `--post`, the session claim line and the close-out checkboxes.
+- References and templates: reviewer memory under `docs/.sdd/reviewers/`; `templates/plan.md`; `paths.plans`.
+- Agents: `sdd-traceability-auditor` is no longer part of a review pass.
+- Hooks: `session-start.sh` no longer lists open pull requests; `sdd-pr status` does.
+
 ## [0.7.0] - 2026-09-27
 
 A plan is now a working file: it is never committed, the gate reads nothing under `paths.plans`,

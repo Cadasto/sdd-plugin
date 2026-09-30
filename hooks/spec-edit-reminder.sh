@@ -84,6 +84,19 @@ fi
 # below would otherwise match any repository that happens to keep a docs/requirements/ directory.
 [ -f docs/.sdd.yaml ] || [ -d docs/specifications ] || exit 0
 
+# The informative profile binds only the constitution: an edit to it is the one worth a reminder, and
+# every other document under docs/ is a knowledge-base page the change reconciles as it goes.
+profile="$(desc_get sdd profile)"
+[ -n "$profile" ] || profile="$(desc_get "" profile)"
+if [ "$profile" = informative ]; then
+  constitution="$(desc_get paths constitution)"
+  [ -n "$constitution" ] || constitution="docs/architecture.md"
+  case "$f" in
+    *"$constitution") echo "› Edited the constitution — it binds every change; amend it through /sdd-specify, with the reason in the commit body or an ADR." ;;
+  esac
+  exit 0
+fi
+
 req_dir="$(desc_get paths requirements)"
 [ -n "$req_dir" ] || req_dir="docs/requirements"
 spec_dir="$(desc_get paths specifications)"
@@ -101,7 +114,7 @@ check_script="$(desc_get check script)"
 if [ -f "$check_script" ]; then
   regen="run \`python3 $check_script generate --root .\`"
 else
-  regen="regenerate them with /sdd-specify (or /sdd-archive at close-out)"
+  regen="regenerate them with /sdd-specify (or /sdd-deliver --close-out)"
 fi
 
 case "$f" in
