@@ -686,13 +686,14 @@ class Session:
         self.globs = test_globs(self.descriptor)
         self._pr_number = args.pr
         self._pr: Optional[dict] = None
+        self.dry_run = getattr(args, "dry_run", False)
         self.fs = load_findings(self.root, self.branch, "")
 
     def pr(self, required: bool = True) -> Optional[dict]:
         if self._pr is None:
             if self._pr_number is not None:
                 pr = self.forge.pr(self._pr_number)
-                if pr.get("branch") and pr["branch"] != self.branch:
+                if pr.get("branch") and pr["branch"] != self.branch and not self.holds(pr["head"]):
                     raise CheckoutError("pull request %d is %s at %s; this checkout is %s at %s; %s"
                                         % (pr["number"], pr["branch"], pr["head"][:7], self.branch,
                                            self.head[:7], elsewhere(self.root, pr["branch"])))
@@ -706,9 +707,21 @@ class Session:
                 print("sdd-pr: Base %s -> %s, the base of pull request %d"
                       % (self.fs.base, self._pr["base"], self._pr["number"]), file=sys.stderr)
                 self.fs.base = self._pr["base"]
-                if os.path.exists(findings_path(self.root, self.branch)):
+                if os.path.exists(findings_path(self.root, self.branch)) and not self.dry_run:
                     self.save()
         return self._pr
+
+    def holds(self, sha: str) -> bool:
+        """Whether this checkout contains ``sha``: a local branch under another name, or commits not pushed yet."""
+        if not sha:
+            return False
+        if sha == self.head:
+            return True
+        try:
+            git(self.root, "merge-base", "--is-ancestor", sha, "HEAD")
+            return True
+        except CliError:
+            return False
 
     def base(self) -> str:
         """The file's base, else the pull request's, else the remote's default branch, else main."""
@@ -872,7 +885,7 @@ def cmd_post(session: Session, args) -> int:
         print("post: nothing to post; %d already on the forge" % adopted)
         return 0
     if pr["head"] and pr["head"] != session.head:
-        raise CliError("local HEAD %s is not the pull request's head %s; push first"
+        raise CliError("local HEAD %s is not the pull request's head %s; push or pull first"
                        % (session.head[:7], pr["head"][:7]))
     merge_base = git(session.root, "merge-base", pr["base"] or session.base(), "HEAD").strip()
     hunks = parse_hunks(git(session.root, "diff", "%s...HEAD" % merge_base))
@@ -904,7 +917,11 @@ def cmd_post(session: Session, args) -> int:
         finding.flags.append("unanchored")
     missing = [f for f in anchored if not f.fields.get("forge")]
     if missing:
-        missing = [f for f in missing if f not in adopt(session, pr, missing)]
+        session.save()  # what the post returned is kept even if reading the ids back fails
+        try:
+            missing = [f for f in missing if f not in adopt(session, pr, missing)]
+        except CliError as exc:
+            print("sdd-pr: ids not read back: %s" % str(exc).splitlines()[0], file=sys.stderr)
     session.save()
     print("post: %d thread%s on PR %d, %d not anchored%s"
           % (len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),

@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 - Tools: `sdd-pr post` writes each thread's `forge:` id back on GitHub, whose per-review comment listing carries no line; an id still not read back is taken from the pull request's threads.
-- Tools: `sdd-pr` stops with exit 2 when `--pr` names a pull request on another branch, or `--branch` a branch that is not checked out, and names the worktree to run from; the findings file's `Base:` follows a retargeted pull request.
+- Tools: `sdd-pr` stops with exit 2 when `--pr` names a pull request whose branch or head this checkout does not hold, or `--branch` a branch that is not checked out, and names the worktree to run from; the findings file's `Base:` follows a retargeted pull request.
 
 ## [0.8.0] - 2026-09-30
 
