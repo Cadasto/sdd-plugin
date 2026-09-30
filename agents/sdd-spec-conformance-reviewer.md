@@ -1,12 +1,12 @@
 ---
 name: sdd-spec-conformance-reviewer
 description: >
-  Use this agent to judge whether changed code satisfies the binding sentences it claims to implement
+  Use this agent when changed code must be judged against the binding sentences it claims to implement
   — the SPEC § and REQ acceptance criteria, clause by clause, with the tests run as evidence.
   Report-only; returns findings-file lines; never edits the branch. Typical triggers include a
   pre-merge conformance check, an implementation-aligned change whose spec § may lag, and "does this
   code do what the spec says?". Not for style or bug review, test-passing, map drift, or reviewing the
-  document itself. The sdd-review skill dispatches this agent on the formal profile when code that
+  document itself. The sdd-review skill dispatches it on the formal profile's full lane when code that
   implements a cited SPEC § changed, and on the informative profile only against the constitution. See
   "When to invoke" in the agent body for worked scenarios.
 model: inherit

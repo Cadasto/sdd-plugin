@@ -9,7 +9,7 @@
 **Reproduce.** <bug fix only: how to see the bug, and the test that must fail before the fix — otherwise omit the line>
 **Finding.** <triage fix only: the finding line from .sdd/findings/<branch>.md — otherwise "none">
 **Files.** <the only paths the worker may touch>
-**Verify.** `<command>`  <!-- the worker runs it, reads it, quotes the output, and on a pass commits the Files by explicit path -->
+**Verify.** `<command>`  <!-- the worker runs it, reads it, quotes the output, and on a pass commits the Files by explicit path; a bug fix commits its failing reproduction first -->
 **Skills.** <agents.worker_skills, or none>
 **Code index.** <the tool named in docs/ai-workflow.md § Orchestration, or none>
 **Worktree.** <path when agents.worktree_per_worker applies, otherwise "the branch">
