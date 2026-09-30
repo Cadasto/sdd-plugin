@@ -133,7 +133,8 @@ Lane: <full | maintenance — no normative change>     <!-- formal profile only 
 ```
 
 No session claim, no commit list, no task ticks, no finding ids: findings are in the findings file and the
-review threads (`ai-workflow.md` § Review).
+review threads (`ai-workflow.md` § Review). `sdd-pr` appends a generated *review state* block to the body
+and rewrites it in place; leave it, and a body rewritten without it gets it back on the next write.
 
 ## Artefact prose — one home per fact
 

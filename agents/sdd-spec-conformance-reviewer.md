@@ -7,7 +7,8 @@ description: >
   pre-merge conformance check, an implementation-aligned change whose spec § may lag, and "does this
   code do what the spec says?". Not for style or bug review, test-passing, map drift, or reviewing the
   document itself. The sdd-review skill dispatches it on the formal profile's full lane when code that
-  implements a cited SPEC § changed, and on the informative profile only against the constitution. See
+  implements a cited SPEC § changed or a MUST or SHOULD sentence changed without code, and on the
+  informative profile only against the constitution. See
   "When to invoke" in the agent body for worked scenarios.
 model: inherit
 color: blue
@@ -26,6 +27,7 @@ You answer one question: **does this code satisfy the binding sentences it claim
 
 - **Pre-merge check.** A diff claims `REQ-…`/`SPEC-… §N`: every MUST met and pinned by a test that fails without its guard, every SHOULD met or excepted, every acceptance criterion observable.
 - **Implementation-aligned lag.** A fix on shipped code: the spec § changed in the same range and agrees (methodology §7).
+- **A binding sentence reworded.** A MUST or SHOULD changed and no code did: run the tests of the code it describes and judge that code against the new wording.
 - **Constitution check (informative).** Hold the code to the quoted constitution sentences only.
 
 ## Operating rules (read first)

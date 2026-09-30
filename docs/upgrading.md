@@ -27,7 +27,9 @@ already has.
 5. **Open pull requests.** An existing review ledger comment stays as history. Copy its open rows once,
    by hand, into `.sdd/findings/<branch>.md` in the grammar of the plugin's `references/review.md`, and
    never edit the comment again. A `Deferred` row you want to keep becomes `implementation: deferred`
-   on its requirement or a *Known gaps* line in the specification.
+   on its requirement or a *Known gaps* line in the specification. A pull request that merged before
+   its last fixes were pushed can leave a ledger whose `Deferred` rows nothing carried forward: move
+   each one you want to keep the same way, and drop the rest.
 6. **Commands.** `/sdd-archive` is `/sdd-deliver <PR> --close-out`. `/sdd-review` takes `--pr N` instead
    of a positional PR number and has no `--post`; `/sdd-triage` has no `--from`. "What is open, is it
    mergeable, what next" is `python3 <plugin root>/tools/sdd-pr.py status`.

@@ -60,7 +60,7 @@ Maintenance lane: no requirement and no spec edit.
 /sdd-review --lane maintenance
 ```
 
-On the maintenance lane only the reviewers named in `agents.reviewers` are dispatched; there is no spec delta for the SDD reviewers to read. If that list is empty, the `Reviewed` line in the findings file records `(0 of 0)`, and your own review of the pull request is the pass. The pull request body's *Spec and traceability* section carries `Lane: maintenance — no normative change`.
+On the maintenance lane the reviewers named in `agents.reviewers` read the code, and `sdd-doc-reviewer` reads any changed document to check that it still agrees with the code and the other documents. The conformance reviewer is skipped, because no binding sentence may change on this lane. If nothing in the range calls for a reviewer (say `agents.reviewers` is empty and only code changed), the pass writes no `Reviewed` line and the range stays open, and your own review of the pull request is the pass. The pull request body's *Spec and traceability* section carries `Lane: maintenance — no normative change`.
 
 The lane is guarded by a ratchet, not a diff check: a reviewer that finds a new rule living only in code flags it, and the change becomes full lane. `make spec-check` runs in both lanes.
 

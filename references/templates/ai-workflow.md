@@ -54,8 +54,8 @@ knowledge base in which only the constitution binds).
 when a pull request exists, in its inline threads, which `sdd-pr` keeps in step with the file. Three
 severities: critical and important are resolved before merge and are the only ones mirrored; suggestions
 are captured and never block. Every critical or important finding carries evidence. Nothing else about
-findings is posted anywhere. `sdd-pr status` lists what is open and prints `Mergeable: yes|no` and the
-next command.
+findings is posted anywhere, except the review-state block `sdd-pr` keeps in the pull request's body.
+`sdd-pr status` lists what is open and prints `Mergeable: yes|no` and the next command.
 
 **The canonical review request.** Reviewers that run outside this repository never load the SDD plugin,
 so what is pasted to them must not drift from what the repo defines. `/sdd-review --panel` prints this
