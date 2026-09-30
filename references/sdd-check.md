@@ -160,7 +160,7 @@ Default severity `error`. Enforces §5 (the single canonical home), §11 (duplic
 
 ### links
 
-- `links` — in every `*.md` under `docs/`, `AGENTS.md`, `README.md`, and any `paths.*` outside `docs/`: every inline link `](target)` and reference definition `[label]: target` whose target has no scheme (`http:`, `https:`, `mailto:`, `ftp:`, `tel:`, `data:`, `//`) resolves: a host-absolute path is an error; a relative path that walks outside the repository root (`../` past the top) is an error, distinct from a host-absolute path; the path exists relative to the file (error); and a `#fragment` on a `.md` target (or a bare `#fragment`) resolves to a heading slug or explicit anchor in that file (error). Fenced code, inline code and frontmatter are skipped. `check.links.exclude` globs are honoured and printed.
+- `links` — in every `*.md` under `docs/`, `AGENTS.md`, `README.md`, and any `paths.*` outside `docs/`: every inline link `](target)` and reference definition `[label]: target` whose target has no scheme (`http:`, `https:`, `mailto:`, `ftp:`, `tel:`, `data:`, `//`) resolves: a host-absolute path is an error; a relative path that walks outside the repository root (`../` past the top) is an error, distinct from a host-absolute path; the path exists relative to the file (error); a target git ignores and does not track, which no clean checkout has, is an error; and a `#fragment` on a `.md` target (or a bare `#fragment`) resolves to a heading slug or explicit anchor in that file (error). Fenced code, inline code and frontmatter are skipped. `check.links.exclude` globs are honoured and printed.
 
 Default severity `error`. Enforces §8 — the chain is made of links, and a link that nothing resolves rots
 silently.

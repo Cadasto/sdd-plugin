@@ -1305,6 +1305,7 @@ class Context:
         self.read_problems: Dict[str, str] = {}
         self._docs_files: Optional[List[Path]] = None
         self._git_ok: Optional[bool] = None
+        self._ignored: Optional[List[str]] = None
 
     # -- files ------------------------------------------------------------
     def abs(self, path) -> Path:
@@ -1382,6 +1383,17 @@ class Context:
                     unique.append(path)
             self._docs_files = unique
         return self._docs_files
+
+    def ignored(self, path) -> bool:
+        """Whether git ignores ``path`` and does not track it: a file no clean checkout has."""
+        if self._ignored is None:
+            listing = self.git("ls-files", "--others", "--ignored", "--exclude-standard", "--directory", "-z")
+            self._ignored = [entry for entry in (listing or "").split("\0") if entry]
+        rel = self.rel(path)
+        return any(
+            rel == entry.rstrip("/") or (entry.endswith("/") and rel.startswith(entry))
+            for entry in self._ignored
+        )
 
     # -- git --------------------------------------------------------------
     def _run_git(self, args) -> Optional[str]:
@@ -2511,6 +2523,14 @@ def check_links(ctx: Context, report: "Report") -> None:
                     continue
                 if not resolved.exists():
                     report.add("links", level, where, "no such file: %s" % rel_part)
+                    continue
+                if ctx.ignored(resolved):
+                    report.add(
+                        "links",
+                        level,
+                        where,
+                        "the target is git-ignored, so no clean checkout has it: %s" % rel_part,
+                    )
                     continue
                 if not fragment or resolved.suffix != ".md":
                     continue

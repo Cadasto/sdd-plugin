@@ -475,13 +475,15 @@ class GitHubForge(Forge):
                                 for c in comments]}
         review = _json(run_cli(["gh", "api", "repos/%s/%s/pulls/%d/reviews" % (owner, name, number),
                                 "--method", "POST", "--input", "-"], stdin=json.dumps(payload)))
-        posted = _json(run_cli(["gh", "api", "repos/%s/%s/pulls/%d/reviews/%s/comments"
+        posted = _json(run_cli(["gh", "api", "repos/%s/%s/pulls/%d/reviews/%s/comments?per_page=100"
                                 % (owner, name, number, review["id"])])) or []
         ids = []
-        for index, comment in enumerate(comments):
-            match = [p for p in posted if p.get("path") == comment["path"] and p.get("line") == comment["line"]]
-            chosen = match[0] if match else (posted[index] if index < len(posted) else {})
-            if chosen in posted:
+        for comment in comments:
+            # Match on the body as well as the anchor, so two findings on one line keep their own ids.
+            match = [p for p in posted if (p.get("path"), p.get("line"), p.get("body")) ==
+                     (comment["path"], comment["line"], comment["body"])]
+            chosen = match[0] if match else {}
+            if chosen:
                 posted.remove(chosen)
             ids.append(str(chosen.get("id", "")))
         return ids
@@ -704,7 +706,8 @@ def cmd_status(session: Session, args) -> int:
     last = fs.last_reviewed_sha()
     rng = review_range(session.root, fs, session.base(), session.head)
     files = changed_files(session.root, rng, session.globs)
-    code_changed = bool(files["code"] or files["tests"])
+    # Anything but documents is a change to review: code, tests, build, CI, configuration.
+    code_changed = bool(files["code"] or files["tests"] or files["other"])
     since = "code changed" if code_changed else "no code change"
     print("branch %s · base %s · head %s · last reviewed %s (%s since)"
           % (session.branch, session.base(), session.head[:7], (last or "none")[:7], since))
@@ -798,6 +801,23 @@ def cmd_post(session: Session, args) -> int:
     candidates = [f for f in fs.open if f.severity in BLOCKING and not f.fields.get("forge")]
     if not candidates:
         print("post: nothing to post")
+        return 0
+    # A finding the forge already carries (an id that was not read back, a post interrupted before
+    # the file was saved) adopts that thread's id and is never published a second time.
+    existing = {(t["path"], str(t["line"]), first_sentence(t["body"])): t["id"]
+                for t in session.forge.threads(pr["number"]) if t["id"]}
+    adopted = 0
+    for finding in list(candidates):
+        thread_id = existing.get((finding.path, finding.line, first_sentence(comment_body(finding))))
+        if thread_id:
+            finding.fields["forge"] = thread_id
+            finding.flags = [flag for flag in finding.flags if flag != "unanchored"]
+            candidates.remove(finding)
+            adopted += 1
+    if adopted and not args.dry_run:
+        session.save()
+    if not candidates:
+        print("post: nothing to post; %d already on the forge" % adopted)
         return 0
     if pr["head"] and pr["head"] != session.head:
         raise CliError("local HEAD %s is not the pull request's head %s; push first"

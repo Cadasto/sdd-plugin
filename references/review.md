@@ -2,7 +2,7 @@
 
 The rules for every review of a change, whoever reviews: the in-repo agents, the repository's own
 reviewers, an outside reviewer given the `/sdd-review --panel` prompt, the maintainer. The skills cite
-this file and keep only their procedure.
+this file.
 
 ## The findings file
 
@@ -73,8 +73,8 @@ is posted.
 - `pull` appends each unresolved thread the file does not know as an open finding with its `forge:` id;
   a thread with no severity word is `important`.
 - `post` publishes the open critical and important findings without a `forge:` id as one review, one
-  inline thread each, and writes the ids back; a line outside the diff is marked `unanchored` and listed
-  in the review body.
+  inline thread each, and writes the ids back; a finding the forge already carries adopts that thread's
+  id instead. A line outside the diff is marked `unanchored` and listed in the review body.
 - `resolve` answers each resolved finding's thread (`fixed in <sha>` or `declined: <reason>`) and closes it.
 
 The backend is GitHub or Azure DevOps, from `forge:` in the descriptor, else the remote URL, else `none`;
@@ -95,19 +95,17 @@ reopens review; otherwise the orchestrator stops and shows the open list.
 
 ## Keywords added during review
 
-Behaviour of the shell, a library or the operating system stays informative. A binding sentence is added
-only when the code itself guarantees the behaviour and a cheap test can pin it. On the informative
-profile only the constitution binds (methodology §1a).
+Behaviour of the shell, a library or the operating system stays informative; a binding sentence is added
+only when the code itself guarantees the behaviour and a cheap test can pin it.
 
 ## The tool
 
-`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, neither installed nor vendored. `status` and `scope`
-need only git; `pull`, `post` and `resolve` need `gh` signed in (GitHub) or `az` with the `azure-devops`
+`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `status` and `scope` need only git; `pull`, `post` and `resolve` need `gh` signed in (GitHub) or `az` with the `azure-devops`
 extension signed in (Azure DevOps). `--pr` defaults to the branch's open pull request.
 
 - `status [--pr N]` — the open counts and lines; on a forge, the threads the file does not know and the
   checks; then `Mergeable: yes` or `Mergeable: no — <reasons>`, and `Next: <command>`.
-- `scope [--json]` — the range the next pass reads and its paths by kind; `range: empty` when nothing is new.
+- `scope [--json] [--all]` — the range the next pass reads (`--all`: the whole branch) and its paths by kind; `range: empty` when nothing is new.
 - `pull`, `post [--dry-run]`, `resolve` — § The forge mirror. `--version` prints the version.
 
 Exit `0` when the command ran, whether or not the branch is mergeable; `2` when a command needs a forge

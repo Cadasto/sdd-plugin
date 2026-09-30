@@ -46,8 +46,7 @@ knowledge base in which only the constitution binds).
 - **Findings state is read from the file, never remembered.**
 - **The maintainer merges;** agents open draft PRs and mark them ready.
 - Worker model, parallelism, worktrees, the task-review gate and the review panel are declared in
-  [`.sdd.yaml`](.sdd.yaml) under `agents:`. The model is passed **per dispatch**, not written into an
-  agent file.
+  [`.sdd.yaml`](.sdd.yaml) under `agents:`. The model is passed **per dispatch**.
 
 ## Review
 
@@ -101,9 +100,9 @@ first word **critical** or **important**; post nothing else, and do not restate 
 | Deliver a change: workers, gates, the first review pass, draft PR | `/sdd-deliver` |
 | Implement one bounded task | `sdd-implementer` agent (dispatched by the driver) |
 | Review pass into the findings file; panel prompts | `/sdd-review` (`--panel`) |
-| Work the open findings; one scoped re-review | `/sdd-triage` |
+| Work the open findings; after the maintainer's review, one scoped re-review | `/sdd-triage` |
 | What is open, mergeable, next | `sdd-pr status` |
-| A REQ's context bundle; drift reported in session | `/sdd-trace` |
+| A REQ's context bundle; drift in session | `/sdd-trace` |
 | Regenerate the derived indexes and status lines | `sdd-check generate` |
 | Drift, links, prose lints | `<build_entrypoint> <spec_check_target>` (`sdd-check`) |
 | Close out the requirement and write the PR body | `/sdd-deliver --close-out` |

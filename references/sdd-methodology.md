@@ -39,7 +39,7 @@ a change that contradicts the architecture, because the constitution binds.
 ## 2. The canonical loop
 
 ```
-Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Archive
+Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Close out
 ```
 
 Capture the **what and the why** — requirements, invariants, acceptance criteria — **not** redundant *how-to* an agent can infer from the existing code. Architectural constraints and business rules are high-value; restating obvious mechanics is noise.
@@ -53,18 +53,18 @@ The single most important rule: **every document has exactly one job and one alt
 | **Requirement** (`REQ-*`) | What must we deliver? How do we accept it? | Yes (acceptance criteria) | `docs/requirements/` |
 | **Specification** (`SPEC-*`) | How must the system behave / be structured? | **Yes** (RFC-2119) | `docs/specifications/` |
 | **ADR** (`ADR-*`) | Which *irreversible* fork did we take? | Decision record | `docs/adr/` |
-| **Guide** | How do I work in this repo safely? | No | `docs/architecture.md`, … |
+| **Guide** | How do I work in this repo safely? | No | `docs/*.md` |
 | **Analysis** | What did we measure or compare? | No | `docs/analysis/` |
 | **Operations** | How do operators run the system? | Runbooks | `docs/operations/` |
 | **Reference** | A declared projection or a superseded rationale | No — binds nothing | beside the specs, or `docs/reference/` |
 | **Upstream** | What another repository owes this one (a cross-repo ask) | No — its own state lifecycle | `docs/<upstream>-gap-drafts/` |
+| **Constitution** (informative profile) | What must every change respect? | **Yes** — its MUST sentences, and only those (§1a) | `paths.constitution`, default `docs/architecture.md` |
 
-A plan is not a document kind; it is a working file outside `docs/`, never committed (§9). On the informative
-profile one more kind, **constitution**, names the document whose binding sentences hold code (§1a).
+A plan is not a document kind; it is a working file outside `docs/`, never committed (§9).
 
 ### The three zones
 
-The eight kinds fall into three zones. The zone decides how a document is read, and what the drift gate enforces on it.
+The first eight kinds fall into three zones; the zone decides how a document is read, and what the drift gate enforces on it. The constitution exists only on the informative profile, where it is the one binding document and carries no status.
 
 - **Normative** — `requirement`, `specification`, `adr`. Each carries a status vocabulary of its own (§6); the specification carries the RFC-2119 force (§4).
 - **Informative** — `guide`, `analysis`, `operations`, `reference`. Each explains, measures, or projects. None carries a status.
@@ -86,7 +86,7 @@ Three rules hold the zones apart:
 
 ### Normative vs narrative
 
-`docs/specifications/` carries the **normative** statements (what code and tests are measured against). A design **narrative** (`docs/architecture.md`: diagrams, module map, "why it's shaped this way") may exist alongside, but if the two disagree, the specs win. This keeps the narrative readable prose without becoming an accidental second source of truth.
+`docs/specifications/` carries the **normative** statements (what code and tests are measured against). A design **narrative** (diagrams, module map, "why it's shaped this way") may exist alongside, but if the two disagree, the specs win. (On the informative profile `docs/architecture.md` is the constitution instead.) This keeps the narrative readable prose without becoming an accidental second source of truth.
 
 ## 4. RFC-2119 keyword discipline
 

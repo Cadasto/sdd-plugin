@@ -396,6 +396,20 @@ class TestStatus(RepoCase):
         _, out, _ = self.run_main("status")
         self.assertIn("Mergeable: no — checks failing", out)
 
+    def test_status_counts_a_build_or_ci_change_as_a_change_to_review(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        routes = [(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="Makefile\n.github/workflows/ci.yml\n")
+        self.use(routes)
+        _, out, _ = self.run_main("status")
+        self.assertIn("(code changed since)", out)
+        self.assertIn("Next: /sdd-review", out)
+        # can-fail control: a document-only change is not.
+        self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="docs/x.md\n"))
+        _, out, _ = self.run_main("status")
+        self.assertIn("(no code change since)", out)
+        self.assertIn("Next: merge", out)
+
     def test_status_survives_an_unreachable_forge(self):
         self.descriptor(forge="github")
         self.findings(FILE_CLEAN)
@@ -582,8 +596,8 @@ class TestPost(GitHubCase):
 
         extra = [
             (lambda a: a[:2] == ["gh", "api"] and "--method" in a and "POST" in a and a[2].endswith("/reviews"), review),
-            (lambda a: a[:2] == ["gh", "api"] and a[2].endswith("/reviews/900/comments"),
-             json.dumps([{"id": 4242, "path": "a.go", "line": 5, "body": "x"}])),
+            (lambda a: a[:2] == ["gh", "api"] and "/reviews/900/comments" in a[2],
+             lambda argv, _: json.dumps([dict(c, id=4242) for c in sent["payload"]["comments"]])),
         ]
         self.use(self.routes(diff=DIFF, extra=extra))
         code, out, err = self.run_main("post")
@@ -601,6 +615,33 @@ class TestPost(GitHubCase):
         text = self.read_findings()
         self.assertIn("in the diff · evidence: ran it · fix: guard · by: claude · forge: 4242", text)
         self.assertIn("z.go:40 · outside the diff · by: claude · unanchored", text)
+
+    def test_post_never_publishes_a_finding_twice(self):
+        # The first post reads no id back: the line keeps no forge id.
+        self.descriptor(forge="github")
+        self.findings(FILE_TWO_OPEN)
+        posts = []
+
+        def review(argv, stdin):
+            posts.append(json.loads(stdin))
+            return json.dumps({"id": 900})
+
+        extra = [
+            (lambda a: a[:2] == ["gh", "api"] and "--method" in a and "POST" in a and a[2].endswith("/reviews"), review),
+            (lambda a: a[:2] == ["gh", "api"] and "/reviews/900/comments" in a[2], json.dumps([])),
+        ]
+        fake = self.use(self.routes(diff=DIFF, extra=extra))
+        self.assertEqual(0, self.run_main("post")[0])
+        self.assertEqual(1, len(posts))
+        self.assertTrue(any("per_page=100" in a[2] for a in fake.called("gh", "api") if "/comments" in a[2]))
+        # The second post finds the thread already on the forge, adopts its id and posts nothing.
+        body = posts[0]["comments"][0]["body"]
+        thread = gh_thread(4242, "a.go", 5, body)
+        self.use(self.routes(threads=[thread], diff=DIFF, extra=extra))
+        code, _, err = self.run_main("post")
+        self.assertEqual(0, code, err)
+        self.assertEqual(1, len(posts))
+        self.assertIn("in the diff · evidence: ran it · fix: guard · by: claude · forge: 4242", self.read_findings())
 
     def test_post_dry_run_writes_nothing(self):
         self.descriptor(forge="github")

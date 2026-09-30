@@ -952,6 +952,18 @@ class TestPlansOutOfScope(GitCase):
         self.write(".gitignore", "docs/plans/\n")
         self.assert_clean(sdd_check.run_check(self.tmp, only=None, changelog_all=False))
 
+    def test_a_link_to_a_git_ignored_file_is_refused(self):
+        # The plan is on this disk, so the link resolves here, and in no clean checkout.
+        self.init_git()
+        self.write(".gitignore", "docs/plans/\n")
+        self.write(self.PLAN, self.PLAN_TEXT)
+        self.write("docs/adr/0002-cites.md", "---\nkind: adr\nstatus: accepted\n---\n\n# ADR\n\n[plan](../plans/2026-03-03-scratch.md)\n")
+        self.assert_finding(self.run_only("links"), "git-ignored", family="links")
+        # can-fail control: the same link to a file git keeps resolves.
+        self.write(".gitignore", "")
+        report = self.run_only("links")
+        self.assertEqual([], [f for f in report.findings if f.anchor.startswith("docs/adr/0002-cites.md")], report.render(self.tmp))
+
     def test_an_unignored_plan_is_an_ordinary_document(self):
         # can-fail control: the same file, not ignored, is read like any other document.
         self.init_git()

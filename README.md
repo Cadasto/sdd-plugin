@@ -77,7 +77,7 @@ Six `/sdd-*` skills, each also usable as a slash command, plus an always-on rout
 | `/sdd-specify` | The definition layer: capture a capability (`REQ`), write RFC-2119 normative behaviour into the canonical spec (`SPEC §`), and record decisions (`ADR`); assigns identifiers and wires traceability |
 | `/sdd-deliver` | The delivery driver: the dispatch gate, `sdd-implementer` workers per the descriptor's `agents:` block, the per-task gate, the first review pass, the draft PR; `--close-out` sets the `REQ` to `shipped` (a `SPEC §` is promoted only when you confirm) and writes the PR body |
 | `/sdd-review` | One review pass over the commits since the last one: dispatch the reviewers the profile, lane and changed files call for, write their findings into `.sdd/findings/<branch>.md`, and mirror the blocking ones to the pull request; `--panel` prints the canonical prompt blocks |
-| `/sdd-triage` | Work the open findings: verify each, fix in this branch, flip the lines, mirror to the pull request, and run one scoped re-review when code changed |
+| `/sdd-triage` | Work the open findings: verify each, fix in this branch, flip the lines, mirror to the pull request, and after your review run one scoped re-review when code changed |
 | `/sdd-trace` | The traceability gate: assemble the one-shot context bundle for a `REQ`, and report drift and orphans (the `spec-check` analogue); `--audit` dispatches the isolated whole-tree audit. Report-only |
 
 ### Agents
@@ -125,7 +125,7 @@ Full contract: [references/sdd-check.md](references/sdd-check.md).
 ## The loop
 
 ```text
-Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Archive
+Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Close out
 ```
 
 SDD treats a structured, versioned specification as the authoritative description of a system. This plugin encodes the *spec-anchored* rung, where specs are living, version-controlled contracts, and adds the governance machinery that mainstream toolkits such as GitHub Spec Kit, AWS Kiro, and Tessl leave to the team: **stable identifiers, a machine-checked traceability map, and CI that fails on drift.** Its job is to keep the specification the source of truth and the chain `REQ → SPEC § → ADR → code → test` intact from the first requirement to the merged PR.
