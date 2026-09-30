@@ -19,19 +19,21 @@ Plans and the close-out skill leave the plugin. Moving a repository from 0.7.x i
 - References: methodology §1a — the formal and informative profiles; `traceability-schema.md` gains `profile: informative`, `paths.constitution` and `forge`.
 - Templates: `constitution.md` — the one binding document of the informative profile; the scaffold also writes `.github/PULL_REQUEST_TEMPLATE.md`.
 - Skills: `sdd-trace --audit`; `sdd-deliver --close-out`; `sdd-scaffold` asks the profile and ignores `.sdd/`.
-- Scripts: `validate.py` enforces word budgets, the `sdd-pr` version pin, forge-neutral text and the retired review vocabulary.
+- Scripts: `validate.py` enforces word budgets on every skill and the review path, the `sdd-pr` version pin, forge-neutral text and the retired review vocabulary.
 - Hooks: `session-start.sh` prints the plugin version, the profile and the open-findings count.
 
 ### Changed
 - Skills: `sdd-review` reads the range since the last pass, dispatches by profile and by what changed, writes the findings file and mirrors to the pull request; `--all`, `--panel`, `--pr`.
-- Skills: `sdd-triage` works the file's open critical and important lines, fixes small edits in-session, flips lines, mirrors, and re-reviews once when code changed.
+- Skills: `sdd-triage` works the file's open critical and important lines, fixes small edits in-session, flips lines, mirrors, and re-reviews once, only after the maintainer's review.
 - Skills: `sdd-deliver` starts on the informative profile without a requirement, reviews before the draft PR opens, briefs workers with quoted clauses, and closes out itself.
 - Agents: the three reviewers share one rules section and return findings-file lines with evidence; `sdd-spec-conformance-reviewer` runs the tests and the guard-removal check; `sdd-doc-reviewer` reviews hunks.
 - Agents: `sdd-implementer` reads quoted clauses, writes the test first, proves it fails with the guard removed, and starts a bug fix from a failing reproduction.
 - Tools: `sdd-check` accepts `profile: formal | informative`, skips the map families on informative, reads `kind: constitution`, skips git-ignored documents, and reports `paths.plans` and `profile: lightweight` as notes.
+- Tools: the `links` family fails a link to a git-ignored file, which no clean checkout has.
 - Templates: `ai-workflow.md` § Review and the panel prompt use the findings file; `development-process.md` § The PR body is Summary, Spec and traceability, Verification, Notes for review, Checklist; `brief.md` gains `Clauses` and `Reproduce`.
 - References: methodology §13 is the merge gate and the pass budget; `artefact-prose.md` keeps the prose rules only; formal accepts a file-form requirements index.
 - Hooks: `spec-edit-reminder.sh` speaks only for the constitution on the informative profile; `session-stop.sh` names the findings file.
+- Docs: `README.md` and the `docs/` pages are rewritten in plainer language, and `docs/upgrading.md` gains the 0.7.x to 0.8.0 steps.
 
 ### Removed
 - Skills: `sdd-archive` (now `sdd-deliver --close-out`); the review ledger, finding ids, rounds, the `Deferred` carry-forward, `--from`, `--post`, the session claim line and the close-out checkboxes.
