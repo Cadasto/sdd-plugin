@@ -645,11 +645,12 @@ class TestPull(GitHubCase):
 class AzureCase(RepoCase):
     REMOTE = "https://dev.azure.com/org/proj/_git/repo"
     PR_BRANCH = "feat/x"
+    PR_HEAD = HEAD
 
     def routes(self, threads=(), diff="", on_post=None, on_patch=None):
         pr = {"pullRequestId": 7, "isDraft": False, "targetRefName": "refs/heads/main",
               "sourceRefName": "refs/heads/" + self.PR_BRANCH, "description": "Summary",
-              "lastMergeSourceCommit": {"commitId": HEAD},
+              "lastMergeSourceCommit": {"commitId": self.PR_HEAD},
               "repository": {"id": "R1", "project": {"name": "proj"}}}
         posted = {"n": 500}
 
@@ -829,6 +830,32 @@ class TestPost(GitHubCase):
         self.assertEqual(1, len(posts))
         self.assertIn("in the diff · evidence: ran it · fix: guard · by: claude · forge: 4242", self.read_findings())
 
+    def test_post_saves_what_it_posted_when_reading_the_ids_back_fails(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_TWO_OPEN)
+        posts = []
+
+        def review(argv, stdin):
+            posts.append(json.loads(stdin))
+            return json.dumps({"id": 900})
+
+        def threads(argv, stdin):
+            if posts:
+                raise sdd_pr.CliError("HTTP 502")
+            return json.dumps(gh_threads([]))
+
+        extra = [
+            (lambda a: a[:2] == ["gh", "api"] and "--method" in a and "POST" in a and a[2].endswith("/reviews"), review),
+            (lambda a: a[:2] == ["gh", "api"] and "/reviews/900/comments" in a[2], json.dumps([])),
+            (lambda a: a[:3] == ["gh", "api", "graphql"] and not any("resolveReviewThread" in x for x in a), threads),
+        ]
+        self.use(self.routes(diff=DIFF, extra=extra))
+        code, out, err = self.run_main("post")
+        self.assertEqual(0, code, err)
+        self.assertIn("HTTP 502", err)
+        self.assertIn("1 without an id read back", out)
+        self.assertIn("z.go:40 · outside the diff · by: claude · unanchored", self.read_findings())
+
     def test_post_dry_run_writes_nothing(self):
         self.descriptor(forge="github")
         path = self.findings(FILE_TWO_OPEN)
@@ -854,9 +881,10 @@ class TestCheckout(GitHubCase):
 
     def test_a_pull_request_on_another_branch_stops_every_command(self):
         self.descriptor(forge="github")
-        self.PR = {"headRefName": "feat/y"}
+        self.PR = {"headRefName": "feat/y", "headRefOid": "c" * 40}
         worktrees = "worktree /repo\nHEAD %s\nbranch refs/heads/feat/x\n\nworktree /wt/pr-7\nHEAD %s\nbranch refs/heads/feat/y\n" % (HEAD, "c" * 40)
-        self.use([(git("worktree", "list"), worktrees)] + self.routes())
+        not_here = (git("merge-base", "--is-ancestor"), sdd_pr.CliError("not an ancestor"))
+        self.use([(git("worktree", "list"), worktrees), not_here] + self.routes())
         for command in ("scope", "pull", "status", "post", "resolve"):
             code, out, err = self.run_main(command, "--pr", "7")
             self.assertEqual(2, code, (command, out))
@@ -864,6 +892,32 @@ class TestCheckout(GitHubCase):
             self.assertIn("this checkout is feat/x", err)
             self.assertIn("--root /wt/pr-7", err)
         self.assertFalse((self.root / ".sdd").exists())
+
+    def test_a_checkout_that_holds_the_pull_requests_head_is_accepted_under_another_name(self):
+        self.descriptor(forge="github")
+        renamed = (git("rev-parse", "--abbrev-ref", "HEAD"), "mywork\n")
+        # At the pull request's head.
+        self.use([renamed] + self.routes())
+        code, _, err = self.run_main("status", "--pr", "7")
+        self.assertEqual(0, code, err)
+        # Ahead of it, with commits not pushed yet.
+        self.PR = {"headRefOid": "c" * 40}
+        self.use([renamed] + self.routes())
+        code, _, err = self.run_main("status", "--pr", "7")
+        self.assertEqual(0, code, err)
+        # can-fail control: a head this checkout does not hold is refused.
+        self.use([renamed, (git("merge-base", "--is-ancestor"), sdd_pr.CliError("no"))] + self.routes())
+        code, _, err = self.run_main("status", "--pr", "7")
+        self.assertEqual(2, code)
+        self.assertIn("pull request 7 is feat/x", err)
+
+    def test_a_dry_run_does_not_write_the_retargeted_base(self):
+        self.descriptor(forge="github")
+        path = self.findings(FILE_TWO_OPEN.replace("Base: main", "Base: scaffold"))
+        self.use(self.routes(diff=DIFF))
+        code, _, err = self.run_main("post", "--dry-run")
+        self.assertEqual(0, code, err)
+        self.assertIn("Base: scaffold\n", path.read_text(encoding="utf-8"))
 
     def test_the_branch_flag_must_be_the_checked_out_branch(self):
         self.descriptor(forge="none")
@@ -901,10 +955,11 @@ class TestCheckout(GitHubCase):
 
 class TestCheckoutAzure(AzureCase):
     PR_BRANCH = "feat/y"
+    PR_HEAD = "c" * 40
 
     def test_a_pull_request_on_another_branch_stops(self):
         self.descriptor(forge="azure-devops")
-        self.use(self.routes())
+        self.use([(git("merge-base", "--is-ancestor"), sdd_pr.CliError("no"))] + self.routes())
         code, _, err = self.run_main("pull", "--pr", "7")
         self.assertEqual(2, code)
         self.assertIn("pull request 7 is feat/y", err)

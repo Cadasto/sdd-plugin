@@ -108,10 +108,11 @@ only when the code itself guarantees the behaviour and a cheap test can pin it.
 
 ## The tool
 
-`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `status` and `scope` need only git; `pull`, `post` and `resolve` need `gh` signed in (GitHub) or `az` with the `azure-devops`
-extension signed in (Azure DevOps). `--pr` defaults to the branch's open pull request. `--pr` and
-`--branch` must name the checkout, or the command stops and names the worktree to run from. `Base:`
-follows a retargeted pull request.
+`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `status` and `scope` need only git (`scope --pr` also reads the pull request); `pull`, `post` and `resolve` need `gh` signed in (GitHub) or `az` with the `azure-devops`
+extension signed in (Azure DevOps). `--pr` defaults to the branch's open pull request. `--pr` must
+name a pull request whose branch, or head, this checkout holds, and `--branch` the checkout itself;
+otherwise the command stops and names the worktree to run from. `Base:` follows a retargeted pull
+request.
 
 - `status [--pr N] [--write-body]` — the open counts and lines; on a forge, the threads the file does not
   know, the checks and whether the review state is current; then `Mergeable: yes` or

@@ -21,7 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: `sdd-pr` does not count a `(0 of 0)` `Reviewed` line as a pass, and `status` counts a document change since the last pass as a change to review.
 - References: methodology §12 sends a changed document to `sdd-doc-reviewer` on the maintenance lane; `docs/examples.md` says the same.
 - Tools: `sdd-pr post` writes each thread's `forge:` id back on GitHub, whose per-review comment listing carries no line; an id still not read back is taken from the pull request's threads.
-- Tools: `sdd-pr` stops with exit 2 when `--pr` names a pull request on another branch, or `--branch` a branch that is not checked out, and names the worktree to run from; the findings file's `Base:` follows a retargeted pull request.
+- Tools: `sdd-pr` stops with exit 2 when `--pr` names a pull request whose branch or head this checkout does not hold, or `--branch` a branch that is not checked out, and names the worktree to run from; the findings file's `Base:` follows a retargeted pull request.
 - Docs: `docs/upgrading.md` covers the `Deferred` rows of a pull request that merged before its last fixes were pushed.
 
 ## [0.8.0] - 2026-09-30
