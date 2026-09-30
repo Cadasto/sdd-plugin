@@ -1785,8 +1785,8 @@ class TestCommandLine(BaselineCase):
     def test_version(self):
         code, out = self.run_main(["--version"])
         self.assertEqual(0, code)
-        self.assertEqual("0.8.0", out.strip())
-        self.assertEqual("0.8.0", sdd_check.__version__)
+        self.assertEqual("0.8.1", out.strip())
+        self.assertEqual("0.8.1", sdd_check.__version__)
 
     def test_only_on_generate_returns_two(self):
         # M1: --only is common to the command line but only `check` honours it; the

@@ -29,7 +29,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 # Constants
 # ---------------------------------------------------------------------------
 
-__version__ = "0.8.0"
+__version__ = "0.8.1"
 
 #: Every family, in report order.
 FAMILIES = (

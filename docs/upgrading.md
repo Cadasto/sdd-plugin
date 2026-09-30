@@ -2,10 +2,11 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
-## From 0.8.x
+## From 0.8.0 to 0.8.1
 
 Pull requests now carry a review-state block in their body, and a pass on which no reviewer reported no
-longer counts. Nothing is re-vendored: `sdd-check` is unchanged.
+longer counts. `sdd-check` changed only its version number, so re-vendoring it with
+`/sdd-scaffold --upgrade` is optional.
 
 1. **Open pull requests.** Run `python3 <plugin root>/tools/sdd-pr.py status --write-body --pr <N>` on
    each one from the checkout that holds its findings file; until then `status` reports the review state

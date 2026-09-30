@@ -18,7 +18,7 @@ import tempfile
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import unquote
 
-__version__ = "0.8.0"
+__version__ = "0.8.1"
 
 SEVERITIES = ("critical", "important", "suggestion")
 BLOCKING = ("critical", "important")

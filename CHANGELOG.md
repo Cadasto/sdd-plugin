@@ -4,7 +4,11 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.1] - 2026-10-01
+
+A pull request now carries its review verdict in its body, a follow-up that only edits documents is
+reviewed, and `sdd-pr` works only on the checkout that holds the pull request. Moving a repository from
+0.8.0 is described in `docs/upgrading.md`.
 
 ### Added
 - Tools: `sdd-pr` keeps a generated review-state block in the pull request's body, rewritten in place by `post`, `resolve` and the new `status --write-body`: the verdict at the head, the passes, the counts and each deferral; `status` counts a missing or stale block against `Mergeable`, and reports unbalanced markers, a body over the forge's limit or a checkout without the findings file instead of writing.
@@ -22,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - References: methodology §12 sends a changed document to `sdd-doc-reviewer` on the maintenance lane; `docs/examples.md` says the same.
 - Tools: `sdd-pr post` writes each thread's `forge:` id back on GitHub, whose per-review comment listing carries no line; an id still not read back is taken from the pull request's threads.
 - Tools: `sdd-pr` stops with exit 2 when `--pr` names a pull request whose branch or head this checkout does not hold, or `--branch` a branch that is not checked out, and names the worktree to run from; the findings file's `Base:` follows a retargeted pull request.
-- Docs: `docs/upgrading.md` covers the `Deferred` rows of a pull request that merged before its last fixes were pushed, and gains the steps from 0.8.x; `docs/quick-start.md` matches the re-review rule.
+- Docs: `docs/upgrading.md` covers the `Deferred` rows of a pull request that merged before its last fixes were pushed, and gains the steps from 0.8.0 to 0.8.1; `docs/quick-start.md` matches the re-review rule.
 
 ## [0.8.0] - 2026-09-30
 
