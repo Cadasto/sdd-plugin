@@ -14,10 +14,12 @@ The always-on layer for SDD. It does no artefact work itself; it explains the me
 
 The **specification — not the code, not the prompt — is the source of truth.** Code is derived from it and measured against it; when they disagree the spec wins (unless a section is explicitly *implementation-aligned*). This plugin targets the **spec-anchored** rung, backed by stable identifiers, a machine-checked traceability map, and CI that fails on drift. Full detail: `references/sdd-methodology.md`.
 
+**Two profiles** (methodology §1a). `formal` is the above: requirements, RFC-2119 specifications, ADRs and the traceability map, all checked. `informative` keeps `docs/` as a knowledge base where code leads, and only one constitution document binds.
+
 ## The delivery surface
 
 ```
-/sdd-specify  →  /sdd-deliver  →  /sdd-review (+ --panel)  →  /sdd-triage  →  /sdd-archive
+/sdd-specify  →  /sdd-deliver  →  /sdd-review (+ --panel)  →  /sdd-triage  →  /sdd-deliver --close-out
 ```
 
 ### Route to SDD
@@ -27,31 +29,31 @@ The **specification — not the code, not the prompt — is the source of truth.
 | Set up / extend the SDD docs structure | `sdd-scaffold` |
 | Capture a capability, write normative behaviour, or record a decision (REQ/SPEC/ADR) | `sdd-specify` |
 | Amend an existing spec § — any normative change, one sentence or many, is full lane | `sdd-specify` |
-| Deliver a REQ: preconditions, plan, workers, gates, draft PR | `sdd-deliver` |
+| Deliver a change: the dispatch gate, workers, gates, the first review pass, the draft PR | `sdd-deliver` |
 | Implement one bounded task from a brief | `sdd-implementer` agent (dispatched by `sdd-deliver`) |
-| Spec-aware review into the ledger; prompt blocks for the panel | `sdd-review` |
-| Work a review round: merge findings, verify, fix, resolve, re-request | `sdd-triage` |
-| Traceability / drift / spec-check / a REQ's context | `sdd-trace` |
+| A review pass into the branch's findings file; prompt blocks for the panel | `sdd-review` |
+| Work the open findings: verify, fix, flip, mirror, one scoped re-review | `sdd-triage` |
+| What is open, is it mergeable, what next | `sdd-pr status` (`tools/sdd-pr.py`) |
+| Traceability / drift / spec-check / a REQ's context; `--audit` for the isolated whole-tree audit | `sdd-trace` |
 | Run the drift gate or lint the docs (report-only) | `sdd-trace` |
-| Regenerate the indexes and status lines from the map | `sdd-specify` / `sdd-archive` / `sdd-triage` (they run the vendored `generate`) |
+| Regenerate the indexes and status lines from the map | `sdd-specify` / `sdd-deliver` / `sdd-triage` (they run the vendored `generate`) |
 | Does the code satisfy the `SPEC §` it cites, clause by clause | `sdd-spec-conformance-reviewer` agent |
 | Review a *requirement, spec, or ADR* for boundary violations | `sdd-doc-reviewer` agent |
-| Close out the requirement record and the PR body — in the implementing PR | `sdd-archive` |
+| Close out the requirement record and the PR body — in the implementing PR | `sdd-deliver --close-out` |
 
 ## Optional: a general engineering plugin
 
 A general engineering plugin such as superpowers is **optional**. Exploration workflows like brainstorming
 are a good way to open a new idea before `/sdd-specify`. Planning, task execution, verification, code
 review, and branch finishing are covered here
-by `/sdd-deliver`, the `sdd-implementer` agent, the review ledger, and the PR-body close-out; running both
-sets over the same work duplicates the loop and splits the plan's home. Plans belong in `paths.plans` in `docs/.sdd.yaml`
-(default `docs/plans/`); if a tool wants to write them somewhere else, point it there rather than keeping a
-second tree.
+by `/sdd-deliver`, the `sdd-implementer` agent, the findings file, and the close-out; running both sets
+over the same work duplicates the loop. How the orchestrator plans is its own business: a plan is a
+git-ignored working file outside `docs/`.
 
 ## Guardrails this layer enforces
 
 - **No code-first.** If asked to implement behaviour for which **no `REQ` and no spec exist**, do not jump to code. Redirect: explore first if the idea is new, record with `sdd-specify`, then deliver with `sdd-deliver`. The exception is *implementation-aligned* work on shipped code — the spec is updated in the **same** change.
-- **One source of truth.** The canonical spec lives in `paths.specifications` (default `docs/specifications/`). A plan is a working file under `paths.plans`, never committed and never a source of truth; never let a second tree of design documents become one either.
+- **One source of truth.** The canonical spec lives in `paths.specifications` (default `docs/specifications/`). A plan is a working file, never committed and never a source of truth; never let a second tree of design documents become one either.
 - **One home per fact — in process prose too.** The commit body, PR body, changelog, and review comments each carry only what lives nowhere else; cite identifiers (`REQ`/`SPEC §`/SHA) instead of restating. `references/artefact-prose.md`.
 - **Don't settle open questions silently** — a genuine fork goes to an ADR (`sdd-specify`) or a `STRAND`, or back to brainstorming.
 - **Check the descriptor.** Repo conventions live in `docs/.sdd.yaml`; if it is missing, the repo isn't scaffolded (route to `sdd-scaffold`).
@@ -59,7 +61,8 @@ second tree.
 
 ## Reference
 
-- `references/sdd-methodology.md` — the authoritative grounding (ladder, document kinds, RFC-2119, identifiers, traceability, two modes, the working plan, lanes, review discipline, anti-patterns).
+- `references/sdd-methodology.md` — the authoritative grounding (ladder, profiles, document kinds, RFC-2119, identifiers, traceability, two modes, delivery, lanes, review discipline, anti-patterns).
 - `references/sdd-check.md` — the vendored drift gate's commands, families, and report format.
 - `references/traceability-schema.md` — the `traceability.yaml` and `.sdd.yaml` schemas.
-- `references/artefact-prose.md` — one home per fact, the findings ledger, the prose register.
+- `references/review.md` — the findings file, severities, evidence and the forge mirror.
+- `references/artefact-prose.md` — one home per fact and the prose register.

@@ -13,13 +13,15 @@ Turn intent (often a design note from an exploration session) into the authorita
 
 If the repo is not scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold`. If the behaviour has not been explored yet, explore it first: write a design note under `docs/analysis/`, or run the host's brainstorming workflow, and return with the note as input.
 
+**On the informative profile** (`profile: informative`, methodology §1a) a document is a knowledge-base page: write what the code does in plain prose, cite the constitution (`paths.constitution`) where it applies, use RFC-2119 only in the constitution, and assign identifiers only if the repository already uses them. The constitution is amended here and only here, with the reason in the commit body or an ADR.
+
 ## A · Requirement (`REQ-*`) — capture the capability
 
 1. Read `docs/.sdd.yaml` for `profile`, `req_style`, `req_areas`, `req_gap`, `paths.requirements`.
 2. **Assign the next identifier** without collision — area-prefixed (`REQ-<AREA>-NNN`, reject unknown areas) or flat-numeric (next slot at `req_gap` spacing) — once acceptance criteria exist; an idea without them gets a `STRAND` or a design note instead (methodology §5).
 3. From `references/templates/requirement.md`: capability (what + why), **observable, testable** acceptance criteria — covering the **negative space** (what the capability must refuse or fail closed on, with the intended failure behaviour as an observable outcome; the normative *how* lives in the spec, §B), not only happy paths; criteria cite the `SPEC §` rather than restate its rule — explicit out-of-scope, and the two status fields (`status: draft`, `implementation: proposed`).
 
-   Under `profile: lightweight` with a file-form `paths.requirements`, write no detail file (`references/traceability-schema.md` § Profiles).
+   With a file-form `paths.requirements`, write no detail file (`references/traceability-schema.md` § Profiles).
 4. Write a missing `SPEC §` first (§B), so `canonical` names a real anchor. Then add the record to `traceability.yaml` (`references/traceability-schema.md`) and run `sdd-check generate` (invocation and fallback: `references/sdd-check.md`); the index row and the detail file's status lines are written from the record.
 - **No implementation detail** — no file paths, no "how". Track the two status axes separately (`draft` is binding now).
 
@@ -27,7 +29,7 @@ If the repo is not scaffolded (`docs/.sdd.yaml` missing), route to `sdd-scaffold
 
 1. Open the **canonical** topic spec under `paths.specifications`. Confirm no other file already owns this prose — search the other specs by subject, not wording — and never create a second copy.
 2. **Look up ground truth** for any domain fact in the source named in `.sdd.yaml` (`ground_truth`); never guess.
-3. Write or amend the statement with explicit **RFC-2119** keywords (MUST/SHALL, SHOULD, MAY). No task lists, no file paths, no PR summaries. Give each section the `§N` heading, anchor and `**Implements:**` line that `references/templates/specification.md` shows — `map-to-tree` checks them — and never renumber a published §. Any amendment to an existing § is full-lane work (methodology §12) and goes through steps 4 and 5. When writing from shipped code, state only what the code does now.
+3. Write or amend the statement with explicit **RFC-2119** keywords (MUST/SHALL, SHOULD, MAY). No task lists, no file paths, no PR summaries. Give each section the `§N` heading, anchor and `**Implements:**` line that `references/templates/specification.md` shows — `map-to-tree` checks them — and never renumber a published §. Any amendment to an existing § is full-lane work (methodology §12) and goes through steps 4 and 5. When writing from shipped code, state only what the code does now. Behaviour of the shell, a library or the operating system stays informative: add a binding sentence only when the code itself guarantees the behaviour and a cheap test can pin it (`references/review.md` § Keywords).
 4. **The spec owns the negative space's *how*.** Refusals, `MUST NOT`s, fail-closed behaviour, and the error contract (what failure looks like) are written here with normative force — the `REQ` acceptance criteria only name and cite them (§A).
 5. Set or verify the spec's frontmatter `status:` and `mode:`; add or update the record in `traceability.yaml` with the canonical anchor, then run `sdd-check generate` (invocation and fallback: `references/sdd-check.md`).
 - **One canonical home — never duplicate normative prose.** This is the cardinal rule.

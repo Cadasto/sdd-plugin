@@ -1,8 +1,8 @@
 ---
 name: sdd-trace
-description: This skill should be used when the user asks to "show traceability for REQ-X", "what implements or tests this requirement", "give me the context for REQ-X", "are there orphan requirements", or "run a quick drift scan". Report-only. Prints a REQ's context bundle with the gate's `context`, or runs `check` in-session and relays its findings by family. Not for authoring (sdd-specify), close-out (sdd-archive), test or build results (the build gate), or a context-isolated audit that covers skipped families and adds judgement beyond the gate (sdd-traceability-auditor agent).
-argument-hint: "[REQ-id, or blank for a whole-tree drift scan]"
-allowed-tools: Read, Glob, Grep, Bash
+description: This skill should be used when the user asks to "show traceability for REQ-X", "what implements or tests this requirement", "give me the context for REQ-X", "are there orphan requirements", or "run a quick drift scan". Report-only. Prints a REQ's context bundle with the gate's `context`, runs `check` in-session and relays its findings by family, or, with `--audit`, dispatches the context-isolated traceability audit. Not for authoring (sdd-specify), close-out (sdd-deliver --close-out), or test or build results (the build gate).
+argument-hint: "[REQ-id, or blank for a whole-tree drift scan] [--audit]"
+allowed-tools: Read, Glob, Grep, Bash, Agent, Task
 ---
 
 # Trace — the SDD traceability gate
@@ -31,9 +31,11 @@ Report the breakdown, grouped by family, with the offending id/path; **recommend
 
 ## Guardrails
 
-- **Strictly report-only.** Diagnose; the owning skill fixes: `/sdd-specify` for spec and index, `/sdd-deliver` for code and tests, `/sdd-archive` for the close-out, `/sdd-scaffold --upgrade` for the version pin. Never edit here. Bash is for read-only scoping and gate runs only; the no-write rule is a contract, not a tool restriction.
+- **Strictly report-only.** Diagnose; the owning skill fixes: `/sdd-specify` for spec and index, `/sdd-deliver` for code and tests, `/sdd-deliver --close-out` for the close-out, `/sdd-scaffold --upgrade` for the version pin. Never edit here. Bash is for read-only scoping and gate runs only; the no-write rule is a contract, not a tool restriction.
 - **Scope is traceability, not test results.** Tests and the build passing are the build gate's job: name `<build_entrypoint> <ci_target>` as the next step; do not run it here.
-- For a context-isolated audit that runs the same gate, then checks skipped families by hand and adds the judgement findings no family can make (before a release, or when a `spec-check` failure is unexplained), dispatch the **`sdd-traceability-auditor`** agent.
+## Mode C — `--audit`
+
+Dispatch the **`sdd-traceability-auditor`** agent — this skill is the only one that does. It runs the same gate in isolated context, checks skipped families by hand and adds the judgement findings no family can make; use it before a release or when a `spec-check` failure is unexplained. Relay its report; its lines go into the findings file only when the maintainer asks.
 
 ## Reference
 

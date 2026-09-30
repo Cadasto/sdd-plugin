@@ -211,7 +211,7 @@ The gate is `sdd-check`; its families and rules are in [sdd-check.md](sdd-check.
 > repository history for the `REQ` id, which every commit, PR title, and test name already carries. A
 > pointer would be one more copy of a fact that can lag.
 
-`/sdd-trace` reports drift in-session and may run the real `spec_check_target`; the full build gate before a done-claim is `<build_entrypoint> <ci_target>`, and `/sdd-archive` performs the close-out.
+`/sdd-trace` reports drift in-session and may run the real `spec_check_target`; the full build gate before a done-claim is `<build_entrypoint> <ci_target>`, and `/sdd-deliver --close-out` performs the close-out.
 
 ## 3. The plan
 
