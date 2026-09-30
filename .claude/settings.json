@@ -10,6 +10,7 @@
             "Bash(./scripts/validate.sh)",
             "Bash(python3 scripts/validate.py)",
             "Bash(python3 tools/sdd-check.py:*)",
+            "Bash(python3 tools/sdd-pr.py:*)",
             "Bash(python3 -m unittest:*)"
         ]
     }
