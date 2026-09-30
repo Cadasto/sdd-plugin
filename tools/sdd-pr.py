@@ -44,6 +44,10 @@ class FileError(RuntimeError):
     """The findings file does not follow the grammar of references/review.md."""
 
 
+class CheckoutError(CliError):
+    """The pull request or --branch named is not what this checkout has."""
+
+
 def run_cli(argv: List[str], stdin: Optional[str] = None) -> str:
     """Run one external command and return its standard output. The one door to the outside."""
     try:
@@ -309,11 +313,31 @@ def kind_of(path: str, globs: List[str]) -> str:
     return "other"
 
 
-def current_branch(root: str) -> str:
+def checked_out(root: str) -> str:
+    """The checked-out branch, or "" on a detached HEAD."""
     branch = git(root, "rev-parse", "--abbrev-ref", "HEAD").strip()
-    if branch == "HEAD":
-        raise CliError("detached HEAD; pass --branch")
-    return branch
+    return "" if branch == "HEAD" else branch
+
+
+def worktree_of(root: str, branch: str) -> str:
+    """The path of the worktree that has ``branch`` checked out, or ""."""
+    try:
+        listing = git(root, "worktree", "list", "--porcelain")
+    except CliError:
+        return ""
+    path = ""
+    for line in listing.splitlines():
+        if line.startswith("worktree "):
+            path = line[len("worktree "):].strip()
+        elif line.strip() == "branch refs/heads/" + branch:
+            return path
+    return ""
+
+
+def elsewhere(root: str, branch: str) -> str:
+    """How to reach ``branch``: its worktree's --root, or a checkout of it."""
+    path = worktree_of(root, branch)
+    return "pass --root %s" % path if path else "check out %s, or pass --root with its worktree" % branch
 
 
 def resolve_sha(root: str, sha: str) -> str:
@@ -419,17 +443,18 @@ class GitHubForge(Forge):
 
     @staticmethod
     def _shape(data: dict) -> dict:
-        return {"number": data["number"], "head": data.get("headRefOid", ""), "base": data.get("baseRefName", ""),
-                "draft": bool(data.get("isDraft")), "url": data.get("url", ""), "raw": data}
+        return {"number": data["number"], "head": data.get("headRefOid", ""), "branch": data.get("headRefName", ""),
+                "base": data.get("baseRefName", ""), "draft": bool(data.get("isDraft")), "url": data.get("url", ""),
+                "raw": data}
 
     def pr_for_branch(self, branch):
         data = _json(run_cli(["gh", "pr", "list", "--head", branch, "--state", "open",
-                              "--json", "number,headRefOid,baseRefName,isDraft,url"]))
+                              "--json", "number,headRefOid,headRefName,baseRefName,isDraft,url"]))
         return self._shape(data[0]) if data else None
 
     def pr(self, number):
         return self._shape(_json(run_cli(["gh", "pr", "view", str(number), "--json",
-                                          "number,headRefOid,baseRefName,isDraft,url,statusCheckRollup,state"])))
+                                          "number,headRefOid,headRefName,baseRefName,isDraft,url,statusCheckRollup,state"])))
 
     def checks(self, number):
         rollup = self.pr(number)["raw"].get("statusCheckRollup") or []
@@ -516,9 +541,8 @@ class AzureDevOpsForge(Forge):
         repository = data.get("repository") or {}
         number = int(data["pullRequestId"])
         self._ids[number] = ((repository.get("project") or {}).get("name", self.project), repository.get("id", self.repo))
-        base = data.get("targetRefName", "")
         return {"number": number, "head": (data.get("lastMergeSourceCommit") or {}).get("commitId", ""),
-                "base": base[len("refs/heads/"):] if base.startswith("refs/heads/") else base,
+                "branch": _short_ref(data.get("sourceRefName", "")), "base": _short_ref(data.get("targetRefName", "")),
                 "draft": bool(data.get("isDraft")), "url": data.get("url", ""), "raw": data}
 
     def pr_for_branch(self, branch):
@@ -593,6 +617,10 @@ class AzureDevOpsForge(Forge):
         self._invoke(number, "pullRequestThreads", route, "PATCH", {"status": "fixed" if fixed else "wontFix"})
 
 
+def _short_ref(ref: str) -> str:
+    return ref[len("refs/heads/"):] if ref.startswith("refs/heads/") else ref
+
+
 def _azure_from_remote(url: str) -> Optional[AzureDevOpsForge]:
     patterns = (
         r"https?://(?:[^@/]+@)?dev\.azure\.com/(?P<org>[^/]+)/(?P<project>[^/]+)/_git/(?P<repo>[^/?#]+)",
@@ -641,8 +669,18 @@ class Session:
 
     def __init__(self, args):
         self.root = args.root
-        self.branch = args.branch or current_branch(self.root)
         self.head = git(self.root, "rev-parse", "HEAD").strip()
+        checked = checked_out(self.root)
+        if args.branch and args.branch != checked:
+            # On a detached HEAD, --branch names the branch whose tip this is; otherwise it is the checkout.
+            tip = resolve_sha(self.root, args.branch) or resolve_sha(self.root, "origin/" + args.branch)
+            if checked or tip != self.head:
+                raise CheckoutError("--branch %s is not this checkout (%s at %s); %s"
+                                    % (args.branch, checked or "detached HEAD", self.head[:7],
+                                       elsewhere(self.root, args.branch)))
+        self.branch = args.branch or checked
+        if not self.branch:
+            raise CliError("detached HEAD; pass --branch")
         self.forge = detect_forge(self.root)
         self.descriptor = read_descriptor(self.root)
         self.globs = test_globs(self.descriptor)
@@ -653,11 +691,23 @@ class Session:
     def pr(self, required: bool = True) -> Optional[dict]:
         if self._pr is None:
             if self._pr_number is not None:
-                self._pr = self.forge.pr(self._pr_number)
+                pr = self.forge.pr(self._pr_number)
+                if pr.get("branch") and pr["branch"] != self.branch:
+                    raise CheckoutError("pull request %d is %s at %s; this checkout is %s at %s; %s"
+                                        % (pr["number"], pr["branch"], pr["head"][:7], self.branch,
+                                           self.head[:7], elsewhere(self.root, pr["branch"])))
+                self._pr = pr
             else:
                 self._pr = self.forge.pr_for_branch(self.branch)
             if self._pr is None and required:
                 raise CliError("no open pull request for %s; pass --pr" % self.branch)
+            if self._pr and self._pr.get("base") and self.fs.base and self._pr["base"] != self.fs.base:
+                # A retargeted pull request: the file's base follows it, so the range starts at the right place.
+                print("sdd-pr: Base %s -> %s, the base of pull request %d"
+                      % (self.fs.base, self._pr["base"], self._pr["number"]), file=sys.stderr)
+                self.fs.base = self._pr["base"]
+                if os.path.exists(findings_path(self.root, self.branch)):
+                    self.save()
         return self._pr
 
     def base(self) -> str:
@@ -690,6 +740,8 @@ class Session:
 
 
 def cmd_scope(session: Session, args) -> int:
+    if args.pr is not None and session.forge.name != "none":
+        session.pr()
     rng = review_range(session.root, session.fs, session.base(), session.head, whole=args.all)
     files = changed_files(session.root, rng, session.globs)
     if args.json:
@@ -704,6 +756,14 @@ def cmd_scope(session: Session, args) -> int:
 
 def cmd_status(session: Session, args) -> int:
     fs = session.fs
+    pr, unreachable = None, ""
+    if session.forge.name != "none":
+        try:
+            pr = session.pr(required=False)
+        except CheckoutError:
+            raise
+        except CliError as exc:
+            unreachable = str(exc).splitlines()[0]
     last = fs.last_reviewed_sha()
     rng = review_range(session.root, fs, session.base(), session.head)
     files = changed_files(session.root, rng, session.globs)
@@ -730,12 +790,12 @@ def cmd_status(session: Session, args) -> int:
         reasons.append("not reviewed yet")
         nxt = nxt or "/sdd-review"
 
-    pr = None
     if session.forge.name == "none":
         print("forge: none")
+    elif unreachable:
+        print("forge: %s · not reachable (%s)" % (session.forge.name, unreachable))
     else:
         try:
-            pr = session.pr(required=False)
             if pr is None:
                 print("forge: %s · no pull request" % session.forge.name)
             else:
@@ -757,7 +817,6 @@ def cmd_status(session: Session, args) -> int:
                     reasons.append("the pull request is a draft")
                     nxt = nxt or "mark the pull request ready"
         except CliError as exc:
-            pr = None
             print("forge: %s · not reachable (%s)" % (session.forge.name, str(exc).splitlines()[0]))
     print("Mergeable: yes" if not reasons else "Mergeable: no — " + "; ".join(reasons))
     print("Next: " + (nxt or "merge"))

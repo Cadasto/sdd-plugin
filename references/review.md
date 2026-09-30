@@ -101,7 +101,9 @@ only when the code itself guarantees the behaviour and a cheap test can pin it.
 ## The tool
 
 `sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `status` and `scope` need only git; `pull`, `post` and `resolve` need `gh` signed in (GitHub) or `az` with the `azure-devops`
-extension signed in (Azure DevOps). `--pr` defaults to the branch's open pull request.
+extension signed in (Azure DevOps). `--pr` defaults to the branch's open pull request. `--pr` and
+`--branch` must name the checkout, or the command stops and names the worktree to run from. `Base:`
+follows a retargeted pull request.
 
 - `status [--pr N]` — the open counts and lines; on a forge, the threads the file does not know and the
   checks; then `Mergeable: yes` or `Mergeable: no — <reasons>`, and `Next: <command>`.
@@ -109,5 +111,5 @@ extension signed in (Azure DevOps). `--pr` defaults to the branch's open pull re
 - `pull`, `post [--dry-run]`, `resolve` — § The forge mirror. `--version` prints the version.
 
 Exit `0` when the command ran, whether or not the branch is mergeable; `2` when a command needs a forge
-and there is none, the CLI failed or is missing, the file is malformed (the line is named), or the
-command line is invalid.
+and there is none, the CLI failed or is missing, the file is malformed (the line is named), the
+checkout is not the one named, or the command line is invalid.

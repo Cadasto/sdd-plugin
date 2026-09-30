@@ -76,6 +76,7 @@ def git_routes(branch="feat/x", head=HEAD, remote="git@github.com:o/r.git", name
         (git("merge-base"), MB + "\n"),
         (git("symbolic-ref"), "origin/main\n"),
         (git("remote", "get-url", "origin"), remote + "\n"),
+        (git("worktree", "list"), ""),
         (git("diff", "--name-only"), names),
         (git("diff"), diff),
     ]
@@ -435,9 +436,12 @@ def gh_threads(nodes):
 
 
 class GitHubCase(RepoCase):
+    PR = {}
+
     def routes(self, threads=(), diff="", extra=()):
-        pr = {"number": 7, "headRefOid": HEAD, "baseRefName": "main", "isDraft": True,
+        pr = {"number": 7, "headRefOid": HEAD, "headRefName": "feat/x", "baseRefName": "main", "isDraft": True,
               "url": "u", "state": "OPEN", "statusCheckRollup": []}
+        pr.update(self.PR)
         return list(extra) + git_routes(diff=diff) + [
             (has("gh", "pr", "list"), json.dumps([pr])),
             (has("gh", "pr", "view"), json.dumps(pr)),
@@ -500,9 +504,11 @@ class TestPull(GitHubCase):
 
 class AzureCase(RepoCase):
     REMOTE = "https://dev.azure.com/org/proj/_git/repo"
+    PR_BRANCH = "feat/x"
 
     def routes(self, threads=(), diff="", on_post=None, on_patch=None):
         pr = {"pullRequestId": 7, "isDraft": False, "targetRefName": "refs/heads/main",
+              "sourceRefName": "refs/heads/" + self.PR_BRANCH,
               "lastMergeSourceCommit": {"commitId": HEAD},
               "repository": {"id": "R1", "project": {"name": "proj"}}}
         posted = {"n": 500}
@@ -689,6 +695,68 @@ class TestPost(GitHubCase):
         code, _, err = self.run_main("post")
         self.assertEqual(2, code)
         self.assertIn("push", err)
+
+
+class TestCheckout(GitHubCase):
+    """--pr and --branch name what is checked out, or the command stops before it reads or writes."""
+
+    def test_a_pull_request_on_another_branch_stops_every_command(self):
+        self.descriptor(forge="github")
+        self.PR = {"headRefName": "feat/y"}
+        worktrees = "worktree /repo\nHEAD %s\nbranch refs/heads/feat/x\n\nworktree /wt/pr-7\nHEAD %s\nbranch refs/heads/feat/y\n" % (HEAD, "c" * 40)
+        self.use([(git("worktree", "list"), worktrees)] + self.routes())
+        for command in ("scope", "pull", "status", "post", "resolve"):
+            code, out, err = self.run_main(command, "--pr", "7")
+            self.assertEqual(2, code, (command, out))
+            self.assertIn("pull request 7 is feat/y", err)
+            self.assertIn("this checkout is feat/x", err)
+            self.assertIn("--root /wt/pr-7", err)
+        self.assertFalse((self.root / ".sdd").exists())
+
+    def test_the_branch_flag_must_be_the_checked_out_branch(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        code, _, err = self.run_main("--branch", "feat/y", "scope")
+        self.assertEqual(2, code)
+        self.assertIn("--branch feat/y", err)
+        self.assertIn("feat/x", err)
+        self.assertFalse((self.root / ".sdd").exists())
+        # can-fail control: the branch that is checked out is accepted.
+        self.assertEqual(0, self.run_main("--branch", "feat/x", "scope")[0])
+
+    def test_the_branch_flag_on_a_detached_head_is_the_branch_at_head(self):
+        self.descriptor(forge="none")
+        tips = {"feat/x": HEAD, "feat/y": "c" * 40}
+        detached = [(git("rev-parse", "--abbrev-ref", "HEAD"), "HEAD\n"),
+                    (git("rev-parse", "--verify", "--quiet"),
+                     lambda argv, _: tips.get(argv[-1].split("^")[0], argv[-1].split("^")[0]) + "\n")]
+        self.use(detached + git_routes())
+        self.assertEqual(0, self.run_main("--branch", "feat/x", "scope")[0])
+        code, _, err = self.run_main("--branch", "feat/y", "scope")
+        self.assertEqual(2, code)
+        self.assertIn("--branch feat/y", err)
+
+    def test_the_file_base_follows_a_retargeted_pull_request(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT.replace("Base: main", "Base: scaffold"))
+        self.use(self.routes())
+        code, _, err = self.run_main("status", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("Base: main\n", self.read_findings())
+        self.assertIn("scaffold", err)
+        self.assertIn("main", err)
+
+
+class TestCheckoutAzure(AzureCase):
+    PR_BRANCH = "feat/y"
+
+    def test_a_pull_request_on_another_branch_stops(self):
+        self.descriptor(forge="azure-devops")
+        self.use(self.routes())
+        code, _, err = self.run_main("pull", "--pr", "7")
+        self.assertEqual(2, code)
+        self.assertIn("pull request 7 is feat/y", err)
+        self.assertFalse((self.root / ".sdd").exists())
 
 
 class TestPostAzure(AzureCase):
