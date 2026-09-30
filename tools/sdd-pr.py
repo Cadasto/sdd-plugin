@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """sdd-pr — the branch's findings file, mirrored to the pull request's inline threads.
 
-Commands: status, scope, pull, post, resolve. One file, Python 3.9+, standard library only.
+Commands: status, scope, pull, post, resolve, and add, flip, record, rename, which own every write to
+the file. One file, Python 3.9+, standard library only.
 Every external call (git, gh, az) goes through run_cli(); the tests replace it.
 Contract: references/review.md.
 """
 from __future__ import annotations
 
 import argparse
+import datetime
 import fnmatch
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -69,7 +72,15 @@ def slug(branch: str) -> str:
     return branch.strip().replace("/", "--")
 
 
-def findings_path(root: str, branch: str) -> str:
+def store_dir(root: str) -> str:
+    """Where every branch's findings file lives: the clone's shared git directory, which every worktree
+    of the clone resolves to, which git never commits, and which outlives a removed worktree."""
+    common = git(root, "rev-parse", "--git-common-dir").strip()
+    return os.path.normpath(os.path.join(common if os.path.isabs(common) else os.path.join(root, common), "sdd", "findings"))
+
+
+def legacy_path(root: str, branch: str) -> str:
+    """Where 0.8.0 kept the file: inside one checkout."""
     return os.path.join(root, ".sdd", "findings", slug(branch) + ".md")
 
 
@@ -228,8 +239,7 @@ def render(fs: Findings) -> str:
     return "\n".join(out) + "\n"
 
 
-def load_findings(root: str, branch: str, base: str) -> Findings:
-    path = findings_path(root, branch)
+def load_findings(path: str, branch: str, base: str) -> Findings:
     if not os.path.exists(path):
         return Findings(branch, base)
     with open(path, encoding="utf-8") as handle:
@@ -239,8 +249,7 @@ def load_findings(root: str, branch: str, base: str) -> Findings:
     return fs
 
 
-def save_findings(root: str, fs: Findings) -> None:
-    path = findings_path(root, fs.branch)
+def save_findings(path: str, fs: Findings) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as handle:
@@ -282,11 +291,16 @@ def parse_hunks(diff_text: str) -> Dict[str, set]:
 
 def comment_body(finding: Finding) -> str:
     body = "**%s** — %s" % (finding.severity, finding.text)
-    if finding.fields.get("evidence"):
-        body += "\n\nEvidence: " + finding.fields["evidence"]
-    if finding.fields.get("fix"):
-        body += "\n\nFix: " + finding.fields["fix"]
+    for key in ("evidence", "fix", "by"):
+        if finding.fields.get(key):
+            body += "\n\n%s: %s" % (key.capitalize(), finding.fields[key])
     return body
+
+
+def author_of(body: str) -> str:
+    """The reviewer a thread was posted for: its `By:` line, since every thread is posted under one account."""
+    match = re.search(r"^By: (.+)$", body or "", re.M)
+    return match.group(1).strip() if match else ""
 
 
 def reply_for(finding: Finding) -> str:
@@ -309,11 +323,11 @@ def review_state(fs: Findings, head: str) -> str:
     if not fs.passes:
         out.append("- Passes: none")
     suggestions = len(fs.suggestions)
-    out.append("- Findings: %d critical and %d important; %d fixed, %d declined, %d deferred; %d suggestion%s not worked"
+    out.append("- Findings: %d critical and %d important; %d fixed, %d declined, %d deferred; %d suggestion%s not routed"
                % (count["critical"], count["important"], count["fixed"], count["declined"], count["deferred"],
                   suggestions, "" if suggestions == 1 else "s"))
     out += ["- Deferred: %s at `%s`, %s: %s" % (f.severity, f.anchor, f.text, f.fields.get("deferred", ""))
-            for f in blocking if f.status == "deferred"]
+            for f in fs.items if f.status == "deferred"]
     return "\n".join(out + [STATE_END])
 
 
@@ -524,16 +538,19 @@ class GitHubForge(Forge):
     def _shape(data: dict) -> dict:
         return {"number": data["number"], "head": data.get("headRefOid", ""), "branch": data.get("headRefName", ""),
                 "base": data.get("baseRefName", ""), "draft": bool(data.get("isDraft")), "url": data.get("url", ""),
+                "state": (data.get("state") or "OPEN").lower(), "merge": (data.get("mergeCommit") or {}).get("oid", ""),
                 "raw": data}
 
     def pr_for_branch(self, branch):
-        data = _json(run_cli(["gh", "pr", "list", "--head", branch, "--state", "open",
-                              "--json", "number,headRefOid,headRefName,baseRefName,isDraft,url"]))
+        data = _json(run_cli(["gh", "pr", "list", "--head", branch, "--state", "all",
+                              "--json", "number,headRefOid,headRefName,baseRefName,isDraft,url,state,mergeCommit"])) or []
+        # The open one, else the latest: a merged or closed pull request is a state worth saying.
+        data = sorted(data, key=lambda d: (d.get("state") or "OPEN").upper() != "OPEN")
         return self._shape(data[0]) if data else None
 
     def pr(self, number):
         return self._shape(_json(run_cli(["gh", "pr", "view", str(number), "--json",
-                                          "number,headRefOid,headRefName,baseRefName,isDraft,url,statusCheckRollup,state"])))
+                                          "number,headRefOid,headRefName,baseRefName,isDraft,url,statusCheckRollup,state,mergeCommit"])))
 
     def checks(self, number):
         rollup = self.pr(number)["raw"].get("statusCheckRollup") or []
@@ -627,18 +644,20 @@ class AzureDevOpsForge(Forge):
         repository = data.get("repository") or {}
         number = int(data["pullRequestId"])
         self._ids[number] = ((repository.get("project") or {}).get("name", self.project), repository.get("id", self.repo))
+        state = {"completed": "merged", "abandoned": "closed"}.get(data.get("status") or "active", "open")
         return {"number": number, "head": (data.get("lastMergeSourceCommit") or {}).get("commitId", ""),
                 "branch": _short_ref(data.get("sourceRefName", "")), "base": _short_ref(data.get("targetRefName", "")),
-                "draft": bool(data.get("isDraft")), "url": data.get("url", ""), "raw": data}
+                "draft": bool(data.get("isDraft")), "url": data.get("url", ""), "state": state,
+                "merge": (data.get("lastMergeCommit") or {}).get("commitId", ""), "raw": data}
 
     def pr_for_branch(self, branch):
-        argv = ["az", "repos", "pr", "list", "--source-branch", "refs/heads/" + branch, "--status", "active",
+        argv = ["az", "repos", "pr", "list", "--source-branch", "refs/heads/" + branch, "--status", "all",
                 "-o", "json"] + self._org()
         if self.project:
             argv += ["--project", self.project]
         if self.repo:
             argv += ["--repository", self.repo]
-        data = _json(run_cli(argv))
+        data = sorted(_json(run_cli(argv)) or [], key=lambda d: (d.get("status") or "active") != "active")
         return self._shape(data[0]) if data else None
 
     def pr(self, number):
@@ -780,7 +799,9 @@ class Session:
         self._pr_number = args.pr
         self._pr: Optional[dict] = None
         self.dry_run = getattr(args, "dry_run", False)
-        self.fs = load_findings(self.root, self.branch, "")
+        self.path = os.path.join(store_dir(self.root), slug(self.branch) + ".md")
+        self._adopt_legacy()
+        self.fs = load_findings(self.path, self.branch, "")
 
     def pr(self, required: bool = True) -> Optional[dict]:
         if self._pr is None:
@@ -800,7 +821,7 @@ class Session:
                 print("sdd-pr: Base %s -> %s, the base of pull request %d"
                       % (self.fs.base, self._pr["base"], self._pr["number"]), file=sys.stderr)
                 self.fs.base = self._pr["base"]
-                if os.path.exists(findings_path(self.root, self.branch)) and not self.dry_run:
+                if self.has_file() and not self.dry_run:
                     self.save()
         return self._pr
 
@@ -835,8 +856,21 @@ class Session:
             pass
         return "main"
 
+    def _adopt_legacy(self) -> None:
+        """A file 0.8.0 left inside this checkout moves to the store, once; two files are named, never merged."""
+        legacy = legacy_path(self.root, self.branch)
+        if not os.path.exists(legacy):
+            return
+        if os.path.exists(self.path):
+            print("sdd-pr: an older findings file is still at %s; merge what it holds into %s by hand, then delete it"
+                  % (legacy, self.path), file=sys.stderr)
+            return
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        shutil.move(legacy, self.path)
+        print("sdd-pr: moved the findings file from %s to %s" % (legacy, self.path), file=sys.stderr)
+
     def has_file(self) -> bool:
-        return os.path.exists(findings_path(self.root, self.branch))
+        return os.path.exists(self.path)
 
     def need_forge(self) -> None:
         if self.forge.name == "none":
@@ -845,7 +879,7 @@ class Session:
     def save(self) -> None:
         self.fs.base = self.fs.base or self.base()
         self.fs.branch = self.fs.branch or self.branch
-        save_findings(self.root, self.fs)
+        save_findings(self.path, self.fs)
 
 
 def write_state(session: Session, pr: dict) -> None:
@@ -932,19 +966,22 @@ def cmd_status(session: Session, args) -> int:
     since = "code changed" if code_changed else "documents changed" if changed else "no change"
     print("branch %s · base %s · head %s · last reviewed %s (%s since)"
           % (session.branch, session.base(), session.head[:7], (last or "none")[:7], since))
+    print("findings: %s" % session.path)
     for sha in fs.unreviewed_passes():
         print("Reviewed %s: no reviewer reported; not a pass" % sha[:7])
     counts = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
     print("open: %d critical, %d important · suggestions: %d"
           % (counts["critical"], counts["important"], len(fs.suggestions)))
-    for finding in fs.open:
-        print(finding.render())
+    for number, finding in enumerate(fs.open, 1):
+        print("#%d %s" % (number, finding.render()))
 
     reasons: List[str] = []
+    live = pr is not None and pr["state"] == "open"
     if counts["critical"] or counts["important"]:
         parts = ["%d %s" % (counts[s], s) for s in BLOCKING if counts[s]]
         reasons.append(", ".join(parts) + " open")
-    nxt = "/sdd-triage" if reasons else ""
+    unmirrored = [f for f in fs.open if f.severity in BLOCKING and not f.fields.get("forge") and "unanchored" not in f.flags]
+    nxt = ("sdd-pr post --pr %d" % pr["number"] if live and unmirrored else "/sdd-triage") if reasons else ""
     if code_changed and last:
         # Steers Next only: after the pass budget is spent, a fix does not reopen review. A change to
         # documents alone does not steer: the close-out's own commit is one.
@@ -957,37 +994,53 @@ def cmd_status(session: Session, args) -> int:
         print("forge: none")
     elif unreachable:
         print("forge: %s · not reachable (%s)" % (session.forge.name, unreachable))
+        reasons.append("the forge was not reachable")
+    elif pr is None:
+        print("forge: %s · no pull request" % session.forge.name)
+        reasons.append("no pull request")
+        nxt = nxt or "open the pull request (/sdd-deliver step 8)"
+    elif pr["state"] == "merged":
+        print("forge: %s · PR %d merged at %s" % (session.forge.name, pr["number"], (pr["merge"] or "?")[:7]))
+        print("Mergeable: merged")
+        print("Next: delete %s, then the branch and its worktree" % session.path)
+        return 0
+    elif pr["state"] == "closed":
+        print("forge: %s · PR %d closed" % (session.forge.name, pr["number"]))
+        reasons.append("pull request %d is closed" % pr["number"])
+        nxt = nxt or "reopen pull request %d, or open a new one" % pr["number"]
     else:
         try:
-            if pr is None:
-                print("forge: %s · no pull request" % session.forge.name)
+            shown_open = {f.fields["forge"] for f in fs.open if f.fields.get("forge")}
+            unknown = [t for t in session.forge.threads(pr["number"]) if not t["resolved"] and t["id"] not in shown_open]
+            checks = session.forge.checks(pr["number"])
+            print("forge: %s · PR %d (%s) · %d unresolved threads not open in the file · checks: %s"
+                  % (session.forge.name, pr["number"], "draft" if pr["draft"] else "ready", len(unknown), checks))
+            if unknown:
+                reasons.append("%d unresolved threads not open in the file" % len(unknown))
+                nxt = nxt or "sdd-pr pull --pr %d" % pr["number"]
+            if not session.has_file():
+                print("review state not checked: no findings file here")
             else:
-                shown_open = {f.fields["forge"] for f in fs.open if f.fields.get("forge")}
-                unknown = [t for t in session.forge.threads(pr["number"]) if not t["resolved"] and t["id"] not in shown_open]
-                checks = session.forge.checks(pr["number"])
-                print("forge: %s · PR %d (%s) · %d unresolved threads not open in the file · checks: %s"
-                      % (session.forge.name, pr["number"], "draft" if pr["draft"] else "ready", len(unknown), checks))
-                if unknown:
-                    reasons.append("%d unresolved threads not open in the file" % len(unknown))
-                    nxt = nxt or "sdd-pr pull --pr %d" % pr["number"]
-                if not session.has_file():
-                    print("review state not checked: no findings file here")
-                else:
-                    problem, repair = state_problem(session, pr)
-                    if problem:
-                        reasons.append(problem)
-                        nxt = nxt or repair
-                if checks == "fail":
-                    reasons.append("checks failing")
-                    nxt = nxt or "fix the failing checks"
-                elif checks == "pending":
-                    reasons.append("checks pending")
-                    nxt = nxt or "wait for the checks"
-                if pr["draft"]:
-                    reasons.append("the pull request is a draft")
-                    nxt = nxt or "mark the pull request ready"
+                problem, repair = state_problem(session, pr)
+                if problem:
+                    reasons.append(problem)
+                    nxt = nxt or repair
+            if checks == "fail":
+                reasons.append("checks failing")
+                nxt = nxt or "fix the failing checks"
+            elif checks == "pending":
+                reasons.append("checks pending")
+                nxt = nxt or "wait for the checks"
+            if pr["draft"]:
+                reasons.append("the pull request is a draft")
+                nxt = nxt or "mark the pull request ready"
         except CliError as exc:
             print("forge: %s · not reachable (%s)" % (session.forge.name, str(exc).splitlines()[0]))
+            reasons.append("the forge was not reachable")
+    if not nxt and fs.suggestions:
+        # Steers Next only: a suggestion never blocks, but it is routed before merge or it is lost.
+        n = len(fs.suggestions)
+        nxt = "route %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s")
     print("Mergeable: yes" if not reasons else "Mergeable: no — " + "; ".join(reasons))
     print("Next: " + (nxt or "merge"))
     return 0
@@ -1013,12 +1066,12 @@ def cmd_pull(session: Session, args) -> int:
             continue
         if thread["id"] in known:
             continue
-        fields = {"by": thread["author"] or "forge", "forge": thread["id"]}
+        fields = {"by": author_of(thread["body"]) or thread["author"] or "forge", "forge": thread["id"]}
         fs.items.append(Finding("open", severity_of(thread["body"]), thread["path"], str(thread["line"] or ""),
                                 first_sentence(thread["body"]), fields))
         known.add(thread["id"])
         added += 1
-    if added or not os.path.exists(findings_path(session.root, session.branch)):
+    if added or not session.has_file():
         session.save()
     print("pull: %d new finding%s from PR %d" % (added, "" if added == 1 else "s", pr["number"]))
     return 0
@@ -1027,6 +1080,8 @@ def cmd_pull(session: Session, args) -> int:
 def cmd_post(session: Session, args) -> int:
     session.need_forge()
     pr = session.pr()
+    if pr["state"] != "open":
+        raise CliError("pull request %d is %s; nothing to post" % (pr["number"], pr["state"]))
     code = _post(session, args, pr)
     if not args.dry_run:
         refresh_state(session, pr)
@@ -1125,7 +1180,155 @@ def cmd_resolve(session: Session, args) -> int:
     return 0
 
 
-COMMANDS = {"status": cmd_status, "scope": cmd_scope, "pull": cmd_pull, "post": cmd_post, "resolve": cmd_resolve}
+# ---------------------------------------------------------------- the commands that write the file
+def _clean(text: str) -> str:
+    """A value written into a line: the field separator never appears inside one."""
+    return " ".join((text or "").replace(SEP.strip(), "-").split())
+
+
+def _anchor(text: str) -> Tuple[str, str]:
+    path, sep, line = text.rpartition(":")
+    return (path, line) if sep and line.isdigit() else (text, "")
+
+
+def _same(a: Finding, b: Finding) -> bool:
+    """Two lines about one defect: the same state, severity, anchor and sentence."""
+    return all(getattr(a, k) == getattr(b, k) for k in ("status", "severity", "anchor")) \
+        and a.text.casefold().rstrip(" .") == b.text.casefold().rstrip(" .")
+
+
+def cmd_add(session: Session, args) -> int:
+    if args.finding == ["-"]:
+        new = [parse_line(raw.strip(), n) for n, raw in enumerate(sys.stdin.read().splitlines(), 1) if raw.strip()]
+    elif len(args.finding) == 3:
+        severity, anchor, sentence = args.finding
+        if severity not in SEVERITIES:
+            raise CliError("add: the severity is one of %s" % ", ".join(SEVERITIES))
+        path, line = _anchor(anchor)
+        fields = {k: _clean(v) for k, v in (("evidence", args.evidence), ("fix", args.fix), ("by", args.by)) if v}
+        new = [Finding("suggestion" if severity == "suggestion" else "open", severity, path, line, _clean(sentence), fields)]
+    else:
+        raise CliError("usage: add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] "
+                       "[--by …], or add - to read finding lines")
+    for finding in new:
+        if finding.status not in ("open", "suggestion"):
+            raise CliError("add: %s is resolved; add takes open findings and suggestions, and flip resolves them"
+                           % finding.anchor)
+        if finding.status == "open" and not finding.fields.get("evidence"):
+            raise CliError("add: a %s finding needs --evidence (references/review.md § Evidence)" % finding.severity)
+    added = merged = 0
+    for finding in new:
+        twin = next((f for f in session.fs.items if _same(f, finding)), None)
+        if twin is None:
+            session.fs.items.append(finding)
+            added += 1
+            continue
+        names = [n.strip() for n in twin.fields.get("by", "").split(",") if n.strip()]
+        names += [n for n in (x.strip() for x in finding.fields.get("by", "").split(",")) if n and n not in names]
+        if names:
+            twin.fields["by"] = ", ".join(names)
+        for key in ("evidence", "fix"):
+            if finding.fields.get(key) and not twin.fields.get(key):
+                twin.fields[key] = finding.fields[key]
+        merged += 1
+    session.save()
+    print("add: %d added, %d merged into an existing line" % (added, merged))
+    return 0
+
+
+def _select(fs: Findings, selector: str) -> Finding:
+    if selector.startswith("#") and selector[1:].isdigit():
+        number = int(selector[1:])
+        if not 1 <= number <= len(fs.open):
+            raise CliError("flip: no open finding %s; status numbers %d" % (selector, len(fs.open)))
+        return fs.open[number - 1]
+    hits = [f for f in fs.open + fs.suggestions if f.anchor == selector]
+    if not hits:
+        raise CliError("flip: no open finding or suggestion at %s" % selector)
+    if len(hits) > 1:
+        numbers = ["#%d" % (fs.open.index(f) + 1) if f in fs.open else "a suggestion" for f in hits]
+        raise CliError("flip: %s names %d lines (%s); pick one by number" % (selector, len(hits), ", ".join(numbers)))
+    return hits[0]
+
+
+def cmd_flip(session: Session, args) -> int:
+    chosen = [key for key in ("fixed", "declined", "deferred", "dropped") if getattr(args, key)]
+    if len(chosen) != 1:
+        raise CliError("flip: give exactly one of --fixed <sha>, --declined <reason>, --deferred <where>, --dropped")
+    action, fs = chosen[0], session.fs
+    if args.suggestions == bool(args.selector):
+        raise CliError("flip: name one line (<path:line> or #n), or pass --suggestions for every unrouted suggestion")
+    targets = list(fs.suggestions) if args.suggestions else [_select(fs, args.selector)]
+    for finding in targets:
+        if action in ("fixed", "declined") and finding.status == "suggestion":
+            raise CliError("flip: a suggestion is routed with --deferred <where> or dropped with --dropped")
+        if action == "dropped" and finding.status != "suggestion":
+            raise CliError("flip: only a suggestion is dropped; a critical or important finding the maintainer "
+                           "lets go is --deferred 'dropped by the maintainer'")
+    if action == "fixed":
+        full = resolve_sha(session.root, args.fixed)
+        if not full:
+            raise CliError("flip: %s is not a commit here" % args.fixed)
+        remote = "origin/" + session.branch
+        if resolve_sha(session.root, remote):
+            try:
+                git(session.root, "merge-base", "--is-ancestor", full, remote)
+            except CliError:
+                raise CliError("flip: %s is not on %s yet; push first" % (full[:7], remote))
+    for finding in targets:
+        if action == "dropped":
+            fs.items.remove(finding)
+            continue
+        finding.status = action
+        if action == "fixed":
+            finding.fixed = resolve_sha(session.root, args.fixed)[:7]
+        else:
+            finding.fields[action] = _clean(getattr(args, action))
+    session.save()
+    print("flip: %d line%s %s" % (len(targets), "" if len(targets) == 1 else "s", action))
+    return 0
+
+
+def cmd_record(session: Session, args) -> int:
+    match = re.match(r"^(\d+)/(\d+)$", args.reported or "")
+    if not match:
+        raise CliError("record: --reported is <n>/<m>: how many of the dispatched reviewers reported")
+    reported, dispatched = int(match.group(1)), int(match.group(2))
+    if reported == 0 or reported > dispatched:
+        raise CliError("record: %d of %d is not a pass; no Reviewed line, so the range stays open"
+                       % (reported, dispatched))
+    reviewers = ", ".join(_clean(r) for r in args.reviewers.split(",") if r.strip())
+    agent = _clean(args.agent).replace(":", "-")
+    if not reviewers or not agent:
+        raise CliError("record: name the agent and the reviewers")
+    line = (session.head[:7], datetime.date.today().isoformat(), agent, "%s (%d of %d)" % (reviewers, reported, dispatched))
+    session.fs.reviewed.append(line)
+    session.save()
+    print("record: Reviewed %s · %s · %s: %s" % line)
+    return 0
+
+
+def cmd_rename(session: Session, args) -> int:
+    source = os.path.join(os.path.dirname(session.path), slug(args.from_branch) + ".md")
+    if not os.path.exists(source):
+        raise CliError("rename: no findings file for %s" % args.from_branch)
+    if session.has_file():
+        raise CliError("rename: %s already has a findings file at %s" % (session.branch, session.path))
+    fs = load_findings(source, args.from_branch, "")
+    # The new branch was not reviewed, and the old branch's threads are not on its pull request.
+    fs.branch, fs.reviewed = session.branch, []
+    for finding in fs.items:
+        finding.fields.pop("forge", None)
+        finding.flags = [flag for flag in finding.flags if flag not in ("mirrored", "unanchored")]
+    session.fs = fs
+    session.save()
+    os.remove(source)
+    print("rename: %s -> %s; its Reviewed lines and thread ids dropped" % (args.from_branch, session.branch))
+    return 0
+
+
+COMMANDS = {"status": cmd_status, "scope": cmd_scope, "pull": cmd_pull, "post": cmd_post, "resolve": cmd_resolve,
+            "add": cmd_add, "flip": cmd_flip, "record": cmd_record, "rename": cmd_rename}
 
 
 class _Parser(argparse.ArgumentParser):
@@ -1149,6 +1352,24 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--dry-run", action="store_true")
         if name == "status":
             cmd.add_argument("--write-body", action="store_true", help="rewrite the review state in the PR body")
+        if name == "add":
+            cmd.add_argument("finding", nargs="*", help="<severity> <path[:line]> <sentence>, or - for lines on stdin")
+            cmd.add_argument("--evidence")
+            cmd.add_argument("--fix")
+            cmd.add_argument("--by")
+        if name == "flip":
+            cmd.add_argument("selector", nargs="?", help="<path:line>, or #n as status numbers the open lines")
+            cmd.add_argument("--fixed", metavar="SHA")
+            cmd.add_argument("--declined", metavar="REASON")
+            cmd.add_argument("--deferred", metavar="WHERE")
+            cmd.add_argument("--dropped", action="store_true", help="a suggestion only")
+            cmd.add_argument("--suggestions", action="store_true", help="every unrouted suggestion")
+        if name == "record":
+            cmd.add_argument("--agent", required=True)
+            cmd.add_argument("--reviewers", required=True)
+            cmd.add_argument("--reported", required=True, metavar="N/M")
+        if name == "rename":
+            cmd.add_argument("--from", dest="from_branch", required=True, metavar="BRANCH")
     return parser
 
 
