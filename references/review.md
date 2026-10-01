@@ -120,7 +120,8 @@ only when the code itself guarantees the behaviour and a cheap test can pin it.
 
 ## The tool
 
-`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `status`, `scope` and the four
+`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored; its commands take turns on the clone's
+findings, through a lock in the git directory. `status`, `scope` and the four
 commands that write the file need only git (`scope --pr` also reads the pull request); `pull`, `post`
 and `resolve` need `gh` signed in (GitHub) or `az` with the `azure-devops` extension signed in (Azure
 DevOps). `--pr` defaults to the branch's open pull request. `--pr` must
@@ -128,20 +129,22 @@ name a pull request whose branch, or head, this checkout holds, and `--branch` t
 otherwise the command stops and names the worktree to run from. `Base:` follows a retargeted pull
 request. A plugin older than the repository's `check.version` refuses every write, and `status` says so.
 
-- `status [--pr N] [--write-body]` — the file's path, the open counts and the open lines numbered `#n`;
+- `status [--pr N] [--write-body]` — the file's path, the open counts, and each open line and suggestion
+  with a `#key` computed from what it says, which no other line's flip moves;
   on a forge, the threads the file does not know, the checks and whether the review state is current;
   then `Mergeable: yes` or `Mergeable: no — <reasons>` (no pull request, a closed one or an unreachable
   forge is a reason), and `Next: <command>`: `post` before triage while a blocking line is not mirrored,
-  routing when only suggestions are left. A merged pull request prints `Mergeable: merged` and the file
-  to delete. `--write-body` rewrites the review state first.
+  routing when only suggestions are left. A merged pull request at HEAD prints `Mergeable: merged`, what
+  the file still holds, and the file to delete; one merged or closed before the head moved is no pull
+  request of this branch. `--write-body` rewrites the review state first.
 - `scope [--json] [--all] [--base <ref>] [--agent <name>] [--diff <kind|reviewer>]` — the range the next
   pass reads (`--all`: the whole branch), its paths by kind and the reviewers' paths; `range: empty`
   when nothing is new. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
   one reviewer, so no brief carries a diff built by hand.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …]`, or
-  `add -` with finding lines on standard input — checks the grammar, refuses a critical or important
-  finding without evidence, and folds a second line about the same defect into the first.
-- `flip <path:line | #n> --fixed <sha> | --declined <reason> | --deferred <where> | --dropped` —
+  `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important
+  finding without evidence, and folds an identical line into the first.
+- `flip <#key | path:line> --fixed <sha> | --declined <reason> | --deferred <where> | --dropped` —
   resolves one line; `--fixed` needs the fix on `origin/<branch>` when that exists; `--dropped` removes
   a suggestion, and `--suggestions` in place of the line applies to every unrouted one.
 - `record --agent <name> --reviewers <a, b> --reported <n>/<m>` — the `Reviewed` line at HEAD; refuses a
