@@ -198,11 +198,14 @@ if is_sdd_repo; then
     fi
   fi
 
-  # 2. The branch's findings file (references/review.md), when there is one. `sdd-pr status` says the
-  # rest — the pull request, its threads and whether the branch is mergeable.
+  # 2. The branch's findings file (references/review.md), when there is one: in the clone's shared git
+  # directory, which every worktree sees, else where 0.8.0 left it inside this checkout (sdd-pr moves it
+  # on first use). `sdd-pr status` says the rest — the pull request, its threads, whether it is mergeable.
   if have git && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     cur="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
-    ff=".sdd/findings/$(printf '%s' "$cur" | sed 's#/#--#g').md"
+    name="$(printf '%s' "$cur" | sed 's#/#--#g').md"
+    ff="$(git rev-parse --git-common-dir 2>/dev/null)/sdd/findings/$name"
+    [ -f "$ff" ] || ff=".sdd/findings/$name"
     if [ -n "$cur" ] && [ -f "$ff" ]; then
       c="$(grep -c '^- \[ \] critical' "$ff" 2>/dev/null)"
       i="$(grep -c '^- \[ \] important' "$ff" 2>/dev/null)"

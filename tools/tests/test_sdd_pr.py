@@ -13,6 +13,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 TOOLS_DIR = Path(__file__).resolve().parent.parent
 _SPEC = importlib.util.spec_from_file_location("sdd_pr", TOOLS_DIR / "sdd-pr.py")
@@ -69,6 +70,7 @@ def has(*needles):
 
 def git_routes(branch="feat/x", head=HEAD, remote="git@github.com:o/r.git", names="", diff=""):
     return [
+        (git("rev-parse", "--git-common-dir"), ".git\n"),
         (git("rev-parse", "--abbrev-ref", "HEAD"), branch + "\n"),
         (git("rev-parse", "HEAD"), head + "\n"),
         (git("rev-parse", "--verify", "--quiet"), lambda argv, _: argv[-1].split("^")[0] + "\n"),
@@ -99,14 +101,20 @@ class RepoCase(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("sdd:\n  profile: formal\n  forge: %s   # comment\n%s" % (forge, extra), encoding="utf-8")
 
-    def findings(self, text):
-        path = self.root / ".sdd" / "findings" / (sdd_pr.slug(self.BRANCH) + ".md")
+    def store(self, branch=None):
+        return self.root / ".git" / "sdd" / "findings" / (sdd_pr.slug(branch or self.BRANCH) + ".md")
+
+    def findings(self, text, branch=None):
+        path = self.store(branch)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         return path
 
-    def read_findings(self):
-        return (self.root / ".sdd" / "findings" / (sdd_pr.slug(self.BRANCH) + ".md")).read_text(encoding="utf-8")
+    def read_findings(self, branch=None):
+        return self.store(branch).read_text(encoding="utf-8")
+
+    def nothing_written(self):
+        return not (self.root / ".sdd").exists() and not (self.root / ".git" / "sdd").exists()
 
     def use(self, routes):
         fake = FakeCli(routes)
@@ -252,12 +260,12 @@ Reviewed ddddddd · 2026-09-30 · cursor: none (0 of 0)
         self.assertEqual("""<!-- sdd:review-state -->
 **Review state at `bbbbbbb`:** 1 critical and 0 important open
 - Pass at `ccccccc`, 2026-09-29, claude: go-reviewer, sdd-doc-reviewer (2 of 2)
-- Findings: 1 critical and 3 important; 1 fixed, 1 declined, 1 deferred; 2 suggestions not worked
+- Findings: 1 critical and 3 important; 1 fixed, 1 declined, 1 deferred; 2 suggestions not routed
 - Deferred: important at `a.go:7`, three: SPEC-A §2 Known gaps
 <!-- /sdd:review-state -->""", block)
         clean = sdd_pr.review_state(sdd_pr.parse(FILE_CLEAN), HEAD)
         self.assertIn("**Review state at `bbbbbbb`:** no critical or important finding open", clean)
-        self.assertIn("- Findings: 0 critical and 1 important; 1 fixed, 0 declined, 0 deferred; 1 suggestion not worked", clean)
+        self.assertIn("- Findings: 0 critical and 1 important; 1 fixed, 0 declined, 0 deferred; 1 suggestion not routed", clean)
         self.assertNotIn("Deferred", clean)
         empty = sdd_pr.review_state(sdd_pr.Findings("feat/x", "main"), HEAD)
         self.assertIn("**Review state at `bbbbbbb`:** not reviewed", empty)
@@ -394,7 +402,7 @@ class TestStatus(RepoCase):
         self.assertIn("open: 0 critical, 0 important · suggestions: 1", out)
         self.assertIn("forge: none", out)
         self.assertIn("Mergeable: yes", out)
-        self.assertTrue(out.rstrip().endswith("Next: merge"), out)
+        self.assertTrue(out.rstrip().endswith("Next: route 1 suggestion (/sdd-deliver --close-out)"), out)
         self.assertFalse([a for a, _ in fake.calls if a[0] in ("gh", "az")])
         # With an open finding the next step is triage.
         self.findings(FILE_OPEN_IMPORTANT)
@@ -548,11 +556,15 @@ class TestStatus(RepoCase):
     def test_status_verdict_and_next(self):
         self.descriptor(forge="github")
         reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), HEAD + "\n")
-        # Open important → triage.
+        # Open important, not on the pull request yet → post; once mirrored → triage.
         self.findings(FILE_OPEN_IMPORTANT)
         self.use([reviewed_at_head] + git_routes() + self._gh_routes())
         _, out, _ = self.run_main("status")
         self.assertIn("Mergeable: no — 1 important open", out)
+        self.assertIn("Next: sdd-pr post --pr 7", out)
+        self.findings(FILE_OPEN_IMPORTANT.replace("by: claude", "by: claude · forge: 55"))
+        self.use([reviewed_at_head] + git_routes() + self._gh_routes(threads=[gh_thread(55, "a.go", 5, "x")]))
+        _, out, _ = self.run_main("status")
         self.assertIn("Next: /sdd-triage", out)
         # Nothing open, the forge holds two threads the file does not know → pull.
         self.findings(FILE_CLEAN)
@@ -575,13 +587,14 @@ class TestStatus(RepoCase):
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(draft=True))
         _, out, _ = self.run_main("status")
         self.assertIn("PR 7 (draft)", out)
-        self.assertIn("Next: mark the pull request ready", out)
+        # The close-out routes the suggestion before it marks the pull request ready.
+        self.assertIn("Next: route 1 suggestion", out)
         # Nothing open, ready → merge.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "SUCCESS"}]))
         _, out, _ = self.run_main("status")
         self.assertIn("checks: pass", out)
         self.assertIn("Mergeable: yes", out)
-        self.assertIn("Next: merge", out)
+        self.assertIn("Next: route 1 suggestion", out)
         # Failing checks.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "FAILURE"}]))
         _, out, _ = self.run_main("status")
@@ -599,7 +612,7 @@ class TestStatus(RepoCase):
         self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names=""))
         _, out, _ = self.run_main("status")
         self.assertIn("(no change since)", out)
-        self.assertIn("Next: merge", out)
+        self.assertIn("Next: route 1 suggestion", out)
 
     def test_status_names_a_document_change_without_steering_to_review(self):
         # A close-out commit changes only documents: the map, the status lines, the indexes.
@@ -608,7 +621,7 @@ class TestStatus(RepoCase):
         self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="docs/x.md\n"))
         _, out, _ = self.run_main("status")
         self.assertIn("(documents changed since)", out)
-        self.assertIn("Next: merge", out)
+        self.assertIn("Next: route 1 suggestion", out)
 
     def test_status_survives_an_unreachable_forge(self):
         self.descriptor(forge="github")
@@ -973,7 +986,7 @@ class TestCheckout(GitHubCase):
             self.assertIn("pull request 7 is feat/y", err)
             self.assertIn("this checkout is feat/x", err)
             self.assertIn("--root /wt/pr-7", err)
-        self.assertFalse((self.root / ".sdd").exists())
+        self.assertTrue(self.nothing_written())
 
     def test_a_checkout_that_holds_the_pull_requests_head_is_accepted_under_another_name(self):
         self.descriptor(forge="github")
@@ -1008,7 +1021,7 @@ class TestCheckout(GitHubCase):
         self.assertEqual(2, code)
         self.assertIn("--branch feat/y", err)
         self.assertIn("feat/x", err)
-        self.assertFalse((self.root / ".sdd").exists())
+        self.assertTrue(self.nothing_written())
         # can-fail control: the branch that is checked out is accepted.
         self.assertEqual(0, self.run_main("--branch", "feat/x", "scope")[0])
 
@@ -1035,6 +1048,19 @@ class TestCheckout(GitHubCase):
         self.assertIn("main", err)
 
 
+class TestStatesAzure(AzureCase):
+    def test_a_completed_pull_request_is_merged(self):
+        self.descriptor(forge="azure-devops")
+        self.findings(FILE_CLEAN)
+        routes = self.routes()
+        completed = {"pullRequestId": 7, "status": "completed", "sourceRefName": "refs/heads/feat/x",
+                     "targetRefName": "refs/heads/main", "lastMergeSourceCommit": {"commitId": HEAD},
+                     "lastMergeCommit": {"commitId": "e" * 40}, "repository": {"id": "R1", "project": {"name": "proj"}}}
+        self.use([(has("az", "repos", "pr", "list"), json.dumps([completed]))] + routes)
+        _, out, _ = self.run_main("status")
+        self.assertIn("PR 7 merged at eeeeeee", out)
+
+
 class TestCheckoutAzure(AzureCase):
     PR_BRANCH = "feat/y"
     PR_HEAD = "c" * 40
@@ -1045,7 +1071,7 @@ class TestCheckoutAzure(AzureCase):
         code, _, err = self.run_main("pull", "--pr", "7")
         self.assertEqual(2, code)
         self.assertIn("pull request 7 is feat/y", err)
-        self.assertFalse((self.root / ".sdd").exists())
+        self.assertTrue(self.nothing_written())
 
 
 class TestPostAzure(AzureCase):
@@ -1153,6 +1179,425 @@ class TestResolveAzure(AzureCase):
         _, out, _ = self.run_main("status")
         self.assertIn("the pull request body is too long to carry the review state", out)
         self.assertIn("Next: shorten the pull request body", out)
+
+
+class TestStore(RepoCase):
+    """One findings file per branch, in the clone's shared git directory."""
+
+    def test_the_file_lives_in_the_shared_git_directory(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        code, out, err = self.run_main("add", "suggestion", "a.go:9", "rename n", "--by", "claude")
+        self.assertEqual(0, code, err)
+        self.assertTrue(self.store().exists())
+        self.assertFalse((self.root / ".sdd").exists())
+        _, out, _ = self.run_main("status")
+        self.assertIn("findings: %s" % self.store(), out)
+
+    def test_every_worktree_of_the_clone_resolves_to_the_same_file(self):
+        self.descriptor(forge="none")
+        common = self.root / "main-checkout" / ".git"
+        self.use([(git("rev-parse", "--git-common-dir"), str(common) + "\n")] + git_routes())
+        self.assertEqual(0, self.run_main("add", "suggestion", "a.go:9", "rename n", "--by", "claude")[0])
+        self.assertTrue((common / "sdd" / "findings" / "feat--x.md").exists())
+
+    def test_a_file_left_in_the_checkout_is_moved_on_first_use(self):
+        self.descriptor(forge="none")
+        legacy = self.root / ".sdd" / "findings" / "feat--x.md"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text(FILE_OPEN_IMPORTANT, encoding="utf-8")
+        self.use(git_routes())
+        code, out, err = self.run_main("status")
+        self.assertEqual(0, code, err)
+        self.assertIn("moved", err)
+        self.assertFalse(legacy.exists())
+        self.assertEqual(FILE_OPEN_IMPORTANT, self.read_findings())
+        self.assertIn("1 important open", out)
+
+    def test_a_file_left_in_another_worktree_is_found_and_moved(self):
+        self.descriptor(forge="none")
+        other = self.root / "elsewhere"
+        legacy = other / ".sdd" / "findings" / "feat--x.md"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text(FILE_OPEN_IMPORTANT, encoding="utf-8")
+        listing = "worktree %s\nHEAD %s\nbranch refs/heads/main\n\nworktree %s\nHEAD %s\nbranch refs/heads/feat/x\n" % (
+            other, MB, self.root, HEAD)
+        self.use([(git("worktree", "list"), listing)] + git_routes())
+        code, out, err = self.run_main("status")
+        self.assertEqual(0, code, err)
+        self.assertIn(str(legacy), err)
+        self.assertFalse(legacy.exists())
+        self.assertIn("1 important open", out)
+
+    def test_a_writer_holds_the_store_for_the_whole_command(self):
+        import fcntl
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        session = sdd_pr.Session(sdd_pr.build_parser().parse_args(["--root", str(self.root), "status"]))
+        try:
+            with open(session.lock_path, "a") as other:
+                with self.assertRaises(OSError):
+                    fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            session.close()
+        with open(session.lock_path, "a") as other:
+            fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        self.assertFalse((self.root / ".git" / "sdd").exists())
+
+    def test_two_files_for_one_branch_are_named_not_merged(self):
+        self.descriptor(forge="none")
+        legacy = self.root / ".sdd" / "findings" / "feat--x.md"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text(FILE_CLEAN, encoding="utf-8")
+        self.findings(FILE_OPEN_IMPORTANT)
+        self.use(git_routes())
+        code, _, err = self.run_main("status")
+        self.assertEqual(0, code, err)
+        self.assertIn(str(legacy), err)
+        self.assertIn("sdd-pr add -", err)
+        self.assertTrue(legacy.exists())
+        self.assertEqual(FILE_OPEN_IMPORTANT, self.read_findings())
+
+
+class TestAdd(RepoCase):
+    def test_add_writes_a_line_in_the_grammar(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        code, out, err = self.run_main("add", "important", "a.go:5", "the retry · ignores the context",
+                                       "--evidence", "TestRetry hangs", "--fix", "select on ctx.Done", "--by", "claude")
+        self.assertEqual(0, code, err)
+        text = self.read_findings()
+        self.assertTrue(text.startswith("# Findings — feat/x\nBase: main\n"), text)
+        self.assertIn("## Open\n- [ ] important · a.go:5 · the retry - ignores the context · evidence: TestRetry hangs"
+                      " · fix: select on ctx.Done · by: claude\n", text)
+        self.assertIn("add: 1 added", out)
+        self.run_main("add", "suggestion", "a.go:9", "rename n", "--by", "claude")
+        self.assertIn("## Suggestions\n- a.go:9 · rename n · by: claude\n", self.read_findings())
+
+    def test_a_blocking_finding_needs_evidence(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        code, _, err = self.run_main("add", "critical", "a.go:5", "a leak")
+        self.assertEqual(2, code)
+        self.assertIn("evidence", err)
+        self.assertTrue(self.nothing_written())
+
+    def test_the_same_defect_twice_is_one_line_with_both_reviewers(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OPEN_IMPORTANT)
+        self.use(git_routes())
+        code, out, err = self.run_main("add", "important", "a.go:5", "The retry ignores the context",
+                                       "--evidence", "ran it", "--by", "cursor")
+        self.assertEqual(0, code, err)
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual(1, len(fs.open))
+        self.assertEqual("claude, cursor", fs.open[0].fields["by"])
+        self.assertIn("1 merged", out)
+
+    def test_add_refuses_lines_that_would_not_read_back(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        for argv in (("important", "a.go:4", "", "--evidence", "ee"), ("suggestion", "a · b.go:3", "x"),
+                     ("bogus", "a.go:1", "x")):
+            code, _, err = self.run_main("add", *argv)
+            self.assertEqual(2, code, argv)
+        code, _, err = self.run_main("add", "important", "a.go:4", "x")
+        self.assertIn("an important finding needs --evidence", err)
+        with mock.patch("sys.stdin", io.StringIO("- [x] important · a.go:2 · done · by: c · fixed abc1234\n")):
+            self.assertEqual(2, self.run_main("add", "-")[0])
+        with mock.patch("sys.stdin", io.StringIO("- [ ] important · a.go:2 · no evidence · by: c\n")):
+            code, _, err = self.run_main("add", "-")
+        self.assertIn("line 1", err)
+        self.assertTrue(self.nothing_written())
+
+    def test_add_reads_a_reviewers_lines_from_standard_input(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        lines = ("```text\n"
+                 "- [ ] critical · b.go:4 · the handle leaks · evidence: ran it · fix: close it · by: go-reviewer\n"
+                 "- b.go:9 · rename `n` · by: go-reviewer\n"
+                 "```\n")
+        with mock.patch("sys.stdin", io.StringIO(lines)):
+            code, out, err = self.run_main("add", "-")
+        self.assertEqual(0, code, err)
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual(["critical"], [f.severity for f in fs.open])
+        self.assertEqual(1, len(fs.suggestions))
+        # A malformed line writes nothing and names the line.
+        with mock.patch("sys.stdin", io.StringIO("- [ ] b.go:3 · no severity\n")):
+            code, _, err = self.run_main("add", "-")
+        self.assertEqual(2, code)
+        self.assertIn("line 1", err)
+        self.assertEqual(1, len(sdd_pr.parse(self.read_findings()).open))
+
+
+FILE_FLIP = """# Findings — feat/x
+Base: main
+Reviewed %s · 2026-09-30 · claude: go-reviewer (1 of 1)
+
+## Open
+- [ ] important · a.go:5 · one · evidence: ran it · by: claude · forge: 41
+- [ ] critical · a.go:6 · two · evidence: ran it · by: claude
+- [ ] important · a.go:7 · three · evidence: ran it · by: claude
+
+## Resolved
+
+## Suggestions
+- a.go:9 · rename n · by: claude
+- a.go:10 · reword · by: claude
+""" % HEAD[:7]
+
+
+class TestFlip(RepoCase):
+    def test_flip_fixed_keeps_the_thread_id_and_needs_the_fix_pushed(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP)
+        self.use(git_routes())
+        code, out, err = self.run_main("flip", "a.go:5", "--fixed", "abc1234")
+        self.assertEqual(0, code, err)
+        fs = sdd_pr.parse(self.read_findings())
+        fixed = [f for f in fs.resolved if f.status == "fixed"][0]
+        self.assertEqual(("41", "abc1234"), (fixed.fields["forge"], fixed.fixed))
+        # A fix the remote branch does not hold yet is refused.
+        self.use([(git("merge-base", "--is-ancestor"), sdd_pr.CliError("no"))] + git_routes())
+        code, _, err = self.run_main("flip", "a.go:6", "--fixed", "def5678")
+        self.assertEqual(2, code)
+        self.assertIn("push", err)
+        self.assertEqual(2, len(sdd_pr.parse(self.read_findings()).open))
+
+    def keys(self):
+        fs = sdd_pr.parse(self.read_findings())
+        return {f.text: "#" + sdd_pr.key_of(f) for f in fs.open + fs.suggestions}
+
+    def test_keys_do_not_move_when_other_lines_flip(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP)
+        self.use(git_routes())
+        keys = self.keys()
+        _, out, _ = self.run_main("status")
+        self.assertIn("%s - [ ] critical · a.go:6" % keys["two"], out)
+        self.assertIn("%s - a.go:9 · rename n" % keys["rename n"], out)
+        # Two flips in a row with the keys from one listing flip the lines they name.
+        self.assertEqual(0, self.run_main("flip", keys["one"], "--fixed", "abc1234")[0])
+        self.assertEqual(0, self.run_main("flip", keys["two"], "--fixed", "abc1234")[0])
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual(["three"], [f.text for f in fs.open])
+        # A position is not a selector any more: it moves when a line flips.
+        self.assertEqual(2, self.run_main("flip", "#1", "--fixed", "abc1234")[0])
+
+    def test_flip_by_key_declined_and_deferred(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP)
+        self.use(git_routes())
+        keys = self.keys()
+        self.assertEqual(0, self.run_main("flip", keys["two"], "--declined", "the caller checks it")[0])
+        self.assertEqual(0, self.run_main("flip", "a.go:7", "--deferred", "SPEC-A § Known gaps")[0])
+        text = self.read_findings()
+        self.assertIn("- [-] critical · a.go:6 · two · evidence: ran it · by: claude · declined: the caller checks it", text)
+        self.assertIn("- [~] important · a.go:7 · three · evidence: ran it · by: claude · deferred: SPEC-A § Known gaps", text)
+
+    def test_suggestions_are_routed_or_dropped(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP)
+        self.use(git_routes())
+        self.assertEqual(0, self.run_main("flip", "a.go:9", "--deferred", "https://example.org/issues/3")[0])
+        self.assertIn("- [~] suggestion · a.go:9 · rename n · by: claude · deferred: https://example.org/issues/3",
+                      self.read_findings())
+        code, out, err = self.run_main("flip", "--suggestions", "--dropped")
+        self.assertEqual(0, code, err)
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual([], fs.suggestions)
+        self.assertNotIn("reword", self.read_findings())
+        # Only a suggestion is dropped; a blocking finding is deferred, with the maintainer's word.
+        code, _, err = self.run_main("flip", "a.go:5", "--dropped")
+        self.assertEqual(2, code)
+        self.assertIn("--deferred", err)
+
+    def test_an_anchor_that_names_two_lines_is_refused_with_their_keys(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP.replace("a.go:7 · three", "a.go:6 · three").replace("a.go:10 · reword", "a.go:9 · reword"))
+        self.use(git_routes())
+        keys = self.keys()
+        code, _, err = self.run_main("flip", "a.go:6", "--declined", "x")
+        self.assertEqual(2, code)
+        self.assertIn(keys["two"], err)
+        self.assertIn(keys["three"], err)
+        # Two suggestions on one line are routed one at a time by key.
+        self.assertEqual(0, self.run_main("flip", keys["reword"], "--deferred", "issue 4")[0])
+        self.assertEqual(["rename n"], [f.text for f in sdd_pr.parse(self.read_findings()).suggestions])
+
+    def test_flip_refuses_what_it_cannot_do_safely(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP)
+        self.use([(git("rev-parse", "--verify", "--quiet", "nope^{commit}"), sdd_pr.CliError("no"))] + git_routes())
+        self.assertEqual(2, self.run_main("flip", "a.go:5", "--fixed", "nope")[0])
+        self.assertEqual(2, self.run_main("flip", "a.go:9", "--suggestions", "--dropped")[0])
+        self.assertEqual(FILE_FLIP, self.read_findings())
+
+
+class TestRecordAndRename(RepoCase):
+    def test_record_writes_the_reviewed_line_from_head(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP)
+        self.use(git_routes())
+        code, out, err = self.run_main("record", "--agent", "claude", "--reviewers", "go-reviewer, sdd-doc-reviewer",
+                                       "--reported", "2/2")
+        self.assertEqual(0, code, err)
+        last = sdd_pr.parse(self.read_findings()).reviewed[-1]
+        self.assertEqual((HEAD[:7], "claude", "go-reviewer, sdd-doc-reviewer (2 of 2)"), (last[0], last[2], last[3]))
+        self.assertRegex(last[1], r"^\d{4}-\d{2}-\d{2}$")
+        for bad in ("0/2", "3/2", "two", "1/2"):
+            code, _, err = self.run_main("record", "--agent", "claude", "--reviewers", "x", "--reported", bad)
+            self.assertEqual(2, code, bad)
+        code, out, _ = self.run_main("record", "--agent", "claude:code", "--reviewers", "a, b", "--reported", "1/2")
+        self.assertEqual(0, code)
+        self.assertEqual(("claude-code", "a, b (1 of 2)"), sdd_pr.parse(self.read_findings()).reviewed[-1][2:])
+        self.assertEqual(3, len(sdd_pr.parse(self.read_findings()).reviewed))
+
+    def test_rename_moves_the_file_and_forgets_the_old_branch(self):
+        self.descriptor(forge="none")
+        old = FILE_FLIP.replace("# Findings — feat/x", "# Findings — feat/old").replace("forge: 41", "forge: 41 · mirrored")
+        self.findings(old, branch="feat/old")
+        self.use(git_routes())
+        code, out, err = self.run_main("rename", "--from", "feat/old")
+        self.assertEqual(0, code, err)
+        self.assertFalse(self.store("feat/old").exists())
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual(("feat/x", "main"), (fs.branch, fs.base))
+        self.assertEqual([], fs.reviewed)
+        self.assertEqual(set(), fs.forge_ids())
+        self.assertTrue(all("mirrored" not in f.flags for f in fs.items))
+        self.assertEqual(3, len(fs.open))
+        # A branch that already has a file is not overwritten.
+        self.findings(old, branch="feat/old")
+        code, _, err = self.run_main("rename", "--from", "feat/old")
+        self.assertEqual(2, code)
+        self.assertIn("already", err)
+
+
+class TestRouting(RepoCase):
+    def test_the_block_lists_routed_suggestions_and_counts_the_rest(self):
+        text = FILE_FLIP.replace("- a.go:9 · rename n · by: claude\n", "").replace(
+            "## Resolved\n", "## Resolved\n- [~] suggestion · a.go:9 · rename n · by: claude · deferred: issue 3\n")
+        block = sdd_pr.review_state(sdd_pr.parse(text), HEAD)
+        self.assertIn("; 1 suggestion not routed", block)
+        self.assertIn("- Deferred: suggestion at `a.go:9`, rename n: issue 3", block)
+
+    def test_once_every_suggestion_is_routed_next_is_merge(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), lambda argv, _: HEAD + "\n")
+        self.use([reviewed_at_head] + git_routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("Next: route 1 suggestion (/sdd-deliver --close-out)", out)
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--dropped")[0])
+        _, out, _ = self.run_main("status")
+        self.assertIn("Mergeable: yes", out)
+        self.assertTrue(out.rstrip().endswith("Next: merge"), out)
+
+
+class TestStatusStates(GitHubCase):
+    """What status says with no pull request, a merged or closed one, and findings not mirrored."""
+
+    def test_no_pull_request_is_not_mergeable(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN.replace("- a.go:9 · rename `n` to `count` · by: claude\n", ""))
+        routes = [(git("rev-parse", "--verify", "--quiet"), HEAD + "\n"), (has("gh", "pr", "list"), "[]")] + self.routes()
+        self.use(routes)
+        _, out, _ = self.run_main("status")
+        self.assertIn("forge: github · no pull request", out)
+        self.assertIn("Mergeable: no — no pull request", out)
+        self.assertIn("Next: open the pull request (/sdd-deliver step 8)", out)
+
+    def test_a_merged_pull_request_says_so_and_names_the_cleanup(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN)
+        self.PR = {"state": "MERGED", "mergeCommit": {"oid": "e" * 40}}
+        self.use(self.routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("PR 7 merged at eeeeeee", out)
+        self.assertIn("Mergeable: merged", out)
+        self.assertIn("Next: delete %s, then the branch and its worktree" % self.store(), out)
+
+    def test_the_open_pull_request_wins_over_a_newer_closed_one(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN)
+        closed = {"number": 8, "headRefOid": HEAD, "headRefName": "feat/x", "baseRefName": "main", "state": "CLOSED"}
+        opened = {"number": 7, "headRefOid": HEAD, "headRefName": "feat/x", "baseRefName": "main", "state": "OPEN"}
+        self.use([(has("gh", "pr", "list"), json.dumps([closed, opened]))] + self.routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("PR 7 (ready)", out)
+        self.assertNotIn("closed", out)
+
+    def test_post_refuses_a_pull_request_that_is_not_open(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT)
+        self.PR = {"state": "MERGED", "mergeCommit": {"oid": "e" * 40}}
+        self.use(self.routes())
+        code, _, err = self.run_main("post")
+        self.assertEqual(2, code)
+        self.assertIn("pull request 7 is merged", err)
+
+    def test_a_pull_request_merged_before_the_head_moved_is_not_this_branchs(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT.replace("Base: main", "Base: develop"))
+        self.PR = {"state": "MERGED", "headRefOid": "c" * 40, "baseRefName": "main", "mergeCommit": {"oid": "e" * 40}}
+        self.use(self.routes())
+        _, out, err = self.run_main("status")
+        self.assertIn("forge: github · no pull request", out)
+        self.assertNotIn("merged", out)
+        self.assertIn("Base: develop\n", self.read_findings())
+
+    def test_merged_names_what_the_file_still_holds(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT.replace("Base: main", "Base: develop"))
+        self.PR = {"state": "MERGED", "mergeCommit": {"oid": "e" * 40}}
+        self.use(self.routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("Mergeable: merged", out)
+        self.assertIn("1 open line", out)
+        # A pull request that is no longer open moves no Base: line.
+        self.assertIn("Base: develop\n", self.read_findings())
+
+    def test_a_closed_pull_request_is_not_mergeable(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN)
+        self.PR = {"state": "CLOSED"}
+        self.use(self.routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("Mergeable: no — pull request 7 is closed", out)
+        self.assertIn("Next: reopen pull request 7, or open a new one", out)
+
+    def test_findings_not_yet_mirrored_point_next_at_post(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT)
+        self.use(self.routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("Next: sdd-pr post --pr 7", out)
+        # can-fail control: once mirrored, triage is next.
+        self.findings(FILE_OPEN_IMPORTANT.replace("by: claude", "by: claude · forge: 55"))
+        self.use(self.routes(threads=[gh_thread(55, "a.go", 5, "x")]))
+        _, out, _ = self.run_main("status")
+        self.assertIn("Next: /sdd-triage", out)
+
+    def test_an_unreachable_forge_is_a_reason(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN)
+        self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes() + [(has("gh"), sdd_pr.CliError("gh: not signed in"))])
+        _, out, _ = self.run_main("status")
+        self.assertIn("Mergeable: no — the forge was not reachable", out)
+        self.assertIn("Next: run sdd-pr status again once the forge is reachable", out)
+
+
+class TestAttribution(GitHubCase):
+    def test_a_thread_carries_its_reviewer_and_pull_reads_it_back(self):
+        self.descriptor(forge="github")
+        finding = sdd_pr.parse_line("- [ ] important · a.go:5 · one · evidence: ran it · by: go-coding:go-reviewer", 1)
+        body = sdd_pr.comment_body(finding)
+        self.assertIn("\n\nBy: go-coding:go-reviewer", body)
+        self.use(self.routes(threads=[gh_thread(101, "a.go", 5, body, login="maint")]))
+        self.assertEqual(0, self.run_main("pull")[0])
+        self.assertIn("by: go-coding:go-reviewer · forge: 101", self.read_findings())
 
 
 class TestCommandLine(RepoCase):

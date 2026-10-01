@@ -120,7 +120,7 @@ Prints one review-request block per name in `agents.review_panel.<lane>`, filled
 /sdd-triage
 ```
 
-The open critical and important lines of `.sdd/findings/<branch>.md` are the whole to-do list. Each one is checked before it is fixed, the fix lands in this branch, and the line is flipped. An excerpt of the file:
+The open critical and important lines of the branch's findings file are the whole to-do list. Each one is checked before it is fixed, the fix lands in this branch, and the line is flipped. An excerpt of the file:
 
 ```markdown
 # Findings — feat/auth-refresh
