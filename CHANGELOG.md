@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: each posted thread carries its finding's `By:` line, and `pull` reads it back instead of crediting the account that posted it.
 
 ### Changed
+- Skills: shorter bodies that leave each rule to the reference that owns it, with their word budgets lowered to match; `sdd-specify`, `sdd-triage` and `sdd-trace` gain trigger phrases, and `sdd-triage` says `status` lists suggestions too.
 - Tools: `sdd-pr scope` reads the whole branch by default, however many passes came before.
 - Skills: `sdd-review` reviews the whole branch, so another agent or model gives a second opinion on all of it, without the open findings in its reviewers' brief; `--since-last` reviews only the commits since this agent's last pass, and `sdd-triage`'s re-review uses it; the `Reviewed` line names the host and its model.
 - References: `review.md` § Passes leaves a second opinion the maintainer asks for outside the pass budget.

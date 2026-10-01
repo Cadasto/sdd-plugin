@@ -19,7 +19,7 @@ Read `docs/.sdd.yaml` first (`profile`, `paths.*`, `forge`, the build targets, `
    - code, tests or other files (build, CI, configuration) changed → each `reviewer` line of `scope`, with its paths, told to run the tests it needs for evidence; `vendored:` (the upstream gate) and `plans:` go to no one, and `no reviewer:` paths are said in the hand-back;
    - formal, full lane, code implementing a cited `SPEC §` changed, or a MUST or SHOULD sentence changed with no code → `sdd-spec-conformance-reviewer`, once, with the guard-removal check for every MUST in the range, and for a sentence alone the code and tests it describes; informative → the same agent only when the range touches something a constitution sentence binds, with those sentences quoted;
    - a document changed → `sdd-doc-reviewer`, once, with the changed hunks of every touched document: form on the formal full lane; consistency with the code and the other documents on the maintenance lane and the informative profile;
-   - nothing else: the drift gate ran in the full gate, and the plugin's own gate, `python3 <plugin root>/tools/sdd-check.py check --root . --changed-since <the start of scope's range> --new-only`, shows what the range added (a new warning is a suggestion, a new error critical); the auditor is `/sdd-trace --audit`.
+   - the drift gate → no dispatch: it ran in the full gate, and `python3 <plugin root>/tools/sdd-check.py check --root . --changed-since <the start of scope's range> --new-only` shows what the range added (a new warning is a suggestion, a new error critical); the whole-tree audit is `/sdd-trace --audit`.
    A dispatch that died, or returned `MISMATCH`, is re-run once, with the diff rebuilt from this checkout; a second failure shows in the `Reviewed` line's `(<n> of <m>)`. A range that called for no reviewer gets no `Reviewed` line: say so and leave it open for the maintainer's own review (`review.md` § The findings file).
 4. **Write the file with `sdd-pr`, never by hand.** Merge two lines about one defect, naming both in `by:`; pipe a defect the file holds in that line's words, so `add` folds it; drop a line about nothing in the range; keep at most ten new suggestions ("and n more"). Then pipe each reviewer's fence to `sdd-pr add -`: it checks the grammar, refuses a blocking line without evidence and folds an identical line into the first. Then `sdd-pr record --agent <agent> --reviewers <names> --reported <n>/<m>`; with nothing reported, record nothing.
 5. **Mirror.** With a pull request, push, then `sdd-pr post` (it refuses an unpushed HEAD): the pass's one review, clean or not. Then `sdd-pr status`.
@@ -27,10 +27,9 @@ Read `docs/.sdd.yaml` first (`profile`, `paths.*`, `forge`, the build targets, `
 
 ## Guardrails
 
-- **Run it once before the maintainer's review, and once with `--since-last` after the triage of that review when it changed anything, a document included (`references/review.md` § Passes) — never after every slice.**
+- **Passes (`references/review.md` § Passes): once before the maintainer's review, once with `--since-last` after its triage changed anything; never after every slice.**
 - **The agents edit nothing; this skill writes only the findings file; `/sdd-triage` fixes.**
 - **Nothing on the pull request but what `sdd-pr post` writes; a second opinion only when the maintainer asks.**
-- **The build gate is not this skill; read its output before claiming green.**
 
 ## Reference
 

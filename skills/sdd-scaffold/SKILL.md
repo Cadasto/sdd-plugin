@@ -13,7 +13,7 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
 
 ## Steps
 
-0. **Resolve the plugin root.** Templates live at `<plugin-root>/references/templates/` and the gate at `<plugin-root>/tools/sdd-check.py`, never in the consumer repo. The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code).
+0. **Resolve the plugin root.** Templates live at `<plugin-root>/references/templates/` and the gate at `<plugin-root>/tools/sdd-check.py`, never in the consumer repo.
 1. **Detect, then route** — the first match wins. Glob for `docs/.sdd.yaml`, `docs/requirements/`, `docs/specifications/`, `AGENTS.md`, and Grep the descriptor for `^\s*check:`.
    - **No descriptor** → a fresh run of steps 2–6, even with `--upgrade` (say so: there is nothing to top up).
    - **`--upgrade` given** → **`--upgrade`** below instead of steps 2–6.
@@ -41,7 +41,7 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
 
    **Informative:** write `docs/architecture.md` from `constitution.md` when absent; no `requirements/` directory and no traceability map; the descriptor carries `profile: informative`, `paths.constitution` and `forge: auto`. On both profiles emit no plan template, no `docs/plans/`, no `docs/.sdd/`.
 
-   **3b. Vendor the gate.** Copy the plugin's `tools/sdd-check.py` to `check.script` (default `scripts/sdd-check.py`), creating parents, and `chmod +x` it. Write its version — `python3 <check.script> --version`, or the `__version__ = "…"` line without Python — into `check.version`. From now on the repository's copy is the gate every skill and CI call; the plugin's copy is only what `--upgrade` re-vendors from (`references/sdd-check.md` § Vendoring and the version pin).
+   **3b. Vendor the gate.** Copy the plugin's `tools/sdd-check.py` to `check.script` (default `scripts/sdd-check.py`), creating parents, and `chmod +x` it. Write its version — `python3 <check.script> --version`, or the `__version__ = "…"` line without Python — into `check.version` (`references/sdd-check.md` § Vendoring and the version pin).
 
    **3c. Starter changelog.** If `check.changelog.path` (default `CHANGELOG.md`) does not exist, write exactly a `# Changelog` heading and an empty `## [Unreleased]` section — the gate errors on a missing changelog. Never overwrite one with content.
 
@@ -54,20 +54,15 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
 
 ## `--upgrade` — top up an existing repository
 
-Follow `references/scaffold-upgrade.md` in order: add missing descriptor keys → re-vendor and pin → the starter changelog and the `/.sdd/` ignore line → propose the version's changes → merge the process documents and offer `kind: plan` → missing `kind:` frontmatter → missing generated markers → wire the build target → regenerate → report. Apart from the 0.8.0 changes the maintainer confirms, never touch an existing key or a document body with content; add only what is missing and report exactly what changed.
+Follow `references/scaffold-upgrade.md` in order: add missing descriptor keys → re-vendor and pin → the starter changelog and the `/.sdd/` ignore line → propose the version's changes → merge the process documents and offer `kind: plan` → missing `kind:` frontmatter → missing generated markers → wire the build target → regenerate → report. Apart from what the procedure proposes and the maintainer confirms, never touch an existing key or a document body with content; add only what is missing and report exactly what changed.
 
 ## Guardrails
 
-- **Idempotent and non-destructive.** Never overwrite a file with content. Fill gaps; report skips.
 - **Adopt incrementally.** `requirements/`, `specifications/`, `adr/` and `AGENTS.md` are enough to start — on informative, `docs/architecture.md` alone. Don't force `analysis/` or `operations/`.
 - **Respect the taxonomy.** No scaffolding directory that fights the document kinds; a committed plan carries `kind: plan`.
-- **The descriptor is the contract** every other skill reads; get it right here.
 - **A repository that ships its own gate keeps it until `sdd-check` covers what it checks; run both meanwhile.**
 
 ## Reference
 
 - `references/templates/` — every file this skill emits.
-- `references/scaffold-upgrade.md` — the `--upgrade` procedure.
 - `references/traceability-schema.md` — the `.sdd.yaml` and `traceability.yaml` schemas, the `check:` block included.
-- `references/sdd-methodology.md` — §1a the profiles, §3 document kinds, §5 identifiers.
-- `references/sdd-check.md` — the gate's commands, families and version pin.

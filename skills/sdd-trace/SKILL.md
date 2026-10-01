@@ -1,6 +1,6 @@
 ---
 name: sdd-trace
-description: This skill should be used when the user asks to "show traceability for REQ-X", "what implements or tests this requirement", "give me the context for REQ-X", "are there orphan requirements", "run a quick drift scan", or "audit the traceability" (`--audit`). Report-only — prints a REQ's context bundle, relays the drift gate's findings by family, or dispatches the isolated whole-tree audit. Not for authoring (sdd-specify), close-out (sdd-deliver --close-out), or test and build results (the build gate).
+description: This skill should be used when the user asks to "show traceability for REQ-X", "what implements or tests this requirement", "give me the context for REQ-X", "are there orphan requirements", "run a quick drift scan", "run the drift gate", or "audit the traceability" (`--audit`). Report-only — prints a REQ's context bundle, relays the drift gate's findings by family, or dispatches the isolated whole-tree audit. Not for authoring (sdd-specify), close-out (sdd-deliver --close-out), or test and build results (the build gate).
 argument-hint: "[REQ-id, or blank for a whole-tree drift scan] [--audit]"
 allowed-tools: Read, Glob, Grep, Bash, Agent, Task
 ---
@@ -29,7 +29,7 @@ With no REQ, run `check` and report its findings grouped by family, with the off
 
 ## Mode C — `--audit`
 
-Dispatch the **`sdd-traceability-auditor`** agent — this skill is the only one that does — before a release or when a `spec-check` failure is unexplained. It runs the same gate in isolated context, checks skipped families by hand and adds the judgement no family can make. Relay its report; the orchestrator adds its lines to the findings file only when the maintainer asks.
+Dispatch the **`sdd-traceability-auditor`** agent — this skill is the only one that does — before a release or when a `spec-check` failure is unexplained. Relay its report; the orchestrator adds its lines to the findings file only when the maintainer asks.
 
 ## Guardrails
 
