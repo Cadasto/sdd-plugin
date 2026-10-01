@@ -68,12 +68,16 @@ def has(*needles):
     return lambda argv: all(n in argv for n in needles)
 
 
+def _same_as_local(ref):
+    return ref[len("origin/"):] if ref.startswith("origin/") else ref
+
+
 def git_routes(branch="feat/x", head=HEAD, remote="git@github.com:o/r.git", names="", diff=""):
     return [
         (git("rev-parse", "--git-common-dir"), ".git\n"),
         (git("rev-parse", "--abbrev-ref", "HEAD"), branch + "\n"),
         (git("rev-parse", "HEAD"), head + "\n"),
-        (git("rev-parse", "--verify", "--quiet"), lambda argv, _: argv[-1].split("^")[0] + "\n"),
+        (git("rev-parse", "--verify", "--quiet"), lambda argv, _: _same_as_local(argv[-1].split("^")[0]) + "\n"),
         (git("merge-base", "--is-ancestor"), ""),
         (git("merge-base"), MB + "\n"),
         (git("symbolic-ref"), "origin/main\n"),
@@ -1165,6 +1169,113 @@ class TestResolveAzure(AzureCase):
         _, out, _ = self.run_main("status")
         self.assertIn("the pull request body is too long to carry the review state", out)
         self.assertIn("Next: shorten the pull request body", out)
+
+
+FILE_TWO_AGENTS = """# Findings — feat/x
+Base: main
+Reviewed ccccccc · 2026-09-29 · cursor: go-reviewer (1 of 1)
+Reviewed %s · 2026-09-30 · claude: go-reviewer, sdd-doc-reviewer (2 of 2)
+
+## Open
+
+## Resolved
+
+## Suggestions
+""" % HEAD[:7]
+
+
+class TestScopeFlags(RepoCase):
+    """scope --base, --agent and --diff; the base behind its remote; the vendored gate; reviewers by path."""
+
+    def test_base_names_the_parent_of_a_stacked_branch_and_is_written_down(self):
+        self.descriptor(forge="none")
+        fake = self.use(git_routes(names="a.go\n"))
+        code, out, err = self.run_main("scope", "--base", "feat/parent")
+        self.assertEqual(0, code, err)
+        self.assertIn("base: feat/parent", out)
+        self.assertTrue(fake.called("merge-base", "feat/parent", "HEAD"))
+        self.assertIn("Base: feat/parent\n", self.read_findings())
+        # The next run reads the base from the file.
+        fake = self.use(git_routes(names="a.go\n"))
+        self.run_main("scope")
+        self.assertTrue(fake.called("merge-base", "feat/parent", "HEAD"))
+
+    def test_a_local_base_behind_its_remote_is_not_where_the_range_starts(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN.replace("Reviewed", "Reviewed-not").replace("Reviewed-not %s · 2026-09-30 · claude: go-reviewer (1 of 1)\n" % HEAD[:7], ""))
+        tips = {"main": "1" * 40, "origin/main": "2" * 40}
+        resolve = (git("rev-parse", "--verify", "--quiet"), lambda argv, _: tips.get(argv[-1].split("^")[0], argv[-1].split("^")[0]) + "\n")
+        fake = self.use([resolve] + git_routes(names="a.go\n"))
+        code, out, err = self.run_main("scope")
+        self.assertEqual(0, code, err)
+        self.assertTrue(fake.called("merge-base", "origin/main", "HEAD"), fake.calls)
+        self.assertIn("behind origin/main", err)
+        # can-fail control: a local base ahead of its remote (not pushed yet) is the local one.
+        fake = self.use([resolve, (git("merge-base", "--is-ancestor", "1" * 40), sdd_pr.CliError("no"))] + git_routes(names="a.go\n"))
+        self.run_main("scope")
+        self.assertTrue(fake.called("merge-base", "main", "HEAD"))
+
+    def test_the_vendored_gate_is_not_code_to_review(self):
+        self.descriptor(forge="none", extra="  check:\n    script: tools/vendor/sdd-check.py\n")
+        self.use(git_routes(names="tools/vendor/sdd-check.py\na.go\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("vendored: tools/vendor/sdd-check.py", out)
+        self.assertIn("code: a.go\n", out)
+        _, out, _ = self.run_main("scope", "--json")
+        self.assertEqual(["tools/vendor/sdd-check.py"], json.loads(out)["files"]["vendored"])
+
+    def test_reviewers_by_path_get_only_their_paths(self):
+        self.descriptor(forge="none", extra=(
+            "  agents:\n    reviewers:\n      \"**/*.go\": go-coding:go-reviewer\n"
+            "      \"tools/**\": [py-reviewer, lint-reviewer]\n"))
+        self.use(git_routes(names="cmd/a.go\nb.go\ntools/x.py\nMakefile\ndocs/x.md\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("reviewer go-coding:go-reviewer: cmd/a.go b.go\n", out)
+        self.assertIn("reviewer py-reviewer: tools/x.py\n", out)
+        self.assertIn("reviewer lint-reviewer: tools/x.py\n", out)
+        self.assertIn("no reviewer: Makefile\n", out)
+        self.assertNotIn("docs/x.md", [line for line in out.splitlines() if line.startswith("reviewer")])
+
+    def test_a_plain_reviewer_list_reviews_every_code_path(self):
+        self.descriptor(forge="none", extra="  agents:\n    reviewers: [go-reviewer]\n")
+        self.use(git_routes(names="a.go\nMakefile\ndocs/x.md\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("reviewer go-reviewer: a.go Makefile\n", out)
+        self.assertNotIn("no reviewer:", out)
+
+    def test_diff_prints_the_hunks_of_one_kind_or_one_reviewer(self):
+        self.descriptor(forge="none", extra="  agents:\n    reviewers: [go-reviewer]\n")
+        seen = []
+
+        def diff(argv, stdin):
+            seen.append(argv)
+            return DIFF
+
+        self.use([(lambda a: git("diff")(a) and "--name-only" not in a, diff)] + git_routes(names="a.go\ndocs/x.md\n"))
+        code, out, err = self.run_main("scope", "--diff", "documents")
+        self.assertEqual(0, code, err)
+        self.assertIn("+func x() {}", out)
+        self.assertEqual(["docs/x.md"], seen[-1][seen[-1].index("--") + 1:])
+        self.run_main("scope", "--diff", "go-reviewer")
+        self.assertEqual(["a.go"], seen[-1][seen[-1].index("--") + 1:])
+        code, _, err = self.run_main("scope", "--diff", "nobody")
+        self.assertEqual(2, code)
+        self.assertIn("nobody", err)
+
+    def test_agent_reads_the_range_since_its_own_last_pass(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_TWO_AGENTS)
+        resolve = (git("rev-parse", "--verify", "--quiet"),
+                   lambda argv, _: {HEAD[:7]: HEAD}.get(argv[-1].split("^")[0], argv[-1].split("^")[0]) + "\n")
+        self.use([resolve] + git_routes(names="a.go\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("range: empty", out)
+        _, out, _ = self.run_main("scope", "--agent", "cursor")
+        self.assertIn("range: ccccccc..HEAD", out)
+        # An agent with no pass of its own starts at the merge base.
+        _, out, _ = self.run_main("scope", "--agent", "codex")
+        self.assertIn("range: %s..HEAD" % MB, out)
+
 
 
 class TestStore(RepoCase):

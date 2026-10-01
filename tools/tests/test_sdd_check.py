@@ -815,6 +815,62 @@ class GitCase(BaselineCase):
         self.git("commit", "-q", "-m", message)
 
 
+class TestChangedSince(GitCase):
+    """check --changed-since <ref>: the findings on lines changed since <ref> are marked NEW."""
+
+    NOTES = "docs/notes.md"
+
+    def setUp(self):
+        super().setUp()
+        self.init_git()
+        self.write(self.NOTES, "---\nkind: analysis\n---\n\n# Notes\n\nThe old line MUST stay.\n")
+        self.commit("baseline with one warning")
+
+    def run_main(self, argv):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = sdd_check.main([str(a) for a in argv])
+        return code, buffer.getvalue()
+
+    def rfc_lines(self, out):
+        return [line for line in out.splitlines() if line.startswith("[rfc2119]")]
+
+    def test_a_warning_on_a_changed_line_is_new_and_an_old_one_is_not(self):
+        self.edit(self.NOTES, "The old line MUST stay.\n", "The old line MUST stay.\n\nA new line SHOULD be marked.\n")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD"])
+        self.assertEqual(0, code, out)
+        lines = self.rfc_lines(out)
+        self.assertEqual(2, len(lines), out)
+        new_line = self.line_of(self.NOTES, "A new line")
+        self.assertIn("[rfc2119] WARN NEW %s:%d:" % (self.NOTES, new_line), out)
+        self.assertIn("[rfc2119] WARN %s:%d:" % (self.NOTES, self.line_of(self.NOTES, "The old line")), out)
+        self.assertIn("2 warnings (1 new since HEAD)", out)
+
+    def test_every_finding_in_a_file_added_since_is_new(self):
+        self.write("docs/more.md", "---\nkind: analysis\n---\n\n# More\n\nThis MUST be new.\n")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD"])
+        self.assertIn("[rfc2119] WARN NEW docs/more.md:", out)
+        self.assertIn("(1 new since HEAD)", out)
+
+    def test_new_only_prints_only_the_new_findings(self):
+        self.write("docs/more.md", "---\nkind: analysis\n---\n\n# More\n\nThis MUST be new.\n")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD", "--new-only"])
+        self.assertEqual(["docs/more.md"], [l.split()[3].split(":")[0] for l in self.rfc_lines(out)])
+        self.assertIn("2 warnings (1 new since HEAD)", out)
+
+    def test_an_unknown_ref_is_a_configuration_failure(self):
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "no-such-ref"])
+        self.assertEqual(2, code)
+        self.assertIn("no-such-ref", out)
+
+    def test_the_flags_belong_to_check(self):
+        code, out = self.run_main(["generate", "--root", self.tmp, "--changed-since", "HEAD"])
+        self.assertEqual(2, code)
+        code, out = self.run_main(["check", "--root", self.tmp, "--new-only"])
+        self.assertEqual(2, code)
+        self.assertIn("--changed-since", out)
+
+
 class TestTreeToMapFamily(BaselineCase):
     def test_unknown_identifier_cited(self):
         self.write("src/env/thing.py", "# implements REQ-FOUND-077\n")

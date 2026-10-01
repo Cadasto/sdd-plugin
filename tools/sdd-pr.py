@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import fnmatch
+import importlib.util
 import json
 import os
 import re
@@ -378,6 +379,65 @@ def descriptor_value(text: str, key: str) -> str:
     return match.group(1).strip().strip("'\"") if match else ""
 
 
+_GATE = None
+
+
+def gate():
+    """The plugin's own sdd-check, beside this file: its YAML reader parses the descriptor, so the two
+    tools never disagree on what it says."""
+    global _GATE
+    if _GATE is None:
+        here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sdd-check.py")
+        spec = importlib.util.spec_from_file_location("sdd_check_for_sdd_pr", here)
+        _GATE = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_GATE)
+    return _GATE
+
+
+def descriptor_data(text: str) -> dict:
+    """The descriptor as a mapping (the `sdd:` wrapper removed); {} when it is absent or does not parse."""
+    try:
+        data = gate().load_yaml(text, source=DESCRIPTOR) if text.strip() else {}
+    except gate().YamlError:  # a malformed descriptor is the gate's finding; here it reads as no settings
+        return {}
+    if isinstance(data, dict) and isinstance(data.get("sdd"), dict):
+        data = data["sdd"]
+    return data if isinstance(data, dict) else {}
+
+
+def _setting(data: dict, *keys):
+    for key in keys:
+        data = data.get(key) if isinstance(data, dict) else None
+    return data
+
+
+def _matches(path: str, pattern: str) -> bool:
+    return fnmatch.fnmatch(path, pattern) or (pattern.startswith("**/") and fnmatch.fnmatch(path, pattern[3:]))
+
+
+def reviewers_for(data: dict, files: Dict[str, List[str]]) -> Tuple[Dict[str, List[str]], List[str]]:
+    """Which of the changed code, test and other paths each of `agents.reviewers` reads, and the paths
+    none does. A list gives every reviewer every path; a map gives each pattern's reviewers its paths."""
+    reviewable = files["code"] + files["tests"] + files["other"]
+    value = _setting(data, "agents", "reviewers")
+    if isinstance(value, str):
+        value = [value]
+    if isinstance(value, list):
+        return {str(name): list(reviewable) for name in value if str(name).strip()} if reviewable else {}, []
+    out: Dict[str, List[str]] = {}
+    unassigned = []
+    for path in reviewable:
+        hit = False
+        for pattern, names in (value or {}).items() if isinstance(value, dict) else ():
+            if _matches(path, str(pattern)):
+                hit = True
+                for name in names if isinstance(names, list) else [names]:
+                    out.setdefault(str(name), []).append(path)
+        if not hit:
+            unassigned.append(path)
+    return out, unassigned
+
+
 def test_globs(text: str) -> List[str]:
     match = re.search(r"^\s*test_globs:\s*\[(.*?)\]", text, re.M)
     if not match:
@@ -434,16 +494,31 @@ def resolve_sha(root: str, sha: str) -> str:
 
 
 def base_ref(root: str, base: str) -> str:
-    """The base as a ref this clone has: the local branch, else its remote-tracking copy."""
-    if resolve_sha(root, base) or not resolve_sha(root, "origin/" + base):
+    """The base as a ref this clone has: the local branch, else its remote-tracking copy, and the remote
+    one when the local branch is only behind it, so a stale base does not re-review merged work."""
+    local, remote = resolve_sha(root, base), resolve_sha(root, "origin/" + base)
+    if not remote:
         return base
-    return "origin/" + base
+    if not local:
+        return "origin/" + base
+    if local != remote:
+        try:
+            git(root, "merge-base", "--is-ancestor", local, remote)
+        except CliError:
+            return base  # ahead or diverged: the local branch holds commits the remote lacks
+        print("sdd-pr: local %s is behind origin/%s; the range starts from origin/%s" % (base, base, base),
+              file=sys.stderr)
+        return "origin/" + base
+    return base
 
 
-def review_range(root: str, fs: Findings, base: str, head: str, whole: bool = False) -> Optional[str]:
-    """The range the next pass reads, or ``None`` when nothing is new (review.md § Scope). A last
-    pass that is no longer an ancestor of HEAD (the branch was rebased) restarts at the merge base."""
-    last = None if whole else fs.last_reviewed_sha()
+def review_range(root: str, fs: Findings, base: str, head: str, whole: bool = False,
+                 agent: str = "") -> Optional[str]:
+    """The range the next pass reads, or ``None`` when nothing is new (review.md § Scope): since the
+    last pass, or since ``agent``'s own last pass for a panel member. A last pass that is no longer an
+    ancestor of HEAD (the branch was rebased) restarts at the merge base."""
+    passes = [r for r in fs.passes if not agent or r[2] == agent]
+    last = None if whole or not passes else passes[-1][0]
     if last:
         full = resolve_sha(root, last)
         if full == head:
@@ -460,14 +535,18 @@ def review_range(root: str, fs: Findings, base: str, head: str, whole: bool = Fa
     return "%s..HEAD" % merge_base
 
 
-def changed_files(root: str, rng: Optional[str], globs: List[str]) -> Dict[str, List[str]]:
-    files: Dict[str, List[str]] = {"code": [], "tests": [], "documents": [], "other": []}
+KINDS = ("code", "tests", "documents", "other", "vendored")
+
+
+def changed_files(root: str, rng: Optional[str], globs: List[str], vendored: str = "") -> Dict[str, List[str]]:
+    """The range's paths by kind. The vendored gate is upstream code, kept apart so no reviewer reads it."""
+    files: Dict[str, List[str]] = {kind: [] for kind in KINDS}
     if not rng:
         return files
     for path in git(root, "diff", "--name-only", rng).splitlines():
         path = path.strip()
         if path:
-            files[kind_of(path, globs)].append(path)
+            files["vendored" if path == vendored else kind_of(path, globs)].append(path)
     return files
 
 
@@ -795,7 +874,9 @@ class Session:
             raise CliError("detached HEAD; pass --branch")
         self.forge = detect_forge(self.root)
         self.descriptor = read_descriptor(self.root)
+        self.data = descriptor_data(self.descriptor)
         self.globs = test_globs(self.descriptor)
+        self.vendored = str(_setting(self.data, "check", "script") or "scripts/sdd-check.py")
         self._pr_number = args.pr
         self._pr: Optional[dict] = None
         self.dry_run = getattr(args, "dry_run", False)
@@ -933,15 +1014,36 @@ def state_problem(session: Session, pr: dict) -> Tuple[str, str]:
 def cmd_scope(session: Session, args) -> int:
     if args.pr is not None and session.forge.name != "none":
         session.pr()
-    rng = review_range(session.root, session.fs, session.base(), session.head, whole=args.all)
-    files = changed_files(session.root, rng, session.globs)
-    if args.json:
-        print(json.dumps({"range": rng, "base": session.base(), "head": session.head, "files": files}, indent=2))
+    if args.base:
+        # A stacked branch names its parent once; the file keeps it for every later pass.
+        if not resolve_sha(session.root, args.base) and not resolve_sha(session.root, "origin/" + args.base):
+            raise CliError("scope: --base %s is not a branch or commit here" % args.base)
+        session.fs.base = args.base
+        session.save()
+    rng = review_range(session.root, session.fs, session.base(), session.head, whole=args.all, agent=args.agent or "")
+    files = changed_files(session.root, rng, session.globs, session.vendored)
+    reviewers, unassigned = reviewers_for(session.data, files)
+    if args.diff:
+        paths = files.get(args.diff) if args.diff in KINDS else reviewers.get(args.diff)
+        if paths is None:
+            raise CliError("scope: --diff takes a kind (%s) or a reviewer scope names, not %s"
+                           % (", ".join(KINDS), args.diff))
+        if rng and paths:
+            sys.stdout.write(git(session.root, "diff", "--no-ext-diff", rng, "--", *paths))
         return 0
+    if args.json:
+        print(json.dumps({"range": rng, "base": session.base(), "head": session.head, "files": files,
+                          "reviewers": reviewers, "unassigned": unassigned}, indent=2))
+        return 0
+    print("base: %s" % session.base())
     print("range: %s" % (rng or "empty"))
-    for kind in ("code", "tests", "documents", "other"):
+    for kind in KINDS:
         if files[kind]:
             print("%s: %s" % (kind, " ".join(files[kind])))
+    for name, paths in reviewers.items():
+        print("reviewer %s: %s" % (name, " ".join(paths)))
+    if unassigned:
+        print("no reviewer: %s" % " ".join(unassigned))
     return 0
 
 
@@ -960,7 +1062,7 @@ def cmd_status(session: Session, args) -> int:
             unreachable = str(exc).splitlines()[0]
     last = fs.last_reviewed_sha()
     rng = review_range(session.root, fs, session.base(), session.head)
-    files = changed_files(session.root, rng, session.globs)
+    files = changed_files(session.root, rng, session.globs, session.vendored)
     code_changed = bool(files["code"] or files["tests"] or files["other"])
     changed = code_changed or bool(files["documents"])
     since = "code changed" if code_changed else "documents changed" if changed else "no change"
@@ -1348,6 +1450,9 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "scope":
             cmd.add_argument("--json", action="store_true")
             cmd.add_argument("--all", action="store_true", help="the whole branch, not the range since the last pass")
+            cmd.add_argument("--base", help="the branch this one starts from (a stacked branch's parent); kept in the file")
+            cmd.add_argument("--agent", help="the range since this agent's own last pass")
+            cmd.add_argument("--diff", metavar="KIND|REVIEWER", help="print the range's hunks for one kind or reviewer")
         if name == "post":
             cmd.add_argument("--dry-run", action="store_true")
         if name == "status":

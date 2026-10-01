@@ -2755,6 +2755,8 @@ class Finding:
     level: str
     anchor: str
     message: str
+    #: On a line changed since the ref given to ``check --changed-since``.
+    new: bool = False
 
 
 class Report:
@@ -2772,6 +2774,9 @@ class Report:
         self.record_count = 0
         self.profile = "formal"
         self.fatal_message: Optional[str] = None
+        #: The ref of ``--changed-since``, and whether only the findings new since it are printed.
+        self.since: Optional[str] = None
+        self.new_only = False
 
     @classmethod
     def fatal(cls, message: str) -> "Report":
@@ -2832,10 +2837,17 @@ class Report:
             % (__version__, root, self.profile, self.record_count)
         ]
         for finding in self._ordered():
+            if self.new_only and not finding.new:
+                continue
             lines.append(
-                "[%s] %s %s: %s" % (finding.family, finding.level, finding.anchor, finding.message)
+                "[%s] %s%s %s: %s"
+                % (finding.family, finding.level, " NEW" if finding.new else "", finding.anchor, finding.message)
             )
         errors, warnings = self.errors(), self.warnings()
+        since = ""
+        if self.since is not None:
+            fresh = len([f for f in self.findings if f.new and f.level in ("ERROR", "WARN")])
+            since = " (%d new since %s)" % (fresh, self.since)
         if not self.families_run:
             # Exit 2: nothing was verified, so the summary must never read as a pass.
             reasons: List[str] = []
@@ -2847,11 +2859,11 @@ class Report:
                 "sdd-check: FAILED — no family ran (%s)" % ("; ".join(reasons) or "none planned")
             )
         elif errors:
-            lines.append("sdd-check: FAILED — %d errors, %d warnings" % (errors, warnings))
+            lines.append("sdd-check: FAILED — %d errors, %d warnings%s" % (errors, warnings, since))
         else:
             lines.append(
-                "sdd-check: OK — %d checks, 0 errors, %d warnings"
-                % (len(self.families_run), warnings)
+                "sdd-check: OK — %d checks, 0 errors, %d warnings%s"
+                % (len(self.families_run), warnings, since)
             )
         skipped = [
             "%s (%s)" % (name, self.families_skipped[name])
@@ -2919,6 +2931,58 @@ def _load_records_or_report(desc: Descriptor, report: "Report") -> Tuple[List[Re
         )
         return [], False
     return records, True
+
+
+def _changed_since(root: Path, ref: str) -> Optional[Tuple[Dict[str, set], set]]:
+    """The lines each file changed since ``ref`` in the working tree, and the files added since; or
+    ``None`` when ``ref`` is not a commit git can find here."""
+
+    def run(*args) -> Optional[str]:
+        try:
+            proc = subprocess.run(["git", "-C", str(root)] + list(args), stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL, check=False)
+        except (OSError, ValueError):
+            return None
+        return proc.stdout.decode("utf-8", "replace") if proc.returncode == 0 else None
+
+    if not run("rev-parse", "--verify", "--quiet", ref + "^{commit}"):
+        return None
+    lines: Dict[str, set] = {}
+    added: set = set()
+    path, created = None, False
+    for raw in (run("diff", "-U0", "--no-ext-diff", "--no-color", ref, "--") or "").splitlines():
+        if raw.startswith("--- "):
+            created = raw[4:].strip() == "/dev/null"
+        elif raw.startswith("+++ "):
+            target = raw[4:].strip()
+            path = None if target == "/dev/null" else (target[2:] if target.startswith("b/") else target)
+            if path and created:
+                added.add(path)
+        else:
+            match = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", raw)
+            if match and path:
+                start, count = int(match.group(1)), int(match.group(2) or 1)
+                lines.setdefault(path, set()).update(range(start, start + count))
+    untracked = run("ls-files", "--others", "--exclude-standard", "-z") or ""
+    added.update(entry for entry in untracked.split("\0") if entry)
+    return lines, added
+
+
+def mark_new(report: "Report", root: Path, ref: str) -> bool:
+    """Mark each finding anchored on a line changed since ``ref``, or in a file added since; False when
+    ``ref`` cannot be read, which is a configuration failure."""
+    changed = _changed_since(root, ref)
+    if changed is None:
+        return False
+    lines, added = changed
+    report.since = ref
+    for finding in report.findings:
+        path, sep, line = finding.anchor.rpartition(":")
+        if sep and line.isdigit():
+            finding.new = path in added or int(line) in lines.get(path, ())
+        else:
+            finding.new = finding.anchor in added
+    return True
 
 
 def run_check(root: Path, only: Optional[List[str]], changelog_all: bool) -> Report:
@@ -4440,7 +4504,7 @@ COMMANDS = ("check", "generate", "context", "selftest")
 
 USAGE = """usage: sdd-check [check|generate|context|selftest] [options]
 
-  check [--root DIR] [--only fam[,fam]] [--changelog-all]
+  check [--root DIR] [--only fam[,fam]] [--changelog-all] [--changed-since REF [--new-only]]
   generate [--root DIR] [--verify]
   context <REQ> [--root DIR]
   selftest [--root DIR]
@@ -4478,6 +4542,8 @@ def main(argv=None) -> int:
     only: Optional[List[str]] = None
     changelog_all = False
     verify = False
+    since: Optional[str] = None
+    new_only = False
     positional: List[str] = []
     index = 0
     while index < len(rest):
@@ -4500,6 +4566,16 @@ def main(argv=None) -> int:
             only = [name.strip() for name in arg.split("=", 1)[1].split(",") if name.strip()]
         elif arg == "--changelog-all":
             changelog_all = True
+        elif arg == "--changed-since":
+            index += 1
+            if index >= len(rest):
+                print("sdd-check: --changed-since needs a ref")
+                return 2
+            since = rest[index]
+        elif arg.startswith("--changed-since="):
+            since = arg.split("=", 1)[1]
+        elif arg == "--new-only":
+            new_only = True
         elif arg == "--verify":
             verify = True
         elif arg.startswith("-"):
@@ -4517,6 +4593,12 @@ def main(argv=None) -> int:
         return 2
     if changelog_all and command != "check":
         print("sdd-check: --changelog-all applies to 'check' only, not '%s'" % command)
+        return 2
+    if (since is not None or new_only) and command != "check":
+        print("sdd-check: --changed-since and --new-only apply to 'check' only, not '%s'" % command)
+        return 2
+    if new_only and since is None:
+        print("sdd-check: --new-only needs --changed-since <ref>")
         return 2
     if only is not None:
         unknown = [name for name in only if name not in FAMILIES]
@@ -4540,6 +4622,10 @@ def main(argv=None) -> int:
         print("sdd-check: check takes no positional argument ('%s')" % positional[0])
         return 2
     report = run_check(root, only, changelog_all)
+    if since is not None and report.fatal_message is None:
+        if not mark_new(report, root, since):
+            report = Report.fatal("--changed-since: '%s' is not a commit git can find here" % since)
+        report.new_only = new_only
     print(report.render(root))
     return report.exit_code()
 
