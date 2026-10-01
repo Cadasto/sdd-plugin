@@ -85,6 +85,10 @@ def git_routes(branch="feat/x", head=HEAD, remote="git@github.com:o/r.git", name
         (git("symbolic-ref"), "origin/main\n"),
         (git("remote", "get-url", "origin"), remote + "\n"),
         (git("worktree", "list"), ""),
+        (git("for-each-ref"), ""),
+        (git("reflog"), "commit: work\nbranch: Created from HEAD\n"),
+        (git("status", "--porcelain"), ""),
+        (git("show"), sdd_pr.CliError("fatal: path not in that commit")),
         (git("diff", "--name-only"), names),
         (git("diff"), diff),
     ]
@@ -1345,6 +1349,105 @@ class TestScopeFlags(RepoCase):
         # An agent with no pass of its own starts at the merge base.
         _, out, _ = self.run_main("scope", "--agent", "codex")
         self.assertIn("range: %s..HEAD" % MB, out)
+
+
+
+class TestDelivery(RepoCase):
+    """Plans, a plugin older than the repository, worker branches and the delivery notes."""
+
+    def test_a_plan_is_listed_apart_and_no_reviewer_reads_it(self):
+        self.descriptor(forge="none", extra="  agents:\n    reviewers: [go-reviewer]\n")
+        plan = self.root / "docs" / "plans" / "x.md"
+        plan.parent.mkdir(parents=True)
+        plan.write_text("---\nkind: plan\n---\n\n# Plan\n", encoding="utf-8")
+        (self.root / "docs" / "guide.md").write_text("# Guide\n", encoding="utf-8")
+        self.use(git_routes(names="docs/plans/x.md\ndocs/guide.md\na.go\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("plans: docs/plans/x.md\n", out)
+        self.assertIn("documents: docs/guide.md\n", out)
+        self.assertIn("reviewer go-reviewer: a.go\n", out)
+        # A plan alone is no change to review.
+        self.findings(FILE_CLEAN)
+        self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="docs/plans/x.md\n"))
+        _, out, _ = self.run_main("status")
+        self.assertIn("(no change since)", out)
+
+    def test_a_plugin_older_than_the_repository_writes_nothing(self):
+        self.descriptor(forge="none", extra="  check:\n    version: \"99.0.0\"\n")
+        self.use(git_routes())
+        code, _, err = self.run_main("add", "suggestion", "a.go:1", "x", "--by", "claude")
+        self.assertEqual(2, code)
+        self.assertIn("older than this repository (99.0.0)", err)
+        self.assertTrue(self.nothing_written())
+        code, out, _ = self.run_main("status")
+        self.assertEqual(0, code)
+        self.assertIn("older than this repository (99.0.0)", out)
+        # can-fail control: a repository at the plugin's own version is written.
+        self.descriptor(forge="none", extra="  check:\n    version: \"%s\"\n" % sdd_pr.__version__)
+        self.assertEqual(0, self.run_main("add", "suggestion", "a.go:1", "x", "--by", "claude")[0])
+
+    def test_versions_compare_number_by_number(self):
+        self.assertTrue(sdd_pr.version_lt("0.8.9", "0.8.10"))
+        self.assertFalse(sdd_pr.version_lt("0.8.10", "0.8.9"))
+        self.assertTrue(sdd_pr.version_lt("0.8", "0.8.1"))
+        self.assertFalse(sdd_pr.version_lt("0.8.1", "0.8.1"))
+
+    def test_worker_branches_not_integrated_block_and_merged_ones_are_named_for_removal(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN.replace("- a.go:9 · rename `n` to `count` · by: claude\n", ""))
+        workers = (git("for-each-ref"), "feat/x--parser\nfeat/x--docs\n")
+        merged = (lambda a: git("merge-base", "--is-ancestor")(a) and "feat/x--docs" in a, sdd_pr.CliError("no"))
+        reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), lambda argv, _: HEAD + "\n")
+        self.use([workers, merged, reviewed_at_head] + git_routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("workers: feat/x--docs not integrated · feat/x--parser merged", out)
+        self.assertIn("Mergeable: no — worker branch feat/x--docs not integrated", out)
+        self.assertIn("Next: integrate feat/x--docs (/sdd-deliver step 7)", out)
+        self.use([(git("for-each-ref"), "feat/x--parser\n"), reviewed_at_head] + git_routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("Mergeable: yes", out)
+        self.assertIn("Next: remove the merged worker branches and their worktrees: feat/x--parser", out)
+
+    def test_a_worker_with_no_commit_yet_or_work_in_its_tree_is_running_not_merged(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN.replace("- a.go:9 · rename `n` to `count` · by: claude\n", ""))
+        workers = (git("for-each-ref"), "feat/x--t3\n")
+        fresh = (git("reflog"), "branch: Created from feat/x\n")
+        self.use([workers, fresh] + git_routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("workers: feat/x--t3 running (no commit yet)", out)
+        self.assertIn("Mergeable: no — worker branch feat/x--t3 not integrated", out)
+        listing = "worktree %s\nHEAD %s\nbranch refs/heads/feat/x\n\nworktree /wt/t3\nHEAD %s\nbranch refs/heads/feat/x--t3\n" % (self.root, HEAD, HEAD)
+        dirty = (lambda a: git("status", "--porcelain")(a) and "/wt/t3" in a, " M a.go\n")
+        self.use([workers, dirty, (git("worktree", "list"), listing)] + git_routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("workers: feat/x--t3 running (uncommitted work in /wt/t3)", out)
+
+    def test_a_plan_deleted_in_the_range_is_still_a_plan(self):
+        self.descriptor(forge="none")
+        shown = (git("show"), "---\nkind: plan\n---\n\n# Plan\n")
+        self.use([shown] + git_routes(names="docs/plans/gone.md\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("plans: docs/plans/gone.md\n", out)
+
+    def test_a_merged_pull_request_names_the_delivery_notes_too(self):
+        self.descriptor(forge="none")
+        notes = self.root / ".git" / "sdd" / "deliver" / "feat--x.md"
+        notes.parent.mkdir(parents=True)
+        notes.write_text("Lane: full\n", encoding="utf-8")
+        self.assertIn(str(notes), sdd_pr.cleanup_line(str(self.store()), str(notes)))
+        self.assertNotIn("notes", sdd_pr.cleanup_line(str(self.store()), str(self.root / "absent.md")))
+
+    def test_status_names_the_delivery_notes_when_they_exist(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        _, out, _ = self.run_main("status")
+        self.assertNotIn("notes:", out)
+        notes = self.root / ".git" / "sdd" / "deliver" / "feat--x.md"
+        notes.parent.mkdir(parents=True)
+        notes.write_text("Lane: full\n", encoding="utf-8")
+        _, out, _ = self.run_main("status")
+        self.assertIn("notes: %s" % notes, out)
 
 
 

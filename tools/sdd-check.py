@@ -1307,6 +1307,8 @@ class Context:
         #: Why a file could not be read or decoded, keyed like ``_texts``.
         self.read_problems: Dict[str, str] = {}
         self._docs_files: Optional[List[Path]] = None
+        #: The documents marked `kind: plan` that no family reads.
+        self.skipped_plans: List[Path] = []
         self._git_ok: Optional[bool] = None
         self._ignored: Optional[List[str]] = None
 
@@ -1349,10 +1351,11 @@ class Context:
         return self.read_problems.get(str(self.abs(path)))
 
     def docs_files(self) -> List[Path]:
-        """Every markdown document under the docs roots, less what git ignores.
+        """Every markdown document under the docs roots, less what git ignores and less plans.
 
-        A git-ignored file (a working plan, a scratch note) is not part of the repository, so
-        no family reads it. Without git every file is read: the gate would rather read too
+        A git-ignored file (a working plan, a scratch note) is not part of the repository, and a
+        document marked `kind: plan` is a working file that happens to be committed, so no family
+        reads either. Without git every file is read: the gate would rather read too
         much than quietly miss a document.
         """
         if self._docs_files is None:
@@ -1381,11 +1384,25 @@ class Context:
             seen = set()
             unique = []
             for path in found:
-                if str(path) not in seen:
-                    seen.add(str(path))
-                    unique.append(path)
+                if str(path) in seen:
+                    continue
+                seen.add(str(path))
+                # A plan is a temporary working file, committed or not: no family reads it, unless it
+                # sits where requirements, specifications or ADRs live, which doc-kinds refuses.
+                if doc_kind(self, path) == "plan" and not self.in_normative_folder(path):
+                    self.skipped_plans.append(path)
+                    continue
+                unique.append(path)
             self._docs_files = unique
         return self._docs_files
+
+    def in_normative_folder(self, path) -> bool:
+        path = Path(path)
+        for key in ("requirements", "specifications", "adr"):
+            where = self.desc.resolve(_as_str(self.desc.paths.get(key, DEFAULT_PATHS.get(key, ""))))
+            if path == where or where in path.parents:
+                return True
+        return False
 
     def ignored(self, path) -> bool:
         """Whether git ignores ``path`` and does not track it: a file no clean checkout has."""
@@ -2180,6 +2197,10 @@ def check_doc_kinds(ctx: Context, report: "Report") -> None:
         if not kind:
             report.add("doc-kinds", level, anchor, "the frontmatter declares no kind")
             continue
+        if kind == "plan":
+            report.add("doc-kinds", "ERROR", anchor, "a plan does not belong where requirements, specifications "
+                       "or ADRs live; move it out, or give the document its own kind")
+            continue
         if kind not in desc.doc_kinds:
             report.add(
                 "doc-kinds", level, anchor, "kind '%s' is not declared in doc_kinds" % kind
@@ -2535,6 +2556,10 @@ def check_links(ctx: Context, report: "Report") -> None:
                         "the target is git-ignored, so no clean checkout has it: %s" % rel_part,
                     )
                     continue
+                if (resolved.suffix == ".md" and doc_kind(ctx, resolved) == "plan"
+                        and effective_kind(ctx, path) in NORMATIVE_KINDS + ("constitution",)):
+                    report.add("links", level, where, "a durable document cites a plan, which is temporary: %s" % rel_part)
+                    continue
                 if not fragment or resolved.suffix != ".md":
                     continue
                 text = ctx.read(resolved)
@@ -2780,6 +2805,7 @@ class Report:
         #: The ref of ``--changed-since``, and whether only the findings new since it are printed.
         self.since: Optional[str] = None
         self.new_only = False
+        self.plans_skipped = 0
 
     @classmethod
     def fatal(cls, message: str) -> "Report":
@@ -2881,6 +2907,8 @@ class Report:
             waived = self.waived.get(family)
             if waived:
                 lines.append("waived: %s (%d files)" % (family, len(waived)))
+        if self.plans_skipped:
+            lines.append("plans: %d left alone (kind: plan)" % self.plans_skipped)
         if self.link_exclusions:
             lines.append("link exclusions: %s" % ", ".join(self.link_exclusions))
         return "\n".join(lines)
@@ -3033,6 +3061,7 @@ def run_check(root: Path, only: Optional[List[str]], changelog_all: bool) -> Rep
         # The map failure is a map-schema finding whatever the configuration says, so the
         # summary has to show map-schema as a family that ran.
         report.mark_run("map-schema")
+    report.plans_skipped = len(ctx.skipped_plans)
     return report
 
 

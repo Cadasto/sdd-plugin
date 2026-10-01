@@ -60,7 +60,8 @@ The single most important rule: **every document has exactly one job and one alt
 | **Upstream** | What another repository owes this one (a cross-repo ask) | No — its own state lifecycle | `docs/<upstream>-gap-drafts/` |
 | **Constitution** (informative profile) | What must every change respect? | **Yes** — its MUST sentences, and only those (§1a) | `paths.constitution`, default `docs/architecture.md` |
 
-A plan is not a document kind; it is a working file outside `docs/`, never committed (§9).
+A plan is a temporary working file, committed or not, which the maintainer clears away once it has
+served; marked `kind: plan`, the gate and the reviewers leave it alone (§9).
 
 ### The three zones
 
@@ -215,8 +216,8 @@ fixed once for every repository.
 
 ## 9. Delivery — the dispatch preconditions and the close-out
 
-How the orchestrator plans is not this methodology's business; a plan is a working file outside `docs/`,
-git-ignored. It introduces **no normative statement** — a rule goes in a specification first.
+How the orchestrator plans is not this methodology's business; a plan is a temporary working file, committed
+or not. It introduces **no normative statement** — a rule goes in a specification first.
 
 ### Dispatch preconditions
 
@@ -241,7 +242,7 @@ with its `traceability.yaml` packages/tests/probes, runs `sdd-check generate`, a
 contract.
 
 **Durable documents never cite a plan or a session.** A requirement, specification or ADR cites the PR,
-the commit or the `REQ` — never a plan, which is not in the repository.
+the commit or the `REQ` — never a plan, which is temporary even when it is committed.
 
 ### Postponed and abandoned work
 
@@ -348,7 +349,7 @@ The review-enforced list is meant to shrink.
 | RFC-2119 only in specifications | `rfc2119` |
 | Doc kinds and status vocabularies | `doc-kinds` |
 | Links and fragments resolve | `links` |
-| Durable documents never cite a plan | review-enforced — `sdd-doc-reviewer` |
+| Durable documents never cite a plan | `links` for a link; `sdd-doc-reviewer` for prose |
 | Changelog bullet | `changelog` |
 | Generated blocks match | `generated` |
 | Unknown identifier cited in code | `tree-to-map` |

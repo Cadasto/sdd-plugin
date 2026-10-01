@@ -114,7 +114,7 @@ Full contract: [references/sdd-check.md](references/sdd-check.md).
 
 ### Hooks
 
-- **SessionStart:** detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a context line, the available `/sdd-*` surface, and a short orientation: the profile, the plugin version (Claude Code), branch and tree state, the branch's open findings, and the drift gate's verdict when it is vendored.
+- **SessionStart:** detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a context line, the available `/sdd-*` surface, and a short orientation: the profile, the plugin version and any mismatch with the vendored gate, branch and tree state, the branch's open findings, and the drift gate's verdict when it is vendored.
 - **PostToolUse** *(Claude Code)*: after an edit to a requirement, spec, ADR, or the traceability map, reminds you to keep the traceability chain in sync: `/sdd-trace` to check it, `/sdd-specify`, `/sdd-deliver --close-out`, or the vendored `generate` command to regenerate; on the informative profile only a constitution edit prints one. Cursor's `afterFileEdit` event has no output channel, so there is no reminder on Cursor ([install notes](docs/install.md#cursor)).
 - **Stop** *(Claude Code)* / **stop** *(Cursor)*: a one-shot nudge when the session made no commit and leaves uncommitted changes in an SDD repository; the second stop in the same session passes silently. Opt out per repo with `hooks.stop_nudge: false` in `docs/.sdd.yaml`.
 

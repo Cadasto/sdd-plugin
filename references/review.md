@@ -61,8 +61,8 @@ rest" is one answer. Unsure between important and suggestion: write suggestion.
 ## Scope
 
 A pass reads the commits since the last `Reviewed` line, or `merge-base(base, HEAD)..HEAD` the first
-time; `sdd-pr scope` prints the range, its paths as code, tests, documents, other and the vendored gate
-(which no one reviews unless it was patched here), and the reviewer each code path goes to. A stacked branch names its parent once
+time; `sdd-pr scope` prints the range, its paths as code, tests, documents, plans and other and the vendored gate
+(which no one reviews; the gate is reviewed only when it was patched here), and the reviewer each code path goes to. A stacked branch names its parent once
 with `--base`; a local base that is only behind its remote counts from the remote; a panel member reads
 from its own last pass with `--agent`. A critical or
 important finding is about a line in that range, or text an earlier fix on this branch wrote; anything
@@ -127,7 +127,7 @@ and `resolve` need `gh` signed in (GitHub) or `az` with the `azure-devops` exten
 DevOps). `--pr` defaults to the branch's open pull request. `--pr` must
 name a pull request whose branch, or head, this checkout holds, and `--branch` the checkout itself;
 otherwise the command stops and names the worktree to run from. `Base:` follows a retargeted pull
-request.
+request. A plugin older than the repository's `check.version` refuses every write, and `status` says so.
 
 - `status [--pr N] [--write-body]` — the file's path, the open counts, and each open line and suggestion
   with a `#key` computed from what it says, which no other line's flip moves;

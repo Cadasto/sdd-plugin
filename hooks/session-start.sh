@@ -23,6 +23,10 @@
 # HEAD as it found it and clears any nudge left by an earlier session.
 set -u
 
+# The plugin this script belongs to, read before any change of directory, so every host, Cursor
+# included, can name the version it loaded.
+HERE="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)"
+
 # Resolve the shared state directory without tripping `set -u` on an unset $HOME: prefer
 # CLAUDE_PLUGIN_DATA, then XDG_STATE_HOME, then $HOME/.local/state, then a per-user temp fallback so a
 # minimal or stripped environment still gets working state (and therefore the nudge) rather than a
@@ -101,6 +105,14 @@ workspace_root() {
     | head -n1 | sed -E 's/^.*\[[[:space:]]*"//; s/"$//' | sed 's#\\/#/#g; s#\\\\#\\#g'
 }
 
+# Whether dotted version $1 is below $2, compared number by number (0.8.10 > 0.8.9); portable awk, no sort -V.
+version_lt() {
+  awk -v a="$1" -v b="$2" 'BEGIN {
+    n = split(a, x, "."); m = split(b, y, "."); k = (n > m) ? n : m
+    for (i = 1; i <= k; i++) { if ((x[i] + 0) < (y[i] + 0)) exit 0; if ((x[i] + 0) > (y[i] + 0)) exit 1 }
+    exit 1 }'
+}
+
 is_sdd_repo() {
   [ -f docs/.sdd.yaml ] && return 0
   [ -d docs/specifications ] && return 0
@@ -159,10 +171,26 @@ if is_sdd_repo; then
   case "$profile" in ''|full|lightweight) profile=formal ;; esac
   add "› Spec-Driven Development repo detected (profile $profile) — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR, or a knowledge-base page) · /sdd-deliver (workers → review → draft PR → close-out) · /sdd-review (review pass into the findings file) · /sdd-triage (work the open findings) · /sdd-trace (traceability, --audit) · /sdd-scaffold. Run /sdd-trace + the build's spec-check before claiming done."
 
-  # 0. The plugin version, when the host says where the plugin lives (Claude Code only; Cursor sets no such variable).
-  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -r "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" ]; then
-    ver="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json" | head -n1)"
-    [ -n "$ver" ] && add "› sdd plugin $ver"
+  # 0. The plugin version, from the manifest beside this script (or the host's plugin root), and how it
+  # compares with the version this repository vendored its gate at: an older gate wants an upgrade, an
+  # older plugin would write an older format into a newer repository.
+  ver=""
+  for manifest in "${CLAUDE_PLUGIN_ROOT:-}/.claude-plugin/plugin.json" "$HERE/.claude-plugin/plugin.json" "$HERE/.cursor-plugin/plugin.json"; do
+    if [ -r "$manifest" ]; then
+      ver="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" | head -n1)"
+      [ -n "$ver" ] && break
+    fi
+  done
+  if [ -n "$ver" ]; then
+    add "› sdd plugin $ver"
+    pinned="$(desc_get check version)"
+    if [ -n "$pinned" ] && [ "$pinned" != "$ver" ]; then
+      if version_lt "$pinned" "$ver"; then
+        add "› the vendored gate is $pinned, older than the plugin $ver — run /sdd-scaffold --upgrade"
+      elif version_lt "$ver" "$pinned"; then
+        add "› sdd plugin $ver is older than this repository ($pinned) — update the plugin before running the /sdd-* skills"
+      fi
+    fi
   fi
 
   # 1. Branch and working-tree state.

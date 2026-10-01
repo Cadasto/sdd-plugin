@@ -39,12 +39,12 @@ The **specification — not the code, not the prompt — is the source of truth.
 
 ## Optional: a general engineering plugin
 
-A general engineering plugin such as superpowers is **optional**. Its exploration workflows (brainstorming) are a good way to open an idea before `/sdd-specify`. Planning, execution, verification, review and branch finishing are covered here — `/sdd-deliver`, `sdd-implementer`, the findings file, the close-out — and running both over the same work duplicates the loop. How the orchestrator plans is its own business: a plan is a git-ignored working file outside `docs/`.
+A general engineering plugin such as superpowers is **optional**. Its exploration workflows (brainstorming) are a good way to open an idea before `/sdd-specify`. Planning, execution, verification, review and branch finishing are covered here — `/sdd-deliver`, `sdd-implementer`, the findings file, the close-out — and running both over the same work duplicates the loop. How the orchestrator plans is its own business: a plan is a temporary working file, committed or not, and marked `kind: plan` nothing reviews or cites it.
 
 ## Guardrails this layer enforces
 
 - **No code-first (formal profile).** When asked to implement behaviour that no `REQ` and no spec covers, do not jump to code: explore if the idea is new, record it with `sdd-specify`, deliver with `sdd-deliver`. The exception is *implementation-aligned* work on shipped code, whose spec is updated in the **same** change. On the informative profile, route the change to `sdd-deliver`: a clear task and a known verification command are enough.
-- **One source of truth.** The canonical spec lives in `paths.specifications` (default `docs/specifications/`); a plan is never committed and never a source of truth, and no second tree of design documents may become one.
+- **One source of truth.** The canonical spec lives in `paths.specifications` (default `docs/specifications/`); a plan is never a source of truth, and no second tree of design documents may become one.
 - **One home per fact, in process prose too** — commit body, PR body, changelog and review threads each carry only what lives nowhere else and cite identifiers (`REQ`/`SPEC §`/SHA) instead of restating (`references/artefact-prose.md`).
 - **Never settle an open question silently** — an ADR (`sdd-specify`), a `STRAND`, or back to brainstorming.
 - **Check the descriptor.** No `docs/.sdd.yaml` means the repo isn't scaffolded: route to `sdd-scaffold`.

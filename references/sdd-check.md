@@ -102,8 +102,10 @@ link exclusions: …
 
 Twelve families. Each one has a default severity, which a repository overrides per family in
 `check.families` (`error` · `warn` · `off`). A family that is `off`, or that is left out by `--only`, is
-skipped and named in the summary. No family reads a git-ignored file, so a working plan or a scratch note
-is never a document ([sdd-methodology.md](sdd-methodology.md) §9). Section numbers below are
+skipped and named in the summary. No family reads a git-ignored file or a document marked `kind: plan`, so a
+plan or a scratch note is never a document: the report counts the plans it left alone
+(`plans: <n> left alone`), `doc-kinds` refuses a plan where requirements, specifications or ADRs live,
+and `links` fails a durable document that links to one ([sdd-methodology.md](sdd-methodology.md) §3, §9). Section numbers below are
 [sdd-methodology.md](sdd-methodology.md).
 
 **Profiles.** `profile: formal` runs every family. `profile: informative` (§1a) runs `descriptor`,

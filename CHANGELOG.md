@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Templates: `task-review.md`, the per-task review `/sdd-deliver` hands each reviewer: the brief, the task's diff, the scope test, mutations in a fresh copy only, findings returned inline.
+- Tools: `sdd-pr status` lists the delivery's worker branches, `<branch>--<task>`, counting one not integrated or still running (no commit yet, or work in its worktree) against `Mergeable` and naming merged ones for removal; it prints the delivery notes' path and names them for deletion once the pull request merged.
+- Hooks: `session-start.sh` reads the plugin version beside itself on every host and says when the vendored gate is older than the plugin, or the plugin older than the repository.
 - Tools: `sdd-pr scope --base <parent>` names a stacked branch's base once and keeps it in the file; `--agent <name>` reads the range since that agent's own last pass, so each panel member reviews the same commits; `--diff <kind|reviewer>` prints the range's hunks, so no brief carries a diff built by hand.
 - Tools: `sdd-check check --changed-since <ref>` marks with `NEW` each finding the gate did not report at the merge base of `<ref>` and HEAD, and counts them in the summary; `--new-only` prints just those.
 - References: `agents.reviewers` also takes a block map of path patterns to reviewers; `sdd-pr scope` lists each reviewer's paths and the paths no pattern covers.
@@ -14,6 +17,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: each posted thread carries its finding's `By:` line, and `pull` reads it back instead of crediting the account that posted it.
 
 ### Changed
+- Tools: a document marked `kind: plan` is a temporary working file: `sdd-check` reads it in no family and counts it, refuses one where requirements, specifications or ADRs live, and fails a durable document that links to one; `sdd-pr scope` lists it as `plans`, for no reviewer, even when the range deleted it.
+- Tools: `sdd-pr` refuses every write while the plugin is older than the repository's `check.version`.
+- Skills: `sdd-deliver` keeps its lane, gate result and tasks in a notes file in the clone's git directory, names worker branches `<branch>--<task>`, integrates them after a trial merge with one regeneration, removes their worktrees and branches, holds the spec still during a wave, quotes a given plan's tasks verbatim, and resumes from the notes before a pull request exists.
+- Templates: `brief.md` gains `Branch`, `Commit` and rules for the worktree, the generator, a committed can-fail control and an inline report; the PR body's changelog line follows the repository's own policy.
+- References: methodology §3 and §9 state the plan model: temporary, committed or not, never cited by a durable document.
+- Skills: `sdd-scaffold --upgrade` merges template changes into tuned process documents section by section, finds an existing pull-request template in any case, writes `/.sdd/`, and offers `kind: plan` to committed plans.
+- Docs: `docs/install.md` says how to read the loaded version on Cursor and what to update.
 - Tools: `sdd-pr` counts a range from `origin/<base>` when the local base is only behind it, and lists the vendored gate as `vendored`, apart from the code to review.
 - Skills: `sdd-review` runs `scope` before it reads any reference, dispatches the reviewers and paths `scope` names with the hunks `scope --diff` prints, and reads the gate's new findings with `--changed-since`; every skill names the plugin root as the folder that holds its `skills/` folder, which works on Cursor too.
 - Tools: the findings file lives in the clone's shared git directory, `<git-common-dir>/sdd/findings/<branch-slug>.md`, which every worktree sees and no worktree removal deletes; a file left at `.sdd/findings/` in any worktree moves there on first use, `status` prints the path, and commands take turns on it through a lock.

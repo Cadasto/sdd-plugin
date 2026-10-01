@@ -13,7 +13,7 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
 
 ## Steps
 
-0. **Resolve the plugin root.** Templates live at `<plugin-root>/references/templates/` and the gate at `<plugin-root>/tools/sdd-check.py`, never in the consumer repo. Use `${CLAUDE_PLUGIN_ROOT}` (or a Cursor plugin-root variable, if the host has one); otherwise Glob for the installed `references/templates/sdd.yaml` outside the workspace.
+0. **Resolve the plugin root.** Templates live at `<plugin-root>/references/templates/` and the gate at `<plugin-root>/tools/sdd-check.py`, never in the consumer repo. The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code).
 1. **Detect, then route** — the first match wins. Glob for `docs/.sdd.yaml`, `docs/requirements/`, `docs/specifications/`, `AGENTS.md`, and Grep the descriptor for `^\s*check:`.
    - **No descriptor** → a fresh run of steps 2–6, even with `--upgrade` (say so: there is nothing to top up).
    - **`--upgrade` given** → **`--upgrade`** below instead of steps 2–6.
@@ -37,7 +37,7 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
      specifications/ (README.md, traceability.yaml)
      adr/            (README.md)
    ```
-   From the templates directory: `sdd.yaml` → `docs/.sdd.yaml`; `requirement.md`, `specification.md` and `adr.md` → a `_template.md` in each kind's folder; the starter `traceability.yaml`; the three index READMEs (`requirements-README.md`, `specifications-README.md`, `adr-README.md`); `development-process.md`, `ai-workflow.md`, `ci.md`. Write the block of `development-process.md` § The PR body to `.github/PULL_REQUEST_TEMPLATE.md` when absent.
+   From the templates directory: `sdd.yaml` → `docs/.sdd.yaml`; `requirement.md`, `specification.md` and `adr.md` → a `_template.md` in each kind's folder; the starter `traceability.yaml`; the three index READMEs (`requirements-README.md`, `specifications-README.md`, `adr-README.md`); `development-process.md`, `ai-workflow.md`, `ci.md`. Write the block of `development-process.md` § The PR body to `.github/PULL_REQUEST_TEMPLATE.md` when no pull-request template exists in any case under `.github/`, `docs/`, the root, `.azuredevops/` or `.vsts/`.
 
    **Informative:** write `docs/architecture.md` from `constitution.md` when absent; no `requirements/` directory and no traceability map; the descriptor carries `profile: informative`, `paths.constitution` and `forge: auto`. On both profiles emit no plan template, no `docs/plans/`, no `docs/.sdd/`.
 
@@ -54,13 +54,13 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
 
 ## `--upgrade` — top up an existing repository
 
-Follow `references/scaffold-upgrade.md` in order: add missing descriptor keys → re-vendor and pin → the starter changelog and the `.sdd/` ignore line → propose the 0.8.0 changes → missing `kind:` frontmatter → missing generated markers → wire the build target → regenerate → report. Apart from the 0.8.0 changes the maintainer confirms, never touch an existing key or a document body with content; add only what is missing and report exactly what changed.
+Follow `references/scaffold-upgrade.md` in order: add missing descriptor keys → re-vendor and pin → the starter changelog and the `/.sdd/` ignore line → propose the version's changes → merge the process documents and offer `kind: plan` → missing `kind:` frontmatter → missing generated markers → wire the build target → regenerate → report. Apart from the 0.8.0 changes the maintainer confirms, never touch an existing key or a document body with content; add only what is missing and report exactly what changed.
 
 ## Guardrails
 
 - **Idempotent and non-destructive.** Never overwrite a file with content. Fill gaps; report skips.
 - **Adopt incrementally.** `requirements/`, `specifications/`, `adr/` and `AGENTS.md` are enough to start — on informative, `docs/architecture.md` alone. Don't force `analysis/` or `operations/`.
-- **Respect the taxonomy.** No scaffolding directory that fights the document kinds; nothing under `docs/` is a plan.
+- **Respect the taxonomy.** No scaffolding directory that fights the document kinds; a committed plan carries `kind: plan`.
 - **The descriptor is the contract** every other skill reads; get it right here.
 - **A repository that ships its own gate keeps it until `sdd-check` covers what it checks; run both meanwhile.**
 

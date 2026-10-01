@@ -127,7 +127,7 @@ Lane: <full | maintenance — no normative change>     <!-- formal profile only 
 ## Checklist
 - [ ] Scoped to one logical change
 - [ ] The full gate passes locally and its output was read
-- [ ] CHANGELOG entry under Unreleased, when the change is user-visible
+- [ ] CHANGELOG updated as this repository's policy says (per pull request, or at release)
 - [ ] Traceability and documents updated for what landed
 - [ ] Conventional Commits, citing the identifiers the change touches
 ```
