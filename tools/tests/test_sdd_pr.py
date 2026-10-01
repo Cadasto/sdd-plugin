@@ -337,11 +337,20 @@ class TestScope(RepoCase):
         self.assertIn("documents: docs/x.md", out)
         self.assertIn("other: Makefile", out)
 
-    def test_scope_after_a_pass_starts_at_the_reviewed_sha(self):
+    def test_scope_reads_the_whole_branch_even_after_a_pass(self):
+        # A second reviewer gives a second opinion on all of it, not on what came after the first.
         self.descriptor(forge="none")
         self.findings(FILE_OPEN_IMPORTANT.replace(HEAD[:7], "9c1e2ab", 1))
         self.use(git_routes(names="a.go\n"))
         code, out, _ = self.run_main("scope", "--json")
+        self.assertEqual(0, code)
+        self.assertEqual("%s..HEAD" % MB, json.loads(out)["range"])
+
+    def test_since_last_starts_at_the_reviewed_sha(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OPEN_IMPORTANT.replace(HEAD[:7], "9c1e2ab", 1))
+        self.use(git_routes(names="a.go\n"))
+        code, out, _ = self.run_main("scope", "--since-last", "--json")
         self.assertEqual(0, code)
         data = json.loads(out)
         self.assertEqual("9c1e2ab..HEAD", data["range"])
@@ -369,7 +378,7 @@ class TestScope(RepoCase):
         routes = git_routes(names="a.go\n")
         routes.insert(0, (git("merge-base", "--is-ancestor"), sdd_pr.CliError("not an ancestor")))
         self.use(routes)
-        code, out, _ = self.run_main("scope")
+        code, out, _ = self.run_main("scope", "--since-last")
         self.assertEqual(0, code)
         self.assertIn("range: %s..HEAD" % MB, out)
 
@@ -382,7 +391,7 @@ class TestScope(RepoCase):
         resolve = (git("rev-parse", "--verify", "--quiet"),
                    lambda argv, _: {HEAD[:7]: HEAD}.get(argv[-1].split("^")[0], argv[-1].split("^")[0]) + "\n")
         self.use([resolve] + git_routes(names="docs/x.md\n"))
-        code, out, err = self.run_main("scope")
+        code, out, err = self.run_main("scope", "--since-last")
         self.assertEqual(0, code, err)
         self.assertIn("range: ccccccc..HEAD", out)
         _, out, _ = self.run_main("status")
@@ -395,9 +404,12 @@ class TestScope(RepoCase):
         routes = git_routes()
         routes.insert(0, (git("rev-parse", "--verify", "--quiet"), HEAD + "\n"))
         self.use(routes)
-        code, out, _ = self.run_main("scope")
+        code, out, _ = self.run_main("scope", "--since-last")
         self.assertEqual(0, code)
         self.assertIn("range: empty", out)
+        # can-fail control: a second opinion at the same commit still reads the whole branch.
+        _, out, _ = self.run_main("scope")
+        self.assertIn("range: %s..HEAD" % MB, out)
 
 
 class TestStatus(RepoCase):
@@ -609,6 +621,14 @@ class TestStatus(RepoCase):
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "FAILURE"}]))
         _, out, _ = self.run_main("status")
         self.assertIn("Mergeable: no — checks failing", out)
+
+    def test_status_measures_change_from_the_last_pass_not_the_branch(self):
+        # scope reads the whole branch by default; status still says what came after the last pass.
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes(names="a.go\n"))
+        _, out, _ = self.run_main("status")
+        self.assertIn("(no change since)", out)
 
     def test_status_counts_a_build_or_ci_change_as_a_change_to_review(self):
         self.descriptor(forge="none")
@@ -1294,7 +1314,7 @@ class TestScopeFlags(RepoCase):
         resolve = (git("rev-parse", "--verify", "--quiet"),
                    lambda argv, _: {HEAD[:7]: HEAD}.get(argv[-1].split("^")[0], argv[-1].split("^")[0]) + "\n")
         self.use([resolve] + git_routes(names="a.go\n"))
-        _, out, _ = self.run_main("scope", "--agent", "cursor:composer")
+        _, out, _ = self.run_main("scope", "--since-last", "--agent", "cursor:composer")
         self.assertIn("range: ccccccc..HEAD", out)
 
     def test_the_vendored_gate_is_found_however_its_path_is_written(self):
@@ -1342,13 +1362,22 @@ class TestScopeFlags(RepoCase):
         resolve = (git("rev-parse", "--verify", "--quiet"),
                    lambda argv, _: {HEAD[:7]: HEAD}.get(argv[-1].split("^")[0], argv[-1].split("^")[0]) + "\n")
         self.use([resolve] + git_routes(names="a.go\n"))
-        _, out, _ = self.run_main("scope")
+        _, out, _ = self.run_main("scope", "--since-last")
         self.assertIn("range: empty", out)
-        _, out, _ = self.run_main("scope", "--agent", "cursor")
+        _, out, _ = self.run_main("scope", "--since-last", "--agent", "cursor")
         self.assertIn("range: ccccccc..HEAD", out)
         # An agent with no pass of its own starts at the merge base.
-        _, out, _ = self.run_main("scope", "--agent", "codex")
+        _, out, _ = self.run_main("scope", "--since-last", "--agent", "codex")
         self.assertIn("range: %s..HEAD" % MB, out)
+
+    def test_agent_without_since_last_is_refused(self):
+        # --agent only says whose last pass --since-last starts from; alone it would be ignored.
+        self.descriptor(forge="none")
+        self.findings(FILE_TWO_AGENTS)
+        self.use(git_routes(names="a.go\n"))
+        code, out, err = self.run_main("scope", "--agent", "cursor")
+        self.assertEqual((2, ""), (code, out))
+        self.assertIn("--since-last", err)
 
 
 
