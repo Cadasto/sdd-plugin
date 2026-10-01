@@ -4,46 +4,50 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.0] - 2026-10-01
+
+The findings file moves into the clone's git directory and `sdd-pr` makes every write to it. A review
+reads the whole branch, so a second agent or model gives a second opinion, and every pass leaves a short
+summary on the pull request. A committed plan carries `kind: plan`, and nothing reads or cites it.
+Delivery keeps its state in a notes file and names its worker branches. The gate changed: moving a
+repository from 0.8.1, re-vendoring first, is described in `docs/upgrading.md`.
 
 ### Added
-- Tools: `sdd-pr post` writes one review per pass at HEAD with a short summary on top (the verdict, each agent and its reviewers, the suggestion count), the summary alone after a clean pass, a closed thread on Azure DevOps; a hidden marker posts it once, and the maintainer's own recorded review gets none.
-- Skills: `sdd-review` and `sdd-deliver` pick each review dispatch's model for the job, a cheaper one the host offers for a small, mechanical check; workers stay on a strong model.
-- Docs: `docs/install.md` gives the permission rules that stop the reviewers' prompts on Claude Code, which a plugin cannot set.
-- Tools: `sdd-pr scope --since-last` reads only the commits since the last pass, or since one agent's own with `--agent`, which now needs it.
-- Templates: `task-review.md`, the per-task review `/sdd-deliver` hands each reviewer: the brief, the task's diff, the scope test, mutations in a fresh copy only, findings returned inline.
-- Tools: `sdd-pr status` lists the delivery's worker branches, `<branch>--<task>`, counting one not integrated or still running (no commit yet, or work in its worktree) against `Mergeable` and naming merged ones for removal; it prints the delivery notes' path and names them for deletion once the pull request merged.
-- Hooks: `session-start.sh` reads the plugin version beside itself on every host and says when the vendored gate is older than the plugin, or the plugin older than the repository.
-- Tools: `sdd-pr scope --base <parent>` names a stacked branch's base once and keeps it in the file; `--agent <name>` reads the range since that agent's own last pass, so each panel member reviews the same commits; `--diff <kind|reviewer>` prints the range's hunks, so no brief carries a diff built by hand.
-- Tools: `sdd-check check --changed-since <ref>` marks with `NEW` each finding the gate did not report at the merge base of `<ref>` and HEAD, and counts them in the summary; `--new-only` prints just those.
-- References: `agents.reviewers` also takes a block map of path patterns to reviewers; `sdd-pr scope` lists each reviewer's paths and the paths no pattern covers.
 - Tools: `sdd-pr add`, `flip`, `record` and `rename` own every write to the findings file: `add` checks the grammar, refuses a blocking finding without evidence and folds a duplicate into one line; `flip` resolves a line by the `#key` `status` prints or by `path:line`, needs a fix pushed, and routes or drops suggestions; `record` writes the `Reviewed` line at HEAD; `rename` moves a file to the checked-out branch without its passes and thread ids.
+- Tools: `sdd-pr scope --since-last` reads only the commits since the last pass, or since one agent's own with `--agent`, which needs it; `--base <parent>` names a stacked branch's base once and keeps it in the file; `--diff <kind|reviewer>` prints the range's hunks, so no brief carries a diff built by hand.
+- Tools: `sdd-pr post` writes one review per pass at HEAD with a short summary on top (the verdict, each agent and its reviewers, the suggestion count), the summary alone after a clean pass, a closed thread on Azure DevOps; a hidden marker posts it once, and the maintainer's own recorded review gets none.
+- Tools: `sdd-pr status` lists the delivery's worker branches, `<branch>--<task>`, counting one not integrated or still running (no commit yet, or work in its worktree) against `Mergeable` and naming merged ones for removal; it prints the delivery notes' path and names them for deletion once the pull request merged.
+- Tools: `sdd-check check --changed-since <ref>` marks with `NEW` each finding the gate did not report at the merge base of `<ref>` and HEAD, and counts them in the summary; `--new-only` prints just those.
 - Tools: each posted thread carries its finding's `By:` line, and `pull` reads it back instead of crediting the account that posted it.
+- Skills: `sdd-review` and `sdd-deliver` pick each review dispatch's model for the job, a cheaper one the host offers for a small, mechanical check; workers stay on a strong model.
+- References: `agents.reviewers` also takes a block map of path patterns to reviewers; `sdd-pr scope` lists each reviewer's paths and the paths no pattern covers.
+- Templates: `task-review.md`, the per-task review `/sdd-deliver` hands each reviewer: the brief, the task's diff, the scope test, mutations in a fresh copy only, findings returned inline.
+- Hooks: `session-start.sh` reads the plugin version beside itself on every host and says when the vendored gate is older than the plugin, or the plugin older than the repository.
+- Docs: `docs/install.md` gives the permission rules that stop the reviewers' prompts on Claude Code, which a plugin cannot set; `docs/examples.md` adds a second-opinion recipe.
 
 ### Changed
-- Skills: `sdd-triage` verifies each finding with its surroundings (the cause, what shares it, other instances, what the fix changes), adds a defect the finding underrates with `sdd-pr add`, and hands a fix's brief what it found; methodology § Verify before fixing and the brief's `Finding` field say the same.
-- Skills: shorter bodies that leave each rule to the reference that owns it, with their word budgets lowered to match; `sdd-specify`, `sdd-triage` and `sdd-trace` gain trigger phrases, and `sdd-triage` says `status` lists suggestions too.
-- Tools: `sdd-pr scope` reads the whole branch by default, however many passes came before.
-- Skills: `sdd-review` reviews the whole branch, so another agent or model gives a second opinion on all of it, without the open findings in its reviewers' brief; `--since-last` reviews only the commits since this agent's last pass, and `sdd-triage`'s re-review uses it; the `Reviewed` line names the host and its model.
-- References: `review.md` § Passes leaves a second opinion the maintainer asks for outside the pass budget.
-- Tools: a document marked `kind: plan` is a temporary working file: `sdd-check` reads it in no family and counts it, refuses one where requirements, specifications or ADRs live, and fails a durable document that links to one; `sdd-pr scope` lists it as `plans`, for no reviewer, even when the range deleted it.
-- Tools: `sdd-pr` refuses every write while the plugin is older than the repository's `check.version`.
-- Skills: `sdd-deliver` keeps its lane, gate result and tasks in a notes file in the clone's git directory, names worker branches `<branch>--<task>`, integrates them after a trial merge with one regeneration, removes their worktrees and branches, holds the spec still during a wave, quotes a given plan's tasks verbatim, and resumes from the notes before a pull request exists.
-- Templates: `brief.md` gains `Branch`, `Commit` and rules for the worktree, the generator, a committed can-fail control and an inline report; the PR body's changelog line follows the repository's own policy.
-- References: methodology §3 and §9 state the plan model: temporary, committed or not, never cited by a durable document.
-- Skills: `sdd-scaffold --upgrade` merges template changes into tuned process documents section by section, finds an existing pull-request template in any case, writes `/.sdd/`, and offers `kind: plan` to committed plans.
-- Docs: `docs/install.md` says how to read the loaded version on Cursor and what to update.
-- Tools: `sdd-pr` counts a range from `origin/<base>` when the local base is only behind it, and lists the vendored gate as `vendored`, apart from the code to review.
-- Skills: `sdd-review` runs `scope` before it reads any reference, dispatches the reviewers and paths `scope` names with the hunks `scope --diff` prints, and reads the gate's new findings with `--changed-since`; every skill names the plugin root as the folder that holds its `skills/` folder, which works on Cursor too.
 - Tools: the findings file lives in the clone's shared git directory, `<git-common-dir>/sdd/findings/<branch-slug>.md`, which every worktree sees and no worktree removal deletes; a file left at `.sdd/findings/` in any worktree moves there on first use, `status` prints the path, and commands take turns on it through a lock.
 - Tools: `sdd-pr status` says `Mergeable: no` with no pull request, a closed one or an unreachable forge, prints `Mergeable: merged` and the file to delete once the pull request merged, prints each open line and suggestion with its `#key`, points `Next` at `post` while a blocking line is not mirrored, and at routing while suggestions are left.
+- Tools: `sdd-pr scope` reads the whole branch by default, however many passes came before; it counts from `origin/<base>` when the local base is only behind it, and lists the vendored gate as `vendored`, apart from the code to review.
+- Tools: a document marked `kind: plan` is a temporary working file: `sdd-check` reads it in no family and counts it, refuses one where requirements, specifications or ADRs live, and fails a durable document that links to one; `sdd-pr scope` lists it as `plans`, for no reviewer, even when the range deleted it.
+- Tools: `sdd-pr` refuses every write while the plugin is older than the repository's `check.version`.
+- Skills: `sdd-review` runs `scope` first and reviews the whole branch, so another agent or model gives a second opinion on all of it, without the open findings in its reviewers' brief; it dispatches the reviewers and paths `scope` names with the hunks `scope --diff` prints, and reads the gate's new findings with `--changed-since`; `--since-last` reviews only the commits since this agent's last pass, and `sdd-triage`'s re-review uses it; the `Reviewed` line names the host and its model.
 - Skills: `sdd-review`, `sdd-triage` and `sdd-deliver` write the findings file only through `sdd-pr`; `sdd-deliver --close-out` routes every suggestion left, to a *Known gaps* line, a deferred requirement or a tracker issue, or drops it.
-- References: `review.md` names the new location, the commands and the routing of suggestions; the review state counts suggestions not routed and lists routed ones.
+- Skills: `sdd-triage` verifies each finding with its surroundings (the cause, what shares it, other instances, what the fix changes), adds a defect the finding underrates with `sdd-pr add`, and hands a fix's brief what it found.
+- Skills: `sdd-deliver` keeps its lane, gate result and tasks in a notes file in the clone's git directory, names worker branches `<branch>--<task>`, integrates them after a trial merge with one regeneration, removes their worktrees and branches, holds the spec still during a wave, quotes a given plan's tasks verbatim, and resumes from the notes before a pull request exists.
+- Skills: `sdd-scaffold` ignores `/.sdd/` as a scratch folder and accepts an existing `.sdd/` line; `--upgrade` merges template changes into tuned process documents section by section, finds an existing pull-request template in any case, and offers `kind: plan` to committed plans.
+- Skills: shorter bodies that leave each rule to the reference that owns it; `sdd-specify`, `sdd-triage` and `sdd-trace` gain trigger phrases; every skill names the plugin root as the folder that holds its `skills/` folder, which works on Cursor too.
+- References: `review.md` names the new location, the commands and the routing of suggestions, and leaves a second opinion the maintainer asks for outside the pass budget; the review state counts suggestions not routed and lists routed ones.
+- References: methodology §3 and §9 state the plan model: temporary, committed or not, never cited by a durable document; § Verify before fixing checks what surrounds a finding.
+- Templates: `brief.md` gains `Branch`, `Commit` and rules for the worktree, the generator, a committed can-fail control and an inline report, and its `Finding` field carries what triage found around the line; `ai-workflow.md` and `AGENTS.md` name the findings file in the clone's git directory, and the panel prompt pipes its lines to `sdd-pr add -`; the PR checklist in `development-process.md` follows the repository's own changelog policy.
 - Hooks: `session-start.sh` reads the findings file from the clone's git directory.
-- Skills: `sdd-scaffold` ignores `/.sdd/` as a scratch folder and accepts an existing `.sdd/` line.
+- Docs: `docs/install.md` says how to read the loaded version on Cursor and what to update; `docs/upgrading.md` covers 0.8.1 to 0.9.0.
 
 ### Removed
 - Tools: `sdd-pr scope --all`, and `/sdd-review --all`: the whole branch is the default.
+
+### Fixed
+- Skills: `sdd-scaffold --upgrade` proposes each version's changes, not only 0.8.0's; `sdd-triage` no longer says that `status` leaves out suggestions.
 
 ## [0.8.1] - 2026-10-01
 

@@ -10,7 +10,7 @@ A branch's findings live in **one file in the clone's shared git directory**,
 `<git-common-dir>/sdd/findings/<branch-slug>.md` (`/` in the branch name becomes `--`): every worktree
 and every agent on the machine sees it, git never commits it, and removing a worktree keeps it. It is the
 only list of findings, with or without a pull request. `sdd-pr status` prints its path and, once the pull
-request merges, names it for deletion; `sdd-pr` makes every write (§ The tool). A file 0.8.0 left at
+request merges, names it for deletion; `sdd-pr` makes every write (§ The tool). A file 0.8.x left at
 `.sdd/findings/` in a checkout moves there on first use.
 
 ```markdown

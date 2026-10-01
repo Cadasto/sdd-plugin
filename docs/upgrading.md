@@ -2,35 +2,48 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
-## From 0.8.1
+## From 0.8.1 to 0.9.0
 
 The findings file moves out of the checkout into the clone's git directory, `sdd-pr` makes every change
-to it, and suggestions are routed before merge instead of dying with the file.
+to it, and suggestions are routed before merge instead of dying with the file. A review reads the whole
+branch, so a second agent gives a second opinion, and each pass leaves a short summary on the pull
+request. A committed plan carries `kind: plan` and nothing reads or cites it. Work through the steps in
+order: the gate changed, so re-vendoring is no longer optional.
 
-1. **Nothing to move by hand.** The first `sdd-pr` command on a branch moves its
+1. **Update the plugin on every host first.** Claude Code and Cursor each load their own copy. A 0.8.x
+   copy still writes `.sdd/findings/`, and the 0.9.0 tool then finds two files and leaves the second in
+   place (step 4). From 0.9.0 the session-start line names the plugin version on both hosts and says
+   when the vendored gate is older than the plugin, or the plugin older than the repository; `sdd-pr`
+   refuses to write while the plugin is the older one.
+2. **Re-vendor.** Run `/sdd-scaffold --upgrade`. It copies the 0.9.0 gate over `check.script` and sets
+   `check.version`. Do it before step 8: the 0.8.x gate does not know `kind: plan` and reports
+   `kind 'plan' is not declared in doc_kinds` (a warning by default, an error where `doc-kinds` was
+   raised).
+3. **What can turn red.** The 0.9.0 gate adds two errors. A requirement, specification, ADR or
+   constitution that links to a `kind: plan` document fails `links`: point the link at the pull request
+   or commit, or drop it. A `kind: plan` document where requirements, specifications or ADRs live fails
+   `doc-kinds`: move it out.
+4. **Nothing to move by hand.** The first `sdd-pr` command on a branch moves its
    `.sdd/findings/<branch>.md` into `<git-common-dir>/sdd/findings/`, where every worktree of the clone
    finds it, and says so; it looks in every worktree of the clone. When two checkouts hold a file for the
    same branch, the second is named and left in place: fold its open lines and suggestions in with
    `sdd-pr add -` (resolved lines need not come along), then delete it. The `.sdd/` ignore line may
    stay; `/.sdd/` is the anchored form a new scaffold writes.
-2. **Stop editing the file.** `sdd-pr add`, `flip`, `record` and `rename` replace every hand edit; the
+5. **Stop editing the file.** `sdd-pr add`, `flip`, `record` and `rename` replace every hand edit; the
    skills already call them. A branch renamed under its findings uses `sdd-pr rename --from <old>`.
-3. **Suggestions left on open branches.** Route each before merge, with `sdd-pr flip <path:line>
+6. **Suggestions left on open branches.** Route each before merge, with `sdd-pr flip <path:line>
    --deferred "<where>"` or `--dropped`; `/sdd-deliver --close-out` asks for it.
-4. **Before a pull request opens**, `sdd-pr status` now says `Mergeable: no — no pull request`.
-5. **Committed plans.** A plan may be committed or not; mark a committed one `kind: plan` and the gate
+7. **Before a pull request opens**, `sdd-pr status` now says `Mergeable: no — no pull request`.
+8. **Committed plans.** A plan may be committed or not; mark a committed one `kind: plan` and the gate
    and the reviewers leave it alone. `/sdd-scaffold --upgrade` offers the line for plans under `docs/`.
-6. **Versions.** The session-start line now names the plugin version on Cursor too, and says when the
-   vendored gate is older than the plugin, or the plugin older than the repository. `sdd-pr` refuses to
-   write while the plugin is the older one.
-7. **Review range.** `/sdd-review` and `sdd-pr scope` read the whole branch by default, so a second
+9. **Review range.** `/sdd-review` and `sdd-pr scope` read the whole branch by default, so a second
    agent or model reviews all of it; `--since-last` reads only the commits since the last pass and
    replaces `--all`.
-8. **Pull request summaries.** Each pass now posts one review with a short summary, even when it
-   found nothing. An open pull request gets one on the next `post` after a pass at its head.
-9. **Process documents.** `--upgrade` merges template changes section by section into tuned
-   `ai-workflow.md`, `development-process.md` and pull-request templates, and writes `/.sdd/` rather than
-   a bare `.sdd/`.
+10. **Pull request summaries.** Each pass now posts one review with a short summary, even when it
+    found nothing. An open pull request gets one on the next `post` after a pass at its head.
+11. **Process documents.** `--upgrade` merges template changes section by section into tuned
+    `ai-workflow.md`, `development-process.md` and pull-request templates, and writes `/.sdd/` rather
+    than a bare `.sdd/`.
 
 ## From 0.8.0 to 0.8.1
 
