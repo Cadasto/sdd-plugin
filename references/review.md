@@ -38,7 +38,7 @@ separated by ` · ` (space, middle dot, space): the severity, `path:line`, one p
 `deferred: <where>`, and the markers `unanchored` and `mirrored` that `sdd-pr` writes. A suggestion line
 has no checkbox; a routed one is `- [~] suggestion · …`. Each pass adds one `Reviewed` line with
 `sdd-pr record`: the commit it read, the agent, the reviewers dispatched and how many reported. The last
-one is where the next pass starts. A pass on which no reviewer reported adds none, so its range stays open
+one is where a `--since-last` pass starts. A pass on which no reviewer reported adds none, so its range stays open
 until one reads it, or the maintainer's own review is recorded with `record --agent maintainer`.
 
 ## Severity
@@ -60,11 +60,11 @@ rest" is one answer. Unsure between important and suggestion: write suggestion.
 
 ## Scope
 
-A pass reads the commits since the last `Reviewed` line, or `merge-base(base, HEAD)..HEAD` the first
-time; `sdd-pr scope` prints the range, its paths as code, tests, documents, plans and other and the vendored gate
+A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`, so a second reviewer gives a second
+opinion on all of it; `--since-last` reads only the commits since the last `Reviewed` line (`--agent`: one
+agent's own), as the pass over fixes does. `sdd-pr scope` prints the range, its paths as code, tests, documents, plans and other and the vendored gate
 (which no one reviews; the gate is reviewed only when it was patched here), and the reviewer each code path goes to. A stacked branch names its parent once
-with `--base`; a local base that is only behind its remote counts from the remote; a panel member reads
-from its own last pass with `--agent`. A critical or
+with `--base`; a local base that is only behind its remote counts from the remote. A critical or
 important finding is about a line in that range, or text an earlier fix on this branch wrote; anything
 else is a suggestion at most. Read the changed hunks and what surrounds them, not whole files.
 
@@ -109,9 +109,10 @@ has no id, and commit messages never name one.
 
 ## Passes
 
-One pass before the pull request is marked ready, the maintainer's review, and at most one pass over the
-fixes, a document-only fix included, dispatching only the reviewers whose file kinds changed. After that
-only a new critical finding reopens review; otherwise the orchestrator stops and shows the open list.
+One pass before the pull request is marked ready, the maintainer's review, and at most one `--since-last`
+pass over the fixes, a document-only fix included, dispatching only the reviewers whose file kinds changed.
+After that only a new critical finding reopens review; otherwise the orchestrator stops and shows the open
+list. A second opinion the maintainer asks for is outside this budget.
 
 ## Keywords added during review
 
@@ -137,9 +138,8 @@ request. A plugin older than the repository's `check.version` refuses every writ
   routing when only suggestions are left. A merged pull request at HEAD prints `Mergeable: merged`, what
   the file still holds, and the file to delete; one merged or closed before the head moved is no pull
   request of this branch. `--write-body` rewrites the review state first.
-- `scope [--json] [--all] [--base <ref>] [--agent <name>] [--diff <kind|reviewer>]` — the range the next
-  pass reads (`--all`: the whole branch), its paths by kind and the reviewers' paths; `range: empty`
-  when nothing is new. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
+- `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>]` — the range a
+  pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
   one reviewer, so no brief carries a diff built by hand.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important

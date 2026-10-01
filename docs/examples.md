@@ -60,7 +60,7 @@ Maintenance lane: no requirement and no spec edit.
 /sdd-review --lane maintenance
 ```
 
-On the maintenance lane the reviewers named in `agents.reviewers` read the code, and `sdd-doc-reviewer` reads any changed document to check that it still agrees with the code and the other documents. The conformance reviewer is skipped, because no binding sentence may change on this lane. If nothing in the range calls for a reviewer (say `agents.reviewers` is empty and only code changed), the pass writes no `Reviewed` line and the range stays open. Your own review of the pull request is then the pass: record it in the findings file as `Reviewed <sha> · <date> · maintainer: <your name> (1 of 1)`. The pull request body's *Spec and traceability* section carries `Lane: maintenance — no normative change`.
+On the maintenance lane the reviewers named in `agents.reviewers` read the code, and `sdd-doc-reviewer` reads any changed document to check that it still agrees with the code and the other documents. The conformance reviewer is skipped, because no binding sentence may change on this lane. If nothing in the range calls for a reviewer (say `agents.reviewers` is empty and only code changed), the pass writes no `Reviewed` line and the range stays open. Your own review of the pull request is then the pass: record it with `sdd-pr record --agent maintainer --reviewers <your name> --reported 1/1`. The pull request body's *Spec and traceability* section carries `Lane: maintenance — no normative change`.
 
 The lane is guarded by a ratchet, not a diff check: a reviewer that finds a new rule living only in code flags it, and the change becomes full lane. `make spec-check` runs in both lanes.
 
@@ -106,13 +106,27 @@ Review REQ-AUTH-001 against the requirement contract.
 
 The `sdd-doc-reviewer` agent checks the changed hunks for boundary violations: implementation detail in a requirement, a normative sentence duplicated from the canonical section, two sentences that disagree, a missing RFC-2119 keyword.
 
+## Get a second opinion
+
+After one review, open another session, on another model or host, and run:
+
+```text
+/sdd-review
+```
+
+It reads the whole branch, not only what came after the first pass, and records its own `Reviewed` line, named by host and model. The reviewers it dispatches do not see the open findings, so their opinion is independent; a defect the file already holds gains the new reviewer in `by:` instead of a second line. To review only the commits since this agent's own last pass:
+
+```text
+/sdd-review --since-last
+```
+
 ## Run the outside review panel
 
 ```text
 /sdd-review --panel
 ```
 
-Prints one review-request block per name in `agents.review_panel.<lane>`, filled from the repository's `docs/ai-workflow.md` § Review with the commit range to read. Paste each block to the reviewer it names. An outside reviewer working on this machine appends lines to the findings file. One working on the pull request posts inline comments, and `sdd-pr pull` brings them in.
+Prints one review-request block per name in `agents.review_panel.<lane>`, filled from the repository's `docs/ai-workflow.md` § Review with the commit range to read. Paste each block to the reviewer it names. An outside reviewer working on this machine pipes its lines to `sdd-pr add -`. One working on the pull request posts inline comments, and `sdd-pr pull` brings them in.
 
 ## Work the open findings
 
