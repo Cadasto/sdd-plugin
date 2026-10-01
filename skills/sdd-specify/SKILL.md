@@ -7,7 +7,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 # Specify — the SDD definition layer
 
-> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code); `references/…` resolves from it.
 
 Turn intent into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** for an irreversible decision. Read `docs/.sdd.yaml` first for the profile, identifier style and paths. One skill authors all three; each stays in its own file and kind. Drop a template's leading `<!-- Template: … -->` comment in the file created from it.
 

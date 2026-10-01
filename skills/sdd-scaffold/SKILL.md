@@ -7,7 +7,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 
 # Scaffold an SDD repository
 
-> `references/…` and `tools/…` resolve from the plugin root: `${CLAUDE_PLUGIN_ROOT}/…` on Claude Code, or Glob for the installed copy.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code); `references/…` and `tools/…` resolve from it.
 
 Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process docs and the gate. **Idempotent:** fill gaps; never overwrite a file that has content.
 

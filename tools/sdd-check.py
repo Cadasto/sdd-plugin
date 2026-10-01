@@ -12,14 +12,17 @@ path outside the repository; the command line is invalid; ``context`` was given 
 no record; or a ``check`` run in which no family ran.
 """
 
+import collections
 import dataclasses
 import difflib
 import fnmatch
+import io
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import urllib.parse
 from pathlib import Path
@@ -2755,6 +2758,8 @@ class Finding:
     level: str
     anchor: str
     message: str
+    #: On a line changed since the ref given to ``check --changed-since``.
+    new: bool = False
 
 
 class Report:
@@ -2772,6 +2777,9 @@ class Report:
         self.record_count = 0
         self.profile = "formal"
         self.fatal_message: Optional[str] = None
+        #: The ref of ``--changed-since``, and whether only the findings new since it are printed.
+        self.since: Optional[str] = None
+        self.new_only = False
 
     @classmethod
     def fatal(cls, message: str) -> "Report":
@@ -2832,10 +2840,17 @@ class Report:
             % (__version__, root, self.profile, self.record_count)
         ]
         for finding in self._ordered():
+            if self.new_only and not finding.new:
+                continue
             lines.append(
-                "[%s] %s %s: %s" % (finding.family, finding.level, finding.anchor, finding.message)
+                "[%s] %s%s %s: %s"
+                % (finding.family, finding.level, " NEW" if finding.new else "", finding.anchor, finding.message)
             )
         errors, warnings = self.errors(), self.warnings()
+        since = ""
+        if self.since is not None:
+            fresh = len([f for f in self.findings if f.new and f.level in ("ERROR", "WARN")])
+            since = " (%d new since %s)" % (fresh, self.since)
         if not self.families_run:
             # Exit 2: nothing was verified, so the summary must never read as a pass.
             reasons: List[str] = []
@@ -2847,11 +2862,11 @@ class Report:
                 "sdd-check: FAILED — no family ran (%s)" % ("; ".join(reasons) or "none planned")
             )
         elif errors:
-            lines.append("sdd-check: FAILED — %d errors, %d warnings" % (errors, warnings))
+            lines.append("sdd-check: FAILED — %d errors, %d warnings%s" % (errors, warnings, since))
         else:
             lines.append(
-                "sdd-check: OK — %d checks, 0 errors, %d warnings"
-                % (len(self.families_run), warnings)
+                "sdd-check: OK — %d checks, 0 errors, %d warnings%s"
+                % (len(self.families_run), warnings, since)
             )
         skipped = [
             "%s (%s)" % (name, self.families_skipped[name])
@@ -2919,6 +2934,60 @@ def _load_records_or_report(desc: Descriptor, report: "Report") -> Tuple[List[Re
         )
         return [], False
     return records, True
+
+
+def _baseline(root: Path, ref: str, only: Optional[List[str]], changelog_all: bool) -> Optional[List[Finding]]:
+    """What the gate reported where HEAD left ``ref``, their merge base: the same run on an export of
+    that commit. ``None`` when git cannot find ``ref`` or the merge base here."""
+
+    def run(*args, where: Path = root) -> Optional[bytes]:
+        try:
+            proc = subprocess.run(["git", "-C", str(where)] + list(args), stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL, check=False)
+        except (OSError, ValueError):
+            return None
+        return proc.stdout if proc.returncode == 0 else None
+
+    def text(raw: Optional[bytes]) -> str:
+        return (raw or b"").decode("utf-8", "replace").strip()
+
+    base, top = text(run("merge-base", ref, "HEAD")), text(run("rev-parse", "--show-toplevel"))
+    # Exported from the top of the repository: from a subdirectory, git archives that subdirectory alone.
+    archive = run("archive", "--format=tar", base, where=Path(top)) if base and top else None
+    if not archive:
+        return None
+    prefix = text(run("rev-parse", "--show-prefix"))
+    with tempfile.TemporaryDirectory() as tmp:
+        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+            if hasattr(tarfile, "data_filter"):
+                tar.extractall(tmp, filter="data")
+            else:  # Python before 3.12; the archive is git's own export of this repository
+                tar.extractall(tmp)
+        return run_check(Path(tmp) / prefix, only, changelog_all).findings
+
+
+def _same_finding(finding: Finding) -> Tuple[str, str, str, str]:
+    """A finding without its line numbers, so one that only moved is the same finding."""
+    anchor, message = (re.sub(r":\d+", "", text) for text in (finding.anchor, finding.message))
+    return finding.family, finding.level, anchor, message
+
+
+def mark_new(report: "Report", root: Path, ref: str, only: Optional[List[str]], changelog_all: bool) -> bool:
+    """Mark each finding the gate did not report at the merge base of ``ref`` and HEAD: what the change
+    added, wherever it shows (a changed line, a whole file, a record, a link a deletion broke). False when
+    the merge base cannot be read, which is a configuration failure."""
+    base = _baseline(root, ref, only, changelog_all)
+    if base is None:
+        return False
+    before = collections.Counter(_same_finding(f) for f in base)
+    for finding in report.findings:
+        key = _same_finding(finding)
+        if before[key]:
+            before[key] -= 1
+        else:
+            finding.new = True
+    report.since = ref
+    return True
 
 
 def run_check(root: Path, only: Optional[List[str]], changelog_all: bool) -> Report:
@@ -4440,7 +4509,7 @@ COMMANDS = ("check", "generate", "context", "selftest")
 
 USAGE = """usage: sdd-check [check|generate|context|selftest] [options]
 
-  check [--root DIR] [--only fam[,fam]] [--changelog-all]
+  check [--root DIR] [--only fam[,fam]] [--changelog-all] [--changed-since REF [--new-only]]
   generate [--root DIR] [--verify]
   context <REQ> [--root DIR]
   selftest [--root DIR]
@@ -4478,6 +4547,8 @@ def main(argv=None) -> int:
     only: Optional[List[str]] = None
     changelog_all = False
     verify = False
+    since: Optional[str] = None
+    new_only = False
     positional: List[str] = []
     index = 0
     while index < len(rest):
@@ -4500,6 +4571,16 @@ def main(argv=None) -> int:
             only = [name.strip() for name in arg.split("=", 1)[1].split(",") if name.strip()]
         elif arg == "--changelog-all":
             changelog_all = True
+        elif arg == "--changed-since":
+            index += 1
+            if index >= len(rest):
+                print("sdd-check: --changed-since needs a ref")
+                return 2
+            since = rest[index]
+        elif arg.startswith("--changed-since="):
+            since = arg.split("=", 1)[1]
+        elif arg == "--new-only":
+            new_only = True
         elif arg == "--verify":
             verify = True
         elif arg.startswith("-"):
@@ -4517,6 +4598,12 @@ def main(argv=None) -> int:
         return 2
     if changelog_all and command != "check":
         print("sdd-check: --changelog-all applies to 'check' only, not '%s'" % command)
+        return 2
+    if (since is not None or new_only) and command != "check":
+        print("sdd-check: --changed-since and --new-only apply to 'check' only, not '%s'" % command)
+        return 2
+    if new_only and since is None:
+        print("sdd-check: --new-only needs --changed-since <ref>")
         return 2
     if only is not None:
         unknown = [name for name in only if name not in FAMILIES]
@@ -4540,6 +4627,10 @@ def main(argv=None) -> int:
         print("sdd-check: check takes no positional argument ('%s')" % positional[0])
         return 2
     report = run_check(root, only, changelog_all)
+    if since is not None and report.fatal_message is None:
+        if not mark_new(report, root, since, only, changelog_all):
+            report = Report.fatal("--changed-since: '%s' and HEAD have no merge base git can find here" % since)
+        report.new_only = new_only
     print(report.render(root))
     return report.exit_code()
 

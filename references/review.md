@@ -61,7 +61,10 @@ rest" is one answer. Unsure between important and suggestion: write suggestion.
 ## Scope
 
 A pass reads the commits since the last `Reviewed` line, or `merge-base(base, HEAD)..HEAD` the first
-time; `sdd-pr scope` prints the range and its paths as code, tests, documents and other. A critical or
+time; `sdd-pr scope` prints the range, its paths as code, tests, documents, other and the vendored gate
+(which no one reviews unless it was patched here), and the reviewer each code path goes to. A stacked branch names its parent once
+with `--base`; a local base that is only behind its remote counts from the remote; a panel member reads
+from its own last pass with `--agent`. A critical or
 important finding is about a line in that range, or text an earlier fix on this branch wrote; anything
 else is a suggestion at most. Read the changed hunks and what surrounds them, not whole files.
 
@@ -134,8 +137,10 @@ request.
   routing when only suggestions are left. A merged pull request at HEAD prints `Mergeable: merged`, what
   the file still holds, and the file to delete; one merged or closed before the head moved is no pull
   request of this branch. `--write-body` rewrites the review state first.
-- `scope [--json] [--all]` — the range the next pass reads (`--all`: the whole branch) and its paths by
-  kind; `range: empty` when nothing is new.
+- `scope [--json] [--all] [--base <ref>] [--agent <name>] [--diff <kind|reviewer>]` — the range the next
+  pass reads (`--all`: the whole branch), its paths by kind and the reviewers' paths; `range: empty`
+  when nothing is new. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
+  one reviewer, so no brief carries a diff built by hand.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important
   finding without evidence, and folds an identical line into the first.

@@ -17,8 +17,12 @@ Nothing installs an `sdd-check` executable. Throughout this document `sdd-check 
 `--root DIR` is common to every command; it names the repository root (default: the working directory).
 `--only fam[,fam]` applies to `check` only, and runs just the families listed. `check` also takes
 `--changelog-all`, which extends the `changelog` family past `## [Unreleased]` to every section of the
-changelog; `--verify` belongs to `generate` alone. Any of the three given to a command that does not take
-it exits 2 with a message naming the flag and the command.
+changelog. `check --changed-since <ref>` runs the families a second time on an export of the merge base of
+`<ref>` and HEAD, and marks with `NEW` each finding that run did not report, wherever it shows: a changed
+line, a whole file, a record, a link a deletion broke. Line numbers are ignored in the comparison, so a
+finding that only moved is not new. The summary gains `(<k> new since <ref>)`; `--new-only` prints just
+those lines. A `<ref>` with no merge base git can find exits 2. `--verify` belongs to `generate` alone. Any of these given to a
+command that does not take it exits 2 with a message naming the flag and the command.
 
 ## Exit codes
 
@@ -55,10 +59,11 @@ Exit 2 is a failure of the gate itself; CI treats it as red, never as skipped.
 One line per finding:
 
 ```
-[<family>] <LEVEL> <anchor>: <message>
+[<family>] <LEVEL> [NEW] <anchor>: <message>
 ```
 
 The anchor is `path:line`, or a `REQ` id when the finding is about a record rather than a place in a file.
+`NEW` appears only under `--changed-since`.
 
 The first line of a run states what ran against what:
 

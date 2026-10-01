@@ -7,7 +7,7 @@ allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 
 # Triage — work the open findings to the end
 
-> `references/…` and `tools/…` resolve from the plugin root: `${CLAUDE_PLUGIN_ROOT}/…` on Claude Code, or Glob for the installed copy. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code); `references/…` and `tools/…` resolve from it. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
 
 Read `docs/.sdd.yaml` first (`profile`, `forge`, the build targets, `agents:`). Run it in the orchestrator session: triage is judgement. `references/review.md` and methodology §13 say what counts, what a resolution says and how many passes a branch gets. Pass `--pr N`, when given, to every `sdd-pr` call.
 

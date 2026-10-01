@@ -815,6 +815,129 @@ class GitCase(BaselineCase):
         self.git("commit", "-q", "-m", message)
 
 
+class TestChangedSince(GitCase):
+    """check --changed-since <ref>: the findings on lines changed since <ref> are marked NEW."""
+
+    NOTES = "docs/notes.md"
+
+    def setUp(self):
+        super().setUp()
+        self.init_git()
+        self.write(self.NOTES, "---\nkind: analysis\n---\n\n# Notes\n\nThe old line MUST stay.\n")
+        self.commit("baseline with one warning")
+
+    def run_main(self, argv):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = sdd_check.main([str(a) for a in argv])
+        return code, buffer.getvalue()
+
+    def rfc_lines(self, out):
+        return [line for line in out.splitlines() if line.startswith("[rfc2119]")]
+
+    def test_a_warning_on_a_changed_line_is_new_and_an_old_one_is_not(self):
+        self.edit(self.NOTES, "The old line MUST stay.\n", "The old line MUST stay.\n\nA new line SHOULD be marked.\n")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD"])
+        self.assertEqual(0, code, out)
+        lines = self.rfc_lines(out)
+        self.assertEqual(2, len(lines), out)
+        new_line = self.line_of(self.NOTES, "A new line")
+        self.assertIn("[rfc2119] WARN NEW %s:%d:" % (self.NOTES, new_line), out)
+        self.assertIn("[rfc2119] WARN %s:%d:" % (self.NOTES, self.line_of(self.NOTES, "The old line")), out)
+        self.assertIn("2 warnings (1 new since HEAD)", out)
+
+    def test_every_finding_in_a_file_added_since_is_new(self):
+        self.write("docs/more.md", "---\nkind: analysis\n---\n\n# More\n\nThis MUST be new.\n")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD"])
+        self.assertIn("[rfc2119] WARN NEW docs/more.md:", out)
+        self.assertIn("(1 new since HEAD)", out)
+
+    def test_new_only_prints_only_the_new_findings(self):
+        self.write("docs/more.md", "---\nkind: analysis\n---\n\n# More\n\nThis MUST be new.\n")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD", "--new-only"])
+        self.assertEqual(["docs/more.md"], [l.split()[3].split(":")[0] for l in self.rfc_lines(out)])
+        self.assertIn("2 warnings (1 new since HEAD)", out)
+
+    def new_lines(self, out):
+        return [line for line in out.splitlines() if " NEW " in line]
+
+    def test_a_finding_about_a_whole_file_the_branch_edited_is_new(self):
+        self.edit(self.NOTES, "---\nkind: analysis\n---\n\n", "")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD", "--new-only"])
+        self.assertTrue([l for l in self.new_lines(out) if "[doc-kinds]" in l and "declares no kind" in l], out)
+
+    def test_a_finding_about_a_record_the_branch_broke_is_new(self):
+        self.edit(MAP_REL, "canonical: docs/specifications/env.md#1--boundary-req-found-001",
+                  "canonical: docs/specifications/env.md#no-such-section")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD", "--new-only"])
+        self.assertTrue([l for l in self.new_lines(out) if "REQ-FOUND-001" in l], out)
+        self.assertNotIn("(0 new since HEAD)", out)
+
+    def test_a_finding_the_base_changed_after_the_fork_is_not_new(self):
+        self.write("docs/nokind.md", "# No kind\n")
+        self.commit("a warning on the base")
+        self.git("branch", "trunk")
+        self.git("checkout", "-q", "-b", "feat")
+        self.git("checkout", "-q", "trunk")
+        self.git("rm", "-q", "docs/nokind.md")
+        self.commit("the base drops it after the fork")
+        self.git("checkout", "-q", "feat")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "trunk", "--new-only"])
+        self.assertEqual([], self.new_lines(out), out)
+        self.assertIn("(0 new since trunk)", out)
+
+    def test_a_file_with_a_non_ascii_name_is_new(self):
+        self.write("docs/café.md", "---\nkind: analysis\n---\n\n# Café\n\nThis MUST be new.\n")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD", "--new-only"])
+        self.assertTrue([l for l in self.new_lines(out) if "docs/café.md" in l], out)
+
+    def test_a_finding_a_change_elsewhere_caused_is_new(self):
+        self.write("docs/b.md", "---\nkind: analysis\n---\n\n# B\n")
+        self.write("docs/a.md", "---\nkind: analysis\n---\n\n# A\n\nSee [b](b.md).\n")
+        self.commit("a links to b")
+        self.git("rm", "-q", "docs/b.md")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD", "--new-only"])
+        self.assertTrue([l for l in self.new_lines(out) if "[links]" in l and "docs/a.md" in l], out)
+
+    def test_a_finding_that_only_moved_is_not_new(self):
+        self.edit(self.NOTES, "# Notes\n", "# Notes\n\nA plain line above.\n")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD", "--new-only"])
+        self.assertEqual([], self.new_lines(out), out)
+
+    def test_a_third_copy_of_a_finding_is_the_one_new(self):
+        self.edit(self.NOTES, "The old line MUST stay.\n", "The old line MUST stay.\n\nAnother MUST stay.\n")
+        self.commit("two of the same warning")
+        self.edit(self.NOTES, "Another MUST stay.\n", "Another MUST stay.\n\nA third MUST stay.\n")
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "HEAD"])
+        self.assertIn("(1 new since HEAD)", out)
+
+    def test_a_root_below_the_top_of_the_repository_is_compared_in_place(self):
+        outer = Path(tempfile.mkdtemp(dir=self.tmp.parent))
+        self.addCleanup(shutil.rmtree, outer, True)
+        inner = outer / "svc"
+        sdd_check.write_baseline(inner)
+        (inner / self.NOTES).parent.mkdir(parents=True, exist_ok=True)
+        (inner / self.NOTES).write_text("---\nkind: analysis\n---\n\n# Notes\n\nThe old line MUST stay.\n", encoding="utf-8")
+        for args in (("init", "-q"), ("config", "user.email", "t@example.invalid"), ("config", "user.name", "t"),
+                     ("config", "commit.gpgsign", "false"), ("add", "-A"), ("commit", "-q", "-m", "base")):
+            subprocess.run(["git", "-C", str(outer)] + list(args), check=True, stdout=subprocess.DEVNULL)
+        (inner / "docs" / "more.md").write_text("---\nkind: analysis\n---\n\n# More\n\nThis MUST be new.\n", encoding="utf-8")
+        code, out = self.run_main(["check", "--root", inner, "--changed-since", "HEAD"])
+        self.assertIn("(1 new since HEAD)", out)
+
+    def test_an_unknown_ref_is_a_configuration_failure(self):
+        code, out = self.run_main(["check", "--root", self.tmp, "--changed-since", "no-such-ref"])
+        self.assertEqual(2, code)
+        self.assertIn("no-such-ref", out)
+
+    def test_the_flags_belong_to_check(self):
+        code, out = self.run_main(["generate", "--root", self.tmp, "--changed-since", "HEAD"])
+        self.assertEqual(2, code)
+        code, out = self.run_main(["check", "--root", self.tmp, "--new-only"])
+        self.assertEqual(2, code)
+        self.assertIn("--changed-since", out)
+
+
 class TestTreeToMapFamily(BaselineCase):
     def test_unknown_identifier_cited(self):
         self.write("src/env/thing.py", "# implements REQ-FOUND-077\n")
