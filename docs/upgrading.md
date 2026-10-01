@@ -9,8 +9,9 @@ to it, and suggestions are routed before merge instead of dying with the file.
 
 1. **Nothing to move by hand.** The first `sdd-pr` command on a branch moves its
    `.sdd/findings/<branch>.md` into `<git-common-dir>/sdd/findings/`, where every worktree of the clone
-   finds it, and says so. When two checkouts hold a file for the same branch, the second is named and
-   left in place: fold its lines in with `sdd-pr add -`, then delete it. The `.sdd/` ignore line may
+   finds it, and says so; it looks in every worktree of the clone. When two checkouts hold a file for the
+   same branch, the second is named and left in place: fold its open lines and suggestions in with
+   `sdd-pr add -` (resolved lines need not come along), then delete it. The `.sdd/` ignore line may
    stay; `/.sdd/` is the anchored form a new scaffold writes.
 2. **Stop editing the file.** `sdd-pr add`, `flip`, `record` and `rename` replace every hand edit; the
    skills already call them. A branch renamed under its findings uses `sdd-pr rename --from <old>`.
@@ -54,9 +55,9 @@ already has.
 4. **Process documents.** Re-emit `docs/ai-workflow.md`, `docs/development-process.md` and
    `.github/PULL_REQUEST_TEMPLATE.md` from the templates, keeping this repository's own lines under
    § Orchestration.
-5. **Open pull requests.** An existing review ledger comment stays as history. Copy its open rows once,
-   by hand, into `.sdd/findings/<branch>.md` in the grammar of the plugin's `references/review.md`, and
-   never edit the comment again. A `Deferred` row you want to keep becomes `implementation: deferred`
+5. **Open pull requests.** An existing review ledger comment stays as history. Add its open rows once
+   with `sdd-pr add`, in the grammar of the plugin's `references/review.md`, and never edit the comment
+   again. A `Deferred` row you want to keep becomes `implementation: deferred`
    on its requirement or a *Known gaps* line in the specification. A pull request that merged before
    its last fixes were pushed can leave a ledger whose `Deferred` rows nothing carried forward: move
    each one you want to keep the same way, and drop the rest.

@@ -110,7 +110,7 @@ Full contract: [references/sdd-check.md](references/sdd-check.md).
 
 ### The review tool
 
-`sdd-pr` (`python3 <plugin root>/tools/sdd-pr.py`, not vendored) keeps a branch's findings file and its pull request in step: `status` prints the file's path, the open counts, `Mergeable: yes|no` and the next command, and `--write-body` rewrites the review state in the pull request's body; `scope` prints the range the next review pass reads; `add`, `flip`, `record` and `rename` are the only ways the file changes; `pull`, `post` and `resolve` mirror findings to and from the inline threads on GitHub or Azure DevOps. With `forge: none`, `status` and `scope` work from the file alone. Contract: [references/review.md](references/review.md).
+`sdd-pr` (`python3 <plugin root>/tools/sdd-pr.py`, not vendored) keeps a branch's findings file and its pull request in step: `status` prints the file's path, the open counts, `Mergeable: yes|no` and the next command, and `--write-body` rewrites the review state in the pull request's body; `scope` prints the range the next review pass reads; `add`, `flip`, `record` and `rename` write the file, as `pull`, `post` and `resolve` do, so nobody edits it by hand; `pull`, `post` and `resolve` mirror findings to and from the inline threads on GitHub or Azure DevOps. With `forge: none`, `status` and `scope` work from the file alone. Contract: [references/review.md](references/review.md).
 
 ### Hooks
 
