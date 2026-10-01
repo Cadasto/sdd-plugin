@@ -7,6 +7,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Tools: `sdd-pr post` writes one review per pass at HEAD with a short summary on top (the verdict, each agent and its reviewers, the suggestion count), the summary alone after a clean pass, a closed thread on Azure DevOps; a hidden marker posts it once, and the maintainer's own recorded review gets none.
+- Skills: `sdd-review` and `sdd-deliver` pick each review dispatch's model for the job, a cheaper one the host offers for a small, mechanical check; workers stay on a strong model.
+- Docs: `docs/install.md` gives the permission rules that stop the reviewers' prompts on Claude Code, which a plugin cannot set.
 - Tools: `sdd-pr scope --since-last` reads only the commits since the last pass, or since one agent's own with `--agent`, which now needs it.
 - Templates: `task-review.md`, the per-task review `/sdd-deliver` hands each reviewer: the brief, the task's diff, the scope test, mutations in a fresh copy only, findings returned inline.
 - Tools: `sdd-pr status` lists the delivery's worker branches, `<branch>--<task>`, counting one not integrated or still running (no commit yet, or work in its worktree) against `Mergeable` and naming merged ones for removal; it prints the delivery notes' path and names them for deletion once the pull request merged.

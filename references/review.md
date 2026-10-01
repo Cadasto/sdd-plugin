@@ -78,14 +78,16 @@ other instances inside the range go on the same line.
 
 ## The forge mirror
 
-With a pull request, `sdd-pr` keeps its inline threads, and one block in its body, in step with the
-file; nothing else about findings is posted.
+With a pull request, `sdd-pr` keeps its inline threads, one review per pass and one block in its body
+in step with the file; nothing else about findings is posted.
 
 - `pull` appends each unresolved thread the file does not know as an open finding with its `forge:` id;
   a thread with no severity word is `important`, and its `By:` line, when it has one, is the `by:`.
-- `post` publishes the open critical and important findings without a `forge:` id as one review, one
-  inline thread each carrying its `By:` line, and writes the ids back; a finding the forge already carries adopts that thread's
-  id instead. A line outside the diff is marked `unanchored` and listed in the review body.
+- `post` publishes one review per pass at HEAD: a summary (verdict, agents, reviewers, suggestion count) above one inline thread, carrying its `By:` line, per open critical and important
+  finding without a `forge:` id, and writes the ids back; a finding the forge already carries adopts that thread's
+  id instead. A line outside the diff is marked `unanchored` and listed in the review body. A clean pass
+  posts the summary alone (a closed thread on Azure DevOps), once; the maintainer's recorded review gets
+  none.
 - `resolve` answers each resolved finding's thread (`fixed in <sha>`, `declined: <reason>` or
   `deferred: <where>`) and closes it.
 - The review state: `post`, `resolve` and `status --write-body` rewrite one block in the body, between

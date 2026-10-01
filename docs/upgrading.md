@@ -26,7 +26,9 @@ to it, and suggestions are routed before merge instead of dying with the file.
 7. **Review range.** `/sdd-review` and `sdd-pr scope` read the whole branch by default, so a second
    agent or model reviews all of it; `--since-last` reads only the commits since the last pass and
    replaces `--all`.
-8. **Process documents.** `--upgrade` merges template changes section by section into tuned
+8. **Pull request summaries.** Each pass now posts one review with a short summary, even when it
+   found nothing. An open pull request gets one on the next `post` after a pass at its head.
+9. **Process documents.** `--upgrade` merges template changes section by section into tuned
    `ai-workflow.md`, `development-process.md` and pull-request templates, and writes `/.sdd/` rather than
    a bare `.sdd/`.
 
