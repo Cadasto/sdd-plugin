@@ -26,32 +26,31 @@ The **specification — not the code, not the prompt — is the source of truth.
 |---|---|
 | Set up or extend the SDD docs structure | `sdd-scaffold` |
 | Capture a capability, make behaviour normative, record a decision, amend a spec § (any normative change is full lane) | `sdd-specify` |
-| Deliver a change: the dispatch gate, workers, gates, the first review pass, the draft PR | `sdd-deliver` |
+| Deliver a change: the dispatch gate, workers, gates, the first review pass, the draft PR; close out the requirement and write the PR body (`--close-out`) | `sdd-deliver` |
 | Implement one bounded task from a brief | `sdd-implementer` agent (dispatched by `sdd-deliver`) |
 | A review pass into the branch's findings file; panel prompts | `sdd-review` |
 | Work the open findings: verify, fix, flip, mirror; after the maintainer's review, one scoped re-review | `sdd-triage` |
 | What is open, is it mergeable, what next | `sdd-pr status` (`tools/sdd-pr.py`) |
 | Traceability, drift, the drift gate, lint, a REQ's context (report-only); `--audit` for the isolated whole-tree audit | `sdd-trace` |
-| Regenerate the indexes and status lines from the map | the vendored `generate`, run by `sdd-specify`, `sdd-deliver` and `sdd-triage` |
+| Regenerate the indexes and status lines from the map | the vendored `generate`, which every skill that changes the map runs |
 | Does the code satisfy the `SPEC §` it cites, clause by clause | `sdd-spec-conformance-reviewer` agent |
 | Review a requirement, spec or ADR for boundary violations | `sdd-doc-reviewer` agent |
-| Close out the requirement and write the PR body, in the implementing PR | `sdd-deliver --close-out` |
 
 ## Optional: a general engineering plugin
 
-A general engineering plugin such as superpowers is **optional**. Its exploration workflows (brainstorming) are a good way to open an idea before `/sdd-specify`. Planning, execution, verification, review and branch finishing are covered here — `/sdd-deliver`, `sdd-implementer`, the findings file, the close-out — and running both over the same work duplicates the loop. How the orchestrator plans is its own business: a plan is a temporary working file, committed or not, and marked `kind: plan` nothing reviews or cites it.
+A general engineering plugin such as superpowers is **optional**. Its exploration workflows (brainstorming) are a good way to open an idea before `/sdd-specify`. Planning, execution, verification, review and branch finishing are covered here — `/sdd-deliver`, `sdd-implementer`, the findings file, the close-out — and running both over the same work duplicates the loop. How the orchestrator plans is its own business: a plan is a temporary working file; a committed one carries `kind: plan`, and nothing reviews or cites it.
 
 ## Guardrails this layer enforces
 
 - **No code-first (formal profile).** When asked to implement behaviour that no `REQ` and no spec covers, do not jump to code: explore if the idea is new, record it with `sdd-specify`, deliver with `sdd-deliver`. The exception is *implementation-aligned* work on shipped code, whose spec is updated in the **same** change. On the informative profile, route the change to `sdd-deliver`: a clear task and a known verification command are enough.
 - **One source of truth.** The canonical spec lives in `paths.specifications` (default `docs/specifications/`); a plan is never a source of truth, and no second tree of design documents may become one.
-- **One home per fact, in process prose too** — commit body, PR body, changelog and review threads each carry only what lives nowhere else and cite identifiers (`REQ`/`SPEC §`/SHA) instead of restating (`references/artefact-prose.md`).
+- **One home per fact, in process prose too:** commit and PR bodies, the changelog and review threads cite identifiers instead of restating (`references/artefact-prose.md`).
 - **Never settle an open question silently** — an ADR (`sdd-specify`), a `STRAND`, or back to brainstorming.
 - **Check the descriptor.** No `docs/.sdd.yaml` means the repo isn't scaffolded: route to `sdd-scaffold`.
-- **Never hand-edit a generated block**; every skill that changes the map or the frontmatter runs `sdd-check generate` before it stops (`references/sdd-check.md`). This skill has no `Bash` grant.
+- **Never hand-edit a generated block**; the skill that changes the map runs `sdd-check generate` (`references/sdd-check.md`).
 
 ## Reference
 
-- `references/sdd-methodology.md` — the grounding: ladder, profiles, document kinds, RFC-2119, identifiers, traceability, modes, delivery, lanes, review discipline, anti-patterns.
+- `references/sdd-methodology.md` — the rules.
 - `references/review.md` — the findings file, severities, evidence and the forge mirror.
 - `references/sdd-check.md` · `references/traceability-schema.md` · `references/artefact-prose.md`.
