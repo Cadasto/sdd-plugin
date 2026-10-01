@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 - Tools: `sdd-pr scope --base <parent>` names a stacked branch's base once and keeps it in the file; `--agent <name>` reads the range since that agent's own last pass, so each panel member reviews the same commits; `--diff <kind|reviewer>` prints the range's hunks, so no brief carries a diff built by hand.
-- Tools: `sdd-check check --changed-since <ref>` marks each finding on a line changed since `<ref>` with `NEW` and counts them in the summary; `--new-only` prints just those.
+- Tools: `sdd-check check --changed-since <ref>` marks with `NEW` each finding the gate did not report at the merge base of `<ref>` and HEAD, and counts them in the summary; `--new-only` prints just those.
 - References: `agents.reviewers` also takes a block map of path patterns to reviewers; `sdd-pr scope` lists each reviewer's paths and the paths no pattern covers.
 - Tools: `sdd-pr add`, `flip`, `record` and `rename` own every write to the findings file: `add` checks the grammar, refuses a blocking finding without evidence and folds a duplicate into one line; `flip` resolves a line by the `#key` `status` prints or by `path:line`, needs a fix pushed, and routes or drops suggestions; `record` writes the `Reviewed` line at HEAD; `rename` moves a file to the checked-out branch without its passes and thread ids.
 - Tools: each posted thread carries its finding's `By:` line, and `pull` reads it back instead of crediting the account that posted it.

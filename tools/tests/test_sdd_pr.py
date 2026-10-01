@@ -60,6 +60,8 @@ def git(*words):
         rest = argv[1:]
         if rest[:1] == ["-C"]:
             rest = rest[2:]
+        while rest[:1] == ["-c"]:
+            rest = rest[2:]
         return rest[: len(words)] == list(words)
     return predicate
 
@@ -1275,6 +1277,60 @@ class TestScopeFlags(RepoCase):
         code, _, err = self.run_main("scope", "--diff", "nobody")
         self.assertEqual(2, code)
         self.assertIn("nobody", err)
+
+    def test_an_empty_reviewer_list_leaves_the_code_uncovered_and_says_so(self):
+        self.descriptor(forge="none", extra="  agents:\n    reviewers: []\n")
+        self.use(git_routes(names="a.go\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("no reviewer: a.go\n", out)
+
+    def test_an_agent_name_is_spelled_as_record_writes_it(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_TWO_AGENTS.replace("cursor: go-reviewer", "cursor-composer: go-reviewer"))
+        resolve = (git("rev-parse", "--verify", "--quiet"),
+                   lambda argv, _: {HEAD[:7]: HEAD}.get(argv[-1].split("^")[0], argv[-1].split("^")[0]) + "\n")
+        self.use([resolve] + git_routes(names="a.go\n"))
+        _, out, _ = self.run_main("scope", "--agent", "cursor:composer")
+        self.assertIn("range: ccccccc..HEAD", out)
+
+    def test_the_vendored_gate_is_found_however_its_path_is_written(self):
+        self.descriptor(forge="none", extra="  check:\n    script: ./tools/gate/sdd-check.py\n")
+        self.use(git_routes(names="tools/gate/sdd-check.py\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("vendored: tools/gate/sdd-check.py", out)
+
+    def test_a_vendored_gate_patched_here_is_code_to_review(self):
+        self.descriptor(forge="none")
+        own = (TOOLS_DIR / "sdd-check.py").read_text(encoding="utf-8")
+        gate = self.root / "scripts" / "sdd-check.py"
+        gate.parent.mkdir(parents=True)
+        gate.write_text(own, encoding="utf-8")
+        self.use(git_routes(names="scripts/sdd-check.py\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("vendored: scripts/sdd-check.py", out)
+        gate.write_text(own + "\n# patched here\n", encoding="utf-8")
+        _, out, _ = self.run_main("scope")
+        self.assertIn("code: scripts/sdd-check.py", out)
+
+    def test_a_diverged_local_base_is_named(self):
+        self.descriptor(forge="none")
+        tips = {"main": "1" * 40, "origin/main": "2" * 40}
+        resolve = (git("rev-parse", "--verify", "--quiet"), lambda argv, _: tips.get(argv[-1].split("^")[0], argv[-1].split("^")[0]) + "\n")
+        self.use([resolve, (git("merge-base", "--is-ancestor"), sdd_pr.CliError("no"))] + git_routes(names="a.go\n"))
+        _, _, err = self.run_main("scope")
+        self.assertIn("diverged", err)
+
+    def test_diff_for_a_reviewer_with_nothing_in_the_range_is_empty(self):
+        self.descriptor(forge="none", extra="  agents:\n    reviewers: [go-reviewer]\n")
+        self.use(git_routes(names="docs/x.md\n"))
+        code, out, err = self.run_main("scope", "--diff", "go-reviewer")
+        self.assertEqual((0, ""), (code, out), err)
+
+    def test_git_never_quotes_a_path(self):
+        self.descriptor(forge="none")
+        fake = self.use(git_routes(names="docs/café.md\n"))
+        self.run_main("scope")
+        self.assertTrue(all("core.quotePath=false" in argv for argv, _ in fake.calls if argv[0] == "git"))
 
     def test_agent_reads_the_range_since_its_own_last_pass(self):
         self.descriptor(forge="none")

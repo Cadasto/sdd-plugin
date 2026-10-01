@@ -12,14 +12,17 @@ path outside the repository; the command line is invalid; ``context`` was given 
 no record; or a ``check`` run in which no family ran.
 """
 
+import collections
 import dataclasses
 import difflib
 import fnmatch
+import io
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import urllib.parse
 from pathlib import Path
@@ -2933,55 +2936,57 @@ def _load_records_or_report(desc: Descriptor, report: "Report") -> Tuple[List[Re
     return records, True
 
 
-def _changed_since(root: Path, ref: str) -> Optional[Tuple[Dict[str, set], set]]:
-    """The lines each file changed since ``ref`` in the working tree, and the files added since; or
-    ``None`` when ``ref`` is not a commit git can find here."""
+def _baseline(root: Path, ref: str, only: Optional[List[str]], changelog_all: bool) -> Optional[List[Finding]]:
+    """What the gate reported where HEAD left ``ref``, their merge base: the same run on an export of
+    that commit. ``None`` when git cannot find ``ref`` or the merge base here."""
 
-    def run(*args) -> Optional[str]:
+    def run(*args, where: Path = root) -> Optional[bytes]:
         try:
-            proc = subprocess.run(["git", "-C", str(root)] + list(args), stdout=subprocess.PIPE,
+            proc = subprocess.run(["git", "-C", str(where)] + list(args), stdout=subprocess.PIPE,
                                   stderr=subprocess.DEVNULL, check=False)
         except (OSError, ValueError):
             return None
-        return proc.stdout.decode("utf-8", "replace") if proc.returncode == 0 else None
+        return proc.stdout if proc.returncode == 0 else None
 
-    if not run("rev-parse", "--verify", "--quiet", ref + "^{commit}"):
+    def text(raw: Optional[bytes]) -> str:
+        return (raw or b"").decode("utf-8", "replace").strip()
+
+    base, top = text(run("merge-base", ref, "HEAD")), text(run("rev-parse", "--show-toplevel"))
+    # Exported from the top of the repository: from a subdirectory, git archives that subdirectory alone.
+    archive = run("archive", "--format=tar", base, where=Path(top)) if base and top else None
+    if not archive:
         return None
-    lines: Dict[str, set] = {}
-    added: set = set()
-    path, created = None, False
-    for raw in (run("diff", "-U0", "--no-ext-diff", "--no-color", ref, "--") or "").splitlines():
-        if raw.startswith("--- "):
-            created = raw[4:].strip() == "/dev/null"
-        elif raw.startswith("+++ "):
-            target = raw[4:].strip()
-            path = None if target == "/dev/null" else (target[2:] if target.startswith("b/") else target)
-            if path and created:
-                added.add(path)
-        else:
-            match = re.match(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", raw)
-            if match and path:
-                start, count = int(match.group(1)), int(match.group(2) or 1)
-                lines.setdefault(path, set()).update(range(start, start + count))
-    untracked = run("ls-files", "--others", "--exclude-standard", "-z") or ""
-    added.update(entry for entry in untracked.split("\0") if entry)
-    return lines, added
+    prefix = text(run("rev-parse", "--show-prefix"))
+    with tempfile.TemporaryDirectory() as tmp:
+        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+            if hasattr(tarfile, "data_filter"):
+                tar.extractall(tmp, filter="data")
+            else:  # Python before 3.12; the archive is git's own export of this repository
+                tar.extractall(tmp)
+        return run_check(Path(tmp) / prefix, only, changelog_all).findings
 
 
-def mark_new(report: "Report", root: Path, ref: str) -> bool:
-    """Mark each finding anchored on a line changed since ``ref``, or in a file added since; False when
-    ``ref`` cannot be read, which is a configuration failure."""
-    changed = _changed_since(root, ref)
-    if changed is None:
+def _same_finding(finding: Finding) -> Tuple[str, str, str, str]:
+    """A finding without its line numbers, so one that only moved is the same finding."""
+    anchor, message = (re.sub(r":\d+", "", text) for text in (finding.anchor, finding.message))
+    return finding.family, finding.level, anchor, message
+
+
+def mark_new(report: "Report", root: Path, ref: str, only: Optional[List[str]], changelog_all: bool) -> bool:
+    """Mark each finding the gate did not report at the merge base of ``ref`` and HEAD: what the change
+    added, wherever it shows (a changed line, a whole file, a record, a link a deletion broke). False when
+    the merge base cannot be read, which is a configuration failure."""
+    base = _baseline(root, ref, only, changelog_all)
+    if base is None:
         return False
-    lines, added = changed
-    report.since = ref
+    before = collections.Counter(_same_finding(f) for f in base)
     for finding in report.findings:
-        path, sep, line = finding.anchor.rpartition(":")
-        if sep and line.isdigit():
-            finding.new = path in added or int(line) in lines.get(path, ())
+        key = _same_finding(finding)
+        if before[key]:
+            before[key] -= 1
         else:
-            finding.new = finding.anchor in added
+            finding.new = True
+    report.since = ref
     return True
 
 
@@ -4623,8 +4628,8 @@ def main(argv=None) -> int:
         return 2
     report = run_check(root, only, changelog_all)
     if since is not None and report.fatal_message is None:
-        if not mark_new(report, root, since):
-            report = Report.fatal("--changed-since: '%s' is not a commit git can find here" % since)
+        if not mark_new(report, root, since, only, changelog_all):
+            report = Report.fatal("--changed-since: '%s' and HEAD have no merge base git can find here" % since)
         report.new_only = new_only
     print(report.render(root))
     return report.exit_code()
