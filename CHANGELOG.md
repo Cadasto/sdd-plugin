@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 - Tools: `sdd-pr` counts a range from `origin/<base>` when the local base is only behind it, and lists the vendored gate as `vendored`, apart from the code to review.
+- Skills: `sdd-review` runs `scope` before it reads any reference, dispatches the reviewers and paths `scope` names with the hunks `scope --diff` prints, and reads the gate's new findings with `--changed-since`; every skill names the plugin root as the folder that holds its `skills/` folder, which works on Cursor too.
 - Tools: the findings file lives in the clone's shared git directory, `<git-common-dir>/sdd/findings/<branch-slug>.md`, which every worktree sees and no worktree removal deletes; a file left at `.sdd/findings/` moves there on first use, and `status` prints the path.
 - Tools: `sdd-pr status` says `Mergeable: no` with no pull request, a closed one or an unreachable forge, prints `Mergeable: merged` and the file to delete once the pull request merged, numbers the open lines, points `Next` at `post` while a blocking line is not mirrored, and at routing while suggestions are left.
 - Skills: `sdd-review`, `sdd-triage` and `sdd-deliver` write the findings file only through `sdd-pr`; `sdd-deliver --close-out` routes every suggestion left, to a *Known gaps* line, a deferred requirement or a tracker issue, or drops it.

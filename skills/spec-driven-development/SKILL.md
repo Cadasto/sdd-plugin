@@ -6,7 +6,7 @@ allowed-tools: Read, Grep, Glob
 
 # Spec-Driven Development — awareness and routing
 
-> `references/…` resolves from the plugin root: `${CLAUDE_PLUGIN_ROOT}/references/…` on Claude Code, or Glob for the installed copy.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code); `references/…` resolves from it.
 
 The always-on layer: it explains the methodology, routes to the skill that does the work, and does no artefact work itself. Ground every answer in `references/sdd-methodology.md`; never improvise a rule.
 

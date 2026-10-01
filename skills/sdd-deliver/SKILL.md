@@ -7,7 +7,7 @@ allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 
 # Deliver — one change, from the dispatch gate to a ready pull request
 
-> `references/…` and `tools/…` resolve from the plugin root: `${CLAUDE_PLUGIN_ROOT}/…` on Claude Code, or Glob for the installed copy. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code); `references/…` and `tools/…` resolve from it. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
 
 The procedure and its parameters come from the descriptor and this file, never from session memory. Run as the orchestrator, on the strongest model available: hold the judgement, delegate the bounded work. The argument is the `REQ`, a task in words, or — to resume — the PR number; `--lane` overrides step 1, and `--close-out` runs step 10 alone on an existing PR.
 
