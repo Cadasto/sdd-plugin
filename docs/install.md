@@ -39,6 +39,27 @@ claude plugin details sdd           # component inventory + projected token cost
 
 Restart the session for an update to take effect.
 
+### Fewer permission prompts
+
+The plugin can't approve a command for you. Claude Code ignores `permissionMode` in a plugin's agents and drops `permissions` from a plugin's settings, and a subagent runs under the session's own permission rules ([subagents](https://code.claude.com/docs/en/sub-agents), [plugin settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings)). So `sdd-spec-conformance-reviewer` and `sdd-traceability-auditor` ask before they run the gate, your tests or a scratch worktree for the guard-removal check, until your settings allow those commands. Add rules like these to the repository's `.claude/settings.json`, which everyone shares, or to your own `~/.claude/settings.json`:
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 scripts/sdd-check.py *)",
+      "Bash(make spec-check)",
+      "Bash(make ci)",
+      "Bash(go test *)",
+      "Bash(git worktree add *)",
+      "Bash(git worktree remove *)"
+    ]
+  }
+}
+```
+
+Write your own `check.script`, `build_entrypoint` and targets, and test command in place of the examples.
+
 ## Cursor
 
 Add this repository as a plugin (Cursor **Settings → Plugins**, via Git URL or local path). The repo root contains `.cursor-plugin/plugin.json`, which declares the `skills`, `agents`, `rules`, and `hooks` paths. After changing content locally, reload or reinstall the plugin so Cursor picks it up.

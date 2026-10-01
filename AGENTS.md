@@ -70,7 +70,7 @@ Scope is the **spec / document / traceability layer** and the **delivery pipelin
 | Tool | Purpose |
 |------|---------|
 | `sdd-check` | The vendored drift gate (`check`, `generate`, `context`, `selftest`): checks the traceability chain in both directions, lints the prose rules that can be checked mechanically, generates every derived index from one source, prints a requirement's context bundle, and tests itself; reads the profile |
-| `sdd-pr` | The findings file and its forge mirror (`status`, `scope`, `pull`, `post`, `resolve`, `add`, `flip`, `record`, `rename`): GitHub and Azure DevOps backends behind one interface; `add`, `flip`, `record`, `rename` (with `pull`, `post`, `resolve`) make every write to the file, which lives in the clone's git directory; `status` prints `Mergeable` and `Next`; `post`, `resolve` and `status --write-body` keep a review-state block in the PR body |
+| `sdd-pr` | The findings file and its forge mirror (`status`, `scope`, `pull`, `post`, `resolve`, `add`, `flip`, `record`, `rename`): GitHub and Azure DevOps backends behind one interface; `add`, `flip`, `record`, `rename` (with `pull`, `post`, `resolve`) make every write to the file, which lives in the clone's git directory; `status` prints `Mergeable` and `Next`; `post` writes one review per pass, its summary at the head; `post`, `resolve` and `status --write-body` keep a review-state block in the PR body |
 
 ### Optional: a general engineering plugin
 A general engineering plugin such as superpowers is optional: exploration workflows help before `/sdd-specify`, and everything after that is covered here. The router skill `spec-driven-development` states where the seam lies.
