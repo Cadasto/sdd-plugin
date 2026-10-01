@@ -23,7 +23,10 @@ to it, and suggestions are routed before merge instead of dying with the file.
 6. **Versions.** The session-start line now names the plugin version on Cursor too, and says when the
    vendored gate is older than the plugin, or the plugin older than the repository. `sdd-pr` refuses to
    write while the plugin is the older one.
-7. **Process documents.** `--upgrade` merges template changes section by section into tuned
+7. **Review range.** `/sdd-review` and `sdd-pr scope` read the whole branch by default, so a second
+   agent or model reviews all of it; `--since-last` reads only the commits since the last pass and
+   replaces `--all`.
+8. **Process documents.** `--upgrade` merges template changes section by section into tuned
    `ai-workflow.md`, `development-process.md` and pull-request templates, and writes `/.sdd/` rather than
    a bare `.sdd/`.
 

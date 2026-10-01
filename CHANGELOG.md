@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Tools: `sdd-pr scope --since-last` reads only the commits since the last pass, or since one agent's own with `--agent`, which now needs it.
 - Templates: `task-review.md`, the per-task review `/sdd-deliver` hands each reviewer: the brief, the task's diff, the scope test, mutations in a fresh copy only, findings returned inline.
 - Tools: `sdd-pr status` lists the delivery's worker branches, `<branch>--<task>`, counting one not integrated or still running (no commit yet, or work in its worktree) against `Mergeable` and naming merged ones for removal; it prints the delivery notes' path and names them for deletion once the pull request merged.
 - Hooks: `session-start.sh` reads the plugin version beside itself on every host and says when the vendored gate is older than the plugin, or the plugin older than the repository.
@@ -17,6 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: each posted thread carries its finding's `By:` line, and `pull` reads it back instead of crediting the account that posted it.
 
 ### Changed
+- Tools: `sdd-pr scope` reads the whole branch by default, however many passes came before.
+- Skills: `sdd-review` reviews the whole branch, so another agent or model gives a second opinion on all of it, without the open findings in its reviewers' brief; `--since-last` reviews only the commits since this agent's last pass, and `sdd-triage`'s re-review uses it; the `Reviewed` line names the host and its model.
+- References: `review.md` § Passes leaves a second opinion the maintainer asks for outside the pass budget.
 - Tools: a document marked `kind: plan` is a temporary working file: `sdd-check` reads it in no family and counts it, refuses one where requirements, specifications or ADRs live, and fails a durable document that links to one; `sdd-pr scope` lists it as `plans`, for no reviewer, even when the range deleted it.
 - Tools: `sdd-pr` refuses every write while the plugin is older than the repository's `check.version`.
 - Skills: `sdd-deliver` keeps its lane, gate result and tasks in a notes file in the clone's git directory, names worker branches `<branch>--<task>`, integrates them after a trial merge with one regeneration, removes their worktrees and branches, holds the spec still during a wave, quotes a given plan's tasks verbatim, and resumes from the notes before a pull request exists.
@@ -32,6 +36,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - References: `review.md` names the new location, the commands and the routing of suggestions; the review state counts suggestions not routed and lists routed ones.
 - Hooks: `session-start.sh` reads the findings file from the clone's git directory.
 - Skills: `sdd-scaffold` ignores `/.sdd/` as a scratch folder and accepts an existing `.sdd/` line.
+
+### Removed
+- Tools: `sdd-pr scope --all`, and `/sdd-review --all`: the whole branch is the default.
 
 ## [0.8.1] - 2026-10-01
 

@@ -322,8 +322,9 @@ important finding is open. Everything else is a suggestion ([review.md](review.m
 — nowhere else. Format, severities, scope, evidence, the mirror, resolution, the pass budget:
 [review.md](review.md).
 
-**Scope is the change.** A pass reads the commit range since the last pass. What the change did not
-touch is a suggestion at most.
+**Scope is the change.** A pass reads the branch's commits since its base, so every reviewer gives an
+opinion on the whole change; the pass over fixes reads only the commits since the last pass. What the
+change did not touch is a suggestion at most.
 
 **Verify before fixing.** A finding is a claim, and so is a reviewer's proposed correction. Both are
 checked against the code and the documents before either is applied.

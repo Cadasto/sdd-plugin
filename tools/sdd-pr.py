@@ -551,14 +551,15 @@ def base_ref(root: str, base: str) -> str:
     return base
 
 
-def review_range(root: str, fs: Findings, base: str, head: str, whole: bool = False,
+def review_range(root: str, fs: Findings, base: str, head: str, since_last: bool = False,
                  agent: str = "") -> Optional[str]:
-    """The range the next pass reads, or ``None`` when nothing is new (review.md § Scope): since the
-    last pass, or since ``agent``'s own last pass for a panel member. A last pass that is no longer an
-    ancestor of HEAD (the branch was rebased) restarts at the merge base."""
+    """The range a pass reads, or ``None`` when nothing is in it (review.md § Scope): the whole branch,
+    so a second reviewer gives a second opinion on all of it; with ``since_last``, only the commits
+    since the last pass, or since ``agent``'s own. A last pass that is no longer an ancestor of HEAD
+    (the branch was rebased) restarts at the merge base."""
     agent = _clean(agent).replace(":", "-") if agent else ""  # spelled as record writes it
     passes = [r for r in fs.passes if not agent or r[2] == agent]
-    last = None if whole or not passes else passes[-1][0]
+    last = passes[-1][0] if since_last and passes else None
     if last:
         full = resolve_sha(root, last)
         if full == head:
@@ -1187,7 +1188,10 @@ def cmd_scope(session: Session, args) -> int:
             raise CliError("scope: --base %s is not a branch or commit here" % args.base)
         session.fs.base = args.base
         session.save()
-    rng = review_range(session.root, session.fs, session.base(), session.head, whole=args.all, agent=args.agent or "")
+    if args.agent and not args.since_last:
+        raise CliError("scope: --agent names whose last pass --since-last starts from; pass both")
+    rng = review_range(session.root, session.fs, session.base(), session.head,
+                       since_last=args.since_last, agent=args.agent or "")
     files = changed_files(session.root, rng, session.globs, session.vendored)
     reviewers, unassigned = reviewers_for(session.data, files)
     if args.diff:
@@ -1230,7 +1234,7 @@ def cmd_status(session: Session, args) -> int:
         except CliError as exc:
             unreachable = str(exc).splitlines()[0]
     last = fs.last_reviewed_sha()
-    rng = review_range(session.root, fs, session.base(), session.head)
+    rng = review_range(session.root, fs, session.base(), session.head, since_last=True)
     files = changed_files(session.root, rng, session.globs, session.vendored)
     code_changed = bool(files["code"] or files["tests"] or files["other"])
     changed = code_changed or bool(files["documents"])
@@ -1656,9 +1660,10 @@ def build_parser() -> argparse.ArgumentParser:
         cmd.add_argument("--pr", type=int, default=None, help="the pull request (default: the branch's open one)")
         if name == "scope":
             cmd.add_argument("--json", action="store_true")
-            cmd.add_argument("--all", action="store_true", help="the whole branch, not the range since the last pass")
+            cmd.add_argument("--since-last", action="store_true",
+                             help="only the commits since the last pass, not the whole branch")
             cmd.add_argument("--base", help="the branch this one starts from (a stacked branch's parent); kept in the file")
-            cmd.add_argument("--agent", help="the range since this agent's own last pass")
+            cmd.add_argument("--agent", help="with --since-last: since this agent's own last pass")
             cmd.add_argument("--diff", metavar="KIND|REVIEWER", help="print the range's hunks for one kind or reviewer")
         if name == "post":
             cmd.add_argument("--dry-run", action="store_true")
