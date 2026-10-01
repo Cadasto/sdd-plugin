@@ -26,9 +26,12 @@ These changes edit what the repository already has, so each is proposed and appl
 
 - delete `docs/.sdd/reviewers/` — declines now live in the findings file, and a decline that should hold becomes a specification sentence or an ADR;
 - delete the `paths.plans` line (the gate reports it as a NOTE until then) and rename `profile: full` to `profile: formal`;
-- merge the process documents section by section, never re-emit one: `docs/ai-workflow.md`, `docs/development-process.md`, and the pull-request template wherever it already is (`.github/`, `docs/` or the root, any case; never a second one). A file still identical to an older template is replaced. Otherwise show, for each section the new template changed (§ Review, § Orchestration, § The PR body), the template's section beside the repository's, and change only that section on the maintainer's yes; a missing section is added. Everything else stays the repository's own, its checklist policy included;
-- an open pull request keeps its old review comment as history: add its open rows once to the branch's findings file with `sdd-pr add`, and never edit that comment again;
-- offer `kind: plan` to a tracked plan under `docs/` with no `kind:` (a `plans/` folder, or a file the maintainer names), which takes it out of the gate; nothing else in it changes.
+- an open pull request keeps its old review comment as history: add its open rows once to the branch's findings file with `sdd-pr add`, and never edit that comment again.
+
+## 3c. On every upgrade: propose, then apply on the maintainer's yes
+
+- **Process documents, section by section; never re-emitted.** `docs/ai-workflow.md`, `docs/development-process.md`, and the pull-request template wherever it already is (`.github/`, `docs/`, the root, `.azuredevops/` or `.vsts/`, any case; never a second one). For each section where the repository's text differs from the current template (§ Review, § Orchestration, § The PR body and its checklist), show the two side by side and change only that section on the maintainer's yes; a section the repository lacks is added. Everything else stays the repository's own, its own checklist policy included.
+- **Plans.** Offer `kind: plan` to a tracked plan under `docs/` that has no `kind:` (a `plans/` folder, or a file the maintainer names), which takes it out of the gate; nothing else in it changes. A plan where requirements, specifications or ADRs live is named, so the maintainer moves it.
 
 ## 4. Add missing `kind:` frontmatter
 

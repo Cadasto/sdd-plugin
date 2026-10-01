@@ -950,6 +950,28 @@ class TestPlans(BaselineCase):
         self.assertEqual([], [f for f in report.findings if self.PLAN in f.anchor], report.render(self.tmp))
         self.assertEqual(0, report.exit_code(), report.render(self.tmp))
 
+    def test_a_plan_inside_a_requirements_specifications_or_adr_folder_is_refused(self):
+        for folder in ("docs/requirements", "docs/specifications", "docs/adr"):
+            self.write(folder + "/plan-x.md", "---\nkind: plan\n---\n\n# Plan\n")
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        hits = [f for f in report.findings if f.family == "doc-kinds" and f.level == "ERROR" and "plan-x.md" in f.anchor]
+        self.assertEqual(3, len(hits), report.render(self.tmp))
+
+    def test_the_report_counts_the_plans_it_left_alone(self):
+        self.write(self.PLAN, "---\nkind: plan\n---\n\n" + self.BODY)
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assertIn("plans: 1 left alone (kind: plan)", report.render(self.tmp))
+
+    def test_a_durable_document_that_cites_a_plan_fails(self):
+        self.write(self.PLAN, "---\nkind: plan\n---\n\n" + self.BODY)
+        self.edit(SPEC_REL, "\n## ", "\nSee [the plan](../plans/2026-10-01-thing.md).\n\n## ")
+        report = self.run_only("links")
+        self.assert_finding(report, "cites a plan", level="ERROR")
+        # can-fail control: a guide may point at a plan.
+        self.edit(SPEC_REL, "\nSee [the plan](../plans/2026-10-01-thing.md).\n\n## ", "\n## ")
+        self.write("docs/guide.md", "---\nkind: guide\n---\n\n# Guide\n\nSee [the plan](plans/2026-10-01-thing.md).\n")
+        self.assertEqual([], [f for f in self.run_only("links").findings if "cites a plan" in f.message])
+
     def test_can_fail_control_the_same_file_unmarked_is_read(self):
         self.write(self.PLAN, self.BODY)
         report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)

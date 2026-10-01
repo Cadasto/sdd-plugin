@@ -61,8 +61,8 @@ rest" is one answer. Unsure between important and suggestion: write suggestion.
 ## Scope
 
 A pass reads the commits since the last `Reviewed` line, or `merge-base(base, HEAD)..HEAD` the first
-time; `sdd-pr scope` prints the range, its paths as code, tests, documents, other and the vendored gate
-(which no one reviews unless it was patched here), and the reviewer each code path goes to. A stacked branch names its parent once
+time; `sdd-pr scope` prints the range, its paths as code, tests, documents, plans and other and the vendored gate
+(which no one reviews; the gate is reviewed only when it was patched here), and the reviewer each code path goes to. A stacked branch names its parent once
 with `--base`; a local base that is only behind its remote counts from the remote; a panel member reads
 from its own last pass with `--agent`. A critical or
 important finding is about a line in that range, or text an earlier fix on this branch wrote; anything

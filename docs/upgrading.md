@@ -60,9 +60,9 @@ already has.
    reads nothing git ignores, committed plans under an ignored directory included, and a tracked
    document that links to a git-ignored file fails the `links` family. Point such a link at the pull
    request or commit instead.
-4. **Process documents.** Re-emit `docs/ai-workflow.md`, `docs/development-process.md` and
-   `.github/PULL_REQUEST_TEMPLATE.md` from the templates, keeping this repository's own lines under
-   § Orchestration.
+4. **Process documents.** `/sdd-scaffold --upgrade` merges the template changes into
+   `docs/ai-workflow.md`, `docs/development-process.md` and the pull-request template section by
+   section, and keeps this repository's own text.
 5. **Open pull requests.** An existing review ledger comment stays as history. Add its open rows once
    with `sdd-pr add`, in the grammar of the plugin's `references/review.md`, and never edit the comment
    again. A `Deferred` row you want to keep becomes `implementation: deferred`

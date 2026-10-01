@@ -349,7 +349,7 @@ The review-enforced list is meant to shrink.
 | RFC-2119 only in specifications | `rfc2119` |
 | Doc kinds and status vocabularies | `doc-kinds` |
 | Links and fragments resolve | `links` |
-| Durable documents never cite a plan | review-enforced — `sdd-doc-reviewer` |
+| Durable documents never cite a plan | `links` for a link; `sdd-doc-reviewer` for prose |
 | Changelog bullet | `changelog` |
 | Generated blocks match | `generated` |
 | Unknown identifier cited in code | `tree-to-map` |

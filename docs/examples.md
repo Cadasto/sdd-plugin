@@ -192,7 +192,7 @@ The upgrade re-vendors `tools/sdd-check.py` when the plugin ships a newer copy t
 
 When a hand-written index row has no matching record in `traceability.yaml`, `generate` refuses to drop it: the run writes nothing and names the row. Capture the requirement with `/sdd-specify`, or delete the stale row by hand, then run again. A note inside the markers is refused the same way; move it outside them.
 
-From 0.7.x the upgrade also proposes the 0.8.0 changes: drop the plans path, rename `profile: full` to `formal`, ignore `.sdd/`, and re-emit the process documents. Each is applied only when you say yes. The full procedure is in [docs/upgrading.md](upgrading.md).
+From 0.7.x the upgrade also proposes the 0.8.0 changes: drop the plans path, rename `profile: full` to `formal`, ignore `/.sdd/`, and merge template changes into the process documents section by section. Each is applied only when you say yes. The full procedure is in [docs/upgrading.md](upgrading.md).
 
 ## Draft a gap for an upstream repository
 

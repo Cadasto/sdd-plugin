@@ -578,12 +578,17 @@ def review_range(root: str, fs: Findings, base: str, head: str, whole: bool = Fa
 KINDS = ("code", "tests", "documents", "other", "vendored", "plans")
 
 
-def _is_plan(root: str, path: str) -> bool:
-    """A document marked `kind: plan`: a temporary working file nobody reviews."""
+def _is_plan(root: str, path: str, start: str = "") -> bool:
+    """A document marked `kind: plan`: a temporary working file nobody reviews. A plan the range deleted is
+    read as it was at the range's start."""
     try:
-        with open(os.path.join(root, path), encoding="utf-8") as handle:
-            front, _ = gate().frontmatter(handle.read())
-    except (OSError, UnicodeDecodeError, gate().YamlError):
+        if os.path.exists(os.path.join(root, path)) or not start:
+            with open(os.path.join(root, path), encoding="utf-8") as handle:
+                text = handle.read()
+        else:
+            text = git(root, "show", "%s:./%s" % (start, path))
+        front, _ = gate().frontmatter(text)
+    except (OSError, UnicodeDecodeError, CliError, gate().YamlError):
         return False
     return isinstance(front, dict) and str(front.get("kind", "")).strip() == "plan"
 
@@ -601,7 +606,7 @@ def changed_files(root: str, rng: Optional[str], globs: List[str], vendored: str
             continue
         vendored_here = os.path.normpath(path) == vendored and not _patched(root, path)
         kind = "vendored" if vendored_here else kind_of(path, globs)
-        if kind == "documents" and _is_plan(root, path):
+        if kind == "documents" and _is_plan(root, path, rng.split("..")[0]):
             kind = "plans"
         files[kind].append(path)
     return files
@@ -631,20 +636,45 @@ def version_lt(a: str, b: str) -> bool:
     return x + [0] * (width - len(x)) < y + [0] * (width - len(y))
 
 
-def worker_branches(root: str, branch: str) -> Tuple[List[str], List[str]]:
-    """The delivery's worker branches, `<branch>--<task>`: those not yet merged into HEAD, and those merged."""
+def worker_branches(root: str, branch: str) -> Tuple[List[Tuple[str, str]], List[str]]:
+    """The delivery's worker branches, `<branch>--<task>`: those not integrated yet, each with what it is
+    doing, and those merged. A branch just created from HEAD is an ancestor of HEAD too: it counts as
+    merged only once it has its own commits and its worktree holds no uncommitted work."""
     try:
         names = git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/%s--*" % branch).split()
     except CliError:
         return [], []
-    pending, merged = [], []
+    pending: List[Tuple[str, str]] = []
+    merged: List[str] = []
     for name in names:
         try:
             git(root, "merge-base", "--is-ancestor", name, "HEAD")
-            merged.append(name)
         except CliError:
-            pending.append(name)
+            pending.append((name, "not integrated"))
+            continue
+        tree = worktree_of(root, name)
+        try:
+            dirty = bool(tree) and bool(git(tree, "status", "--porcelain").strip())
+        except CliError:
+            dirty = False
+        if dirty:
+            pending.append((name, "running (uncommitted work in %s)" % tree))
+            continue
+        try:
+            subjects = [s for s in git(root, "reflog", "show", "--format=%gs", "refs/heads/" + name).splitlines() if s.strip()]
+        except CliError:
+            subjects = []
+        if subjects and all(s.startswith("branch: Created") for s in subjects):
+            pending.append((name, "running (no commit yet)"))
+            continue
+        merged.append(name)
     return pending, merged
+
+
+def cleanup_line(findings: str, notes: str) -> str:
+    """What a merged branch leaves behind: its findings file, its delivery notes, the branch and worktree."""
+    also = " and the delivery notes %s" % notes if os.path.exists(notes) else ""
+    return "delete %s%s, then the branch and its worktree" % (findings, also)
 
 
 # ---------------------------------------------------------------- the forge interface
@@ -1214,7 +1244,7 @@ def cmd_status(session: Session, args) -> int:
         print(session.stale)
     pending, merged = worker_branches(session.root, session.branch)
     if pending or merged:
-        print("workers: " + " · ".join(["%s not integrated" % w for w in pending] + ["%s merged" % w for w in merged]))
+        print("workers: " + " · ".join(["%s %s" % w for w in pending] + ["%s merged" % w for w in merged]))
     for sha in fs.unreviewed_passes():
         print("Reviewed %s: no reviewer reported; not a pass" % sha[:7])
     counts = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
@@ -1237,10 +1267,10 @@ def cmd_status(session: Session, args) -> int:
     elif not last and changed:
         reasons.append("not reviewed yet")
         nxt = nxt or "/sdd-review"
-    for name in pending:
+    for name, _ in pending:
         reasons.append("worker branch %s not integrated" % name)
     if pending:
-        nxt = nxt or "integrate %s (/sdd-deliver step 7)" % ", ".join(pending)
+        nxt = nxt or "integrate %s (/sdd-deliver step 7)" % ", ".join(name for name, _ in pending)
 
     if session.forge.name == "none":
         print("forge: none")
@@ -1259,7 +1289,7 @@ def cmd_status(session: Session, args) -> int:
                   % (len(fs.open), "" if len(fs.open) == 1 else "s", len(fs.suggestions),
                      "" if len(fs.suggestions) == 1 else "s"))
         print("Mergeable: merged")
-        print("Next: delete %s, then the branch and its worktree" % session.path)
+        print("Next: " + cleanup_line(session.path, session.notes))
         return 0
     elif pr["state"] == "closed":
         print("forge: %s · PR %d closed" % (session.forge.name, pr["number"]))

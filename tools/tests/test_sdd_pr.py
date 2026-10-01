@@ -86,6 +86,9 @@ def git_routes(branch="feat/x", head=HEAD, remote="git@github.com:o/r.git", name
         (git("remote", "get-url", "origin"), remote + "\n"),
         (git("worktree", "list"), ""),
         (git("for-each-ref"), ""),
+        (git("reflog"), "commit: work\nbranch: Created from HEAD\n"),
+        (git("status", "--porcelain"), ""),
+        (git("show"), sdd_pr.CliError("fatal: path not in that commit")),
         (git("diff", "--name-only"), names),
         (git("diff"), diff),
     ]
@@ -1404,6 +1407,36 @@ class TestDelivery(RepoCase):
         _, out, _ = self.run_main("status")
         self.assertIn("Mergeable: yes", out)
         self.assertIn("Next: remove the merged worker branches and their worktrees: feat/x--parser", out)
+
+    def test_a_worker_with_no_commit_yet_or_work_in_its_tree_is_running_not_merged(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN.replace("- a.go:9 · rename `n` to `count` · by: claude\n", ""))
+        workers = (git("for-each-ref"), "feat/x--t3\n")
+        fresh = (git("reflog"), "branch: Created from feat/x\n")
+        self.use([workers, fresh] + git_routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("workers: feat/x--t3 running (no commit yet)", out)
+        self.assertIn("Mergeable: no — worker branch feat/x--t3 not integrated", out)
+        listing = "worktree %s\nHEAD %s\nbranch refs/heads/feat/x\n\nworktree /wt/t3\nHEAD %s\nbranch refs/heads/feat/x--t3\n" % (self.root, HEAD, HEAD)
+        dirty = (lambda a: git("status", "--porcelain")(a) and "/wt/t3" in a, " M a.go\n")
+        self.use([workers, dirty, (git("worktree", "list"), listing)] + git_routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("workers: feat/x--t3 running (uncommitted work in /wt/t3)", out)
+
+    def test_a_plan_deleted_in_the_range_is_still_a_plan(self):
+        self.descriptor(forge="none")
+        shown = (git("show"), "---\nkind: plan\n---\n\n# Plan\n")
+        self.use([shown] + git_routes(names="docs/plans/gone.md\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("plans: docs/plans/gone.md\n", out)
+
+    def test_a_merged_pull_request_names_the_delivery_notes_too(self):
+        self.descriptor(forge="none")
+        notes = self.root / ".git" / "sdd" / "deliver" / "feat--x.md"
+        notes.parent.mkdir(parents=True)
+        notes.write_text("Lane: full\n", encoding="utf-8")
+        self.assertIn(str(notes), sdd_pr.cleanup_line(str(self.store()), str(notes)))
+        self.assertNotIn("notes", sdd_pr.cleanup_line(str(self.store()), str(self.root / "absent.md")))
 
     def test_status_names_the_delivery_notes_when_they_exist(self):
         self.descriptor(forge="none")

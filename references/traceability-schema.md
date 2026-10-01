@@ -215,8 +215,9 @@ The gate is `sdd-check`; its families and rules are in [sdd-check.md](sdd-check.
 
 ## 3. The plan
 
-A plan has no machine contract and no descriptor key; it is a git-ignored working file, and the gate reads
-nothing git ignores ([sdd-methodology.md §9](sdd-methodology.md)).
+A plan has no machine contract and no descriptor key: a temporary working file, committed or not. Marked
+`kind: plan` outside the requirement, specification and ADR folders, no family reads it, and a durable
+document may not link to it ([sdd-methodology.md §3, §9](sdd-methodology.md)).
 
 ## 4. Generated blocks
 
