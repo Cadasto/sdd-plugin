@@ -76,7 +76,7 @@ Scope is the **spec / document / traceability layer** and the **delivery pipelin
 A general engineering plugin such as superpowers is optional: exploration workflows help before `/sdd-specify`, and everything after that is covered here. The router skill `spec-driven-development` states where the seam lies.
 
 ### Hooks
-- **SessionStart** (`session-start.sh`): detects an SDD repository and prints a context line with the profile plus the `/sdd-*` surface and an orientation (plugin version on Claude Code, branch, the branch's open findings, drift-gate verdict), or a scaffold pointer in a non-SDD repo with a `docs/` dir.
+- **SessionStart** (`session-start.sh`): detects an SDD repository and prints a context line with the profile plus the `/sdd-*` surface and an orientation (plugin version on both hosts and any mismatch with the vendored gate, branch, the branch's open findings, drift-gate verdict), or a scaffold pointer in a non-SDD repo with a `docs/` dir.
 - **PostToolUse** (Claude Code, `spec-edit-reminder.sh`): after an edit to a requirement/spec/ADR or the descriptor/traceability map, reminds to keep the chain in sync (`/sdd-trace` to check; the vendored `generate`, `/sdd-specify` or `/sdd-deliver --close-out` to regenerate); on the informative profile only a constitution edit prints one. It is registered on Cursor's `afterFileEdit` too, but that event has no output channel, so Cursor shows no reminder.
 - **Stop** (Claude Code) / **stop** (Cursor) (`session-stop.sh`): a one-shot nudge when the session made no commit and leaves uncommitted changes in an SDD repository; the second stop in a session passes silently. Opt out per repo with `hooks.stop_nudge: false` in `docs/.sdd.yaml`. Per-host detail: [docs/install.md](docs/install.md#hooks).
 

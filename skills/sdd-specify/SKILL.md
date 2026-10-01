@@ -40,7 +40,7 @@ No descriptor: route to `/sdd-scaffold` and stop. Behaviour not yet explored: ex
 ## Guardrails
 
 - A requirement holds no normative prose, a spec no tasks, an ADR one decision.
-- Never cite a plan from a requirement, specification or ADR; a plan is never committed (methodology §9).
+- Never cite a plan from a requirement, specification or ADR (methodology §9).
 - Never settle an open question silently: record an ADR (§C) or a `STRAND`, or return to brainstorming.
 - For a missing **upstream** capability (a sibling SDD repo this one consumes), follow `references/cross-repo-gap.md`.
 - **Never hand-edit a generated block; change the map or the frontmatter and run `sdd-check generate`** (except a withdrawn ADR's row, §C).

@@ -54,13 +54,13 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
 
 ## `--upgrade` — top up an existing repository
 
-Follow `references/scaffold-upgrade.md` in order: add missing descriptor keys → re-vendor and pin → the starter changelog and the `.sdd/` ignore line → propose the 0.8.0 changes → missing `kind:` frontmatter → missing generated markers → wire the build target → regenerate → report. Apart from the 0.8.0 changes the maintainer confirms, never touch an existing key or a document body with content; add only what is missing and report exactly what changed.
+Follow `references/scaffold-upgrade.md` in order: add missing descriptor keys → re-vendor and pin → the starter changelog and the `/.sdd/` ignore line → propose the version's changes → missing `kind:` frontmatter → missing generated markers → wire the build target → regenerate → report. Apart from the 0.8.0 changes the maintainer confirms, never touch an existing key or a document body with content; add only what is missing and report exactly what changed.
 
 ## Guardrails
 
 - **Idempotent and non-destructive.** Never overwrite a file with content. Fill gaps; report skips.
 - **Adopt incrementally.** `requirements/`, `specifications/`, `adr/` and `AGENTS.md` are enough to start — on informative, `docs/architecture.md` alone. Don't force `analysis/` or `operations/`.
-- **Respect the taxonomy.** No scaffolding directory that fights the document kinds; nothing under `docs/` is a plan.
+- **Respect the taxonomy.** No scaffolding directory that fights the document kinds; a committed plan carries `kind: plan`.
 - **The descriptor is the contract** every other skill reads; get it right here.
 - **A repository that ships its own gate keeps it until `sdd-check` covers what it checks; run both meanwhile.**
 

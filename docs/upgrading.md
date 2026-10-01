@@ -17,6 +17,14 @@ to it, and suggestions are routed before merge instead of dying with the file.
 3. **Suggestions left on open branches.** Route each before merge, with `sdd-pr flip <path:line>
    --deferred "<where>"` or `--dropped`; `/sdd-deliver --close-out` asks for it.
 4. **Before a pull request opens**, `sdd-pr status` now says `Mergeable: no — no pull request`.
+5. **Committed plans.** A plan may be committed or not; mark a committed one `kind: plan` and the gate
+   and the reviewers leave it alone. `/sdd-scaffold --upgrade` offers the line for plans under `docs/`.
+6. **Versions.** The session-start line now names the plugin version on Cursor too, and says when the
+   vendored gate is older than the plugin, or the plugin older than the repository. `sdd-pr` refuses to
+   write while the plugin is the older one.
+7. **Process documents.** `--upgrade` merges template changes section by section into tuned
+   `ai-workflow.md`, `development-process.md` and pull-request templates, and writes `/.sdd/` rather than
+   a bare `.sdd/`.
 
 ## From 0.8.0 to 0.8.1
 

@@ -16,9 +16,9 @@ Compare the plugin's tool version (`python3 <plugin-root>/tools/sdd-check.py --v
 
 The pin itself is owned by `references/sdd-check.md` § Vendoring and the version pin.
 
-## 3. Add the starter changelog and the `.sdd/` ignore line, if missing
+## 3. Add the starter changelog and the `/.sdd/` ignore line, if missing
 
-When `check.changelog.path` (default `CHANGELOG.md`) does not exist, create it exactly as the fresh path's step 3c does. Never overwrite one that already has content. When `.gitignore` has no `.sdd/` line, append one, as the fresh path's step 3d does.
+When `check.changelog.path` (default `CHANGELOG.md`) does not exist, create it exactly as the fresh path's step 3c does. Never overwrite one that already has content. When `.gitignore` has neither `/.sdd/` nor `.sdd/`, append `/.sdd/`, as the fresh path's step 3d does: the anchored form leaves a tracked `docs/.sdd/` in the gate's view.
 
 ## 3b. From 0.7.x to 0.8.0: propose, then apply on the maintainer's yes
 
@@ -26,8 +26,9 @@ These changes edit what the repository already has, so each is proposed and appl
 
 - delete `docs/.sdd/reviewers/` — declines now live in the findings file, and a decline that should hold becomes a specification sentence or an ADR;
 - delete the `paths.plans` line (the gate reports it as a NOTE until then) and rename `profile: full` to `profile: formal`;
-- re-emit `docs/ai-workflow.md`, `docs/development-process.md` and `.github/PULL_REQUEST_TEMPLATE.md` from the templates, keeping the repository's own lines under § Orchestration;
-- an open pull request keeps its old review comment as history: copy its open rows once into the branch's findings file by hand, and never edit that comment again.
+- merge the process documents section by section, never re-emit one: `docs/ai-workflow.md`, `docs/development-process.md`, and the pull-request template wherever it already is (`.github/`, `docs/` or the root, any case; never a second one). A file still identical to an older template is replaced. Otherwise show, for each section the new template changed (§ Review, § Orchestration, § The PR body), the template's section beside the repository's, and change only that section on the maintainer's yes; a missing section is added. Everything else stays the repository's own, its checklist policy included;
+- an open pull request keeps its old review comment as history: add its open rows once to the branch's findings file with `sdd-pr add`, and never edit that comment again;
+- offer `kind: plan` to a tracked plan under `docs/` with no `kind:` (a `plans/` folder, or a file the maintainer names), which takes it out of the gate; nothing else in it changes.
 
 ## 4. Add missing `kind:` frontmatter
 

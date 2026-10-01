@@ -402,11 +402,11 @@ def validate_retired_vocabulary():
 WORD_BUDGETS = {
     "skills/sdd-review/SKILL.md": 855,
     "skills/sdd-triage/SKILL.md": 725,
-    "skills/sdd-deliver/SKILL.md": 1320,
+    "skills/sdd-deliver/SKILL.md": 1465,
     "skills/sdd-scaffold/SKILL.md": 1280,
     "skills/sdd-specify/SKILL.md": 965,
     "skills/sdd-trace/SKILL.md": 570,
-    "skills/spec-driven-development/SKILL.md": 785,
+    "skills/spec-driven-development/SKILL.md": 790,
     "references/review.md": 1730,
     "references/artefact-prose.md": 800,
     "agents/sdd-doc-reviewer.md": 880,
@@ -414,7 +414,7 @@ WORD_BUDGETS = {
     "agents/sdd-traceability-auditor.md": 850,
     "agents/sdd-implementer.md": 1200,
     "references/templates/ai-workflow.md": 1030,
-    "references/templates/development-process.md": 1230,
+    "references/templates/development-process.md": 1235,
 }
 
 
