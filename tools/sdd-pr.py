@@ -376,7 +376,8 @@ def splice(body: str, block: str) -> str:
 
 # ---------------------------------------------------------------- git and the descriptor
 def git(root: str, *args: str) -> str:
-    return run_cli(["git", "-C", root] + list(args))
+    # Paths come back as they are, never quoted, so a name with an accent matches the file.
+    return run_cli(["git", "-C", root, "-c", "core.quotePath=false"] + list(args))
 
 
 def read_descriptor(root: str) -> str:
@@ -424,6 +425,22 @@ def _setting(data: dict, *keys):
     return data
 
 
+def configured_reviewers(data: dict) -> List[str]:
+    value = _setting(data, "agents", "reviewers")
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [str(v) for v in value]
+    if isinstance(value, dict):
+        out: List[str] = []
+        for names in value.values():
+            for name in names if isinstance(names, list) else [names]:
+                if str(name) not in out:
+                    out.append(str(name))
+        return out
+    return []
+
+
 def _matches(path: str, pattern: str) -> bool:
     return fnmatch.fnmatch(path, pattern) or (pattern.startswith("**/") and fnmatch.fnmatch(path, pattern[3:]))
 
@@ -436,7 +453,10 @@ def reviewers_for(data: dict, files: Dict[str, List[str]]) -> Tuple[Dict[str, Li
     if isinstance(value, str):
         value = [value]
     if isinstance(value, list):
-        return {str(name): list(reviewable) for name in value if str(name).strip()} if reviewable else {}, []
+        names = [str(name) for name in value if str(name).strip()]
+        if not names:
+            return {}, list(reviewable)
+        return {name: list(reviewable) for name in names} if reviewable else {}, []
     out: Dict[str, List[str]] = {}
     unassigned = []
     for path in reviewable:
@@ -518,7 +538,13 @@ def base_ref(root: str, base: str) -> str:
         try:
             git(root, "merge-base", "--is-ancestor", local, remote)
         except CliError:
-            return base  # ahead or diverged: the local branch holds commits the remote lacks
+            # Ahead or diverged: the local branch holds commits the remote lacks, so it stays the base.
+            try:
+                git(root, "merge-base", "--is-ancestor", remote, local)
+            except CliError:
+                print("sdd-pr: local %s and origin/%s have diverged; the range starts from local %s, which "
+                      "may re-read work origin/%s already has" % (base, base, base, base), file=sys.stderr)
+            return base
         print("sdd-pr: local %s is behind origin/%s; the range starts from origin/%s" % (base, base, base),
               file=sys.stderr)
         return "origin/" + base
@@ -530,6 +556,7 @@ def review_range(root: str, fs: Findings, base: str, head: str, whole: bool = Fa
     """The range the next pass reads, or ``None`` when nothing is new (review.md § Scope): since the
     last pass, or since ``agent``'s own last pass for a panel member. A last pass that is no longer an
     ancestor of HEAD (the branch was rebased) restarts at the merge base."""
+    agent = _clean(agent).replace(":", "-") if agent else ""  # spelled as record writes it
     passes = [r for r in fs.passes if not agent or r[2] == agent]
     last = None if whole or not passes else passes[-1][0]
     if last:
@@ -567,15 +594,32 @@ def changed_files(root: str, rng: Optional[str], globs: List[str], vendored: str
     files: Dict[str, List[str]] = {kind: [] for kind in KINDS}
     if not rng:
         return files
+    vendored = os.path.normpath(vendored) if vendored else ""
     for path in git(root, "diff", "--name-only", rng).splitlines():
         path = path.strip()
         if not path:
             continue
-        kind = "vendored" if path == vendored else kind_of(path, globs)
+        vendored_here = os.path.normpath(path) == vendored and not _patched(root, path)
+        kind = "vendored" if vendored_here else kind_of(path, globs)
         if kind == "documents" and _is_plan(root, path):
             kind = "plans"
         files[kind].append(path)
     return files
+
+
+def _patched(root: str, path: str) -> bool:
+    """A vendored gate at the plugin's own version that differs from the plugin's copy was changed here,
+    so it is code to review; one at another version is simply a different release."""
+    own = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sdd-check.py")
+    try:
+        with open(os.path.join(root, path), "rb") as handle:
+            theirs = handle.read()
+        with open(own, "rb") as handle:
+            ours = handle.read()
+    except OSError:
+        return False
+    mine, vendored = (re.search(rb'^__version__ = "([^"]+)"', text, re.M) for text in (ours, theirs))
+    return bool(mine and vendored and mine.group(1) == vendored.group(1) and ours != theirs)
 
 
 def version_lt(a: str, b: str) -> bool:
@@ -1118,6 +1162,8 @@ def cmd_scope(session: Session, args) -> int:
     reviewers, unassigned = reviewers_for(session.data, files)
     if args.diff:
         paths = files.get(args.diff) if args.diff in KINDS else reviewers.get(args.diff)
+        if paths is None and args.diff in configured_reviewers(session.data):
+            paths = []  # a reviewer with nothing in this range: nothing to print
         if paths is None:
             raise CliError("scope: --diff takes a kind (%s) or a reviewer scope names, not %s"
                            % (", ".join(KINDS), args.diff))

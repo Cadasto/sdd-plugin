@@ -400,14 +400,14 @@ def validate_retired_vocabulary():
 # sentence at a time; a budget the validator enforces is what stops it. A change that needs more words raises
 # the number here, in the same pull request, with the maintainer's yes.
 WORD_BUDGETS = {
-    "skills/sdd-review/SKILL.md": 870,
+    "skills/sdd-review/SKILL.md": 880,
     "skills/sdd-triage/SKILL.md": 730,
     "skills/sdd-deliver/SKILL.md": 1465,
     "skills/sdd-scaffold/SKILL.md": 1280,
     "skills/sdd-specify/SKILL.md": 965,
     "skills/sdd-trace/SKILL.md": 570,
     "skills/spec-driven-development/SKILL.md": 790,
-    "references/review.md": 1775,
+    "references/review.md": 1780,
     "references/artefact-prose.md": 800,
     "agents/sdd-doc-reviewer.md": 880,
     "agents/sdd-spec-conformance-reviewer.md": 890,
