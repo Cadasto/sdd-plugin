@@ -685,6 +685,7 @@ class GitHubCase(RepoCase):
               "url": "u", "state": "OPEN", "statusCheckRollup": [], "body": "## Summary\n"}
         pr.update(self.PR)
         self.edits = []
+        self.reviews = getattr(self, "reviews", [])
 
         def edit(argv, stdin):
             self.edits.append(stdin)
@@ -696,6 +697,8 @@ class GitHubCase(RepoCase):
             (has("gh", "pr", "list"), lambda argv, _: json.dumps([pr])),
             (has("gh", "pr", "view"), lambda argv, _: json.dumps(pr)),
             (has("gh", "repo", "view"), json.dumps({"owner": {"login": "o"}, "name": "r"})),
+            (lambda a: a[:2] == ["gh", "api"] and "--method" not in a and "/reviews?" in a[2],
+             lambda argv, _: json.dumps(self.reviews)),
             (lambda a: a[:3] == ["gh", "api", "graphql"] and any("resolveReviewThread" in x for x in a),
              json.dumps({"data": {"resolveReviewThread": {"thread": {"isResolved": True}}}})),
             (has("gh", "api", "graphql"), json.dumps(gh_threads(list(threads)))),
@@ -861,6 +864,7 @@ class TestPost(GitHubCase):
 
         def review(argv, stdin):
             sent["payload"] = json.loads(stdin)
+            self.reviews.append({"id": 900, "body": sent["payload"]["body"]})
             return json.dumps({"id": 900})
 
         extra = [
@@ -880,6 +884,10 @@ class TestPost(GitHubCase):
         comment = payload["comments"][0]
         self.assertEqual(("a.go", 5, "RIGHT"), (comment["path"], comment["line"], comment["side"]))
         self.assertTrue(comment["body"].startswith("**important**"))
+        self.assertTrue(payload["body"].startswith(
+            "**Review at `%s`:** 0 critical and 2 important open; 1 suggestion, not posted.\n"
+            "- claude: go-reviewer (1 of 1)" % HEAD[:7]), payload["body"])
+        self.assertIn("<!-- sdd:pass %s claude -->" % HEAD[:7], payload["body"])
         self.assertIn("### Not anchored to the diff", payload["body"])
         self.assertIn("z.go:40", payload["body"])
         self.assertNotIn("suggestion is never posted", json.dumps(payload))
@@ -899,6 +907,7 @@ class TestPost(GitHubCase):
 
         def review(argv, stdin):
             posts.append(json.loads(stdin))
+            self.reviews.append({"id": 900, "body": posts[-1]["body"]})
             return json.dumps({"id": 900})
 
         extra = [
@@ -925,6 +934,7 @@ class TestPost(GitHubCase):
 
         def review(argv, stdin):
             posts.append(json.loads(stdin))
+            self.reviews.append({"id": 900, "body": posts[-1]["body"]})
             return json.dumps({"id": 900})
 
         def threads(argv, stdin):
@@ -951,6 +961,7 @@ class TestPost(GitHubCase):
 
         def review(argv, stdin):
             posts.append(json.loads(stdin))
+            self.reviews.append({"id": 900, "body": posts[-1]["body"]})
             return json.dumps({"id": 900})
 
         def threads(argv, stdin):
@@ -972,13 +983,73 @@ class TestPost(GitHubCase):
 
     def test_post_with_nothing_to_post_still_keeps_the_review_state(self):
         self.descriptor(forge="github")
-        self.findings(FILE_CLEAN)
+        self.findings(FILE_CLEAN.replace("Reviewed %s" % HEAD[:7], "Reviewed ccccccc"))
         self.use(self.routes())
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
         self.assertIn("nothing to post", out)
         self.assertEqual(1, len(self.edits))
         self.assertIn("no critical or important finding open", sdd_pr.read_state(self.edits[0]))
+
+    def test_a_clean_pass_posts_its_summary_once(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN.replace(
+            "claude: go-reviewer (1 of 1)\n",
+            "claude: go-reviewer (1 of 1)\nReviewed %s · 2026-09-30 · claude-sonnet-5-5: go-reviewer (1 of 1)\n"
+            % HEAD[:7]))
+        posts = []
+
+        def review(argv, stdin):
+            posts.append(json.loads(stdin))
+            self.reviews.append({"id": 901, "body": posts[-1]["body"]})
+            return json.dumps({"id": 901})
+
+        extra = [(lambda a: a[:2] == ["gh", "api"] and "POST" in a and a[2].endswith("/reviews"), review),
+                 (lambda a: a[:2] == ["gh", "api"] and "/reviews/901/comments" in a[2], json.dumps([]))]
+        self.use(self.routes(extra=extra))
+        code, out, err = self.run_main("post")
+        self.assertEqual(0, code, err)
+        self.assertEqual(1, len(posts))
+        self.assertEqual(([], "COMMENT"), (posts[0]["comments"], posts[0]["event"]))
+        body = posts[0]["body"]
+        # Two passes at HEAD, two opinions: one review names both.
+        self.assertTrue(body.startswith(
+            "**Review at `%s`:** no critical or important finding open; 1 suggestion, not posted.\n"
+            "- claude: go-reviewer (1 of 1)\n- claude-sonnet-5-5: go-reviewer (1 of 1)\n" % HEAD[:7]), body)
+        self.assertIn("<!-- sdd:pass %s claude-sonnet-5-5 -->" % HEAD[:7], body)
+        self.assertNotIn("Not anchored", body)
+        self.assertIn("post: the summary of 2 passes", out)
+        # A second post finds the summary on the forge and sends nothing.
+        self.use(self.routes(extra=extra))
+        code, out, err = self.run_main("post")
+        self.assertEqual(0, code, err)
+        self.assertEqual(1, len(posts))
+        self.assertIn("nothing to post", out)
+
+    def test_reviews_are_read_from_every_page(self):
+        # gh api --paginate prints one array per page; a summary on page two is still found.
+        self.assertEqual([{"body": "a"}, {"body": "b"}, {"body": "c"}],
+                         sdd_pr._json_pages('[{"body": "a"}, {"body": "b"}]\n[{"body": "c"}]'))
+        self.assertEqual([], sdd_pr._json_pages(""))
+
+    def test_no_summary_for_a_pass_before_head_or_the_maintainers_own(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN.replace("Reviewed %s · 2026-09-30 · claude" % HEAD[:7], "Reviewed ccccccc · 2026-09-30 · claude")
+                      .replace("claude: go-reviewer (1 of 1)\n",
+                               "claude: go-reviewer (1 of 1)\nReviewed %s · 2026-09-30 · maintainer: Ana (1 of 1)\n" % HEAD[:7]))
+        fake = self.use(self.routes())
+        code, out, err = self.run_main("post")
+        self.assertEqual(0, code, err)
+        self.assertIn("nothing to post", out)
+        self.assertFalse([a for a, _ in fake.calls if "POST" in a])
+
+    def test_a_summary_waits_for_the_push(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN.replace("Reviewed %s" % HEAD[:7], "Reviewed ddddddd"))
+        self.use([(git("rev-parse", "HEAD"), "d" * 40 + "\n")] + self.routes())
+        code, _, err = self.run_main("post")
+        self.assertEqual(2, code)
+        self.assertIn("push", err)
 
     def test_post_dry_run_writes_nothing(self):
         self.descriptor(forge="github")
@@ -1123,9 +1194,31 @@ class TestPostAzure(AzureCase):
         general = [p for _, p in payloads if "threadContext" not in p]
         self.assertEqual(1, len(general))
         self.assertIn("z.go:40", general[0]["comments"][0]["content"])
+        self.assertIn("**Review at `%s`:**" % HEAD[:7], general[0]["comments"][0]["content"])
+        self.assertEqual("active", general[0]["status"])
         text = self.read_findings()
         self.assertIn("by: claude · forge: 501", text)
         self.assertIn("unanchored", text)
+
+    def test_azure_a_clean_pass_posts_a_closed_summary_once(self):
+        self.descriptor(forge="azure-devops")
+        self.findings(FILE_CLEAN)
+        payloads = []
+        self.use(self.routes(on_post=lambda argv, payload: payloads.append(payload)))
+        code, out, err = self.run_main("post")
+        self.assertEqual(0, code, err)
+        self.assertEqual(1, len(payloads))
+        self.assertNotIn("threadContext", payloads[0])
+        self.assertEqual("closed", payloads[0]["status"])
+        content = payloads[0]["comments"][0]["content"]
+        self.assertIn("no critical or important finding open", content)
+        # The summary thread is on the pull request: the next post sends nothing.
+        posted = {"id": 77, "status": "closed", "comments": [{"id": 1, "content": content}]}
+        payloads.clear()
+        self.use(self.routes(threads=[posted], on_post=lambda argv, payload: payloads.append(payload)))
+        code, out, err = self.run_main("post")
+        self.assertEqual((0, []), (code, payloads), err)
+        self.assertIn("nothing to post", out)
 
 
 FILE_RESOLVED = """# Findings — feat/x

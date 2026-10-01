@@ -323,15 +323,41 @@ def reply_for(finding: Finding) -> str:
     return "%s: %s" % (finding.status, finding.fields.get(finding.status, ""))
 
 
+def open_verdict(fs: Findings) -> str:
+    opened = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
+    if any(opened.values()):
+        return "%d critical and %d important open" % (opened["critical"], opened["important"])
+    return "no critical or important finding open"
+
+
+PASS_MARK = "<!-- sdd:pass %s %s -->"
+PASS_RE = re.compile(r"<!-- sdd:pass (\S+) (.+?) -->")
+
+
+def pass_summary(fs: Findings, head: str, passes: List[Tuple[str, str, str, str]]) -> str:
+    """The body of a pass's one review: the verdict, who reviewed, and a marker per pass so it is posted once."""
+    n = len(fs.suggestions)
+    lines = ["**Review at `%s`:** %s; %d suggestion%s, not posted."
+             % (head[:7], open_verdict(fs), n, "" if n == 1 else "s")]
+    lines += ["- %s: %s" % (agent, reviewers) for _, _, agent, reviewers in passes]
+    return "\n".join(lines + [PASS_MARK % (sha, agent) for sha, _, agent, _ in passes])
+
+
+def unsummarised(session: Session, pr: dict) -> List[Tuple[str, str, str, str]]:
+    """The passes at HEAD whose summary the pull request does not carry yet. The maintainer's own review is
+    already on it."""
+    passes = [p for p in session.fs.passes if session.head.startswith(p[0]) and p[2] != "maintainer"]
+    if not passes:
+        return []
+    posted = {m.groups() for body in session.forge.review_bodies(pr["number"]) for m in PASS_RE.finditer(body)}
+    return [p for p in passes if (p[0], p[2]) not in posted]
+
+
 def review_state(fs: Findings, head: str) -> str:
     """The review-state block for the pull request's body: the file projected, never a second store."""
     blocking = [f for f in fs.items if f.severity in BLOCKING and f.status != "suggestion"]
     count = {s: len([f for f in blocking if f.status == s or f.severity == s]) for s in BLOCKING + ("fixed", "declined", "deferred")}
-    opened = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
-    if any(opened.values()):
-        verdict = "%d critical and %d important open" % (opened["critical"], opened["important"])
-    else:
-        verdict = "no critical or important finding open" if fs.passes else "not reviewed"
+    verdict = open_verdict(fs) if fs.passes or fs.open else "not reviewed"
     out = [STATE_START, "**Review state at `%s`:** %s" % (head[:7], verdict)]
     out += ["- Pass at `%s`, %s, %s: %s" % (sha[:7], date, agent, reviewers) for sha, date, agent, reviewers in fs.passes]
     if not fs.passes:
@@ -686,6 +712,20 @@ def _json(text: str):
         raise CliError("unreadable JSON from the forge CLI: %s" % exc)
 
 
+def _json_pages(text: str) -> list:
+    """`gh api --paginate` prints one JSON array per page, back to back."""
+    out, decoder, i, text = [], json.JSONDecoder(), 0, (text or "").strip()
+    try:
+        while i < len(text):
+            value, i = decoder.raw_decode(text, i)
+            out += value if isinstance(value, list) else [value]
+            while i < len(text) and text[i].isspace():
+                i += 1
+    except ValueError as exc:
+        raise CliError("unreadable JSON from the forge CLI: %s" % exc)
+    return out
+
+
 class Forge:
     """What the commands need from a forge. Local git supplies the diff on every forge."""
 
@@ -704,7 +744,11 @@ class Forge:
     def threads(self, number: int) -> List[dict]:  # {"id", "node", "resolved", "path", "line", "body", "author"}
         raise CliError("no forge configured")
 
-    def post(self, number: int, sha: str, body: str, comments: List[dict]) -> List[str]:
+    def post(self, number: int, sha: str, body: str, comments: List[dict], quiet: bool = False) -> List[str]:
+        """One review: ``body`` above the inline ``comments``; ``quiet`` when the body asks nothing of anyone."""
+        raise CliError("no forge configured")
+
+    def review_bodies(self, number: int) -> List[str]:  # every review or pull-request-level comment body
         raise CliError("no forge configured")
 
     def resolve(self, number: int, thread_id: str, reply: str, state: str) -> None:  # fixed | declined | deferred
@@ -796,7 +840,13 @@ class GitHubForge(Forge):
                 return out
             after = block["pageInfo"]["endCursor"]
 
-    def post(self, number, sha, body, comments):
+    def review_bodies(self, number):
+        owner, name = self._owner_name()
+        reviews = _json_pages(run_cli(["gh", "api", "repos/%s/%s/pulls/%d/reviews?per_page=100" % (owner, name, number),
+                                       "--paginate"]))
+        return [r.get("body") or "" for r in reviews if isinstance(r, dict)]
+
+    def post(self, number, sha, body, comments, quiet=False):
         owner, name = self._owner_name()
         payload = {"commit_id": sha, "event": "COMMENT", "body": body,
                    "comments": [{"path": c["path"], "line": c["line"], "side": "RIGHT", "body": c["body"]}
@@ -907,7 +957,11 @@ class AzureDevOpsForge(Forge):
             })
         return out
 
-    def post(self, number, sha, body, comments):
+    def review_bodies(self, number):
+        threads = (self._invoke(number, "pullRequestThreads", []) or {}).get("value", [])
+        return [((t.get("comments") or [{}])[0]).get("content") or "" for t in threads if not t.get("isDeleted")]
+
+    def post(self, number, sha, body, comments, quiet=False):
         ids = []
         for comment in comments:
             line = {"line": comment["line"], "offset": 1}
@@ -918,8 +972,10 @@ class AzureDevOpsForge(Forge):
             })
             ids.append(str(created.get("id", "")))
         if body:
+            # A summary alone is a closed thread, so it never counts as an active comment.
             self._invoke(number, "pullRequestThreads", [], "POST", {
-                "status": "active", "comments": [{"parentCommentId": 0, "commentType": 1, "content": body}]})
+                "status": "closed" if quiet else "active",
+                "comments": [{"parentCommentId": 0, "commentType": 1, "content": body}]})
         return ids
 
     def resolve(self, number, thread_id, reply, state):
@@ -1390,23 +1446,25 @@ def cmd_post(session: Session, args) -> int:
 def _post(session: Session, args, pr: dict) -> int:
     fs = session.fs
     candidates = [f for f in fs.open if f.severity in BLOCKING and not f.fields.get("forge")]
-    if not candidates:
-        print("post: nothing to post")
-        return 0
-    # A finding the forge already carries (an id that was not read back, a post interrupted before
-    # the file was saved) adopts that thread's id and is never published a second time.
-    adopted = len(adopt(session, pr, candidates))
-    candidates = [f for f in candidates if not f.fields.get("forge")]
-    if adopted and not args.dry_run:
-        session.save()
-    if not candidates:
-        print("post: nothing to post; %d already on the forge" % adopted)
+    adopted = 0
+    if candidates:
+        # A finding the forge already carries (an id that was not read back, a post interrupted before
+        # the file was saved) adopts that thread's id and is never published a second time.
+        adopted = len(adopt(session, pr, candidates))
+        candidates = [f for f in candidates if not f.fields.get("forge")]
+        if adopted and not args.dry_run:
+            session.save()
+    passes = unsummarised(session, pr)
+    if not candidates and not passes:
+        print("post: nothing to post%s" % ("; %d already on the forge" % adopted if adopted else ""))
         return 0
     if pr["head"] and pr["head"] != session.head:
         raise CliError("local HEAD %s is not the pull request's head %s; push or pull first"
                        % (session.head[:7], pr["head"][:7]))
-    merge_base = git(session.root, "merge-base", pr["base"] or session.base(), "HEAD").strip()
-    hunks = parse_hunks(git(session.root, "diff", "%s...HEAD" % merge_base))
+    hunks = {}
+    if candidates:
+        merge_base = git(session.root, "merge-base", pr["base"] or session.base(), "HEAD").strip()
+        hunks = parse_hunks(git(session.root, "diff", "%s...HEAD" % merge_base))
     anchored, unanchored = [], []
     for finding in candidates:
         line = int(finding.line) if finding.line.isdigit() else 0
@@ -1414,10 +1472,11 @@ def _post(session: Session, args, pr: dict) -> int:
             anchored.append(finding)
         elif "unanchored" not in finding.flags:
             unanchored.append(finding)
-    body = ""
+    parts = [pass_summary(fs, session.head, passes)] if passes else []
     if unanchored:
-        body = "### Not anchored to the diff\n\n" + "\n".join(
-            "- %s — %s" % (f.anchor, comment_body(f).split("\n")[0]) for f in unanchored)
+        parts.append("### Not anchored to the diff\n\n" + "\n".join(
+            "- %s — %s" % (f.anchor, comment_body(f).split("\n")[0]) for f in unanchored))
+    body = "\n\n".join(parts)
     comments = [{"path": f.path, "line": int(f.line), "body": comment_body(f)} for f in anchored]
     if args.dry_run:
         print(json.dumps({"commit_id": session.head, "event": "COMMENT", "body": body, "comments": comments}, indent=2))
@@ -1425,7 +1484,7 @@ def _post(session: Session, args, pr: dict) -> int:
     if not comments and not body:
         print("post: nothing new to post")
         return 0
-    ids = session.forge.post(pr["number"], session.head, body, comments)
+    ids = session.forge.post(pr["number"], session.head, body, comments, quiet=not unanchored)
     for finding, thread_id in zip(anchored, ids):
         if thread_id:
             finding.fields["forge"] = thread_id
@@ -1441,8 +1500,9 @@ def _post(session: Session, args, pr: dict) -> int:
         except CliError as exc:
             print("sdd-pr: ids not read back: %s" % str(exc).splitlines()[0], file=sys.stderr)
     session.save()
-    print("post: %d thread%s on PR %d, %d not anchored%s"
-          % (len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),
+    print("post: %s%d thread%s on PR %d, %d not anchored%s"
+          % ("the summary of %d pass%s and " % (len(passes), "" if len(passes) == 1 else "es") if passes else "",
+             len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),
              "; %d without an id read back" % len(missing) if missing else ""))
     return 0
 
