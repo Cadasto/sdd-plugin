@@ -126,7 +126,7 @@ and `resolve` need `gh` signed in (GitHub) or `az` with the `azure-devops` exten
 DevOps). `--pr` defaults to the branch's open pull request. `--pr` must
 name a pull request whose branch, or head, this checkout holds, and `--branch` the checkout itself;
 otherwise the command stops and names the worktree to run from. `Base:` follows a retargeted pull
-request.
+request. A plugin older than the repository's `check.version` refuses every write, and `status` says so.
 
 - `status [--pr N] [--write-body]` — the file's path, the open counts and the open lines numbered `#n`;
   on a forge, the threads the file does not know, the checks and whether the review state is current;

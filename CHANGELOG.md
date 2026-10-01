@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Tools: `sdd-pr status` lists the delivery's worker branches, `<branch>--<task>`, counting one not integrated against `Mergeable` and naming merged ones for removal, and prints the delivery notes' path.
+- Hooks: `session-start.sh` reads the plugin version beside itself on every host and says when the vendored gate is older than the plugin, or the plugin older than the repository.
 - Tools: `sdd-pr scope --base <parent>` names a stacked branch's base once and keeps it in the file; `--agent <name>` reads the range since that agent's own last pass, so each panel member reviews the same commits; `--diff <kind|reviewer>` prints the range's hunks, so no brief carries a diff built by hand.
 - Tools: `sdd-check check --changed-since <ref>` marks each finding on a line changed since `<ref>` with `NEW` and counts them in the summary; `--new-only` prints just those.
 - References: `agents.reviewers` also takes a block map of path patterns to reviewers; `sdd-pr scope` lists each reviewer's paths and the paths no pattern covers.
@@ -14,6 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: each posted thread carries its finding's `By:` line, and `pull` reads it back instead of crediting the account that posted it.
 
 ### Changed
+- Tools: a document marked `kind: plan` is a temporary working file: `sdd-check` reads it in no family, and `sdd-pr scope` lists it as `plans`, for no reviewer.
+- Tools: `sdd-pr` refuses every write while the plugin is older than the repository's `check.version`.
 - Tools: `sdd-pr` counts a range from `origin/<base>` when the local base is only behind it, and lists the vendored gate as `vendored`, apart from the code to review.
 - Skills: `sdd-review` runs `scope` before it reads any reference, dispatches the reviewers and paths `scope` names with the hunks `scope --diff` prints, and reads the gate's new findings with `--changed-since`; every skill names the plugin root as the folder that holds its `skills/` folder, which works on Cursor too.
 - Tools: the findings file lives in the clone's shared git directory, `<git-common-dir>/sdd/findings/<branch-slug>.md`, which every worktree sees and no worktree removal deletes; a file left at `.sdd/findings/` moves there on first use, and `status` prints the path.

@@ -103,8 +103,35 @@ case "$v_out" in
 esac
 nv_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"
 case "$nv_out" in
-  *"› sdd plugin"*) bad "session-start printed a version line without CLAUDE_PLUGIN_ROOT" ;;
-  *) ok "session-start prints no version line when the host names no plugin root" ;;
+  *"› sdd plugin $want_ver"*) ok "session-start reads the plugin version beside itself when the host names no plugin root" ;;
+  *) bad "session-start printed no version line without CLAUDE_PLUGIN_ROOT: $nv_out" ;;
+esac
+
+# --- session-start: a vendored gate older than the plugin, a plugin older than the repository ----
+pin_desc() { awk -v v="$2" '{ print } /^    script: scripts\/sdd-check.py$/ { print "    version: \"" v "\"" }' "$1/docs/.sdd.yaml" > "$1/docs/.sdd.yaml.new" && mv "$1/docs/.sdd.yaml.new" "$1/docs/.sdd.yaml"; }
+r="$(setup_repo)"; state="$(newdir state)"; pin_desc "$r" 0.0.1
+o_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"
+case "$o_out" in
+  *"› the vendored gate is 0.0.1, older than the plugin $want_ver — run /sdd-scaffold --upgrade"*) ok "session-start names a vendored gate older than the plugin" ;;
+  *) bad "no older-gate line: $o_out" ;;
+esac
+r="$(setup_repo)"; state="$(newdir state)"; pin_desc "$r" 99.0.0
+n_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"
+case "$n_out" in
+  *"› sdd plugin $want_ver is older than this repository (99.0.0) — update the plugin before running the /sdd-* skills"*) ok "session-start names a plugin older than the repository" ;;
+  *) bad "no older-plugin line: $n_out" ;;
+esac
+r="$(setup_repo)"; state="$(newdir state)"; pin_desc "$r" 0.10.0
+t_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"
+case "$t_out" in
+  *"is older than this repository (0.10.0)"*) ok "session-start compares versions number by number (0.10.0 is above 0.8.x)" ;;
+  *) bad "0.10.0 was not read as newer: $t_out" ;;
+esac
+r="$(setup_repo)"; state="$(newdir state)"; pin_desc "$r" "$want_ver"
+e_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"
+case "$e_out" in
+  *"older than"*) bad "session-start named a mismatch at equal versions: $e_out" ;;
+  *) ok "session-start is quiet when the plugin and the vendored gate agree" ;;
 esac
 
 # --- session-start: the branch's open findings -----------------------------------------

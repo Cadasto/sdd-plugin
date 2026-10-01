@@ -535,19 +535,59 @@ def review_range(root: str, fs: Findings, base: str, head: str, whole: bool = Fa
     return "%s..HEAD" % merge_base
 
 
-KINDS = ("code", "tests", "documents", "other", "vendored")
+KINDS = ("code", "tests", "documents", "other", "vendored", "plans")
+
+
+def _is_plan(root: str, path: str) -> bool:
+    """A document marked `kind: plan`: a temporary working file nobody reviews."""
+    try:
+        with open(os.path.join(root, path), encoding="utf-8") as handle:
+            front, _ = gate().frontmatter(handle.read())
+    except (OSError, UnicodeDecodeError, gate().YamlError):
+        return False
+    return isinstance(front, dict) and str(front.get("kind", "")).strip() == "plan"
 
 
 def changed_files(root: str, rng: Optional[str], globs: List[str], vendored: str = "") -> Dict[str, List[str]]:
-    """The range's paths by kind. The vendored gate is upstream code, kept apart so no reviewer reads it."""
+    """The range's paths by kind. The vendored gate is upstream code and a plan a working file: both are
+    kept apart, so no reviewer reads them."""
     files: Dict[str, List[str]] = {kind: [] for kind in KINDS}
     if not rng:
         return files
     for path in git(root, "diff", "--name-only", rng).splitlines():
         path = path.strip()
-        if path:
-            files["vendored" if path == vendored else kind_of(path, globs)].append(path)
+        if not path:
+            continue
+        kind = "vendored" if path == vendored else kind_of(path, globs)
+        if kind == "documents" and _is_plan(root, path):
+            kind = "plans"
+        files[kind].append(path)
     return files
+
+
+def version_lt(a: str, b: str) -> bool:
+    """Whether dotted version ``a`` is below ``b``, number by number (0.8.10 is above 0.8.9)."""
+    def numbers(v):
+        return [int(p) if p.isdigit() else 0 for p in re.split(r"[.\-+]", v.strip())]
+    x, y = numbers(a), numbers(b)
+    width = max(len(x), len(y))
+    return x + [0] * (width - len(x)) < y + [0] * (width - len(y))
+
+
+def worker_branches(root: str, branch: str) -> Tuple[List[str], List[str]]:
+    """The delivery's worker branches, `<branch>--<task>`: those not yet merged into HEAD, and those merged."""
+    try:
+        names = git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/%s--*" % branch).split()
+    except CliError:
+        return [], []
+    pending, merged = [], []
+    for name in names:
+        try:
+            git(root, "merge-base", "--is-ancestor", name, "HEAD")
+            merged.append(name)
+        except CliError:
+            pending.append(name)
+    return pending, merged
 
 
 # ---------------------------------------------------------------- the forge interface
@@ -877,10 +917,16 @@ class Session:
         self.data = descriptor_data(self.descriptor)
         self.globs = test_globs(self.descriptor)
         self.vendored = str(_setting(self.data, "check", "script") or "scripts/sdd-check.py")
+        pinned = str(_setting(self.data, "check", "version") or "")
+        #: Set when this plugin is older than the one that last upgraded the repository.
+        self.stale = ("sdd-pr %s is older than this repository (%s): update the plugin; it would write an "
+                      "older format" % (__version__, pinned)) if pinned and version_lt(__version__, pinned) else ""
         self._pr_number = args.pr
         self._pr: Optional[dict] = None
         self.dry_run = getattr(args, "dry_run", False)
-        self.path = os.path.join(store_dir(self.root), slug(self.branch) + ".md")
+        store = store_dir(self.root)
+        self.path = os.path.join(store, slug(self.branch) + ".md")
+        self.notes = os.path.join(os.path.dirname(store), "deliver", slug(self.branch) + ".md")
         self._adopt_legacy()
         self.fs = load_findings(self.path, self.branch, "")
 
@@ -957,7 +1003,13 @@ class Session:
         if self.forge.name == "none":
             raise CliError("no forge configured (forge: none, or a remote the tool does not recognise)")
 
+    def guard(self) -> None:
+        """Every write to the file or the forge stops here when the plugin is older than the repository."""
+        if self.stale:
+            raise CliError(self.stale)
+
     def save(self) -> None:
+        self.guard()
         self.fs.base = self.fs.base or self.base()
         self.fs.branch = self.fs.branch or self.branch
         save_findings(self.path, self.fs)
@@ -965,6 +1017,7 @@ class Session:
 
 def write_state(session: Session, pr: dict) -> None:
     """Rewrite the pull request's review-state block from the file; send nothing when it is current."""
+    session.guard()
     if not session.has_file():
         raise CliError("no findings file for %s here; run where the file is" % session.branch)
     if pr["head"] and pr["head"] != session.head:
@@ -1069,6 +1122,13 @@ def cmd_status(session: Session, args) -> int:
     print("branch %s · base %s · head %s · last reviewed %s (%s since)"
           % (session.branch, session.base(), session.head[:7], (last or "none")[:7], since))
     print("findings: %s" % session.path)
+    if os.path.exists(session.notes):
+        print("notes: %s" % session.notes)
+    if session.stale:
+        print(session.stale)
+    pending, merged = worker_branches(session.root, session.branch)
+    if pending or merged:
+        print("workers: " + " · ".join(["%s not integrated" % w for w in pending] + ["%s merged" % w for w in merged]))
     for sha in fs.unreviewed_passes():
         print("Reviewed %s: no reviewer reported; not a pass" % sha[:7])
     counts = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
@@ -1091,6 +1151,10 @@ def cmd_status(session: Session, args) -> int:
     elif not last and changed:
         reasons.append("not reviewed yet")
         nxt = nxt or "/sdd-review"
+    for name in pending:
+        reasons.append("worker branch %s not integrated" % name)
+    if pending:
+        nxt = nxt or "integrate %s (/sdd-deliver step 7)" % ", ".join(pending)
 
     if session.forge.name == "none":
         print("forge: none")
@@ -1143,6 +1207,8 @@ def cmd_status(session: Session, args) -> int:
         # Steers Next only: a suggestion never blocks, but it is routed before merge or it is lost.
         n = len(fs.suggestions)
         nxt = "route %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s")
+    if not nxt and merged:
+        nxt = "remove the merged worker branches and their worktrees: %s" % ", ".join(merged)
     print("Mergeable: yes" if not reasons else "Mergeable: no — " + "; ".join(reasons))
     print("Next: " + (nxt or "merge"))
     return 0
@@ -1184,6 +1250,7 @@ def cmd_post(session: Session, args) -> int:
     pr = session.pr()
     if pr["state"] != "open":
         raise CliError("pull request %d is %s; nothing to post" % (pr["number"], pr["state"]))
+    session.guard()
     code = _post(session, args, pr)
     if not args.dry_run:
         refresh_state(session, pr)
@@ -1268,6 +1335,7 @@ def adopt(session: Session, pr: dict, findings: List[Finding]) -> List[Finding]:
 def cmd_resolve(session: Session, args) -> int:
     session.need_forge()
     pr = session.pr()
+    session.guard()
     done = 0
     for finding in session.fs.resolved:
         thread_id = finding.fields.get("forge")

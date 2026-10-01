@@ -871,6 +871,24 @@ class TestChangedSince(GitCase):
         self.assertIn("--changed-since", out)
 
 
+class TestPlans(BaselineCase):
+    """A document marked `kind: plan` is a temporary working file: no family reads it."""
+
+    PLAN = "docs/plans/2026-10-01-thing.md"
+    BODY = "# Plan\n\nThe worker MUST read [the notes](missing.md) and SHOULD stop.\n"
+
+    def test_a_plan_is_left_alone_by_every_family(self):
+        self.write(self.PLAN, "---\nkind: plan\n---\n\n" + self.BODY)
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assertEqual([], [f for f in report.findings if self.PLAN in f.anchor], report.render(self.tmp))
+        self.assertEqual(0, report.exit_code(), report.render(self.tmp))
+
+    def test_can_fail_control_the_same_file_unmarked_is_read(self):
+        self.write(self.PLAN, self.BODY)
+        report = sdd_check.run_check(self.tmp, only=None, changelog_all=False)
+        self.assertTrue([f for f in report.findings if self.PLAN in f.anchor], report.render(self.tmp))
+
+
 class TestTreeToMapFamily(BaselineCase):
     def test_unknown_identifier_cited(self):
         self.write("src/env/thing.py", "# implements REQ-FOUND-077\n")

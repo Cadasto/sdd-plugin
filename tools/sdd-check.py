@@ -1346,10 +1346,11 @@ class Context:
         return self.read_problems.get(str(self.abs(path)))
 
     def docs_files(self) -> List[Path]:
-        """Every markdown document under the docs roots, less what git ignores.
+        """Every markdown document under the docs roots, less what git ignores and less plans.
 
-        A git-ignored file (a working plan, a scratch note) is not part of the repository, so
-        no family reads it. Without git every file is read: the gate would rather read too
+        A git-ignored file (a working plan, a scratch note) is not part of the repository, and a
+        document marked `kind: plan` is a working file that happens to be committed, so no family
+        reads either. Without git every file is read: the gate would rather read too
         much than quietly miss a document.
         """
         if self._docs_files is None:
@@ -1378,7 +1379,8 @@ class Context:
             seen = set()
             unique = []
             for path in found:
-                if str(path) not in seen:
+                # A plan is a temporary working file, committed or not: no family reads it.
+                if str(path) not in seen and doc_kind(self, path) != "plan":
                     seen.add(str(path))
                     unique.append(path)
             self._docs_files = unique
