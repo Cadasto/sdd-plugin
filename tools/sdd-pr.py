@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import fnmatch
+import hashlib
 import importlib.util
 import json
 import os
@@ -21,6 +22,11 @@ import sys
 import tempfile
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import unquote
+
+try:
+    import fcntl
+except ImportError:  # Windows: no advisory lock; writers there take turns by hand
+    fcntl = None
 
 __version__ = "0.8.1"
 
@@ -252,10 +258,17 @@ def load_findings(path: str, branch: str, base: str) -> Findings:
 
 def save_findings(path: str, fs: Findings) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as handle:
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-")
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
         handle.write(render(fs))
     os.replace(tmp, path)
+
+
+def key_of(finding: Finding) -> str:
+    """A short key for one line, computed from what the line says, so it does not move when another line
+    flips; status prints it and flip takes it. It is never written into the file or a commit."""
+    text = "\x1f".join((finding.severity, finding.anchor, finding.text))
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:5]
 
 
 def severity_of(body: str) -> str:
@@ -880,7 +893,16 @@ class Session:
         self._pr_number = args.pr
         self._pr: Optional[dict] = None
         self.dry_run = getattr(args, "dry_run", False)
-        self.path = os.path.join(store_dir(self.root), slug(self.branch) + ".md")
+        store = store_dir(self.root)
+        self.path = os.path.join(store, slug(self.branch) + ".md")
+        # One command at a time per clone: every worktree, Claude and Cursor share the file, so a command
+        # holds the lock from the moment it reads the file until it is done with it.
+        self.lock_path = os.path.join(os.path.dirname(os.path.dirname(store)), "sdd-pr.lock")
+        self._lock = None
+        if fcntl is not None:
+            os.makedirs(os.path.dirname(self.lock_path), exist_ok=True)
+            self._lock = open(self.lock_path, "a")
+            fcntl.flock(self._lock, fcntl.LOCK_EX)
         self._adopt_legacy()
         self.fs = load_findings(self.path, self.branch, "")
 
@@ -894,10 +916,14 @@ class Session:
                                            self.head[:7], elsewhere(self.root, pr["branch"])))
                 self._pr = pr
             else:
-                self._pr = self.forge.pr_for_branch(self.branch)
+                pr = self.forge.pr_for_branch(self.branch)
+                # A merged or closed pull request is this branch's only while its head is still HEAD;
+                # after new commits, or a branch name used again, the branch has no pull request.
+                self._pr = pr if pr is None or pr["state"] == "open" or pr["head"] == self.head else None
             if self._pr is None and required:
                 raise CliError("no open pull request for %s; pass --pr" % self.branch)
-            if self._pr and self._pr.get("base") and self.fs.base and self._pr["base"] != self.fs.base:
+            if (self._pr and self._pr["state"] == "open" and self._pr.get("base") and self.fs.base
+                    and self._pr["base"] != self.fs.base):
                 # A retargeted pull request: the file's base follows it, so the range starts at the right place.
                 print("sdd-pr: Base %s -> %s, the base of pull request %d"
                       % (self.fs.base, self._pr["base"], self._pr["number"]), file=sys.stderr)
@@ -937,18 +963,33 @@ class Session:
             pass
         return "main"
 
+    def close(self) -> None:
+        if self._lock is not None:
+            self._lock.close()
+            self._lock = None
+
     def _adopt_legacy(self) -> None:
-        """A file 0.8.0 left inside this checkout moves to the store, once; two files are named, never merged."""
-        legacy = legacy_path(self.root, self.branch)
-        if not os.path.exists(legacy):
-            return
-        if os.path.exists(self.path):
-            print("sdd-pr: an older findings file is still at %s; merge what it holds into %s by hand, then delete it"
-                  % (legacy, self.path), file=sys.stderr)
-            return
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        shutil.move(legacy, self.path)
-        print("sdd-pr: moved the findings file from %s to %s" % (legacy, self.path), file=sys.stderr)
+        """A file 0.8.0 left in this checkout, or in another worktree of the clone, moves to the store,
+        once; a second one is named, never merged."""
+        roots = [self.root]
+        try:
+            roots += [line[len("worktree "):].strip() for line in git(self.root, "worktree", "list", "--porcelain").splitlines()
+                      if line.startswith("worktree ")]
+        except CliError:
+            pass
+        seen = set()
+        for root in roots:
+            legacy = legacy_path(root, self.branch)
+            if os.path.realpath(legacy) in seen or not os.path.exists(legacy):
+                continue
+            seen.add(os.path.realpath(legacy))
+            if os.path.exists(self.path):
+                print("sdd-pr: an older findings file is still at %s; fold its open lines and suggestions into %s "
+                      "with sdd-pr add -, then delete it" % (legacy, self.path), file=sys.stderr)
+                continue
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            shutil.move(legacy, self.path)
+            print("sdd-pr: moved the findings file from %s to %s" % (legacy, self.path), file=sys.stderr)
 
     def has_file(self) -> bool:
         return os.path.exists(self.path)
@@ -1074,8 +1115,8 @@ def cmd_status(session: Session, args) -> int:
     counts = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
     print("open: %d critical, %d important · suggestions: %d"
           % (counts["critical"], counts["important"], len(fs.suggestions)))
-    for number, finding in enumerate(fs.open, 1):
-        print("#%d %s" % (number, finding.render()))
+    for finding in fs.open + fs.suggestions:
+        print("#%s %s" % (key_of(finding), finding.render()))
 
     reasons: List[str] = []
     live = pr is not None and pr["state"] == "open"
@@ -1097,12 +1138,17 @@ def cmd_status(session: Session, args) -> int:
     elif unreachable:
         print("forge: %s · not reachable (%s)" % (session.forge.name, unreachable))
         reasons.append("the forge was not reachable")
+        nxt = nxt or "run sdd-pr status again once the forge is reachable"
     elif pr is None:
         print("forge: %s · no pull request" % session.forge.name)
         reasons.append("no pull request")
         nxt = nxt or "open the pull request (/sdd-deliver step 8)"
     elif pr["state"] == "merged":
         print("forge: %s · PR %d merged at %s" % (session.forge.name, pr["number"], (pr["merge"] or "?")[:7]))
+        if fs.open or fs.suggestions:
+            print("still in the file: %d open line%s, %d suggestion%s; route them before deleting it"
+                  % (len(fs.open), "" if len(fs.open) == 1 else "s", len(fs.suggestions),
+                     "" if len(fs.suggestions) == 1 else "s"))
         print("Mergeable: merged")
         print("Next: delete %s, then the branch and its worktree" % session.path)
         return 0
@@ -1135,17 +1181,22 @@ def cmd_status(session: Session, args) -> int:
                 nxt = nxt or "wait for the checks"
             if pr["draft"]:
                 reasons.append("the pull request is a draft")
-                nxt = nxt or "mark the pull request ready"
+                # The close-out routes the suggestions before it marks the pull request ready.
+                nxt = nxt or (routing(fs) or "mark the pull request ready")
         except CliError as exc:
             print("forge: %s · not reachable (%s)" % (session.forge.name, str(exc).splitlines()[0]))
             reasons.append("the forge was not reachable")
-    if not nxt and fs.suggestions:
-        # Steers Next only: a suggestion never blocks, but it is routed before merge or it is lost.
-        n = len(fs.suggestions)
-        nxt = "route %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s")
+            nxt = nxt or "run sdd-pr status again once the forge is reachable"
+    # Steers Next only: a suggestion never blocks, but it is routed before merge or it is lost.
+    nxt = nxt or routing(fs)
     print("Mergeable: yes" if not reasons else "Mergeable: no — " + "; ".join(reasons))
     print("Next: " + (nxt or "merge"))
     return 0
+
+
+def routing(fs: Findings) -> str:
+    n = len(fs.suggestions)
+    return "route %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
 
 
 def cmd_pull(session: Session, args) -> int:
@@ -1301,11 +1352,17 @@ def _same(a: Finding, b: Finding) -> bool:
 
 def cmd_add(session: Session, args) -> int:
     if args.finding == ["-"]:
-        new = [parse_line(raw.strip(), n) for n, raw in enumerate(sys.stdin.read().splitlines(), 1) if raw.strip()]
+        # A reviewer's fence is piped as it is: its ``` lines are not findings.
+        new = [parse_line(raw.strip(), n) for n, raw in enumerate(sys.stdin.read().splitlines(), 1)
+               if raw.strip() and not raw.strip().startswith("```")]
     elif len(args.finding) == 3:
         severity, anchor, sentence = args.finding
         if severity not in SEVERITIES:
             raise CliError("add: the severity is one of %s" % ", ".join(SEVERITIES))
+        if not _clean(sentence):
+            raise CliError("add: the sentence is empty")
+        if SEP.strip() in anchor:
+            raise CliError("add: %r is not a path[:line]" % anchor)
         path, line = _anchor(anchor)
         fields = {k: _clean(v) for k, v in (("evidence", args.evidence), ("fix", args.fix), ("by", args.by)) if v}
         new = [Finding("suggestion" if severity == "suggestion" else "open", severity, path, line, _clean(sentence), fields)]
@@ -1313,11 +1370,14 @@ def cmd_add(session: Session, args) -> int:
         raise CliError("usage: add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] "
                        "[--by …], or add - to read finding lines")
     for finding in new:
+        where = "line %d: " % finding.lineno if finding.lineno else ""
         if finding.status not in ("open", "suggestion"):
-            raise CliError("add: %s is resolved; add takes open findings and suggestions, and flip resolves them"
-                           % finding.anchor)
+            raise CliError("add: %s%s is resolved; add takes open findings and suggestions, and flip resolves them"
+                           % (where, finding.anchor))
         if finding.status == "open" and not finding.fields.get("evidence"):
-            raise CliError("add: a %s finding needs --evidence (references/review.md § Evidence)" % finding.severity)
+            raise CliError("add: %s%s %s finding needs %s (references/review.md § Evidence)"
+                           % (where, "an" if finding.severity == "important" else "a", finding.severity,
+                              "evidence:" if where else "--evidence"))
     added = merged = 0
     for finding in new:
         twin = next((f for f in session.fs.items if _same(f, finding)), None)
@@ -1339,17 +1399,19 @@ def cmd_add(session: Session, args) -> int:
 
 
 def _select(fs: Findings, selector: str) -> Finding:
-    if selector.startswith("#") and selector[1:].isdigit():
-        number = int(selector[1:])
-        if not 1 <= number <= len(fs.open):
-            raise CliError("flip: no open finding %s; status numbers %d" % (selector, len(fs.open)))
-        return fs.open[number - 1]
-    hits = [f for f in fs.open + fs.suggestions if f.anchor == selector]
-    if not hits:
-        raise CliError("flip: no open finding or suggestion at %s" % selector)
+    """One open line or suggestion, by the key status prints (`#ab12c`) or by its path:line."""
+    lines = fs.open + fs.suggestions
+    if selector.startswith("#"):
+        hits = [f for f in lines if key_of(f) == selector[1:]]
+        if not hits:
+            raise CliError("flip: no open line or suggestion has the key %s; status prints the keys" % selector)
+    else:
+        hits = [f for f in lines if f.anchor == selector]
+        if not hits:
+            raise CliError("flip: no open finding or suggestion at %s" % selector)
     if len(hits) > 1:
-        numbers = ["#%d" % (fs.open.index(f) + 1) if f in fs.open else "a suggestion" for f in hits]
-        raise CliError("flip: %s names %d lines (%s); pick one by number" % (selector, len(hits), ", ".join(numbers)))
+        raise CliError("flip: %s names %d lines (%s); pick one by its key"
+                       % (selector, len(hits), ", ".join("#" + key_of(f) for f in hits)))
     return hits[0]
 
 
@@ -1359,7 +1421,7 @@ def cmd_flip(session: Session, args) -> int:
         raise CliError("flip: give exactly one of --fixed <sha>, --declined <reason>, --deferred <where>, --dropped")
     action, fs = chosen[0], session.fs
     if args.suggestions == bool(args.selector):
-        raise CliError("flip: name one line (<path:line> or #n), or pass --suggestions for every unrouted suggestion")
+        raise CliError("flip: name one line (its #key or path:line), or pass --suggestions for every unrouted suggestion")
     targets = list(fs.suggestions) if args.suggestions else [_select(fs, args.selector)]
     for finding in targets:
         if action in ("fixed", "declined") and finding.status == "suggestion":
@@ -1399,10 +1461,12 @@ def cmd_record(session: Session, args) -> int:
     if reported == 0 or reported > dispatched:
         raise CliError("record: %d of %d is not a pass; no Reviewed line, so the range stays open"
                        % (reported, dispatched))
-    reviewers = ", ".join(_clean(r) for r in args.reviewers.split(",") if r.strip())
-    agent = _clean(args.agent).replace(":", "-")
+    names = [_clean(r) for r in args.reviewers.split(",") if r.strip()]
+    reviewers, agent = ", ".join(names), _clean(args.agent).replace(":", "-")
     if not reviewers or not agent:
         raise CliError("record: name the agent and the reviewers")
+    if len(names) != dispatched:
+        raise CliError("record: --reviewers names %d, but --reported says %d were dispatched" % (len(names), dispatched))
     line = (session.head[:7], datetime.date.today().isoformat(), agent, "%s (%d of %d)" % (reviewers, reported, dispatched))
     session.fs.reviewed.append(line)
     session.save()
@@ -1463,7 +1527,7 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--fix")
             cmd.add_argument("--by")
         if name == "flip":
-            cmd.add_argument("selector", nargs="?", help="<path:line>, or #n as status numbers the open lines")
+            cmd.add_argument("selector", nargs="?", help="the #key status prints, or <path:line>")
             cmd.add_argument("--fixed", metavar="SHA")
             cmd.add_argument("--declined", metavar="REASON")
             cmd.add_argument("--deferred", metavar="WHERE")
@@ -1483,7 +1547,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         args = build_parser().parse_args(argv)
         if not args.command:
             raise CliError("usage: sdd-pr [--root DIR] {%s} ..." % ",".join(COMMANDS))
-        return COMMANDS[args.command](Session(args), args)
+        session = Session(args)
+        try:
+            return COMMANDS[args.command](session, args)
+        finally:
+            session.close()
     except SystemExit as exc:  # --version and --help
         return int(exc.code or 0)
     except (CliError, FileError) as exc:

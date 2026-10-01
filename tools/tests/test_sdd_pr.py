@@ -591,7 +591,8 @@ class TestStatus(RepoCase):
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(draft=True))
         _, out, _ = self.run_main("status")
         self.assertIn("PR 7 (draft)", out)
-        self.assertIn("Next: mark the pull request ready", out)
+        # The close-out routes the suggestion before it marks the pull request ready.
+        self.assertIn("Next: route 1 suggestion", out)
         # Nothing open, ready → merge.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "SUCCESS"}]))
         _, out, _ = self.run_main("status")
@@ -1051,6 +1052,19 @@ class TestCheckout(GitHubCase):
         self.assertIn("main", err)
 
 
+class TestStatesAzure(AzureCase):
+    def test_a_completed_pull_request_is_merged(self):
+        self.descriptor(forge="azure-devops")
+        self.findings(FILE_CLEAN)
+        routes = self.routes()
+        completed = {"pullRequestId": 7, "status": "completed", "sourceRefName": "refs/heads/feat/x",
+                     "targetRefName": "refs/heads/main", "lastMergeSourceCommit": {"commitId": HEAD},
+                     "lastMergeCommit": {"commitId": "e" * 40}, "repository": {"id": "R1", "project": {"name": "proj"}}}
+        self.use([(has("az", "repos", "pr", "list"), json.dumps([completed]))] + routes)
+        _, out, _ = self.run_main("status")
+        self.assertIn("PR 7 merged at eeeeeee", out)
+
+
 class TestCheckoutAzure(AzureCase):
     PR_BRANCH = "feat/y"
     PR_HEAD = "c" * 40
@@ -1311,6 +1325,36 @@ class TestStore(RepoCase):
         self.assertEqual(FILE_OPEN_IMPORTANT, self.read_findings())
         self.assertIn("1 important open", out)
 
+    def test_a_file_left_in_another_worktree_is_found_and_moved(self):
+        self.descriptor(forge="none")
+        other = self.root / "elsewhere"
+        legacy = other / ".sdd" / "findings" / "feat--x.md"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text(FILE_OPEN_IMPORTANT, encoding="utf-8")
+        listing = "worktree %s\nHEAD %s\nbranch refs/heads/main\n\nworktree %s\nHEAD %s\nbranch refs/heads/feat/x\n" % (
+            other, MB, self.root, HEAD)
+        self.use([(git("worktree", "list"), listing)] + git_routes())
+        code, out, err = self.run_main("status")
+        self.assertEqual(0, code, err)
+        self.assertIn(str(legacy), err)
+        self.assertFalse(legacy.exists())
+        self.assertIn("1 important open", out)
+
+    def test_a_writer_holds_the_store_for_the_whole_command(self):
+        import fcntl
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        session = sdd_pr.Session(sdd_pr.build_parser().parse_args(["--root", str(self.root), "status"]))
+        try:
+            with open(session.lock_path, "a") as other:
+                with self.assertRaises(OSError):
+                    fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            session.close()
+        with open(session.lock_path, "a") as other:
+            fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        self.assertFalse((self.root / ".git" / "sdd").exists())
+
     def test_two_files_for_one_branch_are_named_not_merged(self):
         self.descriptor(forge="none")
         legacy = self.root / ".sdd" / "findings" / "feat--x.md"
@@ -1321,6 +1365,7 @@ class TestStore(RepoCase):
         code, _, err = self.run_main("status")
         self.assertEqual(0, code, err)
         self.assertIn(str(legacy), err)
+        self.assertIn("sdd-pr add -", err)
         self.assertTrue(legacy.exists())
         self.assertEqual(FILE_OPEN_IMPORTANT, self.read_findings())
 
@@ -1360,11 +1405,29 @@ class TestAdd(RepoCase):
         self.assertEqual("claude, cursor", fs.open[0].fields["by"])
         self.assertIn("1 merged", out)
 
+    def test_add_refuses_lines_that_would_not_read_back(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        for argv in (("important", "a.go:4", "", "--evidence", "ee"), ("suggestion", "a · b.go:3", "x"),
+                     ("bogus", "a.go:1", "x")):
+            code, _, err = self.run_main("add", *argv)
+            self.assertEqual(2, code, argv)
+        code, _, err = self.run_main("add", "important", "a.go:4", "x")
+        self.assertIn("an important finding needs --evidence", err)
+        with mock.patch("sys.stdin", io.StringIO("- [x] important · a.go:2 · done · by: c · fixed abc1234\n")):
+            self.assertEqual(2, self.run_main("add", "-")[0])
+        with mock.patch("sys.stdin", io.StringIO("- [ ] important · a.go:2 · no evidence · by: c\n")):
+            code, _, err = self.run_main("add", "-")
+        self.assertIn("line 1", err)
+        self.assertTrue(self.nothing_written())
+
     def test_add_reads_a_reviewers_lines_from_standard_input(self):
         self.descriptor(forge="none")
         self.use(git_routes())
-        lines = ("- [ ] critical · b.go:4 · the handle leaks · evidence: ran it · fix: close it · by: go-reviewer\n"
-                 "- b.go:9 · rename `n` · by: go-reviewer\n")
+        lines = ("```text\n"
+                 "- [ ] critical · b.go:4 · the handle leaks · evidence: ran it · fix: close it · by: go-reviewer\n"
+                 "- b.go:9 · rename `n` · by: go-reviewer\n"
+                 "```\n")
         with mock.patch("sys.stdin", io.StringIO(lines)):
             code, out, err = self.run_main("add", "-")
         self.assertEqual(0, code, err)
@@ -1413,13 +1476,32 @@ class TestFlip(RepoCase):
         self.assertIn("push", err)
         self.assertEqual(2, len(sdd_pr.parse(self.read_findings()).open))
 
-    def test_flip_by_number_declined_and_deferred(self):
+    def keys(self):
+        fs = sdd_pr.parse(self.read_findings())
+        return {f.text: "#" + sdd_pr.key_of(f) for f in fs.open + fs.suggestions}
+
+    def test_keys_do_not_move_when_other_lines_flip(self):
         self.descriptor(forge="none")
         self.findings(FILE_FLIP)
         self.use(git_routes())
+        keys = self.keys()
         _, out, _ = self.run_main("status")
-        self.assertIn("#2 - [ ] critical · a.go:6", out)
-        self.assertEqual(0, self.run_main("flip", "#2", "--declined", "the caller checks it")[0])
+        self.assertIn("%s - [ ] critical · a.go:6" % keys["two"], out)
+        self.assertIn("%s - a.go:9 · rename n" % keys["rename n"], out)
+        # Two flips in a row with the keys from one listing flip the lines they name.
+        self.assertEqual(0, self.run_main("flip", keys["one"], "--fixed", "abc1234")[0])
+        self.assertEqual(0, self.run_main("flip", keys["two"], "--fixed", "abc1234")[0])
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual(["three"], [f.text for f in fs.open])
+        # A position is not a selector any more: it moves when a line flips.
+        self.assertEqual(2, self.run_main("flip", "#1", "--fixed", "abc1234")[0])
+
+    def test_flip_by_key_declined_and_deferred(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP)
+        self.use(git_routes())
+        keys = self.keys()
+        self.assertEqual(0, self.run_main("flip", keys["two"], "--declined", "the caller checks it")[0])
         self.assertEqual(0, self.run_main("flip", "a.go:7", "--deferred", "SPEC-A § Known gaps")[0])
         text = self.read_findings()
         self.assertIn("- [-] critical · a.go:6 · two · evidence: ran it · by: claude · declined: the caller checks it", text)
@@ -1442,14 +1524,26 @@ class TestFlip(RepoCase):
         self.assertEqual(2, code)
         self.assertIn("--deferred", err)
 
-    def test_an_anchor_that_names_two_lines_is_refused(self):
+    def test_an_anchor_that_names_two_lines_is_refused_with_their_keys(self):
         self.descriptor(forge="none")
-        self.findings(FILE_FLIP.replace("a.go:7 · three", "a.go:6 · three"))
+        self.findings(FILE_FLIP.replace("a.go:7 · three", "a.go:6 · three").replace("a.go:10 · reword", "a.go:9 · reword"))
         self.use(git_routes())
+        keys = self.keys()
         code, _, err = self.run_main("flip", "a.go:6", "--declined", "x")
         self.assertEqual(2, code)
-        self.assertIn("#2", err)
-        self.assertIn("#3", err)
+        self.assertIn(keys["two"], err)
+        self.assertIn(keys["three"], err)
+        # Two suggestions on one line are routed one at a time by key.
+        self.assertEqual(0, self.run_main("flip", keys["reword"], "--deferred", "issue 4")[0])
+        self.assertEqual(["rename n"], [f.text for f in sdd_pr.parse(self.read_findings()).suggestions])
+
+    def test_flip_refuses_what_it_cannot_do_safely(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP)
+        self.use([(git("rev-parse", "--verify", "--quiet", "nope^{commit}"), sdd_pr.CliError("no"))] + git_routes())
+        self.assertEqual(2, self.run_main("flip", "a.go:5", "--fixed", "nope")[0])
+        self.assertEqual(2, self.run_main("flip", "a.go:9", "--suggestions", "--dropped")[0])
+        self.assertEqual(FILE_FLIP, self.read_findings())
 
 
 class TestRecordAndRename(RepoCase):
@@ -1463,10 +1557,13 @@ class TestRecordAndRename(RepoCase):
         last = sdd_pr.parse(self.read_findings()).reviewed[-1]
         self.assertEqual((HEAD[:7], "claude", "go-reviewer, sdd-doc-reviewer (2 of 2)"), (last[0], last[2], last[3]))
         self.assertRegex(last[1], r"^\d{4}-\d{2}-\d{2}$")
-        for bad in ("0/2", "3/2", "two"):
+        for bad in ("0/2", "3/2", "two", "1/2"):
             code, _, err = self.run_main("record", "--agent", "claude", "--reviewers", "x", "--reported", bad)
             self.assertEqual(2, code, bad)
-        self.assertEqual(2, len(sdd_pr.parse(self.read_findings()).reviewed))
+        code, out, _ = self.run_main("record", "--agent", "claude:code", "--reviewers", "a, b", "--reported", "1/2")
+        self.assertEqual(0, code)
+        self.assertEqual(("claude-code", "a, b (1 of 2)"), sdd_pr.parse(self.read_findings()).reviewed[-1][2:])
+        self.assertEqual(3, len(sdd_pr.parse(self.read_findings()).reviewed))
 
     def test_rename_moves_the_file_and_forgets_the_old_branch(self):
         self.descriptor(forge="none")
@@ -1477,7 +1574,7 @@ class TestRecordAndRename(RepoCase):
         self.assertEqual(0, code, err)
         self.assertFalse(self.store("feat/old").exists())
         fs = sdd_pr.parse(self.read_findings())
-        self.assertEqual("feat/x", fs.branch)
+        self.assertEqual(("feat/x", "main"), (fs.branch, fs.base))
         self.assertEqual([], fs.reviewed)
         self.assertEqual(set(), fs.forge_ids())
         self.assertTrue(all("mirrored" not in f.flags for f in fs.items))
@@ -1552,6 +1649,27 @@ class TestStatusStates(GitHubCase):
         self.assertEqual(2, code)
         self.assertIn("pull request 7 is merged", err)
 
+    def test_a_pull_request_merged_before_the_head_moved_is_not_this_branchs(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT.replace("Base: main", "Base: develop"))
+        self.PR = {"state": "MERGED", "headRefOid": "c" * 40, "baseRefName": "main", "mergeCommit": {"oid": "e" * 40}}
+        self.use(self.routes())
+        _, out, err = self.run_main("status")
+        self.assertIn("forge: github · no pull request", out)
+        self.assertNotIn("merged", out)
+        self.assertIn("Base: develop\n", self.read_findings())
+
+    def test_merged_names_what_the_file_still_holds(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT.replace("Base: main", "Base: develop"))
+        self.PR = {"state": "MERGED", "mergeCommit": {"oid": "e" * 40}}
+        self.use(self.routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("Mergeable: merged", out)
+        self.assertIn("1 open line", out)
+        # A pull request that is no longer open moves no Base: line.
+        self.assertIn("Base: develop\n", self.read_findings())
+
     def test_a_closed_pull_request_is_not_mergeable(self):
         self.descriptor(forge="github")
         self.findings(FILE_CLEAN)
@@ -1579,6 +1697,7 @@ class TestStatusStates(GitHubCase):
         self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes() + [(has("gh"), sdd_pr.CliError("gh: not signed in"))])
         _, out, _ = self.run_main("status")
         self.assertIn("Mergeable: no — the forge was not reachable", out)
+        self.assertIn("Next: run sdd-pr status again once the forge is reachable", out)
 
 
 class TestAttribution(GitHubCase):
