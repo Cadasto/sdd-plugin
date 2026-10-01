@@ -401,7 +401,7 @@ def validate_retired_vocabulary():
 # the number here, in the same pull request, with the maintainer's yes.
 WORD_BUDGETS = {
     "skills/sdd-review/SKILL.md": 910,
-    "skills/sdd-triage/SKILL.md": 690,
+    "skills/sdd-triage/SKILL.md": 770,
     "skills/sdd-deliver/SKILL.md": 1455,
     "skills/sdd-scaffold/SKILL.md": 1210,
     "skills/sdd-specify/SKILL.md": 925,
@@ -414,7 +414,7 @@ WORD_BUDGETS = {
     "agents/sdd-traceability-auditor.md": 850,
     "agents/sdd-implementer.md": 1200,
     "references/templates/ai-workflow.md": 1030,
-    "references/templates/brief.md": 404,
+    "references/templates/brief.md": 405,
     "references/templates/task-review.md": 196,
     "references/templates/development-process.md": 1235,
 }

@@ -7,7 +7,7 @@
 **Cites.** <REQ-AREA-NNN> · <SPEC-NAME §N>  <!-- formal, full lane: the § implemented; maintenance lane: the § whose behaviour must not change, or "maintenance — no normative change"; informative: the constitution section touched, or none -->
 **Clauses.** <the binding sentences this task must satisfy, quoted — or "none">
 **Reproduce.** <bug fix only: how to see the bug, and the test that must fail before the fix — otherwise omit the line>
-**Finding.** <triage fix only: the finding line from the branch's findings file — otherwise "none">
+**Finding.** <triage fix only: the finding line from the branch's findings file, and what triage found around it — otherwise "none">
 **Files.** <the only paths the worker may touch>
 **Verify.** `<command>`  <!-- the worker runs it, reads it, quotes the output, and on a pass commits the Files by explicit path; a bug fix commits its failing reproduction first -->
 **Skills.** <agents.worker_skills, or none>

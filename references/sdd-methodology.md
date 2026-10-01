@@ -327,7 +327,8 @@ opinion on the whole change; the pass over fixes reads only the commits since th
 change did not touch is a suggestion at most.
 
 **Verify before fixing.** A finding is a claim, and so is a reviewer's proposed correction. Both are
-checked against the code and the documents before either is applied.
+checked against the code and the documents before either is applied, and so is what surrounds them: the
+cause, what shares it, and what the correction would change. A finding can understate its defect.
 
 **Collapse before you add.** A requirement amended during review may not accrete per-incident
 corollaries; each residual folds into the existing invariant or replaces it.
