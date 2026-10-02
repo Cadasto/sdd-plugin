@@ -32,13 +32,12 @@ The **specification — not the code, not the prompt — is the source of truth.
 | Work the open findings: verify, fix, flip, mirror; after the maintainer's review, one scoped re-review | `sdd-triage` |
 | What is open, is it mergeable, what next | `sdd-pr status` (`tools/sdd-pr.py`) |
 | Traceability, drift, the drift gate, lint, a REQ's context (report-only); `--audit` for the isolated whole-tree audit | `sdd-trace` |
-| Regenerate the indexes and status lines from the map | the vendored `generate`, which every skill that changes the map runs |
 | Does the code satisfy the `SPEC §` it cites, clause by clause | `sdd-spec-conformance-reviewer` agent |
 | Review a requirement, spec or ADR for boundary violations | `sdd-doc-reviewer` agent |
 
 ## Optional: a general engineering plugin
 
-A general engineering plugin such as superpowers is **optional**. Its exploration workflows (brainstorming) are a good way to open an idea before `/sdd-specify`. Planning, execution, verification, review and branch finishing are covered here — `/sdd-deliver`, `sdd-implementer`, the findings file, the close-out — and running both over the same work duplicates the loop. How the orchestrator plans is its own business: a plan is a temporary working file; a committed one carries `kind: plan`, and nothing reviews or cites it.
+A general engineering plugin such as superpowers is **optional**: its brainstorming opens an idea before `/sdd-specify`. Planning, execution, review and branch finishing are covered here, and running both over the same work duplicates the loop. How the orchestrator plans is its own business; a committed plan carries `kind: plan`, and nothing reviews or cites it.
 
 ## Guardrails this layer enforces
 
@@ -46,8 +45,8 @@ A general engineering plugin such as superpowers is **optional**. Its exploratio
 - **One source of truth.** The canonical spec lives in `paths.specifications` (default `docs/specifications/`); a plan is never a source of truth, and no second tree of design documents may become one.
 - **One home per fact, in process prose too:** commit and PR bodies, the changelog and review threads cite identifiers instead of restating (`references/artefact-prose.md`).
 - **Never settle an open question silently** — an ADR (`sdd-specify`), a `STRAND`, or back to brainstorming.
-- **Check the descriptor.** No `docs/.sdd.yaml` means the repo isn't scaffolded: route to `sdd-scaffold`.
-- **Never hand-edit a generated block**; the skill that changes the map runs `sdd-check generate` (`references/sdd-check.md`).
+- **No `docs/.sdd.yaml`:** the repo isn't scaffolded; route to `sdd-scaffold`.
+- **Never hand-edit a generated block**; `sdd-check generate` writes it (`references/sdd-check.md`).
 
 ## Reference
 

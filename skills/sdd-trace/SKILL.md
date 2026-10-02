@@ -9,7 +9,7 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, Task
 
 > The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code); `references/…` resolves from it.
 
-Owns the *spec-side* check: does the map still match the tree, and what is a requirement's full context. Read `docs/.sdd.yaml` first; no descriptor means the repository is not scaffolded — say so, route to `/sdd-scaffold`, and stop. On the informative profile the map is optional and its families are skipped; Mode A needs a map — without one, say so and stop.
+Owns the spec-side check: does the map match the tree, and what is a requirement's context. Read `docs/.sdd.yaml` first; no descriptor means the repository is not scaffolded — say so, route to `/sdd-scaffold`, and stop. On the informative profile the map is optional and its families are skipped; Mode A needs a map — without one, say so and stop.
 
 Run the gate as `references/sdd-check.md` defines `sdd-check <cmd>`, following its report-only exception when the gate is not vendored. Without `python3`, say so and use the mode's fallback.
 

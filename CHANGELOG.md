@@ -6,22 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-02
+
+The pull request's body describes the branch only, leftovers go to a committed backlog, and a delivery runs
+its tasks in sequence, with a parallel wave sharing one branch. `sdd-check` changed only its version
+number. Moving a repository from 0.9.0 is described in `docs/upgrading.md`.
+
 ### Added
 - Tools: `sdd-pr flip --carry` appends a line to the committed `docs/backlog.md` (`kind: plan`) under its directory's heading, once, and defers it there.
-- References: `review.md` § The backlog: the file, its line format, and the delivery that folds an item in and deletes its line.
+- References: `review.md` § The backlog: the file, its line format, and the delivery that folds an item in and deletes its line; methodology §2 and `traceability-schema.md` §3 name it the one standing plan.
+- References: `scaffold-upgrade.md` offers to fold a hand-kept list of leftovers into `docs/backlog.md`, and proposes `worktree_per_worker: false` once where the old default is left.
 
 ### Changed
 - Skills: `sdd-deliver` groups small tasks into one, dispatches in sequence by default, and runs a wave in parallel only when its tasks have disjoint `Files`, no unit imports another's, and each is long enough that waiting for the slowest beats running them in turn; it records the split in the delivery notes.
 - Skills: a parallel wave shares the orchestrator's worktree and branch, each worker committing only its `Files`; when the wave ends the orchestrator checks its commits and `git status` against them, and the merge and cleanup steps run only for `worktree_per_worker: true`, which commit hooks that stash the tree require.
-- Agents: `sdd-implementer` commits by path, `git add -- <Files>` then `git commit -- <Files>`, retries on a held index lock a few times, restores by path only, and leaves other workers' changes alone.
-- Templates: `sdd.yaml` defaults `agents.worktree_per_worker` to `false`; `brief.md` names the orchestrator's worktree and the branch unless it is `true`, and never the host's per-agent isolation; `task-review.md` limits the diff to the task's `Files`; `ai-workflow.md` § Orchestration says when a wave runs in parallel; the `AGENTS.md` template drops the PR body as a lock.
-- References: `scaffold-upgrade.md` proposes `worktree_per_worker: false` once where the old default is left.
-- Skills: `sdd-deliver --close-out` asks once to carry the suggestions left to the backlog or drop them; step 3 folds in each backlog item whose path a task's `Files` touch.
-- Skills: `sdd-triage` defers a code-level finding to the backlog with `--carry`.
+- Skills: `sdd-deliver --close-out` asks once to carry the suggestions left to the backlog or drop them, and step 3 folds in each backlog item whose path a task's `Files` touch; `sdd-triage` defers a code-level finding with `--carry`.
+- Skills: shorter text in all seven, with lower word budgets.
+- Agents: `sdd-implementer` commits by path, `git add -- <Files>` then `git commit -- <Files>`, retries on a held index lock a few times, restores by path only, leaves other workers' changes alone, and verifies a backlog item in `Finding` before acting on it.
 - Tools: `sdd-pr status` points `Next` at carrying or dropping the suggestions left.
-- Templates: `development-process.md` § The PR body describes the branch, never its review; `ai-workflow.md` § Review says where suggestions go; `brief.md`'s `Finding` carries a backlog item.
-- References: `scaffold-upgrade.md` offers to fold a hand-kept list of leftovers into `docs/backlog.md`; methodology §2 and `traceability-schema.md` §3 name the backlog as the one standing plan.
-- Agents: `sdd-implementer` takes a backlog item in `Finding` as a lead: verified first, and a stale one reported instead of fixed.
+- Templates: `sdd.yaml` defaults `agents.worktree_per_worker` to `false`; `brief.md` names the orchestrator's worktree and the branch unless it is `true`, never the host's per-agent isolation, and carries a backlog item in `Finding`; `task-review.md` limits the diff to the task's `Files`; `ai-workflow.md` says where suggestions go and when a wave runs in parallel; `development-process.md` § The PR body describes the branch, never its review; the `AGENTS.md` template drops the PR body as a lock.
 
 ### Removed
 - Tools: the review-state block in the pull request's body, `sdd-pr status --write-body` and the `Mergeable` reasons about the block; `post` and `resolve` no longer write the body.

@@ -121,11 +121,17 @@ case "$n_out" in
   *"› sdd plugin $want_ver is older than this repository (99.0.0) — update the plugin before running the /sdd-* skills"*) ok "session-start names a plugin older than the repository" ;;
   *) bad "no older-plugin line: $n_out" ;;
 esac
-r="$(setup_repo)"; state="$(newdir state)"; pin_desc "$r" 0.10.0
+r="$(setup_repo)"; state="$(newdir state)"; pin_desc "$r" 0.100.0
 t_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"
 case "$t_out" in
-  *"is older than this repository (0.10.0)"*) ok "session-start compares versions number by number (0.10.0 is above 0.8.x)" ;;
-  *) bad "0.10.0 was not read as newer: $t_out" ;;
+  *"is older than this repository (0.100.0)"*) ok "session-start compares versions number by number (0.100.0 is above 0.10.x)" ;;
+  *) bad "0.100.0 was not read as newer: $t_out" ;;
+esac
+r="$(setup_repo)"; state="$(newdir state)"; pin_desc "$r" 0.9.0
+t_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"
+case "$t_out" in
+  *"older than this repository"*) bad "0.9.0 was read as newer than the plugin: $t_out" ;;
+  *) ok "session-start reads a plugin at 0.10.x as above a repository at 0.9.x" ;;
 esac
 r="$(setup_repo)"; state="$(newdir state)"; pin_desc "$r" "$want_ver"
 e_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"

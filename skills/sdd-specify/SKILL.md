@@ -9,7 +9,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 > The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code); `references/…` resolves from it.
 
-Turn intent into the authoritative documents: a **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119), and an **ADR** for an irreversible decision. Read `docs/.sdd.yaml` first for the profile, identifier style and paths. One skill authors all three; each stays in its own file and kind. Drop a template's leading `<!-- Template: … -->` comment in the file created from it.
+Author the **requirement** (what + acceptance), the **specification** (how it must behave, RFC-2119) and the **ADR** (an irreversible decision), each in its own file and kind. Read `docs/.sdd.yaml` first for the profile, identifier style and paths. Drop a template's leading `<!-- Template: … -->` comment in the file created from it.
 
 No descriptor: route to `/sdd-scaffold` and stop. Behaviour not yet explored: explore first — a design note under `docs/analysis/`, or the host's brainstorming workflow — and return with the note. A design note is **input, not the source of truth**: extract its normative statements into the canonical spec.
 

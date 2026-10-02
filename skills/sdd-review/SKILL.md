@@ -9,7 +9,7 @@ allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 
 > The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code); `references/…` and `tools/…` resolve from it. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
 
-Read `docs/.sdd.yaml` first (`profile`, `paths.*`, `forge`, the build targets, `agents:`); without a descriptor or an `agents:` block, route to `/sdd-scaffold` and stop. What a finding must meet is `references/review.md`. No pull request is required. Pass `--pr N`, when given, to every `sdd-pr` call.
+Read `docs/.sdd.yaml` first (`profile`, `paths.*`, `forge`, the build targets, `agents:`); without a descriptor or an `agents:` block, route to `/sdd-scaffold` and stop. What a finding must meet is `references/review.md`. No pull request is required. Pass `--pr N` to every `sdd-pr` call.
 
 ## Steps
 

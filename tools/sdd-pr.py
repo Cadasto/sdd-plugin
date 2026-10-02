@@ -28,7 +28,7 @@ try:
 except ImportError:  # Windows: no advisory lock; writers there take turns by hand
     fcntl = None
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 SEVERITIES = ("critical", "important", "suggestion")
 BLOCKING = ("critical", "important")

@@ -2,11 +2,12 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
-## From 0.9.0 to the next release
+## From 0.9.0 to 0.10.0
 
 The pull request's body describes the branch only, suggestions left at merge go to a committed
 `docs/backlog.md` instead of being routed one at a time, and parallel workers share one branch.
-`sdd-check` is unchanged.
+`sdd-check` changed only its version number, so re-vendoring it with `/sdd-scaffold --upgrade` is
+optional: until then the session-start line says the vendored gate is older than the plugin.
 
 1. **Pull request bodies.** `sdd-pr` no longer writes the body, `status --write-body` is gone, and
    `status` no longer counts the block against `Mergeable`. A pull request open across the upgrade keeps
