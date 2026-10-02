@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - References: `review.md` § The backlog: the file, its line format, and the delivery that folds an item in and deletes its line.
 
 ### Changed
+- Skills: `sdd-deliver` groups small tasks into one, dispatches in sequence by default, and runs a wave in parallel only when its tasks have disjoint `Files`, no unit imports another's, and each is long enough that waiting for the slowest beats running them in turn; it records the split in the delivery notes.
+- Skills: a parallel wave shares the orchestrator's worktree and branch, each worker committing only its `Files`; when the wave ends the orchestrator checks its commits and `git status` against them, and the merge and cleanup steps run only for `worktree_per_worker: true`, which commit hooks that stash the tree require.
+- Agents: `sdd-implementer` commits by path, `git add -- <Files>` then `git commit -- <Files>`, retries on a held index lock a few times, restores by path only, and leaves other workers' changes alone.
+- Templates: `sdd.yaml` defaults `agents.worktree_per_worker` to `false`; `brief.md` names the orchestrator's worktree and the branch unless it is `true`, and never the host's per-agent isolation; `task-review.md` limits the diff to the task's `Files`; `ai-workflow.md` § Orchestration says when a wave runs in parallel; the `AGENTS.md` template drops the PR body as a lock.
+- References: `scaffold-upgrade.md` proposes `worktree_per_worker: false` once where the old default is left.
 - Skills: `sdd-deliver --close-out` asks once to carry the suggestions left to the backlog or drop them; step 3 folds in each backlog item whose path a task's `Files` touch.
 - Skills: `sdd-triage` defers a code-level finding to the backlog with `--carry`.
 - Tools: `sdd-pr status` points `Next` at carrying or dropping the suggestions left.

@@ -82,7 +82,7 @@ sdd:
   agents:
     worker_model: inherit           # per-dispatch model override; inherit = no override, or a host model id
     max_parallel_workers: 3
-    worktree_per_worker: true       # parallel, mutating tasks only
+    worktree_per_worker: false      # true: each parallel worker on its own branch and worktree, merged; false: one shared branch
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
     reviewers: []                   # this repo's own language reviewers, by agent name: a list, or a block map of path patterns to names; /sdd-scaffold suggests from the build manifests
     task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)

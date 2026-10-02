@@ -42,7 +42,8 @@ spec updated in the same PR).
   `sdd-implementer` workers for bounded tasks. It does not write product code, except for a task that
   cannot be made self-contained — and it says so in the PR body.
 - **A brief is self-contained**, and a worker never spawns another worker.
-- **The draft PR body is the lock** — it names the session and worktree that own the branch.
+- **One branch, one checkout:** two sessions on one branch take turns; the delivery notes and
+  `sdd-pr status` say where it stands.
 - Worker model, parallelism, the task-review gate, and the review panel live in
   [`docs/.sdd.yaml`](docs/.sdd.yaml) under `agents:`. Full text: [docs/ai-workflow.md](docs/ai-workflow.md)
   § Orchestration.

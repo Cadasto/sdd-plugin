@@ -32,6 +32,7 @@ These changes edit what the repository already has, so each is proposed and appl
 
 - **Process documents, section by section; never re-emitted.** `docs/ai-workflow.md`, `docs/development-process.md`, and the pull-request template wherever it already is (`.github/`, `docs/`, the root, `.azuredevops/` or `.vsts/`, any case; never a second one). For each section where the repository's text differs from the current template (§ Review, § Orchestration, § The PR body and its checklist), show the two side by side and change only that section on the maintainer's yes; a section the repository lacks is added. Everything else stays the repository's own, its own checklist policy included.
 - **Plans.** Offer `kind: plan` to a tracked plan under `docs/` that has no `kind:` (a `plans/` folder, or a file the maintainer names), which takes it out of the gate; nothing else in it changes. A plan where requirements, specifications or ADRs live is named, so the maintainer moves it.
+- **Worker worktrees.** Where `worktree_per_worker: true` still carries the old template comment `# parallel, mutating tasks only`, propose the current template line (`false`: parallel workers share the branch); either answer takes the current comment, so it is asked once.
 - **Backlog.** Offer to fold a hand-kept list of leftovers the maintainer names (a git-ignored `.sdd/open-backlog.md`, say) into `docs/backlog.md` in its format (`references/review.md` § The backlog), each item checked against the default branch first and dropped when done.
 
 ## 4. Add missing `kind:` frontmatter

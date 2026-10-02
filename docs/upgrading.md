@@ -4,8 +4,9 @@ This page is for maintainers of a repository scaffolded by an earlier version of
 
 ## From 0.9.0 to the next release
 
-The pull request's body describes the branch only, and suggestions left at merge go to a committed
-`docs/backlog.md` instead of being routed one at a time. `sdd-check` is unchanged.
+The pull request's body describes the branch only, suggestions left at merge go to a committed
+`docs/backlog.md` instead of being routed one at a time, and parallel workers share one branch.
+`sdd-check` is unchanged.
 
 1. **Pull request bodies.** `sdd-pr` no longer writes the body, `status --write-body` is gone, and
    `status` no longer counts the block against `Mergeable`. A pull request open across the upgrade keeps
@@ -15,8 +16,14 @@ The pull request's body describes the branch only, and suggestions left at merge
    (`sdd-pr flip --suggestions --carry`) or drop them. The next delivery whose files an item touches
    picks it up. A hand-kept list, such as a git-ignored `.sdd/open-backlog.md`, moves into
    `docs/backlog.md` once: `/sdd-scaffold --upgrade` offers it.
-3. **Process documents.** `--upgrade` merges the changed `ai-workflow.md` § Review and
-   `development-process.md` § The PR body.
+3. **Workers.** `/sdd-deliver` runs tasks in sequence, and a wave in parallel only when its tasks are
+   large and touch disjoint files. Parallel workers share the branch and the orchestrator's worktree,
+   each committing only its own files, so there are no worker branches to merge or remove. The template
+   default of `agents.worktree_per_worker` is now `false`; a descriptor an earlier scaffold wrote says
+   `true`, which keeps worker branches. `--upgrade` proposes `false`. Keep `true` where commit hooks stash
+   the working tree (pre-commit, lint-staged).
+4. **Process documents.** `--upgrade` merges the changed `ai-workflow.md` § Review and § Orchestration,
+   and `development-process.md` § The PR body.
 
 ## From 0.8.1 to 0.9.0
 
