@@ -20,7 +20,8 @@ The pull request's body describes the branch only, suggestions left at merge go 
    large and touch disjoint files. Parallel workers share the branch and the orchestrator's worktree,
    each committing only its own files, so there are no worker branches to merge or remove. The template
    default of `agents.worktree_per_worker` is now `false`; a descriptor an earlier scaffold wrote says
-   `true`, which keeps worker branches. `--upgrade` proposes `false`.
+   `true`, which keeps worker branches. `--upgrade` proposes `false`. Keep `true` where commit hooks stash
+   the working tree (pre-commit, lint-staged).
 4. **Process documents.** `--upgrade` merges the changed `ai-workflow.md` § Review and § Orchestration,
    and `development-process.md` § The PR body.
 
