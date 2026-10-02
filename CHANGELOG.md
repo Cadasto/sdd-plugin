@@ -15,7 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Skills: `sdd-triage` defers a code-level finding to the backlog with `--carry`.
 - Tools: `sdd-pr status` points `Next` at carrying or dropping the suggestions left.
 - Templates: `development-process.md` § The PR body describes the branch, never its review; `ai-workflow.md` § Review says where suggestions go; `brief.md`'s `Finding` carries a backlog item.
-- References: `scaffold-upgrade.md` offers to fold a hand-kept list of leftovers into `docs/backlog.md`.
+- References: `scaffold-upgrade.md` offers to fold a hand-kept list of leftovers into `docs/backlog.md`; methodology §2 and `traceability-schema.md` §3 name the backlog as the one standing plan.
+- Agents: `sdd-implementer` takes a backlog item in `Finding` as a lead: verified first, and a stale one reported instead of fixed.
 
 ### Removed
 - Tools: the review-state block in the pull request's body, `sdd-pr status --write-body` and the `Mergeable` reasons about the block; `post` and `resolve` no longer write the body.

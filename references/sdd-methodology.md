@@ -61,7 +61,9 @@ The single most important rule: **every document has exactly one job and one alt
 | **Constitution** (informative profile) | What must every change respect? | **Yes** — its MUST sentences, and only those (§1a) | `paths.constitution`, default `docs/architecture.md` |
 
 A plan is a temporary working file, committed or not, which the maintainer clears away once it has
-served; marked `kind: plan`, the gate and the reviewers leave it alone (§9).
+served; marked `kind: plan`, the gate and the reviewers leave it alone (§9). The one standing plan is
+the backlog, `docs/backlog.md`: leftovers waiting for the delivery that touches them
+([review.md](review.md) § The backlog).
 
 ### The three zones
 

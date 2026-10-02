@@ -1341,6 +1341,11 @@ class TestDelivery(RepoCase):
         code, out, _ = self.run_main("status")
         self.assertEqual(0, code)
         self.assertIn("older than this repository (99.0.0)", out)
+        # A carry writes no backlog either.
+        self.findings(FILE_CLEAN)
+        self.assertEqual(2, self.run_main("flip", "--suggestions", "--carry")[0])
+        self.assertFalse((self.root / "docs" / "backlog.md").exists())
+        self.assertEqual(FILE_CLEAN, self.read_findings())
         # can-fail control: a repository at the plugin's own version is written.
         self.descriptor(forge="none", extra="  check:\n    version: \"%s\"\n" % sdd_pr.__version__)
         self.assertEqual(0, self.run_main("add", "suggestion", "a.go:1", "x", "--by", "claude")[0])
@@ -1625,7 +1630,7 @@ class TestFlip(RepoCase):
         self.assertIn("- [-] critical · a.go:6 · two · evidence: ran it · by: claude · declined: the caller checks it", text)
         self.assertIn("- [~] important · a.go:7 · three · evidence: ran it · by: claude · deferred: SPEC-A § Known gaps", text)
 
-    def test_suggestions_are_routed_or_dropped(self):
+    def test_suggestions_are_deferred_or_dropped(self):
         self.descriptor(forge="none")
         self.findings(FILE_FLIP)
         self.use(git_routes())
@@ -1673,6 +1678,36 @@ class TestFlip(RepoCase):
         self.assertEqual(0, self.run_main("flip", "--suggestions", "--carry")[0])
         self.assertEqual(before, self.backlog())
 
+    def test_carry_matches_whole_fields_not_substrings(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP)
+        self.backlog(sdd_pr.BACKLOG_HEAD + "\n## .\n- a.go:9 · rename n everywhere · from: feat/old\n\n"
+                     "## sub\n- sub/a.go:9 · rename n · from: feat/old\n- important · sub/a.go:10 · reword · from: feat/old\n")
+        self.use(git_routes())
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--carry")[0])
+        backlog = self.backlog()
+        self.assertIn("- a.go:9 · rename n · by: claude · from: feat/x\n", backlog)
+        self.assertIn("- a.go:10 · reword · by: claude · from: feat/x\n", backlog)
+        # Two lines with one anchor and sentence, as a hand edit may leave, are one item.
+        self.findings(FILE_FLIP.replace("- a.go:10 · reword", "- c.go:1 · twice\n- c.go:1 · twice"))
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--carry")[0])
+        self.assertEqual(1, self.backlog().count("c.go:1 · twice"))
+        # The same item under a severity is still the same item.
+        self.findings(FILE_FLIP.replace("- a.go:10 · reword", "- sub/a.go:10 · reword"))
+        self.assertEqual(0, self.run_main("flip", self.keys()["reword"], "--carry")[0])
+        self.assertEqual(1, self.backlog().count("sub/a.go:10 · reword"))
+
+    def test_carry_writes_nothing_without_a_line_and_heads_an_empty_file(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OPEN_IMPORTANT)
+        self.use(git_routes())
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--carry")[0])
+        self.assertIsNone(self.backlog())
+        self.backlog("\n\n")
+        self.findings(FILE_FLIP)
+        self.assertEqual(0, self.run_main("flip", "a.go:9", "--carry")[0])
+        self.assertTrue(self.backlog().startswith(sdd_pr.BACKLOG_HEAD + "\n## .\n- a.go:9 · rename n"), self.backlog())
+
     def test_carry_starts_the_backlog_and_keeps_a_blocking_findings_severity(self):
         self.descriptor(forge="none")
         self.findings(FILE_FLIP)
@@ -1694,7 +1729,7 @@ class TestFlip(RepoCase):
         self.assertEqual(2, code)
         self.assertIn(keys["two"], err)
         self.assertIn(keys["three"], err)
-        # Two suggestions on one line are routed one at a time by key.
+        # Two suggestions on one line are deferred one at a time by key.
         self.assertEqual(0, self.run_main("flip", keys["reword"], "--deferred", "issue 4")[0])
         self.assertEqual(["rename n"], [f.text for f in sdd_pr.parse(self.read_findings()).suggestions])
 
@@ -1749,7 +1784,7 @@ class TestRecordAndRename(RepoCase):
         self.assertIn("already", err)
 
 
-class TestRouting(RepoCase):
+class TestLeftovers(RepoCase):
     def test_once_every_suggestion_is_carried_or_dropped_next_is_merge(self):
         self.descriptor(forge="none")
         self.findings(FILE_CLEAN)

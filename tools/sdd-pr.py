@@ -1259,13 +1259,13 @@ def cmd_status(session: Session, args) -> int:
             if pr["draft"]:
                 reasons.append("the pull request is a draft")
                 # The close-out carries or drops the suggestions before it marks the pull request ready.
-                nxt = nxt or (routing(fs) or "mark the pull request ready")
+                nxt = nxt or (leftovers(fs) or "mark the pull request ready")
         except CliError as exc:
             print("forge: %s · not reachable (%s)" % (session.forge.name, str(exc).splitlines()[0]))
             reasons.append("the forge was not reachable")
             nxt = nxt or "run sdd-pr status again once the forge is reachable"
     # Steers Next only: a suggestion never blocks, but it is carried or dropped before merge, or it is lost.
-    nxt = nxt or routing(fs)
+    nxt = nxt or leftovers(fs)
     if not nxt and merged:
         nxt = "remove the merged worker branches and their worktrees: %s" % ", ".join(merged)
     print("Mergeable: yes" if not reasons else "Mergeable: no — " + "; ".join(reasons))
@@ -1273,7 +1273,7 @@ def cmd_status(session: Session, args) -> int:
     return 0
 
 
-def routing(fs: Findings) -> str:
+def leftovers(fs: Findings) -> str:
     n = len(fs.suggestions)
     return "carry or drop %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
 
@@ -1485,19 +1485,30 @@ def backlog_line(finding: Finding, branch: str) -> str:
     return "- " + SEP.join(parts + ["from: " + branch])
 
 
+def _backlog_item(line: str) -> Optional[Tuple[str, str]]:
+    """A backlog line's anchor and sentence, its severity, if any, set aside."""
+    parts = line[2:].split(SEP) if line.startswith("- ") else []
+    parts = parts[1:] if parts and parts[0] in SEVERITIES else parts
+    return (parts[0], parts[1]) if len(parts) > 1 else None
+
+
 def carry(root: str, findings: List[Finding], branch: str) -> int:
     """Append each finding to the backlog under its directory's heading, headings in order; an item the
-    backlog already holds is not written twice. Returns how many were new."""
+    backlog already holds, by its anchor and sentence, is not written twice. Returns how many were new."""
     path = os.path.join(root, *BACKLOG.split("/"))
     try:
         with open(path, encoding="utf-8") as handle:
             lines = handle.read().splitlines()
     except FileNotFoundError:
+        lines = []
+    if not "".join(lines).strip():
         lines = BACKLOG_HEAD.splitlines()
+    held = {item for item in map(_backlog_item, lines) if item}
     added = 0
     for finding in findings:
-        if any(line.startswith("- ") and finding.anchor + SEP + finding.text in line for line in lines):
+        if (finding.anchor, finding.text) in held:
             continue
+        held.add((finding.anchor, finding.text))
         heading, entry = "## " + (os.path.dirname(finding.path) or "."), backlog_line(finding, branch)
         if heading in lines:
             at = lines.index(heading) + 1
@@ -1547,6 +1558,9 @@ def cmd_flip(session: Session, args) -> int:
     if args.suggestions == bool(args.selector):
         raise CliError("flip: name one line (its #key or path:line), or pass --suggestions for every suggestion left")
     targets = list(fs.suggestions) if args.suggestions else [_select(fs, args.selector)]
+    if not targets:
+        print("flip: no suggestion left")
+        return 0
     for finding in targets:
         if action in ("fixed", "declined") and finding.status == "suggestion":
             raise CliError("flip: a suggestion is carried (--carry), deferred (--deferred <where>) or dropped (--dropped)")
