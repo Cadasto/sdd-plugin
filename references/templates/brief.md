@@ -1,5 +1,5 @@
 <!-- Template: the brief /sdd-deliver hands one sdd-implementer worker for one task.
-     Filled per dispatch and passed in the dispatch; not committed. The brief is the worker's
+     Filled and passed per dispatch; not committed. The brief is the worker's
      single source of requirements — exact values live here, never in the surrounding prose. -->
 # Brief — <branch> · <task>
 
@@ -7,7 +7,7 @@
 **Cites.** <REQ-AREA-NNN> · <SPEC-NAME §N>  <!-- formal, full lane: the § implemented; maintenance lane: the § whose behaviour must not change, or "maintenance — no normative change"; informative: the constitution section touched, or none -->
 **Clauses.** <the binding sentences this task must satisfy, quoted — or "none">
 **Reproduce.** <bug fix only: how to see the bug, and the test that must fail before the fix — otherwise omit the line>
-**Finding.** <triage fix only: the finding line from the branch's findings file, and what triage found around it — otherwise "none">
+**Finding.** <triage fix: the finding line and what triage found around it; backlog item: its line, a lead to verify first — otherwise "none">
 **Files.** <the only paths the worker may touch>
 **Verify.** `<command>`  <!-- the worker runs it, reads it, quotes the output, and on a pass commits the Files by explicit path; a bug fix commits its failing reproduction first -->
 **Skills.** <agents.worker_skills, or none>

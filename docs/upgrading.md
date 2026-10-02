@@ -2,6 +2,22 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.9.0 to the next release
+
+The pull request's body describes the branch only, and suggestions left at merge go to a committed
+`docs/backlog.md` instead of being routed one at a time. `sdd-check` is unchanged.
+
+1. **Pull request bodies.** `sdd-pr` no longer writes the body, `status --write-body` is gone, and
+   `status` no longer counts the block against `Mergeable`. A pull request open across the upgrade keeps
+   its old block between `<!-- sdd:review-state -->` and `<!-- /sdd:review-state -->`: delete it, or let
+   the close-out's rewrite of the body drop it.
+2. **Leftovers.** `/sdd-deliver --close-out` asks once: carry the suggestions left to `docs/backlog.md`
+   (`sdd-pr flip --suggestions --carry`) or drop them. The next delivery whose files an item touches
+   picks it up. A hand-kept list, such as a git-ignored `.sdd/open-backlog.md`, moves into
+   `docs/backlog.md` once: `/sdd-scaffold --upgrade` offers it.
+3. **Process documents.** `--upgrade` merges the changed `ai-workflow.md` § Review and
+   `development-process.md` § The PR body.
+
 ## From 0.8.1 to 0.9.0
 
 The findings file moves out of the checkout into the clone's git directory, `sdd-pr` makes every change

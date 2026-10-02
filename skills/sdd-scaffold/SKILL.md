@@ -54,7 +54,7 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
 
 ## `--upgrade` — top up an existing repository
 
-Follow `references/scaffold-upgrade.md` in order: add missing descriptor keys → re-vendor and pin → the starter changelog and the `/.sdd/` ignore line → propose the version's changes → merge the process documents and offer `kind: plan` → missing `kind:` frontmatter → missing generated markers → wire the build target → regenerate → report. Apart from what the procedure proposes and the maintainer confirms, never touch an existing key or a document body with content; add only what is missing and report exactly what changed.
+Follow `references/scaffold-upgrade.md` in order: add missing descriptor keys → re-vendor and pin → the starter changelog and the `/.sdd/` ignore line → propose the version's changes → merge the process documents, offer `kind: plan` and the backlog fold → missing `kind:` frontmatter → missing generated markers → wire the build target → regenerate → report. Apart from what the procedure proposes and the maintainer confirms, never touch an existing key or a document body with content; add only what is missing and report exactly what changed.
 
 ## Guardrails
 

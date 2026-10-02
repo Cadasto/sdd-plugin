@@ -36,7 +36,7 @@ One finding is one line: `- [ ]` open, `- [x]` fixed, `- [-]` declined, `- [~]` 
 separated by ` · ` (space, middle dot, space): the severity, `path:line`, one plain sentence, then any of
 `evidence:`, `fix:`, `by:`, `forge:` (the pull request's thread id), `fixed <sha>`, `declined: <reason>`,
 `deferred: <where>`, and the markers `unanchored` and `mirrored` that `sdd-pr` writes. A suggestion line
-has no checkbox; a routed one is `- [~] suggestion · …`. Each pass adds one `Reviewed` line with
+has no checkbox; a carried or deferred one is `- [~] suggestion · …`. Each pass adds one `Reviewed` line with
 `sdd-pr record`: the commit it read, the agent, the reviewers dispatched and how many reported. The last
 one is where a `--since-last` pass starts. A pass on which no reviewer reported adds none, so its range stays open
 until one reads it, or the maintainer's own review is recorded with `record --agent maintainer`.
@@ -54,9 +54,9 @@ until one reads it, or the maintainer's own review is recorded with `record --ag
 Critical and important findings are resolved (fixed, declined with the reason, or deferred by the
 maintainer) before merge, and only they are mirrored. Suggestions, an implementer's out-of-scope
 findings among them: at most ten per pass, then "and n more"; never posted, never worked unless the
-maintainer names one. Before merge each is routed, with the maintainer, to a *Known gaps* line, an
-`implementation: deferred` requirement or a tracker issue (`deferred: <where>`), or dropped; "drop the
-rest" is one answer. Unsure between important and suggestion: write suggestion.
+maintainer names one. Before merge the maintainer answers once: carry them to the backlog or drop
+them; a gap in a specification or requirement goes to *Known gaps* or `implementation: deferred`
+instead. Unsure between important and suggestion: write suggestion.
 
 ## Scope
 
@@ -78,8 +78,9 @@ other instances inside the range go on the same line.
 
 ## The forge mirror
 
-With a pull request, `sdd-pr` keeps its inline threads, one review per pass and one block in its body
-in step with the file; nothing else about findings is posted.
+With a pull request, `sdd-pr` keeps its inline threads and one review per pass in step with the file;
+nothing else about findings is posted. It never writes the pull request's body, which describes the
+branch.
 
 - `pull` appends each unresolved thread the file does not know as an open finding with its `forge:` id;
   a thread with no severity word is `important`, and its `By:` line, when it has one, is the `by:`.
@@ -90,12 +91,6 @@ in step with the file; nothing else about findings is posted.
   none.
 - `resolve` answers each resolved finding's thread (`fixed in <sha>`, `declined: <reason>` or
   `deferred: <where>`) and closes it.
-- The review state: `post`, `resolve` and `status --write-body` rewrite one block in the body, between
-  the whole-line markers `<!-- sdd:review-state -->` and `<!-- /sdd:review-state -->`, from the file: the
-  verdict at the head, the passes, the counts, each deferral. It carries no finding id and is never
-  edited by hand; a body rewritten without it gets it back on the next write. Markers that are not one
-  balanced pair, a body the forge's limit cannot hold, and a checkout without the file are reported,
-  never written over.
 
 The backend is GitHub or Azure DevOps, from `forge:` in the descriptor, else the remote URL, else `none`;
 with `none` the file is the whole record and every skill still works.
@@ -105,9 +100,17 @@ with `none` the file is the whole record and every skill still works.
 `sdd-pr flip` resolves a line. A fix flips it to `- [x]` with `fixed <sha>`, once the fix is pushed; a
 decline flips it to `- [-]` with `declined: <reason>`, and is not argued in a thread. Only the maintainer
 defers: the line flips to
-`- [~]` with `deferred: <where>`, the *Known gaps* line in the specification, the `REQ` that took
-`implementation: deferred`, or `dropped by the maintainer`; the review state lists each one. A finding
+`- [~]` with `deferred: <where>`: the *Known gaps* line in the specification, the `REQ` that took
+`implementation: deferred`, `docs/backlog.md` (`--carry`), or `dropped by the maintainer`. A finding
 has no id, and commit messages never name one.
+
+## The backlog
+
+Leftovers outlive the findings file in one committed file, `docs/backlog.md`, marked `kind: plan` so the
+gate and the reviewers skip it. `flip --carry` appends each line once, under its directory's heading
+(`- [<severity> · ]<path:line> · <sentence> · … · from: <branch>`), and defers it there; the close-out
+commits the file, so the diff shows what was carried. An item is a lead, not a finding: the delivery
+whose `Files` touch its path verifies it, fixes it or finds it stale, and deletes its line.
 
 ## Passes
 
@@ -132,23 +135,24 @@ name a pull request whose branch, or head, this checkout holds, and `--branch` t
 otherwise the command stops and names the worktree to run from. `Base:` follows a retargeted pull
 request. A plugin older than the repository's `check.version` refuses every write, and `status` says so.
 
-- `status [--pr N] [--write-body]` — the file's path, the open counts, and each open line and suggestion
+- `status [--pr N]` — the file's path, the open counts, and each open line and suggestion
   with a `#key` computed from what it says, which no other line's flip moves;
-  on a forge, the threads the file does not know, the checks and whether the review state is current;
+  on a forge, the threads the file does not know and the checks;
   then `Mergeable: yes` or `Mergeable: no — <reasons>` (no pull request, a closed one or an unreachable
   forge is a reason), and `Next: <command>`: `post` before triage while a blocking line is not mirrored,
-  routing when only suggestions are left. A merged pull request at HEAD prints `Mergeable: merged`, what
+  carrying or dropping when only suggestions are left. A merged pull request at HEAD prints `Mergeable: merged`, what
   the file still holds, and the file to delete; one merged or closed before the head moved is no pull
-  request of this branch. `--write-body` rewrites the review state first.
+  request of this branch.
 - `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>]` — the range a
   pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
   one reviewer, so no brief carries a diff built by hand.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important
   finding without evidence, and folds an identical line into the first.
-- `flip <#key | path:line> --fixed <sha> | --declined <reason> | --deferred <where> | --dropped` —
-  resolves one line; `--fixed` needs the fix on `origin/<branch>` when that exists; `--dropped` removes
-  a suggestion, and `--suggestions` in place of the line applies to every unrouted one.
+- `flip <#key | path:line> --fixed <sha> | --declined <reason> | --deferred <where> | --carry | --dropped`
+  — resolves one line; `--fixed` needs the fix on `origin/<branch>` when that exists; `--carry` appends it
+  to the backlog (§ The backlog); `--dropped` removes a suggestion, and `--suggestions` in place of the
+  line applies to every one left.
 - `record --agent <name> --reviewers <a, b> --reported <n>/<m>` — the `Reviewed` line at HEAD; refuses a
   pass on which no reviewer reported.
 - `rename --from <branch>` — moves a file to the checked-out branch without its `Reviewed` lines and

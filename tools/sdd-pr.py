@@ -36,8 +36,14 @@ SEP = " · "
 FIELD_KEYS = ("evidence", "fix", "by", "forge", "declined", "deferred")
 FLAGS = ("unanchored", "mirrored")
 SECTIONS = ("Open", "Resolved", "Suggestions")
-STATE_START, STATE_END = "<!-- sdd:review-state -->", "<!-- /sdd:review-state -->"
 DESCRIPTOR = os.path.join("docs", ".sdd.yaml")
+BACKLOG = "docs/backlog.md"
+BACKLOG_HEAD = (
+    "---\nkind: plan\n---\n# Backlog\n\n"
+    "Leftovers of merged branches, by directory: suggestions, and findings the maintainer deferred here. "
+    "Each line is a lead, not a finding: verify it before acting. A delivery whose `Files` touch a line's path "
+    "folds it in and deletes the line. `sdd-pr flip --carry` appends; edit freely.\n"
+)
 DEFAULT_TEST_GLOBS = ("*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs")
 CODE_SUFFIXES = (
     ".go", ".py", ".php", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".rs", ".java", ".kt", ".kts",
@@ -57,10 +63,6 @@ class FileError(RuntimeError):
 
 class CheckoutError(CliError):
     """The pull request or --branch named is not what this checkout has."""
-
-
-class StateError(CliError):
-    """The pull request body's review-state markers are not one balanced pair."""
 
 
 def run_cli(argv: List[str], stdin: Optional[str] = None) -> str:
@@ -351,53 +353,6 @@ def unsummarised(session: Session, pr: dict) -> List[Tuple[str, str, str, str]]:
         return []
     posted = {m.groups() for body in session.forge.review_bodies(pr["number"]) for m in PASS_RE.finditer(body)}
     return [p for p in passes if (p[0], p[2]) not in posted]
-
-
-def review_state(fs: Findings, head: str) -> str:
-    """The review-state block for the pull request's body: the file projected, never a second store."""
-    blocking = [f for f in fs.items if f.severity in BLOCKING and f.status != "suggestion"]
-    count = {s: len([f for f in blocking if f.status == s or f.severity == s]) for s in BLOCKING + ("fixed", "declined", "deferred")}
-    verdict = open_verdict(fs) if fs.passes or fs.open else "not reviewed"
-    out = [STATE_START, "**Review state at `%s`:** %s" % (head[:7], verdict)]
-    out += ["- Pass at `%s`, %s, %s: %s" % (sha[:7], date, agent, reviewers) for sha, date, agent, reviewers in fs.passes]
-    if not fs.passes:
-        out.append("- Passes: none")
-    suggestions = len(fs.suggestions)
-    out.append("- Findings: %d critical and %d important; %d fixed, %d declined, %d deferred; %d suggestion%s not routed"
-               % (count["critical"], count["important"], count["fixed"], count["declined"], count["deferred"],
-                  suggestions, "" if suggestions == 1 else "s"))
-    out += ["- Deferred: %s at `%s`, %s: %s" % (f.severity, f.anchor, f.text, f.fields.get("deferred", ""))
-            for f in fs.items if f.status == "deferred"]
-    return "\n".join(out + [STATE_END])
-
-
-START_LINE = re.compile(r"^%s[ \t]*$" % re.escape(STATE_START), re.M)
-END_LINE = re.compile(r"^%s[ \t]*$" % re.escape(STATE_END), re.M)
-
-
-def _state_span(body: str) -> Optional[Tuple[int, int]]:
-    """Where the block sits: markers count only as whole lines, and only as one balanced pair."""
-    starts, ends = list(START_LINE.finditer(body)), list(END_LINE.finditer(body))
-    if not starts and not ends:
-        return None
-    if len(starts) != 1 or len(ends) != 1 or ends[0].start() < starts[0].start():
-        raise StateError("the review-state markers in the pull request body are not one balanced pair")
-    return starts[0].start(), ends[0].end()
-
-
-def read_state(body: str) -> Optional[str]:
-    body = (body or "").replace("\r\n", "\n")
-    span = _state_span(body)
-    return body[span[0]:span[1]] if span else None
-
-
-def splice(body: str, block: str) -> str:
-    """The body with its review-state block replaced in place, or appended when it has none."""
-    body = (body or "").replace("\r\n", "\n")
-    span = _state_span(body)
-    if span:
-        return body[:span[0]] + block + body[span[1]:]
-    return (body.rstrip("\n") + "\n\n" if body.strip() else "") + block + "\n"
 
 
 # ---------------------------------------------------------------- git and the descriptor
@@ -730,7 +685,6 @@ class Forge:
     """What the commands need from a forge. Local git supplies the diff on every forge."""
 
     name = "none"
-    body_limit = 65536  # characters the forge takes in a pull request body
 
     def pr_for_branch(self, branch: str) -> Optional[dict]:  # {"number", "head", "base", "draft", "url"}
         raise CliError("no forge configured")
@@ -754,11 +708,6 @@ class Forge:
     def resolve(self, number: int, thread_id: str, reply: str, state: str) -> None:  # fixed | declined | deferred
         raise CliError("no forge configured")
 
-    def body(self, number: int) -> str:
-        raise CliError("no forge configured")
-
-    def set_body(self, number: int, body: str) -> None:
-        raise CliError("no forge configured")
 
 
 THREADS_QUERY = (
@@ -867,12 +816,6 @@ class GitHubForge(Forge):
             ids.append(str(chosen.get("id", "")))
         return ids
 
-    def body(self, number):
-        return _json(run_cli(["gh", "pr", "view", str(number), "--json", "body"])).get("body") or ""
-
-    def set_body(self, number, body):
-        run_cli(["gh", "pr", "edit", str(number), "--body-file", "-"], stdin=body)
-
     def resolve(self, number, thread_id, reply, state):
         owner, name = self._owner_name()
         run_cli(["gh", "api", "repos/%s/%s/pulls/%d/comments/%s/replies" % (owner, name, number, thread_id),
@@ -888,7 +831,6 @@ class AzureDevOpsForge(Forge):
     """Azure DevOps through `az`: pull-request threads with their native status."""
 
     name = "azure-devops"
-    body_limit = 4000
 
     def __init__(self, org: str = "", project: str = "", repo: str = ""):
         self.org, self.project, self.repo = org, project, repo
@@ -985,11 +927,6 @@ class AzureDevOpsForge(Forge):
         status = {"fixed": "fixed", "declined": "wontFix", "deferred": "closed"}[state]
         self._invoke(number, "pullRequestThreads", route, "PATCH", {"status": status})
 
-    def body(self, number):
-        return self.pr(number)["raw"].get("description") or ""
-
-    def set_body(self, number, body):
-        self._invoke(number, "pullRequests", [], "PATCH", {"description": body})
 
 
 def _short_ref(ref: str) -> str:
@@ -1186,55 +1123,6 @@ class Session:
         save_findings(self.path, self.fs)
 
 
-def write_state(session: Session, pr: dict) -> None:
-    """Rewrite the pull request's review-state block from the file; send nothing when it is current."""
-    session.guard()
-    if not session.has_file():
-        raise CliError("no findings file for %s here; run where the file is" % session.branch)
-    if pr["head"] and pr["head"] != session.head:
-        raise CliError("local HEAD %s is not the pull request's head %s; push or pull first"
-                       % (session.head[:7], pr["head"][:7]))
-    body = session.forge.body(pr["number"])
-    new = splice(body, review_state(session.fs, pr["head"] or session.head))
-    if len(new) > session.forge.body_limit:
-        raise CliError("the body would be %d characters with the review state, over the %d the forge takes; shorten it"
-                       % (len(new), session.forge.body_limit))
-    if new != body.replace("\r\n", "\n"):
-        session.forge.set_body(pr["number"], new)
-
-
-def refresh_state(session: Session, pr: dict) -> None:
-    """After post and resolve: keep the block in step, and say so when it cannot be."""
-    if not session.has_file():
-        return
-    try:
-        write_state(session, pr)
-    except CliError as exc:
-        print("sdd-pr: review state not written: %s" % str(exc).splitlines()[0], file=sys.stderr)
-
-
-def state_problem(session: Session, pr: dict) -> Tuple[str, str]:
-    """What is wrong with the review state on the pull request, and what to run; ("", "") when current."""
-    try:
-        body = session.forge.body(pr["number"])
-    except CliError as exc:
-        return ("the review state on the pull request was not read (%s)" % str(exc).splitlines()[0],
-                "sdd-pr status --pr %d" % pr["number"])
-    try:
-        state = read_state(body)
-    except StateError as exc:
-        return str(exc), "repair the review-state markers in the pull request body"
-    expected = review_state(session.fs, pr["head"] or session.head)
-    if state == expected:
-        return "", ""
-    size = len(splice(body, expected))
-    if size > session.forge.body_limit:
-        return ("the pull request body is too long to carry the review state (%d of %d characters)"
-                % (size, session.forge.body_limit), "shorten the pull request body")
-    return ("the review state on the pull request is %s" % ("missing" if state is None else "stale"),
-            "sdd-pr status --write-body --pr %d" % pr["number"])
-
-
 def cmd_scope(session: Session, args) -> int:
     if args.pr is not None and session.forge.name != "none":
         session.pr()
@@ -1279,9 +1167,6 @@ def cmd_scope(session: Session, args) -> int:
 def cmd_status(session: Session, args) -> int:
     fs = session.fs
     pr, unreachable = None, ""
-    if args.write_body:
-        session.need_forge()
-        write_state(session, session.pr())
     if session.forge.name != "none":
         try:
             pr = session.pr(required=False)
@@ -1345,7 +1230,7 @@ def cmd_status(session: Session, args) -> int:
     elif pr["state"] == "merged":
         print("forge: %s · PR %d merged at %s" % (session.forge.name, pr["number"], (pr["merge"] or "?")[:7]))
         if fs.open or fs.suggestions:
-            print("still in the file: %d open line%s, %d suggestion%s; route them before deleting it"
+            print("still in the file: %d open line%s, %d suggestion%s; carry or drop them before deleting it"
                   % (len(fs.open), "" if len(fs.open) == 1 else "s", len(fs.suggestions),
                      "" if len(fs.suggestions) == 1 else "s"))
         print("Mergeable: merged")
@@ -1365,13 +1250,6 @@ def cmd_status(session: Session, args) -> int:
             if unknown:
                 reasons.append("%d unresolved threads not open in the file" % len(unknown))
                 nxt = nxt or "sdd-pr pull --pr %d" % pr["number"]
-            if not session.has_file():
-                print("review state not checked: no findings file here")
-            else:
-                problem, repair = state_problem(session, pr)
-                if problem:
-                    reasons.append(problem)
-                    nxt = nxt or repair
             if checks == "fail":
                 reasons.append("checks failing")
                 nxt = nxt or "fix the failing checks"
@@ -1380,14 +1258,14 @@ def cmd_status(session: Session, args) -> int:
                 nxt = nxt or "wait for the checks"
             if pr["draft"]:
                 reasons.append("the pull request is a draft")
-                # The close-out routes the suggestions before it marks the pull request ready.
-                nxt = nxt or (routing(fs) or "mark the pull request ready")
+                # The close-out carries or drops the suggestions before it marks the pull request ready.
+                nxt = nxt or (leftovers(fs) or "mark the pull request ready")
         except CliError as exc:
             print("forge: %s · not reachable (%s)" % (session.forge.name, str(exc).splitlines()[0]))
             reasons.append("the forge was not reachable")
             nxt = nxt or "run sdd-pr status again once the forge is reachable"
-    # Steers Next only: a suggestion never blocks, but it is routed before merge or it is lost.
-    nxt = nxt or routing(fs)
+    # Steers Next only: a suggestion never blocks, but it is carried or dropped before merge, or it is lost.
+    nxt = nxt or leftovers(fs)
     if not nxt and merged:
         nxt = "remove the merged worker branches and their worktrees: %s" % ", ".join(merged)
     print("Mergeable: yes" if not reasons else "Mergeable: no — " + "; ".join(reasons))
@@ -1395,9 +1273,9 @@ def cmd_status(session: Session, args) -> int:
     return 0
 
 
-def routing(fs: Findings) -> str:
+def leftovers(fs: Findings) -> str:
     n = len(fs.suggestions)
-    return "route %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
+    return "carry or drop %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
 
 
 def cmd_pull(session: Session, args) -> int:
@@ -1437,10 +1315,7 @@ def cmd_post(session: Session, args) -> int:
     if pr["state"] != "open":
         raise CliError("pull request %d is %s; nothing to post" % (pr["number"], pr["state"]))
     session.guard()
-    code = _post(session, args, pr)
-    if not args.dry_run:
-        refresh_state(session, pr)
-    return code
+    return _post(session, args, pr)
 
 
 def _post(session: Session, args, pr: dict) -> int:
@@ -1535,7 +1410,6 @@ def cmd_resolve(session: Session, args) -> int:
         finding.flags.append("mirrored")
         done += 1
         session.save()
-    refresh_state(session, pr)
     print("resolve: %d thread%s answered and closed on PR %d" % (done, "" if done == 1 else "s", pr["number"]))
     return 0
 
@@ -1605,6 +1479,59 @@ def cmd_add(session: Session, args) -> int:
     return 0
 
 
+def backlog_line(finding: Finding, branch: str) -> str:
+    parts = ([finding.severity] if finding.severity in BLOCKING else []) + [finding.anchor, finding.text]
+    parts += ["%s: %s" % (key, finding.fields[key]) for key in ("evidence", "fix", "by") if finding.fields.get(key)]
+    return "- " + SEP.join(parts + ["from: " + branch])
+
+
+def _backlog_item(line: str) -> Optional[Tuple[str, str]]:
+    """A backlog line's anchor and sentence, its severity, if any, set aside."""
+    parts = line[2:].split(SEP) if line.startswith("- ") else []
+    parts = parts[1:] if parts and parts[0] in SEVERITIES else parts
+    return (parts[0], parts[1]) if len(parts) > 1 else None
+
+
+def carry(root: str, findings: List[Finding], branch: str) -> int:
+    """Append each finding to the backlog under its directory's heading, headings in order; an item the
+    backlog already holds, by its anchor and sentence, is not written twice. Returns how many were new."""
+    path = os.path.join(root, *BACKLOG.split("/"))
+    try:
+        with open(path, encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+    except FileNotFoundError:
+        lines = []
+    if not "".join(lines).strip():
+        lines = BACKLOG_HEAD.splitlines()
+    held = {item for item in map(_backlog_item, lines) if item}
+    added = 0
+    for finding in findings:
+        if (finding.anchor, finding.text) in held:
+            continue
+        held.add((finding.anchor, finding.text))
+        heading, entry = "## " + (os.path.dirname(finding.path) or "."), backlog_line(finding, branch)
+        if heading in lines:
+            at = lines.index(heading) + 1
+            while at < len(lines) and not lines[at].startswith("## "):
+                at += 1
+            while not lines[at - 1].strip():
+                at -= 1
+            lines.insert(at, entry)
+        else:
+            at = next((n for n, line in enumerate(lines) if line.startswith("## ") and line > heading), len(lines))
+            if at < len(lines):
+                lines[at:at] = ([""] if at and lines[at - 1].strip() else []) + [heading, entry, ""]
+            else:
+                while lines and not lines[-1].strip():
+                    lines.pop()
+                lines += ["", heading, entry]
+        added += 1
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+    return added
+
+
 def _select(fs: Findings, selector: str) -> Finding:
     """One open line or suggestion, by the key status prints (`#ab12c`) or by its path:line."""
     lines = fs.open + fs.suggestions
@@ -1623,16 +1550,20 @@ def _select(fs: Findings, selector: str) -> Finding:
 
 
 def cmd_flip(session: Session, args) -> int:
-    chosen = [key for key in ("fixed", "declined", "deferred", "dropped") if getattr(args, key)]
+    chosen = [key for key in ("fixed", "declined", "deferred", "carry", "dropped") if getattr(args, key)]
     if len(chosen) != 1:
-        raise CliError("flip: give exactly one of --fixed <sha>, --declined <reason>, --deferred <where>, --dropped")
+        raise CliError("flip: give exactly one of --fixed <sha>, --declined <reason>, --deferred <where>, --carry, "
+                       "--dropped")
     action, fs = chosen[0], session.fs
     if args.suggestions == bool(args.selector):
-        raise CliError("flip: name one line (its #key or path:line), or pass --suggestions for every unrouted suggestion")
+        raise CliError("flip: name one line (its #key or path:line), or pass --suggestions for every suggestion left")
     targets = list(fs.suggestions) if args.suggestions else [_select(fs, args.selector)]
+    if not targets:
+        print("flip: no suggestion left")
+        return 0
     for finding in targets:
         if action in ("fixed", "declined") and finding.status == "suggestion":
-            raise CliError("flip: a suggestion is routed with --deferred <where> or dropped with --dropped")
+            raise CliError("flip: a suggestion is carried (--carry), deferred (--deferred <where>) or dropped (--dropped)")
         if action == "dropped" and finding.status != "suggestion":
             raise CliError("flip: only a suggestion is dropped; a critical or important finding the maintainer "
                            "lets go is --deferred 'dropped by the maintainer'")
@@ -1646,9 +1577,16 @@ def cmd_flip(session: Session, args) -> int:
                 git(session.root, "merge-base", "--is-ancestor", full, remote)
             except CliError:
                 raise CliError("flip: %s is not on %s yet; push first" % (full[:7], remote))
+    new = 0
+    if action == "carry":
+        session.guard()
+        new = carry(session.root, targets, session.branch)
     for finding in targets:
         if action == "dropped":
             fs.items.remove(finding)
+            continue
+        if action == "carry":
+            finding.status, finding.fields["deferred"] = "deferred", BACKLOG
             continue
         finding.status = action
         if action == "fixed":
@@ -1656,7 +1594,11 @@ def cmd_flip(session: Session, args) -> int:
         else:
             finding.fields[action] = _clean(getattr(args, action))
     session.save()
-    print("flip: %d line%s %s" % (len(targets), "" if len(targets) == 1 else "s", action))
+    plural = "" if len(targets) == 1 else "s"
+    if action == "carry":
+        print("flip: %d line%s carried to %s, %d new there; commit it" % (len(targets), plural, BACKLOG, new))
+    else:
+        print("flip: %d line%s %s" % (len(targets), plural, action))
     return 0
 
 
@@ -1727,8 +1669,6 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--diff", metavar="KIND|REVIEWER", help="print the range's hunks for one kind or reviewer")
         if name == "post":
             cmd.add_argument("--dry-run", action="store_true")
-        if name == "status":
-            cmd.add_argument("--write-body", action="store_true", help="rewrite the review state in the PR body")
         if name == "add":
             cmd.add_argument("finding", nargs="*", help="<severity> <path[:line]> <sentence>, or - for lines on stdin")
             cmd.add_argument("--evidence")
@@ -1739,8 +1679,9 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--fixed", metavar="SHA")
             cmd.add_argument("--declined", metavar="REASON")
             cmd.add_argument("--deferred", metavar="WHERE")
+            cmd.add_argument("--carry", action="store_true", help="append to %s and defer there" % BACKLOG)
             cmd.add_argument("--dropped", action="store_true", help="a suggestion only")
-            cmd.add_argument("--suggestions", action="store_true", help="every unrouted suggestion")
+            cmd.add_argument("--suggestions", action="store_true", help="every suggestion left")
         if name == "record":
             cmd.add_argument("--agent", required=True)
             cmd.add_argument("--reviewers", required=True)

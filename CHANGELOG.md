@@ -4,6 +4,24 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Tools: `sdd-pr flip --carry` appends a line to the committed `docs/backlog.md` (`kind: plan`) under its directory's heading, once, and defers it there.
+- References: `review.md` § The backlog: the file, its line format, and the delivery that folds an item in and deletes its line.
+
+### Changed
+- Skills: `sdd-deliver --close-out` asks once to carry the suggestions left to the backlog or drop them; step 3 folds in each backlog item whose path a task's `Files` touch.
+- Skills: `sdd-triage` defers a code-level finding to the backlog with `--carry`.
+- Tools: `sdd-pr status` points `Next` at carrying or dropping the suggestions left.
+- Templates: `development-process.md` § The PR body describes the branch, never its review; `ai-workflow.md` § Review says where suggestions go; `brief.md`'s `Finding` carries a backlog item.
+- References: `scaffold-upgrade.md` offers to fold a hand-kept list of leftovers into `docs/backlog.md`; methodology §2 and `traceability-schema.md` §3 name the backlog as the one standing plan.
+- Agents: `sdd-implementer` takes a backlog item in `Finding` as a lead: verified first, and a stale one reported instead of fixed.
+
+### Removed
+- Tools: the review-state block in the pull request's body, `sdd-pr status --write-body` and the `Mergeable` reasons about the block; `post` and `resolve` no longer write the body.
+- References: routing each suggestion to a tracker issue, and methodology §13's review-state check.
+
 ## [0.9.0] - 2026-10-01
 
 The findings file moves into the clone's git directory and `sdd-pr` makes every write to it. A review
