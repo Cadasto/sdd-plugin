@@ -248,72 +248,6 @@ class TestFileModel(RepoCase):
         self.assertEqual(text, sdd_pr.render(fs))
         self.assertEqual("deferred: REQ-A-001 implementation: deferred", sdd_pr.reply_for(deferred[0]))
 
-    def test_the_review_state_block_is_the_file_projected(self):
-        text = """# Findings — feat/x
-Base: main
-Reviewed ccccccc · 2026-09-29 · claude: go-reviewer, sdd-doc-reviewer (2 of 2)
-Reviewed ddddddd · 2026-09-30 · cursor: none (0 of 0)
-
-## Open
-- [ ] critical · a.go:9 · a leak · evidence: ran it · by: claude
-
-## Resolved
-- [x] important · a.go:5 · one · by: claude · fixed abc1234
-- [-] important · a.go:6 · two · by: claude · declined: the caller checks it
-- [~] important · a.go:7 · three · by: claude · deferred: SPEC-A §2 Known gaps
-
-## Suggestions
-- a.go:2 · rename · by: claude
-- a.go:3 · reword · by: claude
-"""
-        block = sdd_pr.review_state(sdd_pr.parse(text), HEAD)
-        self.assertEqual("""<!-- sdd:review-state -->
-**Review state at `bbbbbbb`:** 1 critical and 0 important open
-- Pass at `ccccccc`, 2026-09-29, claude: go-reviewer, sdd-doc-reviewer (2 of 2)
-- Findings: 1 critical and 3 important; 1 fixed, 1 declined, 1 deferred; 2 suggestions not routed
-- Deferred: important at `a.go:7`, three: SPEC-A §2 Known gaps
-<!-- /sdd:review-state -->""", block)
-        clean = sdd_pr.review_state(sdd_pr.parse(FILE_CLEAN), HEAD)
-        self.assertIn("**Review state at `bbbbbbb`:** no critical or important finding open", clean)
-        self.assertIn("- Findings: 0 critical and 1 important; 1 fixed, 0 declined, 0 deferred; 1 suggestion not routed", clean)
-        self.assertNotIn("Deferred", clean)
-        empty = sdd_pr.review_state(sdd_pr.Findings("feat/x", "main"), HEAD)
-        self.assertIn("**Review state at `bbbbbbb`:** not reviewed", empty)
-        self.assertIn("- Passes: none", empty)
-
-    def test_the_block_is_appended_once_then_rewritten_in_place(self):
-        one = sdd_pr.review_state(sdd_pr.parse(FILE_OPEN_IMPORTANT), HEAD)
-        two = sdd_pr.review_state(sdd_pr.parse(FILE_CLEAN), HEAD)
-        body = sdd_pr.splice("## Summary\nWhat changed.\n", one)
-        self.assertEqual("## Summary\nWhat changed.\n\n" + one + "\n", body)
-        self.assertEqual(one, sdd_pr.read_state(body))
-        self.assertEqual(body, sdd_pr.splice(body, one))
-        edited = body + "\n## Checklist\n- [x] done\n"
-        again = sdd_pr.splice(edited, two)
-        self.assertEqual(edited.replace(one, two), again)
-        self.assertIsNone(sdd_pr.read_state("## Summary\n"))
-        self.assertEqual(two + "\n", sdd_pr.splice("", two))
-
-    def test_only_whole_line_markers_make_a_block(self):
-        block = sdd_pr.review_state(sdd_pr.parse(FILE_CLEAN), HEAD)
-        prose = "## Summary\nThe block sits between `<!-- sdd:review-state -->` and `<!-- /sdd:review-state -->`.\n"
-        self.assertIsNone(sdd_pr.read_state(prose))
-        self.assertEqual(prose + "\n" + block + "\n", sdd_pr.splice(prose, block))
-        # A body from the forge with CRLF line ends holds the same block.
-        crlf = ("## Summary\n\n" + block + "\n").replace("\n", "\r\n")
-        self.assertEqual(block, sdd_pr.read_state(crlf))
-
-    def test_markers_that_are_not_one_balanced_pair_are_refused(self):
-        block = sdd_pr.review_state(sdd_pr.parse(FILE_CLEAN), HEAD)
-        trimmed = "## Summary\n<!-- sdd:review-state -->\nhand-trimmed\n\n## Checklist\n- [x] human item\n"
-        twice = "## Summary\n\n" + block + "\n\n" + block + "\n"
-        for body in (trimmed, twice, "<!-- /sdd:review-state -->\n" + block + "\n"):
-            with self.assertRaises(sdd_pr.CliError) as caught:
-                sdd_pr.read_state(body)
-            self.assertIn("markers", str(caught.exception))
-            with self.assertRaises(sdd_pr.CliError):
-                sdd_pr.splice(body, block)
-
     def test_a_pass_where_no_reviewer_reported_is_not_a_pass(self):
         fs = sdd_pr.parse(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)", "claude: go-reviewer, doc (0 of 2)"))
         self.assertEqual([], fs.passes)
@@ -424,7 +358,7 @@ class TestStatus(RepoCase):
         self.assertIn("open: 0 critical, 0 important · suggestions: 1", out)
         self.assertIn("forge: none", out)
         self.assertIn("Mergeable: yes", out)
-        self.assertTrue(out.rstrip().endswith("Next: route 1 suggestion (/sdd-deliver --close-out)"), out)
+        self.assertTrue(out.rstrip().endswith("Next: carry or drop 1 suggestion (/sdd-deliver --close-out)"), out)
         self.assertFalse([a for a, _ in fake.calls if a[0] in ("gh", "az")])
         # With an open finding the next step is triage.
         self.findings(FILE_OPEN_IMPORTANT)
@@ -477,7 +411,7 @@ class TestStatus(RepoCase):
 
     def _gh_routes(self, draft=False, checks=(), threads=(), body=None, edits=None):
         if body is None:
-            body = "## Summary\n\n" + sdd_pr.review_state(sdd_pr.parse(FILE_CLEAN), HEAD) + "\n"
+            body = "## Summary\n"
         pr = {
             "number": 7, "headRefOid": HEAD, "headRefName": "feat/x", "baseRefName": "main", "isDraft": draft,
             "url": "https://github.com/o/r/pull/7", "state": "OPEN", "statusCheckRollup": list(checks), "body": body,
@@ -496,84 +430,6 @@ class TestStatus(RepoCase):
             (has("gh", "repo", "view"), json.dumps({"owner": {"login": "o"}, "name": "r"})),
             (has("gh", "api", "graphql"), json.dumps(gh_threads(list(threads)))),
         ]
-
-    def test_status_wants_the_review_state_current_on_the_pull_request(self):
-        self.descriptor(forge="github")
-        self.findings(FILE_CLEAN)
-        reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), HEAD + "\n")
-        passing = [{"status": "COMPLETED", "conclusion": "SUCCESS"}]
-        edits = []
-        self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=passing, body="## Summary\n", edits=edits))
-        _, out, _ = self.run_main("status")
-        self.assertIn("Mergeable: no — the review state on the pull request is missing", out)
-        self.assertIn("Next: sdd-pr status --write-body", out)
-        self.assertEqual([], edits)
-        code, out, err = self.run_main("status", "--write-body")
-        self.assertEqual(0, code, err)
-        self.assertEqual(1, len(edits))
-        argv, written = edits[0]
-        self.assertIn("--body-file", argv)
-        self.assertTrue(written.startswith("## Summary\n"), written)
-        self.assertEqual(sdd_pr.review_state(sdd_pr.parse(FILE_CLEAN), HEAD), sdd_pr.read_state(written))
-        self.assertIn("Mergeable: yes", out)
-        # A second write changes nothing, so nothing is sent.
-        self.run_main("status", "--write-body")
-        self.assertEqual(1, len(edits))
-        # A line flipped since the block was written makes it stale.
-        self.findings(FILE_OPEN_IMPORTANT)
-        _, out, _ = self.run_main("status")
-        self.assertIn("the review state on the pull request is stale", out)
-
-    def test_without_a_findings_file_the_review_state_is_left_alone(self):
-        self.descriptor(forge="github")
-        edits = []
-        written = "## Summary\n\n" + sdd_pr.review_state(sdd_pr.parse(FILE_OPEN_IMPORTANT), HEAD) + "\n"
-        self.use(git_routes() + self._gh_routes(body=written, edits=edits))
-        code, out, err = self.run_main("status")
-        self.assertEqual(0, code, err)
-        self.assertNotIn("stale", out)
-        self.assertIn("review state not checked: no findings file here", out)
-        code, _, err = self.run_main("status", "--write-body")
-        self.assertEqual(2, code)
-        self.assertIn("no findings file", err)
-        self.assertEqual([], edits)
-
-    def test_a_body_that_cannot_be_read_is_a_reason_and_the_others_still_count(self):
-        self.descriptor(forge="github")
-        self.findings(FILE_CLEAN)
-        reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), HEAD + "\n")
-        unreadable = (lambda a: a[:3] == ["gh", "pr", "view"] and a[-1] == "body", sdd_pr.CliError("HTTP 502"))
-        self.use([reviewed_at_head, unreadable] + git_routes() + self._gh_routes(draft=True))
-        code, out, _ = self.run_main("status")
-        self.assertEqual(0, code)
-        self.assertIn("the review state on the pull request was not read (HTTP 502)", out)
-        self.assertIn("the pull request is a draft", out)
-        self.assertNotIn("Mergeable: yes", out)
-
-    def test_unbalanced_markers_stop_the_write_and_name_the_repair(self):
-        self.descriptor(forge="github")
-        self.findings(FILE_CLEAN)
-        edits = []
-        body = "## Summary\n<!-- sdd:review-state -->\nhand-trimmed\n\n## Checklist\n- [x] human item\n"
-        reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), HEAD + "\n")
-        self.use([reviewed_at_head] + git_routes() + self._gh_routes(body=body, edits=edits))
-        _, out, _ = self.run_main("status")
-        self.assertIn("the review-state markers in the pull request body are not one balanced pair", out)
-        self.assertIn("Next: repair the review-state markers in the pull request body", out)
-        code, _, err = self.run_main("status", "--write-body")
-        self.assertEqual(2, code)
-        self.assertIn("markers", err)
-        self.assertEqual([], edits)
-
-    def test_write_body_refuses_an_unpushed_head(self):
-        self.descriptor(forge="github")
-        self.findings(FILE_CLEAN)
-        edits = []
-        self.use([(git("rev-parse", "HEAD"), "d" * 40 + "\n")] + git_routes() + self._gh_routes(edits=edits))
-        code, _, err = self.run_main("status", "--write-body")
-        self.assertEqual(2, code)
-        self.assertIn("push", err)
-        self.assertEqual([], edits)
 
     def test_status_verdict_and_next(self):
         self.descriptor(forge="github")
@@ -609,14 +465,14 @@ class TestStatus(RepoCase):
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(draft=True))
         _, out, _ = self.run_main("status")
         self.assertIn("PR 7 (draft)", out)
-        # The close-out routes the suggestion before it marks the pull request ready.
-        self.assertIn("Next: route 1 suggestion", out)
+        # The close-out carries or drops the suggestion before it marks the pull request ready.
+        self.assertIn("Next: carry or drop 1 suggestion", out)
         # Nothing open, ready → merge.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "SUCCESS"}]))
         _, out, _ = self.run_main("status")
         self.assertIn("checks: pass", out)
         self.assertIn("Mergeable: yes", out)
-        self.assertIn("Next: route 1 suggestion", out)
+        self.assertIn("Next: carry or drop 1 suggestion", out)
         # Failing checks.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "FAILURE"}]))
         _, out, _ = self.run_main("status")
@@ -642,7 +498,7 @@ class TestStatus(RepoCase):
         self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names=""))
         _, out, _ = self.run_main("status")
         self.assertIn("(no change since)", out)
-        self.assertIn("Next: route 1 suggestion", out)
+        self.assertIn("Next: carry or drop 1 suggestion", out)
 
     def test_status_names_a_document_change_without_steering_to_review(self):
         # A close-out commit changes only documents: the map, the status lines, the indexes.
@@ -651,7 +507,7 @@ class TestStatus(RepoCase):
         self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="docs/x.md\n"))
         _, out, _ = self.run_main("status")
         self.assertIn("(documents changed since)", out)
-        self.assertIn("Next: route 1 suggestion", out)
+        self.assertIn("Next: carry or drop 1 suggestion", out)
 
     def test_status_survives_an_unreachable_forge(self):
         self.descriptor(forge="github")
@@ -894,10 +750,8 @@ class TestPost(GitHubCase):
         text = self.read_findings()
         self.assertIn("in the diff · evidence: ran it · fix: guard · by: claude · forge: 4242", text)
         self.assertIn("z.go:40 · outside the diff · by: claude · unanchored", text)
-        # The review state in the body follows the file.
-        self.assertEqual(1, len(self.edits))
-        self.assertTrue(self.edits[0].startswith("## Summary\n"))
-        self.assertIn("0 critical and 2 important open", sdd_pr.read_state(self.edits[0]))
+        # The body is the author's: post never writes it.
+        self.assertEqual([], self.edits)
 
     def test_post_never_publishes_a_finding_twice(self):
         # The first post reads no id back: the line keeps no forge id.
@@ -981,15 +835,14 @@ class TestPost(GitHubCase):
         self.assertIn("1 without an id read back", out)
         self.assertIn("z.go:40 · outside the diff · by: claude · unanchored", self.read_findings())
 
-    def test_post_with_nothing_to_post_still_keeps_the_review_state(self):
+    def test_post_with_nothing_to_post_sends_nothing(self):
         self.descriptor(forge="github")
         self.findings(FILE_CLEAN.replace("Reviewed %s" % HEAD[:7], "Reviewed ccccccc"))
         self.use(self.routes())
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
         self.assertIn("nothing to post", out)
-        self.assertEqual(1, len(self.edits))
-        self.assertIn("no critical or important finding open", sdd_pr.read_state(self.edits[0]))
+        self.assertEqual([], self.edits)
 
     def test_a_clean_pass_posts_its_summary_once(self):
         self.descriptor(forge="github")
@@ -1260,7 +1113,7 @@ class TestResolve(GitHubCase):
         self.assertEqual(3, len(replies))
         resolved = [a for a, _ in fake.calls if any("resolveReviewThread" in x for x in a)]
         self.assertEqual(3, len(resolved))
-        self.assertIn("1 deferred", sdd_pr.read_state(self.edits[-1]))
+        self.assertEqual([], self.edits)
         self.assertTrue(any("T_9" in " ".join(a) for a in resolved))
         text = self.read_findings()
         self.assertIn("forge: 9 · fixed abc1234 · mirrored", text)
@@ -1284,25 +1137,9 @@ class TestResolveAzure(AzureCase):
                           "deferred: REQ-A-001 implementation: deferred"], [p["content"] for _, p in posts])
         self.assertTrue(all("pullRequestThreadComments" in a for a, _ in posts))
         self.assertEqual([{"status": "fixed"}, {"status": "wontFix"}, {"status": "closed"}], [p for _, p in patches])
-        # The description carries the review state.
-        self.assertEqual(1, len(self.updates))
-        self.assertTrue(self.updates[0]["description"].startswith("Summary\n\n"))
-        self.assertIn("1 deferred", sdd_pr.read_state(self.updates[0]["description"]))
-        self.assertTrue(any("threadId=9" in a for a, _ in patches))
-
-    def test_a_description_too_long_for_the_block_is_not_cut(self):
-        self.descriptor(forge="azure-devops")
-        self.findings(FILE_RESOLVED)
-        self.DESCRIPTION = "x" * 3990
-        self.use(self.routes())
-        code, _, err = self.run_main("resolve")
-        self.assertEqual(0, code, err)
-        self.assertIn("4000", err)
+        # The description is the author's: resolve never writes it.
         self.assertEqual([], self.updates)
-        _, out, _ = self.run_main("status")
-        self.assertIn("the pull request body is too long to carry the review state", out)
-        self.assertIn("Next: shorten the pull request body", out)
-
+        self.assertTrue(any("threadId=9" in a for a, _ in patches))
 
 FILE_TWO_AGENTS = """# Findings — feat/x
 Base: main
@@ -1805,6 +1642,49 @@ class TestFlip(RepoCase):
         self.assertEqual(2, code)
         self.assertIn("--deferred", err)
 
+    def backlog(self, text=None):
+        path = self.root / "docs" / "backlog.md"
+        if text is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        return path.read_text(encoding="utf-8") if path.exists() else None
+
+    def test_carry_appends_the_suggestions_to_the_backlog_by_directory(self):
+        self.descriptor(forge="none")
+        flip = FILE_FLIP.replace("- a.go:10 · reword", "- internal/auth/b.go:10 · reword")
+        self.findings(flip)
+        head = sdd_pr.BACKLOG_HEAD
+        self.backlog(head + "\n## internal/auth\n- internal/auth/c.go:1 · older · from: feat/old\n\n"
+                     "## zz\n- zz/y.go:2 · last · from: feat/old\n")
+        self.use(git_routes())
+        code, out, err = self.run_main("flip", "--suggestions", "--carry")
+        self.assertEqual(0, code, err)
+        self.assertIn("2 lines carried to docs/backlog.md", out)
+        self.assertEqual(head + "\n## .\n- a.go:9 · rename n · by: claude · from: feat/x\n\n"
+                         "## internal/auth\n- internal/auth/c.go:1 · older · from: feat/old\n"
+                         "- internal/auth/b.go:10 · reword · by: claude · from: feat/x\n\n"
+                         "## zz\n- zz/y.go:2 · last · from: feat/old\n", self.backlog())
+        text = self.read_findings()
+        self.assertIn("- [~] suggestion · a.go:9 · rename n · by: claude · deferred: docs/backlog.md", text)
+        self.assertEqual([], sdd_pr.parse(text).suggestions)
+        # Carried again, an item the backlog already holds is not written twice.
+        before = self.backlog()
+        self.findings(flip)
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--carry")[0])
+        self.assertEqual(before, self.backlog())
+
+    def test_carry_starts_the_backlog_and_keeps_a_blocking_findings_severity(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP)
+        self.use(git_routes())
+        self.assertEqual(0, self.run_main("flip", "a.go:6", "--carry")[0])
+        backlog = self.backlog()
+        self.assertTrue(backlog.startswith("---\nkind: plan\n---\n# Backlog\n"), backlog)
+        self.assertTrue(backlog.endswith("\n## .\n- critical · a.go:6 · two · evidence: ran it · by: claude · from: feat/x\n"),
+                        backlog)
+        self.assertIn("- [~] critical · a.go:6 · two · evidence: ran it · by: claude · deferred: docs/backlog.md",
+                      self.read_findings())
+
     def test_an_anchor_that_names_two_lines_is_refused_with_their_keys(self):
         self.descriptor(forge="none")
         self.findings(FILE_FLIP.replace("a.go:7 · three", "a.go:6 · three").replace("a.go:10 · reword", "a.go:9 · reword"))
@@ -1824,7 +1704,9 @@ class TestFlip(RepoCase):
         self.use([(git("rev-parse", "--verify", "--quiet", "nope^{commit}"), sdd_pr.CliError("no"))] + git_routes())
         self.assertEqual(2, self.run_main("flip", "a.go:5", "--fixed", "nope")[0])
         self.assertEqual(2, self.run_main("flip", "a.go:9", "--suggestions", "--dropped")[0])
+        self.assertEqual(2, self.run_main("flip", "--suggestions", "--carry", "--dropped")[0])
         self.assertEqual(FILE_FLIP, self.read_findings())
+        self.assertFalse((self.root / "docs" / "backlog.md").exists())
 
 
 class TestRecordAndRename(RepoCase):
@@ -1868,20 +1750,13 @@ class TestRecordAndRename(RepoCase):
 
 
 class TestRouting(RepoCase):
-    def test_the_block_lists_routed_suggestions_and_counts_the_rest(self):
-        text = FILE_FLIP.replace("- a.go:9 · rename n · by: claude\n", "").replace(
-            "## Resolved\n", "## Resolved\n- [~] suggestion · a.go:9 · rename n · by: claude · deferred: issue 3\n")
-        block = sdd_pr.review_state(sdd_pr.parse(text), HEAD)
-        self.assertIn("; 1 suggestion not routed", block)
-        self.assertIn("- Deferred: suggestion at `a.go:9`, rename n: issue 3", block)
-
-    def test_once_every_suggestion_is_routed_next_is_merge(self):
+    def test_once_every_suggestion_is_carried_or_dropped_next_is_merge(self):
         self.descriptor(forge="none")
         self.findings(FILE_CLEAN)
         reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), lambda argv, _: HEAD + "\n")
         self.use([reviewed_at_head] + git_routes())
         _, out, _ = self.run_main("status")
-        self.assertIn("Next: route 1 suggestion (/sdd-deliver --close-out)", out)
+        self.assertIn("Next: carry or drop 1 suggestion (/sdd-deliver --close-out)", out)
         self.assertEqual(0, self.run_main("flip", "--suggestions", "--dropped")[0])
         _, out, _ = self.run_main("status")
         self.assertIn("Mergeable: yes", out)

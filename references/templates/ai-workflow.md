@@ -52,10 +52,10 @@ knowledge base in which only the constitution binds).
 
 **Findings live in the branch's findings file** (one per branch, in the clone's git directory, which every
 worktree sees; `sdd-pr status` prints its path, and `sdd-pr add`, `flip` and `record` write it) and,
-when a pull request exists, in its inline threads, which `sdd-pr` keeps in step with the file. Three
+on a pull request, in its inline threads and one summary per pass, which `sdd-pr` keeps in step. Three
 severities: critical and important are resolved before merge and are the only ones mirrored; suggestions
-are captured and never block. Every critical or important finding carries evidence. Nothing else about
-findings is posted anywhere, except the review-state block `sdd-pr` keeps in the pull request's body.
+never block, and before merge are carried to `docs/backlog.md` or dropped. Every critical or important
+finding carries evidence. Nothing else about findings is posted, the pull request's body included.
 `sdd-pr status` lists what is open and prints `Mergeable: yes|no` and the next command.
 
 **The canonical review request.** Reviewers that run outside this repository never load the SDD plugin,

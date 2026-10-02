@@ -248,7 +248,8 @@ the commit or the `REQ` — never a plan, which is temporary even when it is com
 
 Work that stops before it ships is recorded on the requirement: `implementation: deferred` (§6), with the
 reason in the PR body. A leftover the maintainer keeps becomes a `deferred` requirement or one line under
-the specification's *Known gaps*; the rest is dropped.
+the specification's *Known gaps*, or, when it is about code, a line in `docs/backlog.md`
+([review.md](review.md) § The backlog); the rest is dropped.
 
 ## 10. Agent affordances
 
@@ -358,7 +359,6 @@ The review-enforced list is meant to shrink.
 | Lanes | review-enforced — `/sdd-review` |
 | Critical and important findings carry evidence and sit in the range | review-enforced — `/sdd-review` |
 | No open critical or important finding at merge | `sdd-pr status` |
-| The pull request carries the review state for its head | `sdd-pr status` |
 | The pass budget | review-enforced — `/sdd-triage` |
 | Collapse before you add | review-enforced |
 | Mutation-detectability | the build gate's tests |

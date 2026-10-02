@@ -61,7 +61,7 @@ The **spec, document and traceability layer** and the **delivery pipeline on it*
 | Tool | Purpose |
 |------|---------|
 | `sdd-check` | The vendored drift gate (`check`, `generate`, `context`, `selftest`): the chain in both directions, the mechanical prose lints, every derived index from one source; reads the profile |
-| `sdd-pr` | The findings file in the clone's git directory and its GitHub or Azure DevOps mirror: `add`, `flip`, `record`, `rename` (and `pull`, `post`, `resolve`) make every write; `status` prints `Mergeable` and `Next`; `scope` the range a pass reads; `post` one review per pass, its summary on top; the review-state block in the PR body |
+| `sdd-pr` | The findings file in the clone's git directory and its GitHub or Azure DevOps mirror: `add`, `flip`, `record`, `rename` (and `pull`, `post`, `resolve`) make every write; `status` prints `Mergeable` and `Next`; `scope` the range a pass reads; `post` one review per pass, its summary on top; `flip --carry` the leftovers to `docs/backlog.md`; never the PR body |
 
 ### Hooks
 - **SessionStart** (`session-start.sh`): in an SDD repository, the profile, the `/sdd-*` surface and an orientation (plugin version and any mismatch with the vendored gate, branch, open findings, the gate's verdict); elsewhere, a scaffold pointer when `docs/` exists.

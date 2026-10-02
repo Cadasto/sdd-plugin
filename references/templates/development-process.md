@@ -132,9 +132,9 @@ Lane: <full | maintenance — no normative change>     <!-- formal profile only 
 - [ ] Conventional Commits, citing the identifiers the change touches
 ```
 
-No session claim, no commit list, no task ticks, no finding ids: findings are in the findings file and the
-review threads (`ai-workflow.md` § Review). `sdd-pr` appends a generated *review state* block to the body
-and rewrites it in place; leave it, and a body rewritten without it gets it back on the next write.
+The body describes the branch, never its review: no session claim, no commit list, no task ticks, no
+finding ids, counts or passes; those are in the findings file and the review threads (`ai-workflow.md`
+§ Review). Update it when a later commit changes what the branch does.
 
 ## Artefact prose — one home per fact
 
