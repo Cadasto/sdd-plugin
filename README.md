@@ -75,7 +75,7 @@ Six `/sdd-*` skills, each also usable as a slash command, plus an always-on rout
 | `spec-driven-development` | Auto-invoked awareness and router: explains the methodology, routes intent, states where an optional general engineering plugin still fits, and blocks jumping to code when no requirement or spec exists yet |
 | `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor, suggesting `agents.reviewers` from the build manifests (idempotent: fills gaps, never clobbers) |
 | `/sdd-specify` | The definition layer: capture a capability (`REQ`), write RFC-2119 normative behaviour into the canonical spec (`SPEC §`), and record decisions (`ADR`); assigns identifiers and wires traceability |
-| `/sdd-deliver` | The delivery driver: the dispatch gate, `sdd-implementer` workers per the descriptor's `agents:` block, the per-task gate, the first review pass, the draft PR; `--close-out` sets the `REQ` to `shipped` (a `SPEC §` is promoted only when you confirm) and writes the PR body |
+| `/sdd-deliver` | The delivery driver: the dispatch gate, `sdd-implementer` workers in sequence on the branch (in parallel only for large tasks with disjoint files, still on the one branch), the per-task gate, the first review pass, the draft PR; `--close-out` sets the `REQ` to `shipped` (a `SPEC §` is promoted only when you confirm) and writes the PR body |
 | `/sdd-review` | One review pass over the whole branch, or with `--since-last` over the commits since this agent's last pass: dispatch the reviewers the profile, lane and changed files call for, write their findings into the branch's findings file, and mirror the blocking ones to the pull request; `--panel` prints the canonical prompt blocks |
 | `/sdd-triage` | Work the open findings: verify each, fix in this branch, flip the lines, mirror to the pull request, and after your review run one scoped re-review when anything changed |
 | `/sdd-trace` | The traceability gate: assemble the one-shot context bundle for a `REQ`, and report drift and orphans (the `spec-check` analogue); `--audit` dispatches the isolated whole-tree audit. Report-only |
@@ -172,7 +172,7 @@ sdd:
   agents:
     worker_model: inherit           # per-dispatch model override; inherit = no override, or a host model id
     max_parallel_workers: 3
-    worktree_per_worker: true       # parallel, mutating tasks only
+    worktree_per_worker: false      # true: each parallel worker on its own branch and worktree, merged; false: one shared branch
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
     reviewers: []                   # this repo's own language reviewers, by agent name; or a map of path patterns to names
     task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)

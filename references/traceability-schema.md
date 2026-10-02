@@ -88,7 +88,7 @@ sdd:
   agents:
     worker_model: inherit           # per-dispatch model override; inherit = no override, or a host model id
     max_parallel_workers: 3
-    worktree_per_worker: true       # parallel, mutating tasks only
+    worktree_per_worker: false      # true: each parallel worker on its own branch and worktree, merged; false: one shared branch
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
     reviewers: []                   # this repo's own language reviewers, by agent name; /sdd-scaffold suggests from the build manifests
     task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
@@ -148,8 +148,8 @@ requirements, specifications, ADR paths and the traceability map are optional, a
 | Field | Meaning |
 |---|---|
 | `worker_model` | The model `/sdd-deliver` passes as the **per-dispatch override** when it dispatches a worker; `inherit` passes none. A model id is host-specific, so the default is `inherit`. |
-| `max_parallel_workers` | Ceiling on workers running at once. Sequential plans run one. |
-| `worktree_per_worker` | Give each parallel, mutating worker its own git worktree. A worktree is real setup cost; pay it only where parallelism pays back. |
+| `max_parallel_workers` | Ceiling on workers running at once, never a target: `/sdd-deliver` runs tasks in sequence unless a wave's tasks are independent and each outlasts a worker's overhead. |
+| `worktree_per_worker` | `false` (default): a parallel wave shares the orchestrator's worktree and branch, its tasks split by disjoint `Files`, each worker committing only its own. `true`: each parallel worker gets a branch `<branch>--<task>` and worktree, merged after the wave; for a wave that cannot be split by files. |
 | `worker_skills` | Skills a worker should apply. **Named in the brief**, not preloaded in frontmatter. |
 | `reviewers` | The repository's own language reviewers, by agent name. Used for the per-task gate and as the code-review member of the review panel. A list gives every reviewer every changed code path; a block map of path patterns to a name or a list of names (`"**/*.go": go-coding:go-reviewer`) gives each reviewer only its paths (`*` matches across `/`), and `sdd-pr scope` names the paths no pattern, and no name in an empty list, covers. `/sdd-scaffold` suggests a value from the build manifests in the tree; the maintainer confirms it. |
 | `task_review` | `on` · `off` · `lane`. `lane` means on for the full lane and off for the maintenance lane. |

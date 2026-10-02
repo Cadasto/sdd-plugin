@@ -39,8 +39,8 @@ knowledge base in which only the constitution binds).
   it may touch, the verification command, en-route findings, and no subagents.
 - **Code index:** `<none | the tool that indexes this repository>`. When one is named, workers query it
   first and fall back to `grep` for literals and prose; the brief repeats the name.
-- **Workers do not spawn workers.** Parallel workers that mutate the tree each get their own worktree;
-  sequential work stays on the branch.
+- **Workers do not spawn workers.** Tasks run in sequence on the branch; a parallel wave (large tasks,
+  disjoint files) shares it, each worker committing only its own files.
 - **Completion is accounted for.** A worker that dies is re-dispatched, or the gap is named. A task is not
   done because a dispatch ended.
 - **Findings state is read from the file, never remembered.**
