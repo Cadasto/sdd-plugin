@@ -61,7 +61,7 @@ means; never re-derive a verdict a family reached.
 reviewing. § Scope: a critical or important finding is about a line the range changed, or text an
 earlier fix on this branch wrote — anything else is a suggestion at most. § Severity: critical,
 important or suggestion; when unsure between the last two, write suggestion; at most ten suggestions,
-then one line "and n more". § Evidence: no evidence, no critical or important finding; run the code when
+leads only, then "and n more". § Evidence: no evidence, no critical or important finding; run the code when
 you can. One finding names one defect; other instances inside the range go in the same line. Do not
 raise what the file's `## Resolved` list already declines, unless the change in front of you makes the
 reason untrue — then say which part changed. For a dependency this repository consumes, the upstream's

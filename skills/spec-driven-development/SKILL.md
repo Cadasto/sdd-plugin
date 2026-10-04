@@ -19,7 +19,7 @@ The **specification — not the code, not the prompt — is the source of truth.
 ## The delivery surface
 
 ```
-/sdd-specify  →  /sdd-deliver  →  /sdd-review (+ --panel)  →  /sdd-triage  →  /sdd-deliver --close-out
+/sdd-specify  →  /sdd-deliver  →  /sdd-review (+ --panel)  →  /sdd-triage  →  /sdd-deliver --close-out  →  /sdd-triage --backlog
 ```
 
 | Intent | Route to |
@@ -29,7 +29,7 @@ The **specification — not the code, not the prompt — is the source of truth.
 | Deliver a change: the dispatch gate, workers, gates, the first review pass, the draft PR; close out the requirement and write the PR body (`--close-out`) | `sdd-deliver` |
 | Implement one bounded task from a brief | `sdd-implementer` agent (dispatched by `sdd-deliver`) |
 | A review pass into the branch's findings file; panel prompts | `sdd-review` |
-| Work the open findings: verify, fix, flip, mirror; after the maintainer's review, one scoped re-review | `sdd-triage` |
+| Work the open findings: verify, fix, flip, mirror; after the maintainer's review, one scoped re-review; after merges, carry the suggestions to the backlog (`--backlog`) | `sdd-triage` |
 | What is open, is it mergeable, what next | `sdd-pr status` (`tools/sdd-pr.py`) |
 | Traceability, drift, the drift gate, lint, a REQ's context (report-only); `--audit` for the isolated whole-tree audit | `sdd-trace` |
 | Does the code satisfy the `SPEC §` it cites, clause by clause | `sdd-spec-conformance-reviewer` agent |
@@ -37,7 +37,7 @@ The **specification — not the code, not the prompt — is the source of truth.
 
 ## Optional: a general engineering plugin
 
-A general engineering plugin such as superpowers is **optional**: its brainstorming opens an idea before `/sdd-specify`. Planning, execution, review and branch finishing are covered here, and running both over the same work duplicates the loop. How the orchestrator plans is its own business; a committed plan carries `kind: plan`, and nothing reviews or cites it.
+A general engineering plugin such as superpowers is **optional**: its brainstorming opens an idea before `/sdd-specify`. Planning, execution, review and branch finishing are covered here, and running both over the same work duplicates the loop. A committed plan carries `kind: plan`, and nothing reviews or cites it.
 
 ## Guardrails this layer enforces
 

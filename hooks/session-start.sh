@@ -169,7 +169,7 @@ if is_sdd_repo; then
   profile="$(desc_get sdd profile)"
   [ -n "$profile" ] || profile="$(desc_get "" profile)"
   case "$profile" in ''|full|lightweight) profile=formal ;; esac
-  add "› Spec-Driven Development repo detected (profile $profile) — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR, or a knowledge-base page) · /sdd-deliver (workers → review → draft PR → close-out) · /sdd-review (review pass into the findings file) · /sdd-triage (work the open findings) · /sdd-trace (traceability, --audit) · /sdd-scaffold. Run /sdd-trace + the build's spec-check before claiming done."
+  add "› Spec-Driven Development repo detected (profile $profile) — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR, or a knowledge-base page) · /sdd-deliver (workers → review → draft PR → close-out) · /sdd-review (review pass into the findings file) · /sdd-triage (work the open findings; --backlog after merges) · /sdd-trace (traceability, --audit) · /sdd-scaffold. Run /sdd-trace + the build's spec-check before claiming done."
 
   # 0. The plugin version, from the manifest beside this script (or the host's plugin root), and how it
   # compares with the version this repository vendored its gate at: an older gate wants an upgrade, an
