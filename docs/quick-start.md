@@ -109,6 +109,8 @@ When `sdd-pr status` shows nothing open, close out:
 
 The close-out sets the requirement's traceability record to `implementation: shipped`; the spec section is promoted only if you confirm it. It runs the full gate before pushing, writes the pull request body and marks the pull request ready. Last, it prints one review-request block per entry in `agents.review_panel.full`, for reviewers that run outside the repository. Paste those where they go. A person merges.
 
+Suggestions never block. Each review pass put its suggestions in a comment of their own on the pull request. After one or more merges, `/sdd-triage --backlog` carries the open ones to `docs/backlog.md`, where the next delivery that touches their files picks them up. The first harvest asks where to start.
+
 Check: the requirement's record reads `implementation: shipped`, the pull request is no longer a draft, and its body has Summary, Spec and traceability, Verification and the checklist.
 
 ## What you have now

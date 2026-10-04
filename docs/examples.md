@@ -164,6 +164,14 @@ Next: /sdd-triage
 
 The format and its rules live in [review.md](../references/review.md).
 
+## Carry merged pull requests' suggestions to the backlog
+
+```text
+/sdd-triage --backlog
+```
+
+Run it on the default branch after one or more merges. It reads the suggestions comment of every pull request merged since `harvested_through:` in `docs/backlog.md`. It carries the open lines, each tagged `from: #<n>`, and leaves out those fixed, carried or dropped in their pull request and those whose file is gone. Then it moves the watermark. Read the diff and commit it. The first harvest asks where to start: a date, or a pull request number.
+
 ## Resume an interrupted delivery
 
 ```text
