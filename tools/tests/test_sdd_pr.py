@@ -465,14 +465,22 @@ class TestStatus(RepoCase):
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(draft=True))
         _, out, _ = self.run_main("status")
         self.assertIn("PR 7 (draft)", out)
-        # The close-out carries or drops the suggestion before it marks the pull request ready.
-        self.assertIn("Next: carry or drop 1 suggestion", out)
-        # Nothing open, ready → merge.
-        self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "SUCCESS"}]))
+        # A suggestion not on the pull request yet goes there before it is marked ready.
+        self.assertIn("Next: sdd-pr post --pr 7 (1 suggestion not on it)", out)
+        passed = [{"status": "COMPLETED", "conclusion": "SUCCESS"}]
+        self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=passed))
         _, out, _ = self.run_main("status")
         self.assertIn("checks: pass", out)
         self.assertIn("Mergeable: yes", out)
-        self.assertIn("Next: carry or drop 1 suggestion", out)
+        self.assertIn("Next: sdd-pr post --pr 7 (1 suggestion not on it)", out)
+        # Once in its comment, a suggestion waits for the harvest after merge: ready → merge, draft → mark ready.
+        self.findings(FILE_CLEAN.replace("by: claude\n", "by: claude · comment: 901\n"))
+        self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=passed))
+        _, out, _ = self.run_main("status")
+        self.assertTrue(out.rstrip().endswith("Next: merge"), out)
+        self.use([reviewed_at_head] + git_routes() + self._gh_routes(draft=True))
+        _, out, _ = self.run_main("status")
+        self.assertIn("Next: mark the pull request ready", out)
         # Failing checks.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "FAILURE"}]))
         _, out, _ = self.run_main("status")
@@ -542,13 +550,35 @@ class GitHubCase(RepoCase):
         pr.update(self.PR)
         self.edits = []
         self.reviews = getattr(self, "reviews", [])
+        #: The pull request's own comments, not on a line; they persist across routes() in one test.
+        self.comments = getattr(self, "comments", [])
+        self.comment_edits = getattr(self, "comment_edits", [])
 
         def edit(argv, stdin):
             self.edits.append(stdin)
             pr["body"] = stdin
             return ""
 
+        def add_comment(argv, stdin):
+            comment = {"id": 900 + len(self.comments) + 1, "body": json.loads(stdin)["body"]}
+            self.comments.append(comment)
+            return json.dumps(comment)
+
+        def edit_comment(argv, stdin):
+            comment_id = argv[2].rsplit("/", 1)[1]
+            self.comment_edits.append(comment_id)
+            for comment in self.comments:
+                if str(comment["id"]) == comment_id:
+                    comment["body"] = json.loads(stdin)["body"]
+            return "{}"
+
+        def gh_api(fragment, method=None):
+            return lambda a: a[:2] == ["gh", "api"] and fragment in a[2] and (method in a if method else "--method" not in a)
+
         return list(extra) + git_routes(diff=diff) + [
+            (gh_api("/issues/comments/", "PATCH"), edit_comment),
+            (gh_api("/issues/7/comments", "POST"), add_comment),
+            (gh_api("/issues/7/comments"), lambda argv, _: json.dumps(self.comments)),
             (has("gh", "pr", "edit"), edit),
             (has("gh", "pr", "list"), lambda argv, _: json.dumps([pr])),
             (has("gh", "pr", "view"), lambda argv, _: json.dumps(pr)),
@@ -708,7 +738,7 @@ Reviewed %s · 2026-09-30 · claude: go-reviewer (1 of 1)
 ## Resolved
 
 ## Suggestions
-- a.go:2 · a suggestion is never posted · by: claude
+- a.go:2 · a suggestion is never inline · by: claude
 """ % HEAD[:7]
 
 
@@ -741,15 +771,20 @@ class TestPost(GitHubCase):
         self.assertEqual(("a.go", 5, "RIGHT"), (comment["path"], comment["line"], comment["side"]))
         self.assertTrue(comment["body"].startswith("**important**"))
         self.assertTrue(payload["body"].startswith(
-            "**Review at `%s`:** 0 critical and 2 important open; 1 suggestion, not posted.\n"
+            "**Review at `%s`:** 0 critical and 2 important open; 1 suggestion, in a separate comment.\n"
             "- claude: go-reviewer (1 of 1)" % HEAD[:7]), payload["body"])
         self.assertIn("<!-- sdd:pass %s claude -->" % HEAD[:7], payload["body"])
         self.assertIn("### Not anchored to the diff", payload["body"])
         self.assertIn("z.go:40", payload["body"])
-        self.assertNotIn("suggestion is never posted", json.dumps(payload))
+        self.assertNotIn("suggestion is never inline", json.dumps(payload))
+        # The suggestion goes in its own comment on the pull request, whose id the line takes.
+        self.assertEqual(1, len(self.comments))
+        self.assertIn("\n- a.go:2 · a suggestion is never inline · by: claude\n", self.comments[0]["body"])
+        self.assertIn("post: 1 suggestion in a new comment on PR 7", out)
         text = self.read_findings()
         self.assertIn("in the diff · evidence: ran it · fix: guard · by: claude · forge: 4242", text)
         self.assertIn("z.go:40 · outside the diff · by: claude · unanchored", text)
+        self.assertIn("- a.go:2 · a suggestion is never inline · by: claude · comment: 901", text)
         # The body is the author's: post never writes it.
         self.assertEqual([], self.edits)
 
@@ -867,16 +902,17 @@ class TestPost(GitHubCase):
         body = posts[0]["body"]
         # Two passes at HEAD, two opinions: one review names both.
         self.assertTrue(body.startswith(
-            "**Review at `%s`:** no critical or important finding open; 1 suggestion, not posted.\n"
+            "**Review at `%s`:** no critical or important finding open; 1 suggestion, in a separate comment.\n"
             "- claude: go-reviewer (1 of 1)\n- claude-sonnet-5-5: go-reviewer (1 of 1)\n" % HEAD[:7]), body)
         self.assertIn("<!-- sdd:pass %s claude-sonnet-5-5 -->" % HEAD[:7], body)
         self.assertNotIn("Not anchored", body)
         self.assertIn("post: the summary of 2 passes", out)
-        # A second post finds the summary on the forge and sends nothing.
+        self.assertEqual(1, len(self.comments))
+        # A second post finds the summary and the suggestion on the forge and sends nothing.
         self.use(self.routes(extra=extra))
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
-        self.assertEqual(1, len(posts))
+        self.assertEqual((1, 1, []), (len(posts), len(self.comments), self.comment_edits))
         self.assertIn("nothing to post", out)
 
     def test_reviews_are_read_from_every_page(self):
@@ -894,7 +930,7 @@ class TestPost(GitHubCase):
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
         self.assertIn("nothing to post", out)
-        self.assertFalse([a for a, _ in fake.calls if "POST" in a])
+        self.assertFalse([a for a, _ in fake.calls if "POST" in a and a[2].endswith("/reviews")])
 
     def test_a_summary_waits_for_the_push(self):
         self.descriptor(forge="github")
@@ -1045,13 +1081,17 @@ class TestPostAzure(AzureCase):
         self.assertEqual(5, thread["threadContext"]["rightFileEnd"]["line"])
         self.assertTrue(thread["comments"][0]["content"].startswith("**important**"))
         general = [p for _, p in payloads if "threadContext" not in p]
-        self.assertEqual(1, len(general))
+        self.assertEqual(2, len(general))
+        # The suggestions thread is closed: no merge policy waits on it.
+        self.assertIn("- a.go:2 · a suggestion is never inline", general[1]["comments"][0]["content"])
+        self.assertEqual("closed", general[1]["status"])
         self.assertIn("z.go:40", general[0]["comments"][0]["content"])
         self.assertIn("**Review at `%s`:**" % HEAD[:7], general[0]["comments"][0]["content"])
         self.assertEqual("active", general[0]["status"])
         text = self.read_findings()
         self.assertIn("by: claude · forge: 501", text)
         self.assertIn("unanchored", text)
+        self.assertIn("never inline · by: claude · comment: 503", text)
 
     def test_azure_a_clean_pass_posts_a_closed_summary_once(self):
         self.descriptor(forge="azure-devops")
@@ -1060,15 +1100,16 @@ class TestPostAzure(AzureCase):
         self.use(self.routes(on_post=lambda argv, payload: payloads.append(payload)))
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
-        self.assertEqual(1, len(payloads))
+        self.assertEqual(2, len(payloads))
         self.assertNotIn("threadContext", payloads[0])
-        self.assertEqual("closed", payloads[0]["status"])
+        self.assertEqual(["closed", "closed"], [p["status"] for p in payloads])
         content = payloads[0]["comments"][0]["content"]
         self.assertIn("no critical or important finding open", content)
-        # The summary thread is on the pull request: the next post sends nothing.
-        posted = {"id": 77, "status": "closed", "comments": [{"id": 1, "content": content}]}
+        # The summary and the suggestions are on the pull request: the next post sends nothing.
+        posted = [{"id": 77, "status": "closed", "comments": [{"id": 1, "content": content}]},
+                  {"id": 502, "status": "closed", "comments": [{"id": 1, "content": payloads[1]["comments"][0]["content"]}]}]
         payloads.clear()
-        self.use(self.routes(threads=[posted], on_post=lambda argv, payload: payloads.append(payload)))
+        self.use(self.routes(threads=posted, on_post=lambda argv, payload: payloads.append(payload)))
         code, out, err = self.run_main("post")
         self.assertEqual((0, []), (code, payloads), err)
         self.assertIn("nothing to post", out)
@@ -1900,6 +1941,224 @@ class TestAttribution(GitHubCase):
         self.use(self.routes(threads=[gh_thread(101, "a.go", 5, body, login="maint")]))
         self.assertEqual(0, self.run_main("pull")[0])
         self.assertIn("by: go-coding:go-reviewer · forge: 101", self.read_findings())
+
+
+FILE_POSTED = """# Findings — feat/x
+Base: main
+Reviewed %s · 2026-09-30 · claude: go-reviewer (1 of 1)
+
+## Open
+
+## Resolved
+
+## Suggestions
+- a.go:9 · rename n · by: claude · comment: 901
+- a.go:10 · reword · by: claude · comment: 901
+""" % HEAD[:7]
+
+
+class TestSuggestionComments(GitHubCase):
+    """Suggestions live in their own comments on the pull request, which follow the file."""
+
+    def posted(self):
+        """The comment FILE_POSTED's lines are in, as post wrote it."""
+        fs = sdd_pr.parse(FILE_POSTED)
+        self.comments = [{"id": 901, "body": sdd_pr.suggestions_body(HEAD, fs.suggestions)}]
+
+    def test_a_comment_reads_back_as_the_lines_it_holds(self):
+        fs = sdd_pr.parse(FILE_POSTED.replace("- a.go:10 · reword · by: claude · comment: 901",
+                                              "- [x] suggestion · a.go:10 · reword · by: claude · comment: 901 · fixed abc1234"))
+        body = sdd_pr.suggestions_body(HEAD, fs.items)
+        self.assertIn("<details><summary>2 suggestions, 1 open</summary>", body)
+        self.assertNotIn("comment:", body)
+        back = sdd_pr.suggestion_lines(body)
+        self.assertEqual([("suggestion", "a.go", "9", "rename n"), ("fixed", "a.go", "10", "reword")],
+                         [(f.status, f.path, f.line, f.text) for f in back])
+        # can-fail control: a comment without the marker holds no line.
+        self.assertEqual([], sdd_pr.suggestion_lines(body.replace("sdd:suggestions", "sdd:other")))
+
+    def test_a_fixed_suggestion_shows_as_fixed_in_its_comment(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_POSTED)
+        self.posted()
+        self.use(self.routes())
+        code, out, err = self.run_main("flip", "a.go:9", "--fixed", "abc1234")
+        self.assertEqual(0, code, err)
+        self.assertIn("- [x] suggestion · a.go:9 · rename n · by: claude · comment: 901 · fixed abc1234",
+                      self.read_findings())
+        code, out, err = self.run_main("resolve")
+        self.assertEqual(0, code, err)
+        self.assertEqual(["901"], self.comment_edits)
+        self.assertIn("\n- [x] suggestion · a.go:9 · rename n · by: claude · fixed abc1234\n", self.comments[0]["body"])
+        self.assertIn("\n- a.go:10 · reword · by: claude\n", self.comments[0]["body"])
+        self.assertIn("resolve: 1 suggestion comment edited on PR 7", out)
+        # In step: nothing more to edit.
+        self.run_main("resolve")
+        self.assertEqual(["901"], self.comment_edits)
+
+    def test_a_posted_suggestion_dropped_stays_as_dropped(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_POSTED + "- a.go:11 · not posted yet · by: claude\n")
+        self.use(git_routes())
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--dropped")[0])
+        text = self.read_findings()
+        self.assertIn("- [~] suggestion · a.go:9 · rename n · by: claude · comment: 901 · deferred: dropped by the maintainer",
+                      text)
+        self.assertNotIn("not posted yet", text)
+        self.assertEqual([], sdd_pr.parse(text).suggestions)
+        # A decline is for a finding; a suggestion is fixed, carried, deferred or dropped.
+        self.findings(FILE_POSTED)
+        code, _, err = self.run_main("flip", "a.go:9", "--declined", "no")
+        self.assertEqual(2, code)
+        self.assertIn("--fixed", err)
+
+    def test_a_comment_deleted_on_the_forge_is_posted_again(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_POSTED)
+        self.use(self.routes())
+        code, out, err = self.run_main("resolve")
+        self.assertEqual(0, code, err)
+        self.assertEqual(1, len(self.comments))
+        self.assertIn("- a.go:9 · rename n · by: claude · comment: 901", self.read_findings())
+        self.assertIn("resolve: 2 suggestions in a new comment on PR 7", out)
+
+
+class TestHarvest(GitHubCase):
+    MARK = "2026-10-04T12:00:00Z"
+
+    def backlog(self, text=None):
+        path = self.root / "docs" / "backlog.md"
+        if text is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        return path.read_text(encoding="utf-8") if path.exists() else None
+
+    def head_with_mark(self, mark=None):
+        return sdd_pr.BACKLOG_HEAD.replace("kind: plan\n", "kind: plan\nharvested_through: %s\n" % (mark or self.MARK))
+
+    def harvest_routes(self, merged, comments):
+        """``merged``: number → mergedAt; ``comments``: number → the bodies of its comments."""
+        shaped = [{"number": n, "headRefOid": "c" * 40, "headRefName": "feat/%d" % n, "baseRefName": "main",
+                   "url": "u", "state": "MERGED", "mergedAt": at} for n, at in merged.items()]
+
+        def listed(argv, _):
+            number = int(argv[2].split("/issues/")[1].split("/")[0])
+            return json.dumps([{"id": 1000 + i, "body": b} for i, b in enumerate(comments.get(number, []))])
+
+        extra = [(has("gh", "pr", "list", "--state", "merged"), json.dumps(shaped)),
+                 (lambda a: a[:3] == ["gh", "pr", "view"] and a[3] != "7",
+                  lambda argv, _: json.dumps(next(s for s in shaped if s["number"] == int(argv[3])))),
+                 (lambda a: a[:2] == ["gh", "api"] and "/issues/" in a[2] and "--method" not in a, listed)]
+        return self.routes(extra=extra)
+
+    def comment_of(self, *lines):
+        fs = sdd_pr.parse("# Findings — feat/y\nBase: main\n\n## Suggestions\n" + "\n".join(lines) + "\n")
+        return sdd_pr.suggestions_body("c" * 40, fs.items)
+
+    def test_harvest_carries_the_open_suggestions_of_pull_requests_merged_since_the_watermark(self):
+        self.descriptor(forge="github")
+        (self.root / "a.go").write_text("package a\n", encoding="utf-8")
+        self.backlog(self.head_with_mark())
+        twelve = self.comment_of("- a.go:9 · rename n · by: claude",
+                                 "- [x] suggestion · a.go:10 · reword · by: claude · fixed abc1234",
+                                 "- [~] suggestion · a.go:11 · trim · by: claude · deferred: dropped by the maintainer",
+                                 "- gone/b.go:3 · the file was removed since · by: claude")
+        merged = {11: "2026-10-04T12:00:00Z", 12: "2026-10-04T21:10:00Z"}
+        comments = {11: [self.comment_of("- a.go:1 · harvested before · by: claude")],
+                    12: ["LGTM", twelve]}
+        fake = self.use(self.harvest_routes(merged, comments))
+        code, out, err = self.run_main("harvest")
+        self.assertEqual(0, code, err)
+        self.assertIn("merged:>=2026-10-04", fake.called("gh", "pr", "list")[0])
+        backlog = self.backlog()
+        # #11 merged at the watermark: harvested already.
+        self.assertNotIn("harvested before", backlog)
+        self.assertIn("\n## .\n- a.go:9 · rename n · by: claude · from: #12\n", backlog)
+        for settled in ("reword", "trim", "removed since"):
+            self.assertNotIn(settled, backlog)
+        self.assertIn("harvested_through: 2026-10-04T21:10:00Z\n", backlog)
+        self.assertTrue(backlog.startswith("---\nkind: plan\nharvested_through:"), backlog)
+        self.assertIn("left out, its path is gone: gone/b.go:3", out)
+        self.assertIn("1 line carried to docs/backlog.md, 0 already there, 2 settled in their pull request, 1 left out", out)
+        # A second harvest finds nothing newer and writes nothing new.
+        before = self.backlog()
+        self.use(self.harvest_routes(merged, comments))
+        code, out, _ = self.run_main("harvest")
+        self.assertEqual(0, code)
+        self.assertIn("0 pull requests merged after 2026-10-04T21:10:00Z", out)
+        self.assertEqual(before, self.backlog())
+
+    def test_the_first_harvest_needs_a_start_and_a_dry_run_writes_nothing(self):
+        self.descriptor(forge="github")
+        (self.root / "a.go").write_text("package a\n", encoding="utf-8")
+        merged = {12: "2026-10-04T21:10:00Z"}
+        comments = {12: [self.comment_of("- a.go:9 · rename n · by: claude")]}
+        self.use(self.harvest_routes(merged, comments))
+        code, _, err = self.run_main("harvest")
+        self.assertEqual(2, code)
+        self.assertIn("--since", err)
+        code, out, err = self.run_main("harvest", "--since", "#12", "--dry-run")
+        self.assertEqual(0, code, err)
+        self.assertIn("- a.go:9 · rename n · by: claude · from: #12", out)
+        self.assertIn("harvested_through: 2026-10-04T21:10:00Z (dry run", out)
+        self.assertIsNone(self.backlog())
+        # --since is inclusive: the pull request it names is in.
+        self.assertEqual(0, self.run_main("harvest", "--since", "#12")[0])
+        self.assertIn("- a.go:9 · rename n · by: claude · from: #12", self.backlog())
+        # A date with nothing merged since still leaves a watermark for the next harvest.
+        self.backlog("")
+        self.assertEqual(0, self.run_main("harvest", "--since", "2026-10-05")[0])
+        self.assertIn("harvested_through: 2026-10-04T23:59:59Z\n", self.backlog())
+
+    def test_without_a_forge_there_is_nothing_to_harvest(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        code, _, err = self.run_main("harvest", "--since", "2026-10-01")
+        self.assertEqual(2, code)
+        self.assertIn("flip --carry", err)
+
+    def test_instants_read_as_github_and_azure_devops_write_them(self):
+        utc = sdd_pr.datetime.timezone.utc
+        expected = sdd_pr.datetime.datetime(2026, 10, 4, 21, 10, 0, tzinfo=utc)
+        for text in ("2026-10-04T21:10:00Z", "2026-10-04T21:10:00.1234567Z", "2026-10-04T23:10:00+02:00",
+                     "2026-10-04 21:10:00"):
+            self.assertEqual(expected, sdd_pr.instant(text), text)
+        self.assertEqual(sdd_pr.datetime.datetime(2026, 10, 4, tzinfo=utc), sdd_pr.instant("2026-10-04"))
+        self.assertIsNone(sdd_pr.instant("yesterday"))
+
+    def test_a_merged_pull_request_points_at_the_harvest_until_the_watermark_passes_it(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_POSTED + "- a.go:11 · not posted · by: claude\n")
+        self.PR = {"state": "MERGED", "mergeCommit": {"oid": "e" * 40}, "mergedAt": "2026-10-04T21:10:00Z"}
+        self.use(self.routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("still in the file: 0 open lines, 1 suggestion not on the pull request", out)
+        self.assertIn("Next: /sdd-triage --backlog, then delete", out)
+        self.backlog(self.head_with_mark("2026-10-04T21:10:00Z"))
+        _, out, _ = self.run_main("status")
+        self.assertIn("Next: delete", out)
+
+
+class TestHarvestAzure(AzureCase):
+    def test_harvest_reads_completed_pull_requests_and_their_closed_threads(self):
+        self.descriptor(forge="azure-devops")
+        (self.root / "a.go").write_text("package a\n", encoding="utf-8")
+        fs = sdd_pr.parse("# Findings — feat/y\nBase: main\n\n## Suggestions\n- a.go:9 · rename n · by: claude\n")
+        body = sdd_pr.suggestions_body("c" * 40, fs.items)
+        completed = [{"pullRequestId": 12, "status": "completed", "closedDate": "2026-10-04T21:10:00.1234567Z",
+                      "sourceRefName": "refs/heads/feat/y", "targetRefName": "refs/heads/main",
+                      "repository": {"id": "R1", "project": {"name": "proj"}}}]
+        threads = [{"id": 40, "status": "closed", "comments": [{"id": 1, "content": body}]},
+                   az_thread(41, "a.go", 9, "- a.go:9 · an inline thread is not a suggestions comment")]
+        fake = self.use([(has("az", "repos", "pr", "list", "--status", "completed"), json.dumps(completed))]
+                        + self.routes(threads=threads))
+        code, out, err = self.run_main("harvest", "--since", "2026-10-04")
+        self.assertEqual(0, code, err)
+        backlog = (self.root / "docs" / "backlog.md").read_text(encoding="utf-8")
+        self.assertIn("- a.go:9 · rename n · by: claude · from: #12\n", backlog)
+        self.assertEqual(1, backlog.count("a.go:9"))
+        self.assertIn("harvested_through: 2026-10-04T21:10:00Z", backlog)
+        self.assertTrue(any("pullRequestId=12" in a for a in fake.called("az", "devops", "invoke")))
 
 
 class TestCommandLine(RepoCase):

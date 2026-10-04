@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""sdd-pr — the branch's findings file, mirrored to the pull request's inline threads.
+"""sdd-pr — the branch's findings file, mirrored to the pull request's inline threads and suggestion comments.
 
-Commands: status, scope, pull, post, resolve, and add, flip, record, rename, which own every write to
-the file. One file, Python 3.9+, standard library only.
+Commands: status, scope, pull, post, resolve, harvest, and add, flip, record, rename, which own every write
+to the file. One file, Python 3.9+, standard library only.
 Every external call (git, gh, az) goes through run_cli(); the tests replace it.
 Contract: references/review.md.
 """
@@ -33,7 +33,7 @@ __version__ = "0.10.0"
 SEVERITIES = ("critical", "important", "suggestion")
 BLOCKING = ("critical", "important")
 SEP = " · "
-FIELD_KEYS = ("evidence", "fix", "by", "forge", "declined", "deferred")
+FIELD_KEYS = ("evidence", "fix", "by", "forge", "comment", "declined", "deferred")
 FLAGS = ("unanchored", "mirrored")
 SECTIONS = ("Open", "Resolved", "Suggestions")
 DESCRIPTOR = os.path.join("docs", ".sdd.yaml")
@@ -42,8 +42,10 @@ BACKLOG_HEAD = (
     "---\nkind: plan\n---\n# Backlog\n\n"
     "Leftovers of merged branches, by directory: suggestions, and findings the maintainer deferred here. "
     "Each line is a lead, not a finding: verify it before acting. A delivery whose `Files` touch a line's path "
-    "folds it in and deletes the line. `sdd-pr flip --carry` appends; edit freely.\n"
+    "folds it in and deletes the line. `sdd-pr harvest` and `sdd-pr flip --carry` append; edit freely.\n"
 )
+WATERMARK = "harvested_through"
+DROPPED = "dropped by the maintainer"
 DEFAULT_TEST_GLOBS = ("*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs")
 CODE_SUFFIXES = (
     ".go", ".py", ".php", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".rs", ".java", ".kt", ".kts",
@@ -109,7 +111,7 @@ class Finding:
         parts = [self.anchor] + ([self.text] if self.text else [])
         if self.status != "suggestion":
             parts.insert(0, self.severity)
-        for key in ("evidence", "fix", "by", "forge"):
+        for key in ("evidence", "fix", "by", "forge", "comment"):
             if key in self.fields:
                 parts.append("%s: %s" % (key, self.fields[key]))
         if self.status == "fixed" and self.fixed:
@@ -339,8 +341,8 @@ PASS_RE = re.compile(r"<!-- sdd:pass (\S+) (.+?) -->")
 def pass_summary(fs: Findings, head: str, passes: List[Tuple[str, str, str, str]]) -> str:
     """The body of a pass's one review: the verdict, who reviewed, and a marker per pass so it is posted once."""
     n = len(fs.suggestions)
-    lines = ["**Review at `%s`:** %s; %d suggestion%s, not posted."
-             % (head[:7], open_verdict(fs), n, "" if n == 1 else "s")]
+    lines = ["**Review at `%s`:** %s; %s." % (head[:7], open_verdict(fs), "%d suggestion%s, in a separate comment"
+                                                % (n, "" if n == 1 else "s") if n else "no suggestion")]
     lines += ["- %s: %s" % (agent, reviewers) for _, _, agent, reviewers in passes]
     return "\n".join(lines + [PASS_MARK % (sha, agent) for sha, _, agent, _ in passes])
 
@@ -353,6 +355,94 @@ def unsummarised(session: Session, pr: dict) -> List[Tuple[str, str, str, str]]:
         return []
     posted = {m.groups() for body in session.forge.review_bodies(pr["number"]) for m in PASS_RE.finditer(body)}
     return [p for p in passes if (p[0], p[2]) not in posted]
+
+
+SUGGESTIONS_MARK = "<!-- sdd:suggestions %s -->"
+SUGGESTIONS_RE = re.compile(r"<!-- sdd:suggestions (\S+) -->")
+
+
+def suggestions_body(sha: str, lines: List[Finding]) -> str:
+    """One comment of suggestions: every line in the file's grammar, without the comment's own id, so
+    `harvest` reads it back with parse_line; a fixed, carried or dropped line keeps its checkbox."""
+    rows = []
+    for finding in lines:
+        shown = Finding(finding.status, finding.severity, finding.path, finding.line, finding.text,
+                        {k: v for k, v in finding.fields.items() if k not in ("comment", "forge")}, [], finding.fixed)
+        rows.append(shown.render())
+    left = len([f for f in lines if f.status == "suggestion"])
+    head = ("**Suggestions at `%s`:** %d, none blocking; after merge `/sdd-triage --backlog` carries the open ones "
+            "to `%s`." % (sha[:7], len(lines), BACKLOG))
+    summary = "%d suggestion%s, %d open" % (len(lines), "" if len(lines) == 1 else "s", left)
+    return "\n".join([head, "", "<details><summary>%s</summary>" % summary, ""] + rows
+                     + ["", "</details>", SUGGESTIONS_MARK % sha[:7]])
+
+
+def suggestion_lines(body: str) -> List[Finding]:
+    """The lines of one suggestions comment; any other comment holds none."""
+    if not SUGGESTIONS_RE.search(body or ""):
+        return []
+    out = []
+    for raw in (body or "").splitlines():
+        raw = raw.strip()
+        if raw.startswith("- "):
+            try:
+                out.append(parse_line(raw, 0))
+            except FileError:
+                continue  # a hand edit on the forge that no longer reads is not a lead
+    return out
+
+
+def _same_text(a: str, b: str) -> bool:
+    return a.replace("\r\n", "\n").strip() == b.replace("\r\n", "\n").strip()
+
+
+def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tuple[int, int]:
+    """Keep the pull request's suggestion comments in step with the file: the suggestions not posted yet go
+    into one new comment, whose id each line takes, and a posted comment whose lines changed is edited.
+    A comment deleted on the forge frees its open lines to be posted again. Returns (posted, edited)."""
+    fs = session.fs
+    mine = [f for f in fs.items if f.severity == "suggestion"]
+    held: Dict[str, List[Finding]] = {}
+    for finding in mine:
+        if finding.fields.get("comment"):
+            held.setdefault(finding.fields["comment"], []).append(finding)
+    edited = 0
+    if held:
+        current = {c["id"]: c["body"] for c in session.forge.comments(pr["number"])}
+        for comment_id, lines in held.items():
+            if comment_id not in current:
+                for finding in lines:
+                    finding.fields.pop("comment", None)
+                continue
+            match = SUGGESTIONS_RE.search(current[comment_id])
+            body = suggestions_body(match.group(1) if match else session.head, lines)
+            if not _same_text(body, current[comment_id]):
+                if dry_run:
+                    print(body)
+                else:
+                    session.forge.edit_comment(pr["number"], comment_id, body)
+                edited += 1
+    fresh = [f for f in mine if f.status == "suggestion" and not f.fields.get("comment")]
+    if fresh:
+        body = suggestions_body(session.head, fresh)
+        if dry_run:
+            print(body)
+            return len(fresh), edited
+        comment_id = session.forge.comment(pr["number"], body)
+        for finding in fresh:
+            finding.fields["comment"] = comment_id
+    if (fresh or held) and not dry_run:
+        session.save()
+    return len(fresh), edited
+
+
+def sync_report(posted: int, edited: int, number: int) -> str:
+    parts = []
+    if posted:
+        parts.append("%d suggestion%s in a new comment" % (posted, "" if posted == 1 else "s"))
+    if edited:
+        parts.append("%d suggestion comment%s edited" % (edited, "" if edited == 1 else "s"))
+    return "%s on PR %d" % ("; ".join(parts), number) if parts else ""
 
 
 # ---------------------------------------------------------------- git and the descriptor
@@ -708,6 +798,19 @@ class Forge:
     def resolve(self, number: int, thread_id: str, reply: str, state: str) -> None:  # fixed | declined | deferred
         raise CliError("no forge configured")
 
+    def comments(self, number: int) -> List[dict]:  # {"id", "body"}: the pull request's comments not on a line
+        raise CliError("no forge configured")
+
+    def comment(self, number: int, body: str) -> str:
+        """Post one comment on the pull request, not on a line, that asks nothing of anyone; return its id."""
+        raise CliError("no forge configured")
+
+    def edit_comment(self, number: int, comment_id: str, body: str) -> None:
+        raise CliError("no forge configured")
+
+    def merged(self, since: datetime.datetime) -> List[dict]:  # the _shape of each merged at or after ``since``
+        raise CliError("no forge configured")
+
 
 
 THREADS_QUERY = (
@@ -739,18 +842,18 @@ class GitHubForge(Forge):
         return {"number": data["number"], "head": data.get("headRefOid", ""), "branch": data.get("headRefName", ""),
                 "base": data.get("baseRefName", ""), "draft": bool(data.get("isDraft")), "url": data.get("url", ""),
                 "state": (data.get("state") or "OPEN").lower(), "merge": (data.get("mergeCommit") or {}).get("oid", ""),
-                "raw": data}
+                "merged_at": data.get("mergedAt") or "", "raw": data}
 
     def pr_for_branch(self, branch):
         data = _json(run_cli(["gh", "pr", "list", "--head", branch, "--state", "all",
-                              "--json", "number,headRefOid,headRefName,baseRefName,isDraft,url,state,mergeCommit"])) or []
+                              "--json", "number,headRefOid,headRefName,baseRefName,isDraft,url,state,mergeCommit,mergedAt"])) or []
         # The open one, else the latest: a merged or closed pull request is a state worth saying.
         data = sorted(data, key=lambda d: (d.get("state") or "OPEN").upper() != "OPEN")
         return self._shape(data[0]) if data else None
 
     def pr(self, number):
         return self._shape(_json(run_cli(["gh", "pr", "view", str(number), "--json",
-                                          "number,headRefOid,headRefName,baseRefName,isDraft,url,statusCheckRollup,state,mergeCommit"])))
+                                          "number,headRefOid,headRefName,baseRefName,isDraft,url,statusCheckRollup,state,mergeCommit,mergedAt"])))
 
     def checks(self, number):
         rollup = self.pr(number)["raw"].get("statusCheckRollup") or []
@@ -826,6 +929,29 @@ class GitHubForge(Forge):
             raise CliError("thread %s is not on pull request %d" % (thread_id, number))
         run_cli(["gh", "api", "graphql", "-f", "query=" + RESOLVE_MUTATION, "-f", "id=" + node])
 
+    def comments(self, number):
+        owner, name = self._owner_name()
+        listed = _json_pages(run_cli(["gh", "api", "repos/%s/%s/issues/%d/comments?per_page=100" % (owner, name, number),
+                                      "--paginate"]))
+        return [{"id": str(c.get("id", "")), "body": c.get("body") or ""} for c in listed if isinstance(c, dict)]
+
+    def comment(self, number, body):
+        owner, name = self._owner_name()
+        created = _json(run_cli(["gh", "api", "repos/%s/%s/issues/%d/comments" % (owner, name, number),
+                                 "--method", "POST", "--input", "-"], stdin=json.dumps({"body": body})))
+        return str(created.get("id", ""))
+
+    def edit_comment(self, number, comment_id, body):
+        owner, name = self._owner_name()
+        run_cli(["gh", "api", "repos/%s/%s/issues/comments/%s" % (owner, name, comment_id),
+                 "--method", "PATCH", "--input", "-"], stdin=json.dumps({"body": body}))
+
+    def merged(self, since):
+        # The search takes a day; the caller compares the exact instant.
+        data = _json(run_cli(["gh", "pr", "list", "--state", "merged", "--search", "merged:>=" + since.strftime("%Y-%m-%d"),
+                              "--limit", "1000", "--json", "number,headRefOid,headRefName,baseRefName,url,state,mergedAt"]))
+        return [self._shape(d) for d in data or []]
+
 
 class AzureDevOpsForge(Forge):
     """Azure DevOps through `az`: pull-request threads with their native status."""
@@ -847,7 +973,8 @@ class AzureDevOpsForge(Forge):
         return {"number": number, "head": (data.get("lastMergeSourceCommit") or {}).get("commitId", ""),
                 "branch": _short_ref(data.get("sourceRefName", "")), "base": _short_ref(data.get("targetRefName", "")),
                 "draft": bool(data.get("isDraft")), "url": data.get("url", ""), "state": state,
-                "merge": (data.get("lastMergeCommit") or {}).get("commitId", ""), "raw": data}
+                "merge": (data.get("lastMergeCommit") or {}).get("commitId", ""),
+                "merged_at": (data.get("closedDate") or "") if state == "merged" else "", "raw": data}
 
     def pr_for_branch(self, branch):
         argv = ["az", "repos", "pr", "list", "--source-branch", "refs/heads/" + branch, "--status", "all",
@@ -926,6 +1053,29 @@ class AzureDevOpsForge(Forge):
                      {"parentCommentId": 1, "content": reply, "commentType": 1})
         status = {"fixed": "fixed", "declined": "wontFix", "deferred": "closed"}[state]
         self._invoke(number, "pullRequestThreads", route, "PATCH", {"status": status})
+
+    def comments(self, number):
+        threads = (self._invoke(number, "pullRequestThreads", []) or {}).get("value", [])
+        return [{"id": str(t.get("id", "")), "body": ((t.get("comments") or [{}])[0]).get("content") or ""}
+                for t in threads if not t.get("isDeleted") and not (t.get("threadContext") or {}).get("filePath")]
+
+    def comment(self, number, body):
+        # A closed thread: it never counts as an active comment a merge policy waits on.
+        created = self._invoke(number, "pullRequestThreads", [], "POST", {
+            "status": "closed", "comments": [{"parentCommentId": 0, "commentType": 1, "content": body}]})
+        return str(created.get("id", ""))
+
+    def edit_comment(self, number, comment_id, body):
+        self._invoke(number, "pullRequestThreadComments", ["threadId=%s" % comment_id, "commentId=1"], "PATCH",
+                     {"content": body})
+
+    def merged(self, since):
+        argv = ["az", "repos", "pr", "list", "--status", "completed", "--top", "1000", "-o", "json"] + self._org()
+        if self.project:
+            argv += ["--project", self.project]
+        if self.repo:
+            argv += ["--repository", self.repo]
+        return [self._shape(d) for d in _json(run_cli(argv)) or []]
 
 
 
@@ -1229,12 +1379,16 @@ def cmd_status(session: Session, args) -> int:
         nxt = nxt or "open the pull request (/sdd-deliver step 8)"
     elif pr["state"] == "merged":
         print("forge: %s · PR %d merged at %s" % (session.forge.name, pr["number"], (pr["merge"] or "?")[:7]))
-        if fs.open or fs.suggestions:
-            print("still in the file: %d open line%s, %d suggestion%s; carry or drop them before deleting it"
-                  % (len(fs.open), "" if len(fs.open) == 1 else "s", len(fs.suggestions),
-                     "" if len(fs.suggestions) == 1 else "s"))
+        unposted = [f for f in fs.suggestions if not f.fields.get("comment")]
+        if fs.open or unposted:
+            print("still in the file: %d open line%s, %d suggestion%s not on the pull request; carry or drop them "
+                  "before deleting it" % (len(fs.open), "" if len(fs.open) == 1 else "s", len(unposted),
+                                          "" if len(unposted) == 1 else "s"))
+        nxt = cleanup_line(session.path, session.notes)
+        if len(unposted) < len(fs.suggestions) and not harvested(session, pr):
+            nxt = "/sdd-triage --backlog, then " + nxt
         print("Mergeable: merged")
-        print("Next: " + cleanup_line(session.path, session.notes))
+        print("Next: " + nxt)
         return 0
     elif pr["state"] == "closed":
         print("forge: %s · PR %d closed" % (session.forge.name, pr["number"]))
@@ -1258,14 +1412,13 @@ def cmd_status(session: Session, args) -> int:
                 nxt = nxt or "wait for the checks"
             if pr["draft"]:
                 reasons.append("the pull request is a draft")
-                # The close-out carries or drops the suggestions before it marks the pull request ready.
-                nxt = nxt or (leftovers(fs) or "mark the pull request ready")
+                nxt = nxt or (leftovers(fs, pr) or "mark the pull request ready")
         except CliError as exc:
             print("forge: %s · not reachable (%s)" % (session.forge.name, str(exc).splitlines()[0]))
             reasons.append("the forge was not reachable")
             nxt = nxt or "run sdd-pr status again once the forge is reachable"
-    # Steers Next only: a suggestion never blocks, but it is carried or dropped before merge, or it is lost.
-    nxt = nxt or leftovers(fs)
+    # Steers Next only: a suggestion never blocks, but it reaches the pull request, or the backlog, or it is lost.
+    nxt = nxt or leftovers(fs, pr if live else None)
     if not nxt and merged:
         nxt = "remove the merged worker branches and their worktrees: %s" % ", ".join(merged)
     print("Mergeable: yes" if not reasons else "Mergeable: no — " + "; ".join(reasons))
@@ -1273,9 +1426,27 @@ def cmd_status(session: Session, args) -> int:
     return 0
 
 
-def leftovers(fs: Findings) -> str:
-    n = len(fs.suggestions)
-    return "carry or drop %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
+def leftovers(fs: Findings, pr: Optional[dict]) -> str:
+    """Suggestions not on the pull request yet go there; with no pull request, the close-out carries or drops them."""
+    if pr is None:
+        n = len(fs.suggestions)
+        return "carry or drop %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
+    n = len([f for f in fs.suggestions if not f.fields.get("comment")])
+    return "sdd-pr post --pr %d (%d suggestion%s not on it)" % (pr["number"], n, "" if n == 1 else "s") if n else ""
+
+
+def harvested(session: Session, pr: dict) -> bool:
+    """Whether the backlog's watermark has passed this merged pull request: on its base at the remote, where
+    a harvest lands, or in this checkout."""
+    when = instant(pr.get("merged_at", ""))
+    texts = []
+    try:
+        texts.append(git(session.root, "show", "origin/%s:%s" % (pr.get("base") or session.base(), BACKLOG)))
+    except CliError:
+        pass
+    texts.append("\n".join(read_backlog(session.root)))
+    marks = [instant(get_watermark(text.splitlines())) for text in texts]
+    return bool(when) and any(mark and when <= mark for mark in marks)
 
 
 def cmd_pull(session: Session, args) -> int:
@@ -1315,7 +1486,11 @@ def cmd_post(session: Session, args) -> int:
     if pr["state"] != "open":
         raise CliError("pull request %d is %s; nothing to post" % (pr["number"], pr["state"]))
     session.guard()
-    return _post(session, args, pr)
+    code = _post(session, args, pr)
+    note = sync_report(*sync_suggestions(session, pr, args.dry_run), pr["number"])
+    if note:
+        print("post: " + note)
+    return code
 
 
 def _post(session: Session, args, pr: dict) -> int:
@@ -1411,6 +1586,9 @@ def cmd_resolve(session: Session, args) -> int:
         done += 1
         session.save()
     print("resolve: %d thread%s answered and closed on PR %d" % (done, "" if done == 1 else "s", pr["number"]))
+    note = sync_report(*sync_suggestions(session, pr), pr["number"])
+    if note:
+        print("resolve: " + note)
     return 0
 
 
@@ -1492,24 +1670,36 @@ def _backlog_item(line: str) -> Optional[Tuple[str, str]]:
     return (parts[0], parts[1]) if len(parts) > 1 else None
 
 
-def carry(root: str, findings: List[Finding], branch: str) -> int:
-    """Append each finding to the backlog under its directory's heading, headings in order; an item the
-    backlog already holds, by its anchor and sentence, is not written twice. Returns how many were new."""
-    path = os.path.join(root, *BACKLOG.split("/"))
+def read_backlog(root: str) -> List[str]:
     try:
-        with open(path, encoding="utf-8") as handle:
+        with open(os.path.join(root, *BACKLOG.split("/")), encoding="utf-8") as handle:
             lines = handle.read().splitlines()
     except FileNotFoundError:
         lines = []
-    if not "".join(lines).strip():
-        lines = BACKLOG_HEAD.splitlines()
+    return lines if "".join(lines).strip() else BACKLOG_HEAD.splitlines()
+
+
+def write_backlog(root: str, lines: List[str]) -> None:
+    path = os.path.join(root, *BACKLOG.split("/"))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+
+
+def carry(root: str, items: List[Tuple[Finding, str]], watermark: str = "") -> int:
+    """Append each finding to the backlog under its directory's heading, headings in order, tagged with
+    where it came from; an item the backlog already holds, by its anchor and sentence, is not written
+    twice. ``watermark`` is written to the front matter. Returns how many were new."""
+    lines = read_backlog(root)
+    if watermark:
+        set_watermark(lines, watermark)
     held = {item for item in map(_backlog_item, lines) if item}
     added = 0
-    for finding in findings:
+    for finding, origin in items:
         if (finding.anchor, finding.text) in held:
             continue
         held.add((finding.anchor, finding.text))
-        heading, entry = "## " + (os.path.dirname(finding.path) or "."), backlog_line(finding, branch)
+        heading, entry = "## " + (os.path.dirname(finding.path) or "."), backlog_line(finding, origin)
         if heading in lines:
             at = lines.index(heading) + 1
             while at < len(lines) and not lines[at].startswith("## "):
@@ -1526,10 +1716,59 @@ def carry(root: str, findings: List[Finding], branch: str) -> int:
                     lines.pop()
                 lines += ["", heading, entry]
         added += 1
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as handle:
-        handle.write("\n".join(lines) + "\n")
+    write_backlog(root, lines)
     return added
+
+
+def _front_matter_end(lines: List[str]) -> int:
+    """The index of the line closing the backlog's front matter, or -1 when it has none."""
+    if not lines or lines[0].strip() != "---":
+        return -1
+    return next((n for n in range(1, len(lines)) if lines[n].strip() == "---"), -1)
+
+
+def get_watermark(lines: List[str]) -> str:
+    for line in lines[1:max(_front_matter_end(lines), 0)]:
+        key, colon, value = line.partition(":")
+        if colon and key.strip() == WATERMARK:
+            return value.strip().strip("'\"")
+    return ""
+
+
+def set_watermark(lines: List[str], value: str) -> None:
+    end = _front_matter_end(lines)
+    if end < 0:
+        lines[0:0] = ["---", "kind: plan", "%s: %s" % (WATERMARK, value), "---"]
+        return
+    for n in range(1, end):
+        if lines[n].partition(":")[0].strip() == WATERMARK:
+            lines[n] = "%s: %s" % (WATERMARK, value)
+            return
+    lines.insert(end, "%s: %s" % (WATERMARK, value))
+
+
+INSTANT_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?)?\s*(Z|[+-]\d{2}:?\d{2})?$")
+
+
+def instant(text: str) -> Optional[datetime.datetime]:
+    """A date or an ISO 8601 date-time as a UTC instant, to the second; a date alone is its midnight UTC.
+    Python 3.9 reads neither `Z` nor the seven fraction digits Azure DevOps writes, so this reads both."""
+    match = INSTANT_RE.match((text or "").strip())
+    if not match:
+        return None
+    y, mo, d, h, mi, sec, zone = match.groups()
+    offset = datetime.timedelta(0)
+    if zone and zone != "Z":
+        sign = -1 if zone[0] == "-" else 1
+        digits = zone[1:].replace(":", "")
+        offset = sign * datetime.timedelta(hours=int(digits[:2]), minutes=int(digits[2:]))
+    value = datetime.datetime(int(y), int(mo), int(d), int(h or 0), int(mi or 0), int(sec or 0),
+                              tzinfo=datetime.timezone.utc)
+    return value - offset
+
+
+def iso(value: datetime.datetime) -> str:
+    return value.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _select(fs: Findings, selector: str) -> Finding:
@@ -1562,8 +1801,9 @@ def cmd_flip(session: Session, args) -> int:
         print("flip: no suggestion left")
         return 0
     for finding in targets:
-        if action in ("fixed", "declined") and finding.status == "suggestion":
-            raise CliError("flip: a suggestion is carried (--carry), deferred (--deferred <where>) or dropped (--dropped)")
+        if action == "declined" and finding.status == "suggestion":
+            raise CliError("flip: a suggestion is fixed (--fixed <sha>), carried (--carry), deferred (--deferred <where>) "
+                           "or dropped (--dropped)")
         if action == "dropped" and finding.status != "suggestion":
             raise CliError("flip: only a suggestion is dropped; a critical or important finding the maintainer "
                            "lets go is --deferred 'dropped by the maintainer'")
@@ -1580,10 +1820,14 @@ def cmd_flip(session: Session, args) -> int:
     new = 0
     if action == "carry":
         session.guard()
-        new = carry(session.root, targets, session.branch)
+        new = carry(session.root, [(f, session.branch) for f in targets])
     for finding in targets:
         if action == "dropped":
-            fs.items.remove(finding)
+            if finding.fields.get("comment"):
+                # Posted: the line stays, so its comment shows the drop and harvest leaves it out.
+                finding.status, finding.fields["deferred"] = "deferred", DROPPED
+            else:
+                fs.items.remove(finding)
             continue
         if action == "carry":
             finding.status, finding.fields["deferred"] = "deferred", BACKLOG
@@ -1599,6 +1843,70 @@ def cmd_flip(session: Session, args) -> int:
         print("flip: %d line%s carried to %s, %d new there; commit it" % (len(targets), plural, BACKLOG, new))
     else:
         print("flip: %d line%s %s" % (len(targets), plural, action))
+    return 0
+
+
+def harvest_start(session: Session, since: str, mark: str) -> Tuple[datetime.datetime, bool]:
+    """Where a harvest starts, and whether that instant is in it: --since is, the watermark is not."""
+    if since:
+        if re.match(r"^#?\d+$", since):
+            start = instant(session.forge.pr(int(since.lstrip("#"))).get("merged_at", ""))
+            if start is None:
+                raise CliError("harvest: pull request %s is not merged" % since)
+            return start, True
+        start = instant(since)
+        if start is None:
+            raise CliError("harvest: --since takes a date (2026-10-04), a date-time or a pull request (#12)")
+        return start, True
+    if not mark:
+        raise CliError("harvest: %s has no %s yet; pass --since <date | #PR> for the first harvest" % (BACKLOG, WATERMARK))
+    start = instant(mark)
+    if start is None:
+        raise CliError("harvest: %s in %s is not a date-time: %s" % (WATERMARK, BACKLOG, mark))
+    return start, False
+
+
+def cmd_harvest(session: Session, args) -> int:
+    """The open suggestions of every pull request merged since the backlog's watermark, carried to it."""
+    if session.forge.name == "none":
+        raise CliError("harvest: no forge, so no suggestion comments; the close-out carries them (flip --carry)")
+    start, inclusive = harvest_start(session, args.since or "", get_watermark(read_backlog(session.root)))
+    prs = []
+    for pr in session.forge.merged(start):
+        when = instant(pr.get("merged_at", ""))
+        if when and (when >= start if inclusive else when > start):
+            prs.append((when, pr["number"]))
+    prs.sort()
+    items: List[Tuple[Finding, str]] = []
+    gone: List[Tuple[Finding, str]] = []
+    settled = 0
+    for _, number in prs:
+        for comment in session.forge.comments(number):
+            for finding in suggestion_lines(comment["body"]):
+                if finding.severity != "suggestion" or finding.status not in ("suggestion", "open"):
+                    settled += 1  # fixed, carried or dropped in its pull request
+                elif not os.path.exists(os.path.join(session.root, finding.path)):
+                    gone.append((finding, "#%d" % number))
+                else:
+                    items.append((finding, "#%d" % number))
+    mark = iso(prs[-1][0]) if prs else (iso(start - datetime.timedelta(seconds=1)) if inclusive else "")
+    print("harvest: %d pull request%s merged %s %s%s" % (
+        len(prs), "" if len(prs) == 1 else "s", "since" if inclusive else "after", iso(start),
+        " (%s)" % ", ".join("#%d" % n for _, n in prs) if prs else ""))
+    for finding, origin in gone:
+        print("left out, its path is gone: " + backlog_line(finding, origin)[2:])
+    if args.dry_run:
+        for finding, origin in items:
+            print(backlog_line(finding, origin))
+        print("%s: %s (dry run: nothing written)" % (WATERMARK, mark or "unchanged"))
+        return 0
+    if not mark:
+        return 0
+    session.guard()
+    added = carry(session.root, items, mark)
+    print("harvest: %d line%s carried to %s, %d already there, %d settled in their pull request, %d left out; "
+          "%s: %s; commit it" % (added, "" if added == 1 else "s", BACKLOG, len(items) - added, settled, len(gone),
+                                 WATERMARK, mark))
     return 0
 
 
@@ -1634,16 +1942,17 @@ def cmd_rename(session: Session, args) -> int:
     fs.branch, fs.reviewed = session.branch, []
     for finding in fs.items:
         finding.fields.pop("forge", None)
+        finding.fields.pop("comment", None)
         finding.flags = [flag for flag in finding.flags if flag not in ("mirrored", "unanchored")]
     session.fs = fs
     session.save()
     os.remove(source)
-    print("rename: %s -> %s; its Reviewed lines and thread ids dropped" % (args.from_branch, session.branch))
+    print("rename: %s -> %s; its Reviewed lines, thread and comment ids dropped" % (args.from_branch, session.branch))
     return 0
 
 
 COMMANDS = {"status": cmd_status, "scope": cmd_scope, "pull": cmd_pull, "post": cmd_post, "resolve": cmd_resolve,
-            "add": cmd_add, "flip": cmd_flip, "record": cmd_record, "rename": cmd_rename}
+            "harvest": cmd_harvest, "add": cmd_add, "flip": cmd_flip, "record": cmd_record, "rename": cmd_rename}
 
 
 class _Parser(argparse.ArgumentParser):
@@ -1667,8 +1976,11 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--base", help="the branch this one starts from (a stacked branch's parent); kept in the file")
             cmd.add_argument("--agent", help="with --since-last: since this agent's own last pass")
             cmd.add_argument("--diff", metavar="KIND|REVIEWER", help="print the range's hunks for one kind or reviewer")
-        if name == "post":
+        if name in ("post", "harvest"):
             cmd.add_argument("--dry-run", action="store_true")
+        if name == "harvest":
+            cmd.add_argument("--since", metavar="DATE|#PR",
+                             help="the first harvest: from this date, date-time or merged pull request, inclusive")
         if name == "add":
             cmd.add_argument("finding", nargs="*", help="<severity> <path[:line]> <sentence>, or - for lines on stdin")
             cmd.add_argument("--evidence")
