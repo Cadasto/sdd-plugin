@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-05
+
+Suggestions stay on the pull request, in a comment of their own per review pass, and only leads are
+filed; after merge, `/sdd-triage --backlog` carries them to `docs/backlog.md`, so the close-out no longer
+does. `sdd-check` changed only its version number. Moving a repository from 0.10.0 is described in
+`docs/upgrading.md`.
+
 ### Added
 - Tools: `sdd-pr post` and `resolve` keep each pass's new suggestions in one pull-request comment of their own (a closed thread on Azure DevOps), each line taking its id as `comment:`, edit it when a line is fixed, carried or dropped, and post again one deleted on the forge.
 - Tools: `sdd-pr harvest [--since <date | #PR>] [--dry-run]` carries the open suggestions of every pull request merged after `harvested_through:` in the front matter of `docs/backlog.md`, tagged `from: #<n>`, leaves out those whose path is gone, and moves that watermark.
@@ -16,12 +23,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Skills: `sdd-review` drops the cap of ten suggestions per pass and files a suggestion only when it is a lead, listing the rest in its hand-back; `sdd-deliver` and `sdd-triage` file an out-of-scope finding only when it is a lead.
 - Skills: `sdd-deliver --close-out` brings the suggestion comments up to date instead of asking to carry or drop the suggestions, which it still asks with `forge: none`, and ends with `/sdd-triage --backlog` on a pull request already merged.
 - Skills: `spec-driven-development` routes `/sdd-triage --backlog`; the skills drop restatements of `references/review.md` and `references/sdd-check.md`, and their word budgets follow: `sdd-review` 895, `sdd-deliver` 1487, `sdd-scaffold` 1166, `sdd-specify` 884; `sdd-triage` rises to 819 and `references/review.md` to 1989.
+- Agents: the three reviewers report leads only among their ten suggestions.
 - Tools: `sdd-pr flip --fixed` takes a suggestion; `--dropped` keeps a posted suggestion as `deferred: dropped by the maintainer`; `rename` forgets comment ids too.
 - Tools: `sdd-pr status` points `Next` at `post` while a suggestion is not on the pull request, and on a merged one at `/sdd-triage --backlog` until the watermark passes its merge; the pass summary says the suggestions are in their own comment.
 - References: `review.md` § Severity defines a lead (still true without the change's diff; improves a behaviour, a test, a contract or a document; taste is none), and `review.md` adds the `comment:` field, the suggestion comments, the harvest and its watermark; methodology §13 names the suggestion comments.
 - Templates: `ai-workflow.md` § Review says a suggestion is written down only when it outlives the change and is harvested after merge; the loop and the tooling table name `/sdd-triage --backlog`.
-- Agents: the three reviewers report leads only among their ten suggestions.
-- Hooks: the session-start line and `rules/sdd-context.mdc` name `/sdd-triage --backlog`.
+- Hooks: the session-start line names `/sdd-triage --backlog`, as `rules/sdd-context.mdc` does.
 
 ## [0.10.0] - 2026-10-02
 
