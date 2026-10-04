@@ -2,6 +2,23 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.10.0 to 0.11.0
+
+Suggestions now stay on the pull request, in a comment of their own per review pass, and a harvest after
+merge carries them to `docs/backlog.md`. The close-out no longer asks to carry or drop them.
+
+1. **Suggestion comments.** `sdd-pr post` puts each pass's new suggestions in one comment, never inline,
+   and `post` and `resolve` edit it when a line is fixed, carried or dropped. A branch reviewed before the
+   upgrade gets its comment at its next `post` or `resolve`.
+2. **The first harvest.** After merges, run `/sdd-triage --backlog` on the default branch. The first run
+   asks where to start (`sdd-pr harvest --since <date | #PR>`) and writes `harvested_through:` into the
+   front matter of `docs/backlog.md`. Pull requests closed out before the upgrade already carried their
+   suggestions, so start at the first one merged after it.
+3. **Close-out.** With a pull request, `/sdd-deliver --close-out` brings the suggestion comments up to
+   date and, on a pull request already merged, ends with `/sdd-triage --backlog`. With `forge: none` it
+   still asks once to carry or drop them.
+4. **Process documents.** `--upgrade` merges the changed `ai-workflow.md` § Review.
+
 ## From 0.9.0 to 0.10.0
 
 The pull request's body describes the branch only, suggestions left at merge go to a committed

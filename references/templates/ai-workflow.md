@@ -25,7 +25,7 @@ knowledge base in which only the constitution binds).
 4. Don't decide open questions in code — surface a STRAND or record an ADR (/sdd-specify), or ask.
 5. Review: /sdd-review writes the findings file and mirrors to the PR; /sdd-triage works the open lines;
    `sdd-pr status` says what is open, whether it is mergeable and what to run next.
-6. Close out in the same PR: /sdd-deliver --close-out.
+6. Close out in the same PR: /sdd-deliver --close-out; after merges, /sdd-triage --backlog.
 ```
 
 ## Orchestration (standing)
@@ -50,13 +50,14 @@ knowledge base in which only the constitution binds).
 
 ## Review
 
-**Findings live in the branch's findings file** (one per branch, in the clone's git directory, which every
-worktree sees; `sdd-pr status` prints its path, and `sdd-pr add`, `flip` and `record` write it) and,
-on a pull request, in its inline threads and one summary per pass, which `sdd-pr` keeps in step. Three
-severities: critical and important are resolved before merge and are the only ones mirrored; suggestions
-never block, and before merge are carried to `docs/backlog.md` or dropped. Every critical or important
+**Findings live in the branch's findings file** (one per branch, in the clone's git directory; `sdd-pr`
+writes it) and,
+on a pull request, in its inline threads, one summary per pass and the suggestion comments, which
+`sdd-pr` keeps in step. Three severities: critical and important are resolved before merge and get inline
+threads; suggestions never block, and after merge `/sdd-triage --backlog` carries them to
+`docs/backlog.md`. A suggestion is written down only when it outlives the change; taste (naming,
+wording, style) never does. Every critical or important
 finding carries evidence. Nothing else about findings is posted, the pull request's body included.
-`sdd-pr status` lists what is open and prints `Mergeable: yes|no` and the next command.
 
 **The canonical review request.** Reviewers that run outside this repository never load the SDD plugin,
 so what is pasted to them must not drift from what the repo defines. `/sdd-review --panel` prints this
@@ -101,7 +102,7 @@ first word **critical** or **important**; post nothing else, and do not restate 
 | Deliver a change: workers, gates, the first review pass, draft PR | `/sdd-deliver` |
 | Implement one bounded task | `sdd-implementer` agent (dispatched by the driver) |
 | Review pass into the findings file; panel prompts | `/sdd-review` (`--panel`) |
-| Work the open findings; after the maintainer's review, one scoped re-review | `/sdd-triage` |
+| Work the open findings; after the maintainer's review, one scoped re-review; after merges, the backlog harvest | `/sdd-triage` (`--backlog`) |
 | What is open, mergeable, next | `sdd-pr status` |
 | A REQ's context bundle; drift in session | `/sdd-trace` |
 | Regenerate the derived indexes and status lines | `sdd-check generate` |

@@ -322,7 +322,7 @@ formal profile, the constitution on the informative one); the drift gate is gree
 important finding is open. Everything else is a suggestion ([review.md](review.md) § Severity).
 
 **Findings live in the branch's findings file** and, when there is a pull request, in its inline threads
-— nowhere else. Format, severities, scope, evidence, the mirror, resolution, the pass budget:
+and suggestion comments — nowhere else. Format, severities, scope, evidence, the mirror, resolution, the pass budget:
 [review.md](review.md).
 
 **Scope is the change.** A pass reads the branch's commits since its base, so every reviewer gives an

@@ -46,7 +46,7 @@ The **spec, document and traceability layer** and the **delivery pipeline on it*
 | `sdd-specify` | Authors the `REQ` (capability and acceptance), the RFC-2119 `SPEC §` and the `ADR`; assigns identifiers; wires traceability |
 | `sdd-deliver` | Drives delivery: the dispatch gate by profile and lane, `sdd-implementer` workers (in sequence; a parallel wave only for large tasks with disjoint files, on the one branch), the per-task gate, the first review pass, the draft PR, `--close-out` (`REQ` shipped, `generate`, the PR body), ready |
 | `sdd-review` | One review pass over the whole branch (`--since-last`: only this agent's new commits) with the reviewers the profile, lane and changed files call for, into the findings file; mirrors the blocking ones; `--panel` prints the prompt blocks |
-| `sdd-triage` | Works the open critical and important findings: verify, fix in this branch, flip, mirror, and one re-review after the maintainer's review when anything changed |
+| `sdd-triage` | Works the open critical and important findings: verify, fix in this branch, flip, mirror, and one re-review after the maintainer's review when anything changed; `--backlog` carries the suggestions of pull requests merged since the backlog's watermark to `docs/backlog.md` |
 | `sdd-trace` | A `REQ`'s context bundle and the whole-tree drift report; `--audit` dispatches the auditor. Report-only |
 
 ### Agents (4)
@@ -61,7 +61,7 @@ The **spec, document and traceability layer** and the **delivery pipeline on it*
 | Tool | Purpose |
 |------|---------|
 | `sdd-check` | The vendored drift gate (`check`, `generate`, `context`, `selftest`): the chain in both directions, the mechanical prose lints, every derived index from one source; reads the profile |
-| `sdd-pr` | The findings file in the clone's git directory and its GitHub or Azure DevOps mirror: `add`, `flip`, `record`, `rename` (and `pull`, `post`, `resolve`) make every write; `status` prints `Mergeable` and `Next`; `scope` the range a pass reads; `post` one review per pass, its summary on top; `flip --carry` the leftovers to `docs/backlog.md`; never the PR body |
+| `sdd-pr` | The findings file in the clone's git directory and its GitHub or Azure DevOps mirror: `add`, `flip`, `record`, `rename` (and `pull`, `post`, `resolve`) make every write; `status` prints `Mergeable` and `Next`; `scope` the range a pass reads; `post` one review per pass, its summary on top, and the new suggestions in a comment of their own; `harvest` merged pull requests' suggestions and `flip --carry` leftovers to `docs/backlog.md`; never the PR body |
 
 ### Hooks
 - **SessionStart** (`session-start.sh`): in an SDD repository, the profile, the `/sdd-*` surface and an orientation (plugin version and any mismatch with the vendored gate, branch, open findings, the gate's verdict); elsewhere, a scaffold pointer when `docs/` exists.
