@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-10-07
+
+The ADR index now fills its *Resolves / amends* column from a label in Markdown emphasis. Moving a repository
+from 0.11.0 is described in `docs/upgrading.md`.
+
 ### Fixed
 - Tools: `sdd-check.py` fills the `adr-index` *Resolves / amends* column from a label in Markdown emphasis (`- **Amends:**`, `- **Amends**:`), not only from the plain `- Amends:`.
 
