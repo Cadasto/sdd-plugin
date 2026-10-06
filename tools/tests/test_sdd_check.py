@@ -3268,6 +3268,21 @@ date: 2026-01-01
 - Amends: ADR-0002
 """
 
+ADR_WITH_EMPHASISED_REFS = """---
+id: ADR-0005
+title: Emphasised traceability labels
+status: accepted
+date: 2026-01-05
+---
+
+# ADR-0005 — Emphasised traceability labels
+
+## Traceability
+
+- **Resolves:** STRAND-01
+- **Amends**: REQ-CORE-001, REQ-CORE-002
+"""
+
 ADR_BARE = """---
 id: ADR-0002
 title: Vendor the tool as one file
@@ -3312,6 +3327,19 @@ class TestAdrIndexRendering(BaselineCase):
                 "Resolves: ADR-0000; Amends: ADR-0002 |",
                 "| ADR-0002 | Vendor the tool as one file | Proposed | 2026-01-02 | — |",
                 "| ADR-0003 | — | Superseded | 2026-01-03 | — |",
+            ],
+            rows,
+        )
+
+    def test_a_label_wrapped_in_emphasis_still_counts(self):
+        # `- **Amends:** X` and `- **Amends**: X` render exactly like `- Amends: X`.
+        self.write("docs/adr/ADR-0005-emphasis.md", ADR_WITH_EMPHASISED_REFS)
+        rendered = sdd_check.render_adr_index(self.ctx())
+        rows = rendered.split("\n")[2:]
+        self.assertEqual(
+            [
+                "| ADR-0005 | Emphasised traceability labels | Accepted | 2026-01-05 | "
+                "Resolves: STRAND-01; Amends: REQ-CORE-001, REQ-CORE-002 |",
             ],
             rows,
         )

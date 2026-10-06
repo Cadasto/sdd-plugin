@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- Tools: `sdd-check.py` fills the `adr-index` *Resolves / amends* column from a label in Markdown emphasis (`- **Amends:**`, `- **Amends**:`), not only from the plain `- Amends:`.
+
 ## [0.11.0] - 2026-10-05
 
 Suggestions stay on the pull request, in a comment of their own per review pass, and only leads are

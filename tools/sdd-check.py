@@ -3200,7 +3200,14 @@ def render_specifications_index(ctx: Context, home: Optional[Path] = None) -> st
 
 
 _ADR_NAME_RE = re.compile(r"^(ADR-|\d{4}-)")
-_TRACE_REF_RE = re.compile(r"^\s*-\s*(Resolves|Amends)\s*:\s*(.+?)\s*$", re.IGNORECASE)
+# The label may sit inside Markdown emphasis, colon inside or outside it: `- Amends: X`,
+# `- **Amends:** X` and `- **Amends**: X` all render alike. The empty alternative lets the
+# closing (?P=em) match nothing when there is no emphasis.
+_TRACE_REF_RE = re.compile(
+    r"^\s*-\s*(?P<em>\*\*|__|\*|_|)(?P<label>Resolves|Amends)"
+    r"(?:\s*:\s*(?P=em)|(?P=em)\s*:)\s*(?P<value>.+?)\s*$",
+    re.IGNORECASE,
+)
 
 
 def _traceability_refs(text: str) -> str:
@@ -3214,7 +3221,7 @@ def _traceability_refs(text: str) -> str:
     for lineno in range(start, min(end, len(lines) + 1)):
         match = _TRACE_REF_RE.match(lines[lineno - 1])
         if match:
-            refs.append("%s: %s" % (match.group(1).capitalize(), match.group(2)))
+            refs.append("%s: %s" % (match.group("label").capitalize(), match.group("value")))
     return "; ".join(refs) if refs else "—"
 
 
