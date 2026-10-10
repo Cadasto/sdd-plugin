@@ -410,7 +410,7 @@ WORD_BUDGETS = {
     "references/review.md": 2219,
     "references/artefact-prose.md": 800,
     "agents/sdd-doc-reviewer.md": 916,
-    "agents/sdd-spec-conformance-reviewer.md": 915,
+    "agents/sdd-spec-conformance-reviewer.md": 925,
     "agents/sdd-traceability-auditor.md": 873,
     "agents/sdd-implementer.md": 1200,
     "references/templates/ai-workflow.md": 1064,

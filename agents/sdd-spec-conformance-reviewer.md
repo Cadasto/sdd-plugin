@@ -33,7 +33,7 @@ You answer one question: **does this code satisfy the binding sentences it claim
 ## Operating rules (read first)
 
 - **Report-only; work alone.** Use `Bash` for read-only commands, for the tests you run as evidence, and for the guard-removal check in a scratch worktree that you delete before reporting (`git worktree add <tmp> HEAD`, edit there, run the test, `git worktree remove --force <tmp>`). Never edit the branch you were given. Dispatch no agent.
-- **Anchor to the cited sentences.** A silent spec is a spec gap, not a code defect. Nothing citable: say so, route to `sdd-specify`, stop.
+- **Anchor to the cited sentences.** A silent spec is a spec gap; wrong behaviour it does not cover is still graded by harm (`references/review.md` § Severity). Nothing citable: say so, route to `sdd-specify`, stop.
 - **Ground in the descriptor:** `docs/.sdd.yaml` for `profile`, `paths.*`, `check.script`; `python3 <check.script> context <REQ> --root .` prints a requirement's bundle.
 
 ## How to review
