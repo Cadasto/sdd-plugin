@@ -9,31 +9,31 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, Task
 
 > The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code); `references/…` resolves from it.
 
-Owns the spec-side check: does the map match the tree, and what is a requirement's context. Read `docs/.sdd.yaml` first; no descriptor means the repository is not scaffolded — say so, route to `/sdd-scaffold`, and stop. On the informative profile the map is optional and its families are skipped; Mode A needs a map — without one, say so and stop.
+Read `docs/.sdd.yaml` first; without one, route to `/sdd-scaffold` and stop. Mode A needs a map: without one (the informative profile may have none), say so and stop.
 
 Run the gate as `references/sdd-check.md` defines `sdd-check <cmd>`, following its report-only exception when the gate is not vendored. Without `python3`, say so and use the mode's fallback.
 
 ## Mode A — context bundle for a REQ
 
-Run `context <REQ>` and present its output as it is: the heading order, an empty section and an unknown id are `sdd-check`'s contract.
+Run `context <REQ>` and present its output unchanged.
 
-**Fallback.** Assemble the bundle by hand: the **registry row** from the requirements index; the **full record** (canonical link, `status`/`implementation`, packages, tests, probes); the **canonical spec excerpt** from the `canonical` link; any **open `STRAND`s** on this REQ (if `use_strands`).
+**Fallback.** Assemble by hand what `context` prints (`references/sdd-check.md` § Commands); strands only if `use_strands`.
 
 Either way, name the next action (e.g. "no implementation yet → `/sdd-deliver`").
 
 ## Mode B — drift scan (the spec-check analogue)
 
-With no REQ, run `check` and report its findings grouped by family, with the offending id or path; `references/sdd-check.md` owns what each finding means — do not re-derive it. When the descriptor names a `spec_check_target`, `<build_entrypoint> <spec_check_target>` may corroborate; the gate's output stays the report. Add judgement only where the tool cannot decide: whether a duplicated-prose finding's second copy is really the same statement. **Recommend** fixes; never apply them.
+With no REQ, run `check` and report its findings by family, with the offending id or path; `references/sdd-check.md` owns what each finding means. Add judgement only where the tool cannot decide: whether a duplicated-prose finding's second copy is really the same statement.
 
-**Fallback.** Say the mechanical scan cannot run and the drift scan is incomplete; report what the requirements index and the map show by hand.
+**Fallback.** Say the scan is incomplete; compare the requirements index and the map by hand.
 
 ## Mode C — `--audit`
 
-Dispatch the **`sdd-traceability-auditor`** agent — this skill is the only one that does — before a release or when a `spec-check` failure is unexplained. Relay its report; the orchestrator adds its lines to the findings file only when the maintainer asks.
+Dispatch the **`sdd-traceability-auditor`** agent and relay its report.
 
 ## Guardrails
 
-- **Strictly report-only.** The owning skill fixes: `/sdd-specify` for spec and index, `/sdd-deliver` for code and tests, `/sdd-deliver --close-out` for the close-out, `/sdd-scaffold --upgrade` for the version pin. `Bash` is for read-only scoping and gate runs; no-write is a contract, not a tool restriction.
+- **Strictly report-only.** The owning skill fixes: `/sdd-specify` for spec and index, `/sdd-deliver` for code and tests, `/sdd-deliver --close-out` for the close-out, `/sdd-scaffold --upgrade` for the version pin. Recommend fixes; `Bash` runs only read-only commands and the gate.
 - **Scope is traceability, not test results.** Name `<build_entrypoint> <ci_target>` as the next step; do not run it here.
 
 ## Reference

@@ -13,6 +13,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: `sdd-pr harvest` names the backlog lines whose path changed since the last harvest, the ones to re-check.
 
 ### Changed
+- Skills: `sdd-deliver` opens a pull request ready for review, a draft only when the maintainer asks; the close-out runs when nothing blocks but a draft and marks a draft ready; the panel prompts print before the maintainer's review; a close-out after merge commits on the default branch or a branch from it.
+- Skills: `sdd-specify` writes the new requirement's status values on its map record, and triggers on "write a knowledge-base page" instead of "document how this works"; `sdd-scaffold` wires the vendored gate unless `spec_check_target` already runs it and follows `scaffold-upgrade.md` instead of a copy of its order; the router routes to skills only and reads the descriptor first.
+- Skills: the seven skills drop text that restates their references; `sdd-review` 1027 → 926, `sdd-trace` 551 → 404, `sdd-specify` 884 → 778, `sdd-scaffold` 1166 → 972, `sdd-deliver` 1531 → 1449, the router 695 → 566; `sdd-triage` grows to 933 for the `forge: none` backlog path.
+- References: `review.md` drops restatements (2459 → about 2160 words) and documents what `pull` reads as a thread's severity, the unchanged run `guard` makes first, and Azure DevOps' closed comment threads.
+- Agents: the reviewers' digests drop what their own steps repeat; the auditor's digest is written for a whole-tree audit; `sdd-spec-conformance-reviewer` grades code that breaks a binding sentence critical and any other disagreement important.
 - References: `review.md` § Severity grades by harm wherever the line is, settles a claim of wrong code behaviour by a run or a named input instead of grading it down, and makes a document finding important only when a reader would build or test the wrong thing from it; § Scope replaces "a suggestion at most" with the `outside` marker; methodology §13's merge gate counts findings about the change.
 - References: `review.md` § The backlog defines themes (what one delivery takes on, defects first) and the consolidation: re-check the lines a change touched, sort Unsorted into themes, fold duplicates, drop what is settled or below the lead bar; line numbers stay as of their `from:`; methodology §6 lets the close-out write `landed`.
 - Skills: `sdd-review` settles a code line that claims wrong behaviour before filing it, keeps the higher severity when two reviewers disagree, and reads the commits since the last pass, whoever made it, with `--since-last`.
@@ -26,6 +31,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Docs: `examples.md`, `README.md` and `testing.md` describe the `outside` marker, the consolidating harvest and the Cursor check that reviewers dispatch by name.
 
 ### Fixed
+- Skills: paths written `/.sdd/` pointed at the filesystem root; `sdd-review` gave reviewers the whole branch's hunks on a `--since-last` pass, left the pass note behind on `--panel` or a pass with nothing reported, and ran the plugin's own gate instead of the vendored one; `/sdd-triage --backlog` did nothing with `forge: none`; `sdd-trace` no longer adds audit lines to the findings file.
+- Tools: `sdd-pr record` with nothing reported also removes the guard's scratch worktree.
 - Tools: `sdd-pr scope --since-last` started at the merge base when `--agent` had no pass of its own, and a merge of the base after a pass put the base's changes in the range; it now starts at the last pass by anyone and diffs from that pass with the base merged in.
 - Tools: `sdd-pr status` pointed `Next` at `/sdd-review` after the pass budget was spent.
 - Agents: `sdd-spec-conformance-reviewer` let a silent spec lower a behaviour defect.

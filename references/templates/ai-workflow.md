@@ -21,7 +21,7 @@ knowledge base in which only the constitution binds).
 2. Look up ground truth before editing — the source named in .sdd.yaml (ground_truth); never guess.
    For a requirement already in the map, `sdd-check context <REQ>` prints its bundle.
 3. Deliver: /sdd-deliver — preconditions (formal) or a clear task (informative), workers per task, the
-   per-task gate, the first review pass into the findings file, the draft PR, close-out.
+   per-task gate, the first review pass into the findings file, the PR, close-out.
 4. Don't decide open questions in code — surface a STRAND or record an ADR (/sdd-specify), or ask.
 5. Review: /sdd-review writes the findings file and mirrors to the PR; /sdd-triage works the open lines;
    `sdd-pr status` says what is open, whether it is mergeable and what to run next.
@@ -32,7 +32,7 @@ knowledge base in which only the constitution binds).
 
 - **One orchestrator, bounded workers.** The main session orchestrates, on the strongest model available:
   it reads what binds, briefs and dispatches workers, gates each task, adjudicates spec questions, opens
-  the draft PR, runs triage and closes out.
+  the PR, runs triage and closes out.
 - **The orchestrator does not write product code**, except a task that cannot be made self-contained: it
   is done in-session and **said so in the PR body**.
 - **A brief is self-contained**: the task, what it cites, the clauses it must satisfy (quoted), the files
@@ -44,7 +44,7 @@ knowledge base in which only the constitution binds).
 - **Completion is accounted for.** A worker that dies is re-dispatched, or the gap is named. A task is not
   done because a dispatch ended.
 - **Findings state is read from the file, never remembered.**
-- **The maintainer merges;** agents open draft PRs and mark them ready.
+- **The maintainer merges;** agents open PRs, a draft only when asked.
 - Worker model, parallelism, worktrees, the task-review gate and the review panel are declared in
   [`.sdd.yaml`](.sdd.yaml) under `agents:`. The model is passed **per dispatch**.
 
@@ -101,7 +101,7 @@ first word **critical** or **important**; post nothing else, and do not restate 
 |---|---|
 | Set up / extend the SDD structure | `/sdd-scaffold` |
 | Capture a capability, write a spec, record a decision | `/sdd-specify` |
-| Deliver a change: workers, gates, the first review pass, draft PR | `/sdd-deliver` |
+| Deliver a change: workers, gates, the first review pass, the PR | `/sdd-deliver` |
 | Implement one bounded task | `sdd-implementer` agent (dispatched by the driver) |
 | Review pass into the findings file; panel prompts | `/sdd-review` (`--panel`) |
 | Work the open findings; after the maintainer's review, one scoped re-review; after merges, the backlog harvest | `/sdd-triage` (`--backlog`) |

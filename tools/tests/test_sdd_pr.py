@@ -2244,8 +2244,12 @@ class TestReviewSpeed(RepoCase):
         self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
         self.assertEqual(0, self.run_main("record", "--agent", "claude", "--reviewers", "go-reviewer", "--reported", "1/1")[0])
         self.assertIn("range:", self.run_main("scope", "--start", "cursor")[1])
-        # A pass that read nothing ends too: record refuses its line but clears the note.
+        # A pass that read nothing ends too: record refuses its line but clears the note and the scratch tree.
+        scratch = self.root / ".git" / "sdd" / "scratch" / "feat--x"
+        scratch.mkdir(parents=True)
+        self.use([(git("worktree", "remove"), lambda argv, _: scratch.rmdir() or "")] + git_routes(names="a.go\n"))
         self.assertEqual(2, self.run_main("record", "--agent", "cursor", "--reviewers", "go-reviewer", "--reported", "0/1")[0])
+        self.assertFalse(scratch.exists())
         self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
 
     def test_an_empty_range_starts_no_pass(self):
