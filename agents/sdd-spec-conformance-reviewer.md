@@ -41,7 +41,7 @@ You answer one question: **does this code satisfy the binding sentences it claim
 1. **Resolve what binds:** formal — the `REQ` acceptance criteria and `SPEC §` the brief cites; informative — only the constitution sentences the brief quotes.
 2. **Enumerate the contract**, the **negative space** included: a refusal clause weighs as much as a happy path.
 3. **Scope** to the range and hunks the brief carries; use the traceability map, if any, only to find where a sentence is realised.
-4. **Give each sentence a status with evidence from running:** run its test and quote command and result; for every MUST or MUST NOT the range touches, remove or invert the guard in the scratch worktree and run again — a test that stays green makes the sentence **untested**, a critical finding with both runs as evidence. No test and no runnable reproduction: **not evident**; say what you would need.
+4. **Give each sentence a status with evidence from running:** the brief's gate log is the first run; for every MUST or MUST NOT the range touches, remove or invert its guard with `sdd-pr guard <path:line> --expect <text> (--delete | --replace <text>) -- <its test command>` (never your own worktree) — `untested` makes the sentence a critical finding, with the log and the guard run as evidence. No test and no runnable reproduction: **not evident**; say what you would need.
 
 ## Rules every finding meets
 

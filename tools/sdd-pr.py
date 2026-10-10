@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """sdd-pr — the branch's findings file, mirrored to the pull request's inline threads and suggestion comments.
 
-Commands: status, scope, pull, post, resolve, harvest, and add, flip, record, rename, which own every write
-to the file. One file, Python 3.9+, standard library only.
-Every external call (git, gh, az) goes through run_cli(); the tests replace it.
+Commands: status, scope, pull, post, resolve, harvest, guard, and add, flip, record, rename, which own every
+write to the file. One file, Python 3.9+, standard library only.
+Every external call (git, gh, az) goes through run_cli(), and a test command through run_test(); the tests
+replace both.
 Contract: references/review.md.
 """
 from __future__ import annotations
@@ -76,6 +77,18 @@ def run_cli(argv: List[str], stdin: Optional[str] = None) -> str:
     if proc.returncode != 0:
         raise CliError((proc.stderr or proc.stdout).strip() or "%s failed" % argv[0])
     return proc.stdout
+
+
+def run_test(argv: List[str], cwd: str) -> Tuple[int, str]:
+    """Run a repository's test command in ``cwd``: its exit status and output, a failure included. The
+    second door to the outside. No Python bytecode is cached: a mutant and its restored source can share a
+    size and an mtime second, and a stale cache would then run the mutant again."""
+    try:
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+        proc = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, env=env)
+    except OSError as exc:
+        raise CliError("%s: %s" % (argv[0], exc.strerror or exc))
+    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
 # ---------------------------------------------------------------- file model
@@ -685,6 +698,19 @@ def diff_start(root: str, base: str, rng: Optional[str]) -> str:
 
 
 KINDS = ("code", "tests", "documents", "other", "vendored", "plans")
+RFC2119 = re.compile(r"\b(MUST|SHALL|SHOULD|MAY|REQUIRED|RECOMMENDED|OPTIONAL)\b")
+
+
+def normative_lines(root: str, start: str, documents: List[str]) -> int:
+    """How many added or removed lines of the range's documents hold an RFC-2119 keyword: a hint for the
+    lane, which stays a judgement (methodology §12)."""
+    if not start or not documents:
+        return 0
+    text = git(root, "diff", "--no-ext-diff", "-U0", start, "HEAD", "--", *documents)
+    return sum(1 for line in text.splitlines()
+               if line[:1] in "+-" and not line.startswith(("+++", "---")) and RFC2119.search(line))
+
+
 #: The plugin's own reviewers, which no `agents.reviewers` entry names, and the kinds each one reads.
 OWN_REVIEWERS = {"sdd-spec-conformance-reviewer": ("code", "tests"), "sdd-doc-reviewer": ("documents",)}
 
@@ -1349,15 +1375,20 @@ def cmd_scope(session: Session, args) -> int:
         if rng and paths:
             sys.stdout.write(git(session.root, "diff", "--no-ext-diff", start, "HEAD", "--", *paths))
         return 0
+    if args.start and not start_pass(session, args.start):
+        return 0
+    normative = normative_lines(session.root, start, files["documents"])
     if args.json:
         print(json.dumps({"range": rng, "diff_from": start or None, "base": session.base(), "head": session.head,
-                          "files": files, "reviewers": reviewers, "unassigned": unassigned, "notes": notes},
-                         indent=2))
+                          "files": files, "reviewers": reviewers, "unassigned": unassigned, "notes": notes,
+                          "normative_lines": normative}, indent=2))
         return 0
     print("base: %s" % session.base())
     print("range: %s" % (rng or "empty"))
     for note in notes:
         print(note)
+    if files["documents"]:
+        print("normative lines changed: %d" % normative)
     for kind in KINDS:
         if files[kind]:
             print("%s: %s" % (kind, " ".join(files[kind])))
@@ -1366,6 +1397,34 @@ def cmd_scope(session: Session, args) -> int:
     if unassigned:
         print("no reviewer: %s" % " ".join(unassigned))
     return 0
+
+
+PASS_NOTE_AGE = 3600  # seconds after which a pass that never recorded is taken as abandoned
+
+
+def pass_note(session: Session) -> str:
+    return os.path.join(os.path.dirname(session.path), slug(session.branch) + ".pass")
+
+
+def start_pass(session: Session, agent: str) -> bool:
+    """Note that ``agent`` starts a pass on this branch; ``record`` clears the note. Another agent's note
+    younger than an hour means a pass is running: say so and start nothing (two passes pay twice)."""
+    agent, path = _clean(agent).replace(":", "-"), pass_note(session)
+    try:
+        with open(path, encoding="utf-8") as handle:
+            other, when, head = (handle.read().split() + ["", "", ""])[:3]
+        started = instant(when)
+        age = (datetime.datetime.now(datetime.timezone.utc) - started).total_seconds() if started else PASS_NOTE_AGE
+        if other != agent and age < PASS_NOTE_AGE:
+            print("pass: running — %s started one at %s on %s; ask before starting another" % (other, when, head[:7]))
+            return False
+    except FileNotFoundError:
+        pass
+    session.guard()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("%s %s %s\n" % (agent, iso(datetime.datetime.now(datetime.timezone.utc)), session.head))
+    return True
 
 
 def cmd_status(session: Session, args) -> int:
@@ -1990,7 +2049,72 @@ def cmd_record(session: Session, args) -> int:
     line = (session.head[:7], datetime.date.today().isoformat(), agent, "%s (%d of %d)" % (reviewers, reported, dispatched))
     session.fs.reviewed.append(line)
     session.save()
+    if os.path.exists(pass_note(session)):
+        os.remove(pass_note(session))
+    remove_scratch(session)
     print("record: Reviewed %s · %s · %s: %s" % line)
+    return 0
+
+
+def scratch_dir(session: Session) -> str:
+    """The pass's one scratch worktree, beside the findings: reused by every guard call, removed by record."""
+    return os.path.join(os.path.dirname(os.path.dirname(session.path)), "scratch", slug(session.branch))
+
+
+def remove_scratch(session: Session) -> bool:
+    tree = scratch_dir(session)
+    if not os.path.exists(tree):
+        return False
+    git(session.root, "worktree", "remove", "--force", tree)
+    return True
+
+
+def cmd_guard(session: Session, args) -> int:
+    """Remove one guard in the scratch worktree, run one test command there, and say whether the test
+    noticed (references/review.md § The tool). The checkout and the findings file are never touched."""
+    if args.cleanup:
+        print("guard: scratch worktree %s" % ("removed" if remove_scratch(session) else "absent"))
+        return 0
+    path, line = _anchor(args.selector or "")
+    command = list(args.test_cmd)
+    if not line or args.expect is None or args.delete == (args.replace is not None) or not command:
+        raise CliError("usage: guard <path:line> --expect <text> (--delete | --replace <text>) -- <test command>")
+    tree = scratch_dir(session)
+    session.close()  # a test can run for minutes: the findings stay free for other commands
+    os.makedirs(os.path.dirname(tree), exist_ok=True)
+    with open(tree + ".lock", "a") as lock:
+        if fcntl is not None:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+        if os.path.exists(tree):
+            git(tree, "reset", "--quiet", "--hard", session.head)
+        else:
+            git(session.root, "worktree", "add", "--quiet", "--detach", tree, session.head)
+        target = os.path.join(tree, path)
+        try:
+            with open(target, encoding="utf-8") as handle:
+                lines = handle.read().split("\n")
+        except OSError:
+            raise CliError("guard: %s is not in HEAD" % path)
+        n = int(line)
+        if not 1 <= n <= len(lines) or args.expect not in lines[n - 1]:
+            raise CliError("guard: %s:%d reads %r, not %r" % (path, n, lines[n - 1] if 1 <= n <= len(lines) else "",
+                                                               args.expect))
+        if args.delete:
+            del lines[n - 1]
+        else:
+            lines[n - 1] = lines[n - 1].replace(args.expect, args.replace, 1)
+        with open(target, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(lines))
+        try:
+            code, output = run_test(command, tree)
+        finally:
+            git(tree, "checkout", "--quiet", "--", path)
+    edit = "deleted" if args.delete else "%r -> %r" % (args.expect, args.replace)
+    print("guard: %s:%d %s; `%s` exited %d" % (path, n, edit, " ".join(command), code))
+    print("pinned: the test fails without the guard" if code else "untested: the test stays green without the guard")
+    tail = output.rstrip().splitlines()[-15:]
+    if tail:
+        print("\n".join("  " + row for row in tail))
     return 0
 
 
@@ -2015,7 +2139,8 @@ def cmd_rename(session: Session, args) -> int:
 
 
 COMMANDS = {"status": cmd_status, "scope": cmd_scope, "pull": cmd_pull, "post": cmd_post, "resolve": cmd_resolve,
-            "harvest": cmd_harvest, "add": cmd_add, "flip": cmd_flip, "record": cmd_record, "rename": cmd_rename}
+            "harvest": cmd_harvest, "guard": cmd_guard, "add": cmd_add, "flip": cmd_flip, "record": cmd_record,
+            "rename": cmd_rename}
 
 
 class _Parser(argparse.ArgumentParser):
@@ -2039,6 +2164,14 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--base", help="the branch this one starts from (a stacked branch's parent); kept in the file")
             cmd.add_argument("--agent", help="with --since-last: since this agent's own last pass")
             cmd.add_argument("--diff", metavar="KIND|REVIEWER", help="print the range's hunks for one kind or reviewer")
+            cmd.add_argument("--start", metavar="AGENT", help="note that AGENT starts a pass; record clears the note")
+        if name == "guard":
+            cmd.add_argument("selector", nargs="?", help="the guard's <path:line>")
+            cmd.add_argument("--expect", metavar="TEXT", help="text the line holds now")
+            cmd.add_argument("--delete", action="store_true", help="delete the line")
+            cmd.add_argument("--replace", metavar="TEXT", help="replace --expect within the line with TEXT")
+            cmd.add_argument("--cleanup", action="store_true", help="remove the scratch worktree")
+            cmd.set_defaults(test_cmd=[])  # what follows `--`, split off before parsing (main)
         if name in ("post", "harvest"):
             cmd.add_argument("--dry-run", action="store_true")
         if name == "harvest":
@@ -2069,7 +2202,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[List[str]] = None) -> int:
     try:
+        argv = list(sys.argv[1:] if argv is None else argv)
+        # guard's test command follows `--` and is never parsed: its own options are not sdd-pr's.
+        test_cmd = []
+        if "guard" in argv and "--" in argv[argv.index("guard"):]:
+            cut = argv.index("--", argv.index("guard"))
+            argv, test_cmd = argv[:cut], argv[cut + 1:]
         args = build_parser().parse_args(argv)
+        if test_cmd:
+            args.test_cmd = test_cmd
         if not args.command:
             raise CliError("usage: sdd-pr [--root DIR] {%s} ..." % ",".join(COMMANDS))
         session = Session(args)

@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Tools: `sdd-pr guard <path:line> --expect … (--delete | --replace …) -- <test command>` removes one guard in a scratch worktree reused for the pass, runs the test there without a Python bytecode cache, restores the line and prints `pinned` or `untested`; `record` removes the worktree.
+- Tools: `sdd-pr scope --start <agent>` notes a pass and prints `pass: running` while another agent's pass is under an hour old; `record` clears the note. `scope` prints `normative lines changed`, a hint for the lane.
 - Tools: the `outside` marker: a critical or important line about code the change did not touch keeps its severity, blocks nothing, goes in the non-blocking comment above the suggestions, and `harvest` carries it with its severity; `sdd-pr add --outside`; `flip --suggestions --carry` takes the open `outside` lines too.
 
 ### Changed

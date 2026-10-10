@@ -165,7 +165,8 @@ request. A plugin older than the repository's `check.version` refuses every writ
   the file still holds, and the file to delete, after `/sdd-triage --backlog` while its watermark is
   older than the merge; one merged or closed before the head moved is no pull request of this branch.
 - `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>]` — the range a
-  pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
+  pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it; `normative lines changed: n`, a hint for the lane;
+  `--start <agent>` notes a pass, and says `pass: running` instead while another agent's note is under an hour old. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
   one reviewer, the plugin's own reviewers included, so no brief carries a diff built by hand.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …] [--outside]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important
@@ -176,7 +177,11 @@ request. A plugin older than the repository's `check.version` refuses every writ
   place of the line applies to every one left and, with `--carry`, to the open `outside` lines.
 - `harvest [--since <date | #PR>] [--dry-run]` — § The backlog.
 - `record --agent <name> --reviewers <a, b> --reported <n>/<m>` — the `Reviewed` line at HEAD; refuses a
-  pass on which no reviewer reported.
+  pass on which no reviewer reported; clears `scope --start`'s note and removes the scratch worktree.
+- `guard <path:line> --expect <text> (--delete | --replace <text>) -- <test command>` — removes one guard
+  in the pass's scratch worktree (one per branch, at HEAD, reused), runs the command there without a
+  Python bytecode cache, restores the line, and prints `pinned` or `untested`; `--cleanup` removes the
+  worktree. It never touches the checkout or the findings file.
 - `rename --from <branch>` — moves a file to the checked-out branch without its `Reviewed` lines, thread
   and comment ids, which belonged to the old branch.
 - `pull`, `post [--dry-run]`, `resolve` — § The forge mirror. `--version` prints the version.

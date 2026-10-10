@@ -2142,6 +2142,93 @@ class TestOutside(GitHubCase):
         self.assertEqual(["outside"], sdd_pr.parse(self.read_findings()).open[0].flags)
 
 
+class TestReviewSpeed(RepoCase):
+    """One guard-removal proof per call in a reused scratch tree; a lane hint; one pass at a time."""
+
+    def scratch(self):
+        tree = self.root / ".git" / "sdd" / "scratch" / sdd_pr.slug(self.BRANCH)
+        tree.mkdir(parents=True, exist_ok=True)
+        (tree / "a.go").write_text("package a\nfunc f(x int) int {\n\tif x < 0 {\n\t\treturn 0\n\t}\n\treturn x\n}\n")
+        return tree
+
+    def scratch_routes(self):
+        return [(git("reset", "--quiet", "--hard"), ""), (git("checkout", "--quiet", "--"), "")]
+
+    def run_tests_as(self, code, output="ok"):
+        seen = {}
+
+        def fake(argv, cwd):
+            seen.update(argv=argv, cwd=cwd, text=(Path(cwd) / "a.go").read_text())
+            return code, output
+        orig = sdd_pr.run_test
+        self.addCleanup(setattr, sdd_pr, "run_test", orig)
+        sdd_pr.run_test = fake
+        return seen
+
+    def test_guard_removes_one_line_runs_the_test_and_restores_it(self):
+        self.descriptor(forge="none")
+        tree = self.scratch()
+        fake = self.use(self.scratch_routes() + git_routes())
+        seen = self.run_tests_as(1, "--- FAIL: TestF")
+        code, out, err = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--replace", "if false",
+                                       "--", "go", "test", "-run", "TestF", "./")
+        self.assertEqual(0, code, err)
+        self.assertIn("pinned: the test fails without the guard", out)
+        self.assertIn("\tif false {\n", seen["text"])
+        self.assertEqual((["go", "test", "-run", "TestF", "./"], str(tree)), (seen["argv"], seen["cwd"]))
+        self.assertTrue(fake.called("git", "-C", str(tree), "reset", "--quiet", "--hard", HEAD))
+        self.assertTrue(fake.called("git", "-C", str(tree), "checkout", "--quiet", "--", "a.go"))
+        # A guard whose removal no test notices is untested (the fake checkout restored nothing).
+        self.scratch()
+        self.run_tests_as(0)
+        _, out, _ = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--delete", "--", "go", "test", "./")
+        self.assertIn("untested: the test stays green without the guard", out)
+
+    def test_guard_refuses_a_line_that_no_longer_reads_as_expected(self):
+        self.descriptor(forge="none")
+        self.scratch()
+        self.use(self.scratch_routes() + git_routes())
+        self.run_tests_as(0)
+        code, _, err = self.run_main("guard", "a.go:4", "--expect", "if x < 0", "--delete", "--", "true")
+        self.assertEqual(2, code)
+        self.assertIn("a.go:4 reads", err)
+        code, _, err = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--", "true")
+        self.assertEqual(2, code)
+        self.assertIn("usage: guard", err)
+
+    def test_one_pass_at_a_time_and_record_clears_the_note(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        self.use(git_routes(names="a.go\n"))
+        _, out, _ = self.run_main("scope", "--start", "claude")
+        self.assertIn("range:", out)
+        _, out, _ = self.run_main("scope", "--start", "cursor")
+        self.assertIn("pass: running — claude started one at", out)
+        self.assertNotIn("range:", out)
+        # The same agent carries on; record clears the note, and the next agent may start.
+        self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
+        self.assertEqual(0, self.run_main("record", "--agent", "claude", "--reviewers", "go-reviewer", "--reported", "1/1")[0])
+        self.assertIn("range:", self.run_main("scope", "--start", "cursor")[1])
+
+    def test_a_guard_run_caches_no_python_bytecode(self):
+        # A mutant and its restored source can share a size and an mtime second; a cached .pyc would then
+        # run the mutant again and call an untested guard pinned.
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            code, out = sdd_pr.run_test(["python3", "-c", "import os; print(os.environ.get('PYTHONDONTWRITEBYTECODE'))"],
+                                        str(self.root))
+        self.assertEqual((0, "1"), (code, out.strip()))
+
+    def test_scope_counts_the_normative_lines_the_range_changed(self):
+        self.descriptor(forge="none")
+        # A hunk header can quote a heading with a keyword; only added and removed lines count.
+        hunks = ("--- a/docs/s.md\n+++ b/docs/s.md\n@@ -1 +1 @@ ## When a client MAY retry\n"
+                 "-The client SHOULD retry.\n+The client MUST retry.\n+See below.\n")
+        self.use([(git("diff", "--no-ext-diff", "-U0"), hunks)] + git_routes(names="docs/s.md\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertIn("normative lines changed: 2", out)
+
+
 class TestHarvest(GitHubCase):
     MARK = "2026-10-04T12:00:00Z"
 
