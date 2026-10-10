@@ -41,10 +41,15 @@ DESCRIPTOR = os.path.join("docs", ".sdd.yaml")
 BACKLOG = "docs/backlog.md"
 BACKLOG_HEAD = (
     "---\nkind: plan\n---\n# Backlog\n\n"
-    "Leftovers of merged branches, by directory: suggestions, and findings the maintainer deferred here. "
-    "Each line is a lead, not a finding: verify it before acting. A delivery whose `Files` touch a line's path "
-    "folds it in and deletes the line. `sdd-pr harvest` and `sdd-pr flip --carry` append; edit freely.\n"
+    "Leftovers of merged branches: defects outside their change, suggestions, and findings the maintainer "
+    "deferred here. Each line is a lead, not a finding: verify it before acting. Themes group what one "
+    "delivery takes, defects first; `sdd-pr harvest` and `sdd-pr flip --carry` add lines under Unsorted, and "
+    "`/sdd-triage --backlog` sorts them, merges duplicates and drops what is settled. Line numbers are as of "
+    "the pull request in `from:`. Edit freely.\n"
 )
+UNSORTED = "## Unsorted"
+#: The order of what does not block: defects first (by severity), then code, tests, other, documents.
+KIND_ORDER = ("code", "tests", "other", "documents")
 WATERMARK = "harvested_through"
 DROPPED = "dropped by the maintainer"
 DEFAULT_TEST_GLOBS = ("*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs")
@@ -387,11 +392,11 @@ SUGGESTIONS_MARK = "<!-- sdd:suggestions %s -->"
 SUGGESTIONS_RE = re.compile(r"<!-- sdd:suggestions (\S+) -->")
 
 
-def suggestions_body(sha: str, lines: List[Finding]) -> str:
+def suggestions_body(sha: str, lines: List[Finding], globs: Optional[List[str]] = None) -> str:
     """One comment of suggestions: every line in the file's grammar, without the comment's own id, so
     `harvest` reads it back with parse_line; a fixed, carried or dropped line keeps its checkbox."""
-    rows = []
-    lines = sorted(lines, key=lambda f: SEVERITIES.index(f.severity))  # defects outside the change first
+    rows, globs = [], list(globs or DEFAULT_TEST_GLOBS)
+    lines = sorted(lines, key=lambda f: priority(f, globs))  # defects first, then code, tests, other, documents
     for finding in lines:
         shown = Finding(finding.status, finding.severity, finding.path, finding.line, finding.text,
                         {k: v for k, v in finding.fields.items() if k not in ("comment", "forge")},
@@ -446,7 +451,7 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
                     finding.fields.pop("comment", None)
                 continue
             match = SUGGESTIONS_RE.search(current[comment_id])
-            body = suggestions_body(match.group(1) if match else session.head, lines)
+            body = suggestions_body(match.group(1) if match else session.head, lines, session.globs)
             if not _same_text(body, current[comment_id]):
                 if dry_run:
                     print(body)
@@ -455,7 +460,7 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
                 edited += 1
     fresh = [f for f in mine if f.status in ("suggestion", "open") and not f.fields.get("comment")]
     if fresh:
-        body = suggestions_body(session.head, fresh)
+        body = suggestions_body(session.head, fresh, session.globs)
         if dry_run:
             print(body)
             return len(fresh), edited
@@ -1776,10 +1781,17 @@ def cmd_add(session: Session, args) -> int:
     return 0
 
 
-def backlog_line(finding: Finding, branch: str) -> str:
+def priority(finding: Finding, globs: List[str]) -> Tuple[int, int]:
+    kind = kind_of(finding.path, globs)
+    return SEVERITIES.index(finding.severity), KIND_ORDER.index(kind) if kind in KIND_ORDER else len(KIND_ORDER)
+
+
+def backlog_line(finding: Finding, origin: str, full: bool = True) -> str:
+    """A backlog line. A harvested one is short: its comment, which `from:` names, keeps the evidence."""
     parts = ([finding.severity] if finding.severity in BLOCKING else []) + [finding.anchor, finding.text]
-    parts += ["%s: %s" % (key, finding.fields[key]) for key in ("evidence", "fix", "by") if finding.fields.get(key)]
-    return "- " + SEP.join(parts + ["from: " + branch])
+    if full:
+        parts += ["%s: %s" % (key, finding.fields[key]) for key in ("evidence", "fix", "by") if finding.fields.get(key)]
+    return "- " + SEP.join(parts + ["from: " + origin])
 
 
 def _backlog_item(line: str) -> Optional[Tuple[str, str]]:
@@ -1805,38 +1817,38 @@ def write_backlog(root: str, lines: List[str]) -> None:
         handle.write("\n".join(lines) + "\n")
 
 
-def carry(root: str, items: List[Tuple[Finding, str]], watermark: str = "") -> int:
-    """Append each finding to the backlog under its directory's heading, headings in order, tagged with
-    where it came from; an item the backlog already holds, by its anchor and sentence, is not written
-    twice. ``watermark`` is written to the front matter. Returns how many were new."""
+def carry(root: str, items: List[Tuple[Finding, str]], watermark: str = "", globs: Optional[List[str]] = None,
+          full: bool = True) -> int:
+    """Add each finding under `## Unsorted`, the first section, defects first and then by kind, tagged with
+    where it came from; `/sdd-triage --backlog` sorts them into themes. An item the backlog already holds,
+    by its anchor and sentence, is not written twice. ``watermark`` is written to the front matter.
+    Returns how many were new."""
+    globs = list(globs or DEFAULT_TEST_GLOBS)
     lines = read_backlog(root)
     if watermark:
         set_watermark(lines, watermark)
     held = {item for item in map(_backlog_item, lines) if item}
-    added = 0
-    for finding, origin in items:
+    new = []
+    for finding, origin in sorted(items, key=lambda item: priority(item[0], globs)):
         if (finding.anchor, finding.text) in held:
             continue
         held.add((finding.anchor, finding.text))
-        heading, entry = "## " + (os.path.dirname(finding.path) or "."), backlog_line(finding, origin)
-        if heading in lines:
-            at = lines.index(heading) + 1
+        new.append(backlog_line(finding, origin, full))
+    if new:
+        if UNSORTED in lines:
+            at = lines.index(UNSORTED) + 1
             while at < len(lines) and not lines[at].startswith("## "):
                 at += 1
             while not lines[at - 1].strip():
                 at -= 1
-            lines.insert(at, entry)
+            lines[at:at] = new
         else:
-            at = next((n for n, line in enumerate(lines) if line.startswith("## ") and line > heading), len(lines))
-            if at < len(lines):
-                lines[at:at] = ([""] if at and lines[at - 1].strip() else []) + [heading, entry, ""]
-            else:
-                while lines and not lines[-1].strip():
-                    lines.pop()
-                lines += ["", heading, entry]
-        added += 1
+            at = next((n for n, line in enumerate(lines) if line.startswith("## ")), len(lines))
+            while at > 0 and not lines[at - 1].strip():
+                at -= 1
+            lines[at:at] = ["", UNSORTED] + new + ([""] if at < len(lines) and lines[at].strip() else [])
     write_backlog(root, lines)
-    return added
+    return len(new)
 
 
 def _front_matter_end(lines: List[str]) -> int:
@@ -1941,7 +1953,7 @@ def cmd_flip(session: Session, args) -> int:
     new = 0
     if action == "carry":
         session.guard()
-        new = carry(session.root, [(f, session.branch) for f in targets])
+        new = carry(session.root, [(f, session.branch) for f in targets], globs=session.globs)
     for finding in targets:
         if action == "dropped":
             if finding.fields.get("comment"):
@@ -1987,6 +1999,20 @@ def harvest_start(session: Session, since: str, mark: str) -> Tuple[datetime.dat
     return start, False
 
 
+def recheck(session: Session, since: str) -> List[str]:
+    """The backlog lines whose path a commit on HEAD changed after ``since``: the ones a delivery may have
+    fixed or made stale, so the harvest re-reads those and not the whole file."""
+    if not instant(since):
+        return []
+    changed = set(git(session.root, "log", "--since=" + since, "--name-only", "--format=", "HEAD").split())
+    out = []
+    for line in read_backlog(session.root):
+        item = _backlog_item(line)
+        if item and _anchor(item[0])[0] in changed:
+            out.append(line)
+    return out
+
+
 def cmd_harvest(session: Session, args) -> int:
     """The open suggestions of every pull request merged since the backlog's watermark, carried to it."""
     if session.forge.name == "none":
@@ -2019,13 +2045,15 @@ def cmd_harvest(session: Session, args) -> int:
         print("left out, its path is gone: " + backlog_line(finding, origin)[2:])
     if args.dry_run:
         for finding, origin in items:
-            print(backlog_line(finding, origin))
+            print(backlog_line(finding, origin, full=False))
         print("%s: %s (dry run: nothing written)" % (WATERMARK, mark or "unchanged"))
         return 0
     if not mark:
         return 0
     session.guard()
-    added = carry(session.root, items, mark)
+    for line in recheck(session, get_watermark(read_backlog(session.root))):
+        print("re-check, its path changed since the last harvest: " + line[2:])
+    added = carry(session.root, items, mark, session.globs, full=False)
     print("harvest: %d line%s carried to %s, %d already there, %d settled in their pull request, %d left out; "
           "%s: %s; commit it" % (added, "" if added == 1 else "s", BACKLOG, len(items) - added, settled, len(gone),
                                  WATERMARK, mark))

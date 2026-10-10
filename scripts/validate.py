@@ -401,13 +401,13 @@ def validate_retired_vocabulary():
 # the number here, in the same pull request, with the maintainer's yes.
 WORD_BUDGETS = {
     "skills/sdd-review/SKILL.md": 1024,
-    "skills/sdd-triage/SKILL.md": 851,
-    "skills/sdd-deliver/SKILL.md": 1519,
+    "skills/sdd-triage/SKILL.md": 897,
+    "skills/sdd-deliver/SKILL.md": 1521,
     "skills/sdd-scaffold/SKILL.md": 1166,
     "skills/sdd-specify/SKILL.md": 884,
     "skills/sdd-trace/SKILL.md": 555,
     "skills/spec-driven-development/SKILL.md": 695,
-    "references/review.md": 2313,
+    "references/review.md": 2438,
     "references/artefact-prose.md": 800,
     "agents/sdd-doc-reviewer.md": 935,
     "agents/sdd-spec-conformance-reviewer.md": 935,

@@ -8,10 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 - Tools: `sdd-pr guard <path:line> --expect … (--delete | --replace …) -- <test command>` removes one guard in a scratch worktree reused for the pass, runs the test there without a Python bytecode cache, restores the line and prints `pinned` or `untested`; `record` removes the worktree.
+- Tools: `sdd-pr harvest` names the backlog lines whose path changed since the last harvest, the ones to re-check.
 - Tools: `sdd-pr scope --start <agent>` notes a pass and prints `pass: running` while another agent's pass is under an hour old; `record` clears the note. `scope` prints `normative lines changed`, a hint for the lane.
 - Tools: the `outside` marker: a critical or important line about code the change did not touch keeps its severity, blocks nothing, goes in the non-blocking comment above the suggestions, and `harvest` carries it with its severity; `sdd-pr add --outside`; `flip --suggestions --carry` takes the open `outside` lines too.
 
 ### Changed
+- Tools: `sdd-pr harvest` and `flip --carry` add lines under `## Unsorted`, defects first and then code, tests, other, documents; harvested lines keep the anchor, the sentence, the severity and `from:`, leaving the evidence in the comment. The non-blocking comment uses the same order.
+- References: `review.md` § The backlog defines themes (what one delivery takes on, defects first) and the consolidation: re-check the lines a change touched, sort Unsorted into themes, fold duplicates, drop what is settled or below the lead bar; line numbers stay as of their `from:`.
+- Skills: `sdd-triage --backlog` consolidates the backlog after the harvest instead of only appending; `sdd-deliver` no longer deletes the backlog lines a branch settled, which the next harvest does.
 - References: `review.md` § Severity grades by harm wherever the line is, settles a claim of wrong code behaviour by a run or a named input instead of grading it down, and makes a document finding important only when a reader would build or test the wrong thing from it; § Scope replaces "a suggestion at most" with the `outside` marker; methodology §13's merge gate counts findings about the change.
 - Agents: the three reviewers carry the new scope and severity digest and end an `outside` line with `· outside`; `sdd-doc-reviewer` moves the form findings (a missing keyword, the shape of an acceptance criterion or an ADR, a plan citation) to suggestions.
 - Skills: `sdd-review` settles a code line that claims wrong behaviour before filing it and keeps the higher severity when two reviewers disagree; `sdd-triage` fixes an `outside` line only when the maintainer says so; `sdd-deliver` files an implementer's out-of-scope defect as `outside`.

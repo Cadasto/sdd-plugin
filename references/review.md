@@ -124,13 +124,22 @@ and commit messages never name one.
 ## The backlog
 
 Leftovers outlive the findings file in one committed file, `docs/backlog.md`, marked `kind: plan` so the
-gate and the reviewers skip it. Each line is appended once, under its directory's heading
-(`- [<severity> · ]<path:line> · <sentence> · … · from: <branch or #PR>`). `harvest` carries the open
-lines of the non-blocking comments, an `outside` defect with its severity, whose path still exists, of
-every pull request merged after the front matter's
-`harvested_through:`, and moves that watermark to the last merge read; the first harvest takes
-`--since`. `flip --carry` appends a deferred finding, and, with `forge: none`, the close-out's non-blocking lines. An item is a lead, not a finding: the delivery whose `Files`
-touch its path verifies it, fixes it or finds it stale, and deletes its line.
+gate and the reviewers skip it. Its lines sit in themes, each what one delivery would take on: `## <what
+that delivery does> (<REQ ids>)`, one sentence, then `- [<severity> · ]<path:line> · <sentence> · from:
+<#PR or branch>` lines; themes that hold a defect come first, then code, tests, documents.
+
+`harvest` carries the open lines of the non-blocking comments, an `outside` defect with its severity,
+whose path still exists, of every pull request merged after the front matter's `harvested_through:`, and
+moves that watermark to the last merge read; the first harvest takes `--since`. Its lines are short: the
+comment `from:` names keeps the evidence. `flip --carry` adds a deferred finding, and, with `forge: none`,
+the close-out's non-blocking lines. Both add each line once, under `## Unsorted`, defects first.
+
+`/sdd-triage --backlog` then consolidates. It re-checks the lines `harvest` names because their path
+changed since the last harvest, deleting one that is fixed or stale. It moves each Unsorted line into its
+theme, or starts one, and folds a line about the same defect into the line already there, keeping the
+higher severity and both `from:`. It deletes what falls below the lead bar (§ Severity). A line number
+is as of its `from:`, and nobody refreshes it. An item is a lead, not a finding: the delivery whose
+`Files` touch its path verifies it, and fixes it or finds it stale; the next harvest deletes the line.
 
 ## Passes
 

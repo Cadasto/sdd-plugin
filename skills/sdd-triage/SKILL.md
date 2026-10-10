@@ -26,7 +26,7 @@ Read `docs/.sdd.yaml` first (`profile`, `forge`, the build targets, `agents:`). 
 Runs alone, on the default branch, pulled, or a branch fresh from it (`references/review.md` § The backlog).
 
 1. `sdd-pr harvest --dry-run`. No `harvested_through` yet: ask the maintainer once for the start, a date or a pull request (default: the one just merged), and pass it as `--since` to both runs.
-2. `sdd-pr harvest`, then read the diff and fold near-duplicates together. Ask no carry-or-drop question: the diff is the review. Commit `docs/backlog.md` by path.
+2. `sdd-pr harvest`, then consolidate as § The backlog says: re-check the lines it names, sort Unsorted into themes, fold duplicates, drop what is settled or below the lead bar, order the themes. A line the maintainer wants tracked elsewhere becomes "tracked in <link>": ask, never file it. Ask no carry-or-drop question: the diff is the review. Commit `docs/backlog.md` by path, the message saying what was added, merged and dropped.
 
 ## Guardrails
 
