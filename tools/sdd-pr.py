@@ -34,7 +34,7 @@ SEVERITIES = ("critical", "important", "suggestion")
 BLOCKING = ("critical", "important")
 SEP = " · "
 FIELD_KEYS = ("evidence", "fix", "by", "forge", "comment", "declined", "deferred")
-FLAGS = ("unanchored", "mirrored")
+FLAGS = ("unanchored", "mirrored", "outside")
 SECTIONS = ("Open", "Resolved", "Suggestions")
 DESCRIPTOR = os.path.join("docs", ".sdd.yaml")
 BACKLOG = "docs/backlog.md"
@@ -178,6 +178,17 @@ class Findings:
     @property
     def open(self) -> List[Finding]:
         return [f for f in self.items if f.status == "open"]
+
+    @property
+    def blocking(self) -> List[Finding]:
+        """The open lines that block the merge: those about the change itself."""
+        return [f for f in self.open if "outside" not in f.flags]
+
+    @property
+    def outside(self) -> List[Finding]:
+        """The open critical and important lines about code the change did not touch: they keep their
+        severity, block nothing, and are carried after merge unless fixed here (review.md § Scope)."""
+        return [f for f in self.open if "outside" in f.flags]
 
     @property
     def resolved(self) -> List[Finding]:
@@ -328,7 +339,7 @@ def reply_for(finding: Finding) -> str:
 
 
 def open_verdict(fs: Findings) -> str:
-    opened = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
+    opened = {s: len([f for f in fs.blocking if f.severity == s]) for s in BLOCKING}
     if any(opened.values()):
         return "%d critical and %d important open" % (opened["critical"], opened["important"])
     return "no critical or important finding open"
@@ -340,9 +351,11 @@ PASS_RE = re.compile(r"<!-- sdd:pass (\S+) (.+?) -->")
 
 def pass_summary(fs: Findings, head: str, passes: List[Tuple[str, str, str, str]]) -> str:
     """The body of a pass's one review: the verdict, who reviewed, and a marker per pass so it is posted once."""
-    n = len(fs.suggestions)
-    lines = ["**Review at `%s`:** %s; %s." % (head[:7], open_verdict(fs), "%d suggestion%s, in a separate comment"
-                                                % (n, "" if n == 1 else "s") if n else "no suggestion")]
+    n, out = len(fs.suggestions), len(fs.outside)
+    rest = ["%d outside the change" % out] if out else []
+    rest += ["%d suggestion%s" % (n, "" if n == 1 else "s")] if n else []
+    lines = ["**Review at `%s`:** %s; %s." % (head[:7], open_verdict(fs), "%s, in a separate comment" % " and ".join(rest)
+                                                if rest else "nothing else")]
     lines += ["- %s: %s" % (agent, reviewers) for _, _, agent, reviewers in passes]
     return "\n".join(lines + [PASS_MARK % (sha, agent) for sha, _, agent, _ in passes])
 
@@ -365,14 +378,19 @@ def suggestions_body(sha: str, lines: List[Finding]) -> str:
     """One comment of suggestions: every line in the file's grammar, without the comment's own id, so
     `harvest` reads it back with parse_line; a fixed, carried or dropped line keeps its checkbox."""
     rows = []
+    lines = sorted(lines, key=lambda f: SEVERITIES.index(f.severity))  # defects outside the change first
     for finding in lines:
         shown = Finding(finding.status, finding.severity, finding.path, finding.line, finding.text,
-                        {k: v for k, v in finding.fields.items() if k not in ("comment", "forge")}, [], finding.fixed)
+                        {k: v for k, v in finding.fields.items() if k not in ("comment", "forge")},
+                        [flag for flag in finding.flags if flag == "outside"], finding.fixed)
         rows.append(shown.render())
-    left = len([f for f in lines if f.status == "suggestion"])
-    head = ("**Suggestions at `%s`:** %d, none blocking; after merge `/sdd-triage --backlog` carries the open ones "
-            "to `%s`." % (sha[:7], len(lines), BACKLOG))
-    summary = "%d suggestion%s, %d open" % (len(lines), "" if len(lines) == 1 else "s", left)
+    left = len([f for f in lines if f.status in ("suggestion", "open")])
+    defects = len([f for f in lines if f.severity in BLOCKING])
+    head = ("**Not blocking, at `%s`:** %s; after merge `/sdd-triage --backlog` carries the open ones to `%s`."
+            % (sha[:7], ", ".join(([("%d outside the change" % defects)] if defects else [])
+                                   + ["%d suggestion%s" % (len(lines) - defects, "" if len(lines) - defects == 1 else "s")]),
+               BACKLOG))
+    summary = "%d line%s, %d open" % (len(lines), "" if len(lines) == 1 else "s", left)
     return "\n".join([head, "", "<details><summary>%s</summary>" % summary, ""] + rows
                      + ["", "</details>", SUGGESTIONS_MARK % sha[:7]])
 
@@ -401,7 +419,7 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
     into one new comment, whose id each line takes, and a posted comment whose lines changed is edited.
     A comment deleted on the forge frees its open lines to be posted again. Returns (posted, edited)."""
     fs = session.fs
-    mine = [f for f in fs.items if f.severity == "suggestion"]
+    mine = [f for f in fs.items if f.severity == "suggestion" or "outside" in f.flags]
     held: Dict[str, List[Finding]] = {}
     for finding in mine:
         if finding.fields.get("comment"):
@@ -422,7 +440,7 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
                 else:
                     session.forge.edit_comment(pr["number"], comment_id, body)
                 edited += 1
-    fresh = [f for f in mine if f.status == "suggestion" and not f.fields.get("comment")]
+    fresh = [f for f in mine if f.status in ("suggestion", "open") and not f.fields.get("comment")]
     if fresh:
         body = suggestions_body(session.head, fresh)
         if dry_run:
@@ -439,9 +457,9 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
 def sync_report(posted: int, edited: int, number: int) -> str:
     parts = []
     if posted:
-        parts.append("%d suggestion%s in a new comment" % (posted, "" if posted == 1 else "s"))
+        parts.append("%d line%s in a new comment" % (posted, "" if posted == 1 else "s"))
     if edited:
-        parts.append("%d suggestion comment%s edited" % (edited, "" if edited == 1 else "s"))
+        parts.append("%d comment%s edited" % (edited, "" if edited == 1 else "s"))
     return "%s on PR %d" % ("; ".join(parts), number) if parts else ""
 
 
@@ -1379,9 +1397,9 @@ def cmd_status(session: Session, args) -> int:
         print("workers: " + " · ".join(["%s %s" % w for w in pending] + ["%s merged" % w for w in merged]))
     for sha in fs.unreviewed_passes():
         print("Reviewed %s: no reviewer reported; not a pass" % sha[:7])
-    counts = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
-    print("open: %d critical, %d important · suggestions: %d"
-          % (counts["critical"], counts["important"], len(fs.suggestions)))
+    counts = {s: len([f for f in fs.blocking if f.severity == s]) for s in BLOCKING}
+    print("open: %d critical, %d important · outside the change: %d · suggestions: %d"
+          % (counts["critical"], counts["important"], len(fs.outside), len(fs.suggestions)))
     for finding in fs.open + fs.suggestions:
         print("#%s %s" % (key_of(finding), finding.render()))
 
@@ -1390,7 +1408,7 @@ def cmd_status(session: Session, args) -> int:
     if counts["critical"] or counts["important"]:
         parts = ["%d %s" % (counts[s], s) for s in BLOCKING if counts[s]]
         reasons.append(", ".join(parts) + " open")
-    unmirrored = [f for f in fs.open if f.severity in BLOCKING and not f.fields.get("forge") and "unanchored" not in f.flags]
+    unmirrored = [f for f in fs.blocking if not f.fields.get("forge") and "unanchored" not in f.flags]
     nxt = ("sdd-pr post --pr %d" % pr["number"] if live and unmirrored else "/sdd-triage") if reasons else ""
     # The budget (review.md § Passes): the pass before ready and one pass over the fixes, at two commits.
     spent = len({p[0] for p in fs.passes if p[2] != "maintainer"}) >= 2
@@ -1419,13 +1437,13 @@ def cmd_status(session: Session, args) -> int:
         nxt = nxt or "open the pull request (/sdd-deliver step 8)"
     elif pr["state"] == "merged":
         print("forge: %s · PR %d merged at %s" % (session.forge.name, pr["number"], (pr["merge"] or "?")[:7]))
-        unposted = [f for f in fs.suggestions if not f.fields.get("comment")]
-        if fs.open or unposted:
-            print("still in the file: %d open line%s, %d suggestion%s not on the pull request; carry or drop them "
-                  "before deleting it" % (len(fs.open), "" if len(fs.open) == 1 else "s", len(unposted),
+        unposted = [f for f in fs.suggestions + fs.outside if not f.fields.get("comment")]
+        if fs.blocking or unposted:
+            print("still in the file: %d open line%s, %d line%s not on the pull request; carry or drop them "
+                  "before deleting it" % (len(fs.blocking), "" if len(fs.blocking) == 1 else "s", len(unposted),
                                           "" if len(unposted) == 1 else "s"))
         nxt = cleanup_line(session.path, session.notes)
-        if len(unposted) < len(fs.suggestions) and not harvested(session, pr):
+        if len(unposted) < len(fs.suggestions + fs.outside) and not harvested(session, pr):
             nxt = "/sdd-triage --backlog, then " + nxt
         print("Mergeable: merged")
         print("Next: " + nxt)
@@ -1436,7 +1454,7 @@ def cmd_status(session: Session, args) -> int:
         nxt = nxt or "reopen pull request %d, or open a new one" % pr["number"]
     else:
         try:
-            shown_open = {f.fields["forge"] for f in fs.open if f.fields.get("forge")}
+            shown_open = {f.fields["forge"] for f in fs.open if f.fields.get("forge")}  # outside lines too
             unknown = [t for t in session.forge.threads(pr["number"]) if not t["resolved"] and t["id"] not in shown_open]
             checks = session.forge.checks(pr["number"])
             print("forge: %s · PR %d (%s) · %d unresolved threads not open in the file · checks: %s"
@@ -1469,10 +1487,10 @@ def cmd_status(session: Session, args) -> int:
 def leftovers(fs: Findings, pr: Optional[dict]) -> str:
     """Suggestions not on the pull request yet go there; with no pull request, the close-out carries or drops them."""
     if pr is None:
-        n = len(fs.suggestions)
-        return "carry or drop %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
-    n = len([f for f in fs.suggestions if not f.fields.get("comment")])
-    return "sdd-pr post --pr %d (%d suggestion%s not on it)" % (pr["number"], n, "" if n == 1 else "s") if n else ""
+        n = len(fs.suggestions + fs.outside)
+        return "carry or drop %d non-blocking line%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
+    n = len([f for f in fs.suggestions + fs.outside if not f.fields.get("comment")])
+    return "sdd-pr post --pr %d (%d line%s not on it)" % (pr["number"], n, "" if n == 1 else "s") if n else ""
 
 
 def harvested(session: Session, pr: dict) -> bool:
@@ -1535,7 +1553,7 @@ def cmd_post(session: Session, args) -> int:
 
 def _post(session: Session, args, pr: dict) -> int:
     fs = session.fs
-    candidates = [f for f in fs.open if f.severity in BLOCKING and not f.fields.get("forge")]
+    candidates = [f for f in fs.blocking if not f.fields.get("forge")]
     adopted = 0
     if candidates:
         # A finding the forge already carries (an id that was not read back, a post interrupted before
@@ -1664,7 +1682,9 @@ def cmd_add(session: Session, args) -> int:
             raise CliError("add: %r is not a path[:line]" % anchor)
         path, line = _anchor(anchor)
         fields = {k: _clean(v) for k, v in (("evidence", args.evidence), ("fix", args.fix), ("by", args.by)) if v}
-        new = [Finding("suggestion" if severity == "suggestion" else "open", severity, path, line, _clean(sentence), fields)]
+        flags = ["outside"] if args.outside and severity in BLOCKING else []
+        new = [Finding("suggestion" if severity == "suggestion" else "open", severity, path, line, _clean(sentence), fields,
+                       flags)]
     else:
         raise CliError("usage: add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] "
                        "[--by …], or add - to read finding lines")
@@ -1836,7 +1856,9 @@ def cmd_flip(session: Session, args) -> int:
     action, fs = chosen[0], session.fs
     if args.suggestions == bool(args.selector):
         raise CliError("flip: name one line (its #key or path:line), or pass --suggestions for every suggestion left")
-    targets = list(fs.suggestions) if args.suggestions else [_select(fs, args.selector)]
+    # The lines left that do not block: suggestions, and, carried, the defects outside the change.
+    left = fs.suggestions + (fs.outside if action == "carry" else [])
+    targets = list(left) if args.suggestions else [_select(fs, args.selector)]
     if not targets:
         print("flip: no suggestion left")
         return 0
@@ -1923,7 +1945,8 @@ def cmd_harvest(session: Session, args) -> int:
     for _, number in prs:
         for comment in session.forge.comments(number):
             for finding in suggestion_lines(comment["body"]):
-                if finding.severity != "suggestion" or finding.status not in ("suggestion", "open"):
+                defect = finding.severity in BLOCKING and finding.status == "open" and "outside" in finding.flags
+                if not defect and (finding.severity != "suggestion" or finding.status not in ("suggestion", "open")):
                     settled += 1  # fixed, carried or dropped in its pull request
                 elif not os.path.exists(os.path.join(session.root, finding.path)):
                     gone.append((finding, "#%d" % number))
@@ -2026,6 +2049,7 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--evidence")
             cmd.add_argument("--fix")
             cmd.add_argument("--by")
+            cmd.add_argument("--outside", action="store_true", help="a critical or important line about code the change did not touch")
         if name == "flip":
             cmd.add_argument("selector", nargs="?", help="the #key status prints, or <path:line>")
             cmd.add_argument("--fixed", metavar="SHA")

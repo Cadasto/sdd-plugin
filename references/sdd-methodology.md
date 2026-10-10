@@ -319,15 +319,15 @@ lane field. The informative profile has one lane.
 **The merge gate.** The code is correct; every binding sentence the change touches has a named test that
 fails when its guard is removed; the code conforms to the sentences it cites (all specifications on the
 formal profile, the constitution on the informative one); the drift gate is green; no critical or
-important finding is open. Everything else is a suggestion ([review.md](review.md) § Severity).
+important finding about the change is open. Everything else is a suggestion ([review.md](review.md) § Severity).
 
 **Findings live in the branch's findings file** and, when there is a pull request, in its inline threads
 and suggestion comments — nowhere else. Format, severities, scope, evidence, the mirror, resolution, the pass budget:
 [review.md](review.md).
 
 **Scope is the change.** A pass reads the branch's commits since its base, so every reviewer gives an
-opinion on the whole change; the pass over fixes reads only the commits since the last pass. What the
-change did not touch is a suggestion at most.
+opinion on the whole change; the pass over fixes reads only the commits since the last pass. A defect in
+what the change did not touch keeps its severity but blocks nothing ([review.md](review.md) § Scope).
 
 **Verify before fixing.** A finding is a claim, and so is a reviewer's proposed correction. Both are
 checked against the code and the documents before either is applied, and so is what surrounds them: the

@@ -58,10 +58,10 @@ means; never re-derive a verdict a family reached.
 ## Rules every finding meets
 
 `references/review.md` is the contract; the brief says which commit range and which profile you are
-reviewing. § Scope: a critical or important finding is about a line the range changed, or text an
-earlier fix on this branch wrote — anything else is a suggestion at most. § Severity: critical,
-important or suggestion; when unsure between the last two, write suggestion; at most ten suggestions,
-leads only, then "and n more". § Evidence: no evidence, no critical or important finding; run the code when
+reviewing. § Scope: a critical or important finding about anything the range did not
+change keeps its severity and ends `· outside`. § Severity: by harm; a claim of wrong code behaviour is
+settled by a run or a named input, never graded down for want of either or of a spec sentence; unsure
+about a document or taste, write suggestion; at most ten suggestions, leads only, then "and n more". § Evidence: no evidence, no critical or important finding; run the code when
 you can. One finding names one defect; other instances inside the range go in the same line. Do not
 raise what the file's `## Resolved` list already declines, unless the change in front of you makes the
 reason untrue — then say which part changed. For a dependency this repository consumes, the upstream's
@@ -79,7 +79,7 @@ verdict, not a finding; a judgement finding (step 4) is important, with both loc
 2. **Findings** — a ```text fence holding ready-to-append lines in the findings-file grammar of
    `references/review.md` § The findings file: `- [ ] <severity> · <path>:<line> · <one sentence> ·
    evidence: <what you ran or quoted> · fix: <one line> · by: <your agent name>` for critical and
-   important; `- <path>:<line> · <one sentence> · by: <your agent name>` for suggestions. Nothing else in
+   important, then ` · outside` when the range did not change it; `- <path>:<line> · <one sentence> · by: <your agent name>` for suggestions. Nothing else in
    the fence. An empty fence when clean.
 3. **Coverage** — one line: what you read and ran, and anything you could not check.
 

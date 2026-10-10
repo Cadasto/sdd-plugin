@@ -355,10 +355,10 @@ class TestStatus(RepoCase):
         fake = self.use(routes)
         code, out, _ = self.run_main("status")
         self.assertEqual(0, code, out)
-        self.assertIn("open: 0 critical, 0 important · suggestions: 1", out)
+        self.assertIn("open: 0 critical, 0 important · outside the change: 0 · suggestions: 1", out)
         self.assertIn("forge: none", out)
         self.assertIn("Mergeable: yes", out)
-        self.assertTrue(out.rstrip().endswith("Next: carry or drop 1 suggestion (/sdd-deliver --close-out)"), out)
+        self.assertTrue(out.rstrip().endswith("Next: carry or drop 1 non-blocking line (/sdd-deliver --close-out)"), out)
         self.assertFalse([a for a, _ in fake.calls if a[0] in ("gh", "az")])
         # With an open finding the next step is triage.
         self.findings(FILE_OPEN_IMPORTANT)
@@ -475,13 +475,13 @@ class TestStatus(RepoCase):
         _, out, _ = self.run_main("status")
         self.assertIn("PR 7 (draft)", out)
         # A suggestion not on the pull request yet goes there before it is marked ready.
-        self.assertIn("Next: sdd-pr post --pr 7 (1 suggestion not on it)", out)
+        self.assertIn("Next: sdd-pr post --pr 7 (1 line not on it)", out)
         passed = [{"status": "COMPLETED", "conclusion": "SUCCESS"}]
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=passed))
         _, out, _ = self.run_main("status")
         self.assertIn("checks: pass", out)
         self.assertIn("Mergeable: yes", out)
-        self.assertIn("Next: sdd-pr post --pr 7 (1 suggestion not on it)", out)
+        self.assertIn("Next: sdd-pr post --pr 7 (1 line not on it)", out)
         # Once in its comment, a suggestion waits for the harvest after merge: ready → merge, draft → mark ready.
         self.findings(FILE_CLEAN.replace("by: claude\n", "by: claude · comment: 901\n"))
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=passed))
@@ -515,7 +515,7 @@ class TestStatus(RepoCase):
         self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names=""))
         _, out, _ = self.run_main("status")
         self.assertIn("(no change since)", out)
-        self.assertIn("Next: carry or drop 1 suggestion", out)
+        self.assertIn("Next: carry or drop 1 non-blocking line", out)
 
     def test_status_names_a_document_change_without_steering_to_review(self):
         # A close-out commit changes only documents: the map, the status lines, the indexes.
@@ -524,7 +524,7 @@ class TestStatus(RepoCase):
         self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="docs/x.md\n"))
         _, out, _ = self.run_main("status")
         self.assertIn("(documents changed since)", out)
-        self.assertIn("Next: carry or drop 1 suggestion", out)
+        self.assertIn("Next: carry or drop 1 non-blocking line", out)
 
     def test_status_survives_an_unreachable_forge(self):
         self.descriptor(forge="github")
@@ -789,7 +789,7 @@ class TestPost(GitHubCase):
         # The suggestion goes in its own comment on the pull request, whose id the line takes.
         self.assertEqual(1, len(self.comments))
         self.assertIn("\n- a.go:2 · a suggestion is never inline · by: claude\n", self.comments[0]["body"])
-        self.assertIn("post: 1 suggestion in a new comment on PR 7", out)
+        self.assertIn("post: 1 line in a new comment on PR 7", out)
         text = self.read_findings()
         self.assertIn("in the diff · evidence: ran it · fix: guard · by: claude · forge: 4242", text)
         self.assertIn("z.go:40 · outside the diff · by: claude · unanchored", text)
@@ -1878,7 +1878,7 @@ class TestLeftovers(RepoCase):
         reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), lambda argv, _: HEAD + "\n")
         self.use([reviewed_at_head] + git_routes())
         _, out, _ = self.run_main("status")
-        self.assertIn("Next: carry or drop 1 suggestion (/sdd-deliver --close-out)", out)
+        self.assertIn("Next: carry or drop 1 non-blocking line (/sdd-deliver --close-out)", out)
         self.assertEqual(0, self.run_main("flip", "--suggestions", "--dropped")[0])
         _, out, _ = self.run_main("status")
         self.assertIn("Mergeable: yes", out)
@@ -2015,7 +2015,7 @@ class TestSuggestionComments(GitHubCase):
         fs = sdd_pr.parse(FILE_POSTED.replace("- a.go:10 · reword · by: claude · comment: 901",
                                               "- [x] suggestion · a.go:10 · reword · by: claude · comment: 901 · fixed abc1234"))
         body = sdd_pr.suggestions_body(HEAD, fs.items)
-        self.assertIn("<details><summary>2 suggestions, 1 open</summary>", body)
+        self.assertIn("<details><summary>2 lines, 1 open</summary>", body)
         self.assertNotIn("comment:", body)
         back = sdd_pr.suggestion_lines(body)
         self.assertEqual([("suggestion", "a.go", "9", "rename n"), ("fixed", "a.go", "10", "reword")],
@@ -2037,7 +2037,7 @@ class TestSuggestionComments(GitHubCase):
         self.assertEqual(["901"], self.comment_edits)
         self.assertIn("\n- [x] suggestion · a.go:9 · rename n · by: claude · fixed abc1234\n", self.comments[0]["body"])
         self.assertIn("\n- a.go:10 · reword · by: claude\n", self.comments[0]["body"])
-        self.assertIn("resolve: 1 suggestion comment edited on PR 7", out)
+        self.assertIn("resolve: 1 comment edited on PR 7", out)
         # In step: nothing more to edit.
         self.run_main("resolve")
         self.assertEqual(["901"], self.comment_edits)
@@ -2066,7 +2066,80 @@ class TestSuggestionComments(GitHubCase):
         self.assertEqual(0, code, err)
         self.assertEqual(1, len(self.comments))
         self.assertIn("- a.go:9 · rename n · by: claude · comment: 901", self.read_findings())
-        self.assertIn("resolve: 2 suggestions in a new comment on PR 7", out)
+        self.assertIn("resolve: 2 lines in a new comment on PR 7", out)
+
+
+FILE_OUTSIDE = """# Findings — feat/x
+Base: main
+Reviewed %s · 2026-09-30 · claude: go-reviewer (1 of 1)
+
+## Open
+- [ ] important · z.go:9 · a panic in the fetch leaves the call in flight forever · evidence: TestPanic hangs · by: go-reviewer · outside
+
+## Resolved
+
+## Suggestions
+- a.go:2 · name the retry budget · by: claude
+""" % HEAD[:7]
+
+
+class TestOutside(GitHubCase):
+    """A defect outside the change keeps its severity, blocks nothing, and travels in the comment."""
+
+    def test_an_outside_defect_does_not_block_and_leads_the_comment(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_OUTSIDE)
+        passed = [{"status": "COMPLETED", "conclusion": "SUCCESS"}]
+        self.PR = {"isDraft": False, "statusCheckRollup": passed}
+        reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), HEAD + "\n")
+        self.use([reviewed_at_head] + self.routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("open: 0 critical, 0 important · outside the change: 1 · suggestions: 1", out)
+        self.assertIn("Mergeable: yes", out)
+        self.assertIn("Next: sdd-pr post --pr 7 (2 lines not on it)", out)
+        posts = []
+
+        def review(argv, stdin):
+            posts.append(json.loads(stdin))
+            self.reviews.append({"id": 901, "body": posts[-1]["body"]})
+            return json.dumps({"id": 901})
+
+        extra = [(lambda a: a[:2] == ["gh", "api"] and "POST" in a and a[2].endswith("/reviews"), review),
+                 (lambda a: a[:2] == ["gh", "api"] and "/reviews/901/comments" in a[2], json.dumps([]))]
+        self.use(self.routes(extra=extra, diff=DIFF))
+        code, out, err = self.run_main("post")
+        self.assertEqual(0, code, err)
+        self.assertEqual([], posts[0]["comments"])
+        self.assertIn("no critical or important finding open; 1 outside the change and 1 suggestion", posts[0]["body"])
+        body = self.comments[0]["body"]
+        self.assertIn("**Not blocking, at `%s`:** 1 outside the change, 1 suggestion" % HEAD[:7], body)
+        defect = body.index("- [ ] important · z.go:9")
+        self.assertLess(defect, body.index("- a.go:2 · name the retry budget"))
+        self.assertIn("by: go-reviewer · outside\n", body)
+        self.assertNotIn("z.go", posts[0]["body"])
+        self.assertIn("by: go-reviewer · comment: 901 · outside", self.read_findings())
+
+    def test_carry_takes_the_outside_defects_and_drop_leaves_them(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OUTSIDE)
+        self.use(git_routes())
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--dropped")[0])
+        self.assertEqual(1, len(sdd_pr.parse(self.read_findings()).outside))
+        self.findings(FILE_OUTSIDE)
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--carry")[0])
+        backlog = (self.root / "docs" / "backlog.md").read_text(encoding="utf-8")
+        self.assertIn("- important · z.go:9 · a panic in the fetch leaves the call in flight forever", backlog)
+        self.assertEqual([], sdd_pr.parse(self.read_findings()).outside)
+
+    def test_add_marks_an_outside_defect_and_still_wants_evidence(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        code, _, err = self.run_main("add", "important", "z.go:9", "hangs forever", "--outside")
+        self.assertEqual(2, code)
+        self.assertIn("--evidence", err)
+        code, _, err = self.run_main("add", "important", "z.go:9", "hangs forever", "--outside", "--evidence", "ran it")
+        self.assertEqual(0, code, err)
+        self.assertEqual(["outside"], sdd_pr.parse(self.read_findings()).open[0].flags)
 
 
 class TestHarvest(GitHubCase):
@@ -2108,7 +2181,9 @@ class TestHarvest(GitHubCase):
         twelve = self.comment_of("- a.go:9 · rename n · by: claude",
                                  "- [x] suggestion · a.go:10 · reword · by: claude · fixed abc1234",
                                  "- [~] suggestion · a.go:11 · trim · by: claude · deferred: dropped by the maintainer",
-                                 "- gone/b.go:3 · the file was removed since · by: claude")
+                                 "- gone/b.go:3 · the file was removed since · by: claude",
+                                 "- [ ] important · a.go:40 · the fetch hangs after a panic · evidence: ran it · outside",
+                                 "- [x] important · a.go:41 · fixed outside defect · fixed abc1234 · outside")
         merged = {11: "2026-10-04T12:00:00Z", 12: "2026-10-04T21:10:00Z"}
         comments = {11: [self.comment_of("- a.go:1 · harvested before · by: claude")],
                     12: ["LGTM", twelve]}
@@ -2119,13 +2194,15 @@ class TestHarvest(GitHubCase):
         backlog = self.backlog()
         # #11 merged at the watermark: harvested already.
         self.assertNotIn("harvested before", backlog)
-        self.assertIn("\n## .\n- a.go:9 · rename n · by: claude · from: #12\n", backlog)
+        self.assertIn("- important · a.go:40 · the fetch hangs after a panic · evidence: ran it · from: #12\n", backlog)
+        self.assertIn("- a.go:9 · rename n · by: claude · from: #12\n", backlog)
+        self.assertNotIn("fixed outside defect", backlog)
         for settled in ("reword", "trim", "removed since"):
             self.assertNotIn(settled, backlog)
         self.assertIn("harvested_through: 2026-10-04T21:10:00Z\n", backlog)
         self.assertTrue(backlog.startswith("---\nkind: plan\nharvested_through:"), backlog)
         self.assertIn("left out, its path is gone: gone/b.go:3", out)
-        self.assertIn("1 line carried to docs/backlog.md, 0 already there, 2 settled in their pull request, 1 left out", out)
+        self.assertIn("2 lines carried to docs/backlog.md, 0 already there, 3 settled in their pull request, 1 left out", out)
         # A second harvest finds nothing newer and writes nothing new.
         before = self.backlog()
         self.use(self.harvest_routes(merged, comments))
@@ -2178,7 +2255,7 @@ class TestHarvest(GitHubCase):
         self.PR = {"state": "MERGED", "mergeCommit": {"oid": "e" * 40}, "mergedAt": "2026-10-04T21:10:00Z"}
         self.use(self.routes())
         _, out, _ = self.run_main("status")
-        self.assertIn("still in the file: 0 open lines, 1 suggestion not on the pull request", out)
+        self.assertIn("still in the file: 0 open lines, 1 line not on the pull request", out)
         self.assertIn("Next: /sdd-triage --backlog, then delete", out)
         self.backlog(self.head_with_mark("2026-10-04T21:10:00Z"))
         _, out, _ = self.run_main("status")

@@ -53,8 +53,9 @@ knowledge base in which only the constitution binds).
 **Findings live in the branch's findings file** (one per branch, in the clone's git directory; `sdd-pr`
 writes it) and,
 on a pull request, in its inline threads, one summary per pass and the suggestion comments, which
-`sdd-pr` keeps in step. Three severities: critical and important are resolved before merge and get inline
-threads; suggestions never block, and after merge `/sdd-triage --backlog` carries them to
+`sdd-pr` keeps in step. Three severities, by harm: critical and important about the change are resolved before
+merge and get inline threads; one about code the change did not touch keeps its severity, marked
+`outside`, blocks nothing and is carried after merge unless fixed here; suggestions never block, and after merge `/sdd-triage --backlog` carries them to
 `docs/backlog.md`. A suggestion is written down only when it outlives the change; taste (naming,
 wording, style) never does. Every critical or important
 finding carries evidence. Nothing else about findings is posted, the pull request's body included.

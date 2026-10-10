@@ -6,7 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Tools: the `outside` marker: a critical or important line about code the change did not touch keeps its severity, blocks nothing, goes in the non-blocking comment above the suggestions, and `harvest` carries it with its severity; `sdd-pr add --outside`; `flip --suggestions --carry` takes the open `outside` lines too.
+
 ### Changed
+- References: `review.md` § Severity grades by harm wherever the line is, settles a claim of wrong code behaviour by a run or a named input instead of grading it down, and makes a document finding important only when a reader would build or test the wrong thing from it; § Scope replaces "a suggestion at most" with the `outside` marker; methodology §13's merge gate counts findings about the change.
+- Agents: the three reviewers carry the new scope and severity digest and end an `outside` line with `· outside`; `sdd-doc-reviewer` moves the form findings (a missing keyword, the shape of an acceptance criterion or an ADR, a plan citation) to suggestions.
+- Skills: `sdd-review` settles a code line that claims wrong behaviour before filing it and keeps the higher severity when two reviewers disagree; `sdd-triage` fixes an `outside` line only when the maintainer says so; `sdd-deliver` files an implementer's out-of-scope defect as `outside`.
+- Templates: `ai-workflow.md` § Review states the `outside` rule.
 - Tools: `sdd-pr scope --since-last` starts at the last pass by anyone when `--agent` has none of its own, and diffs from the last pass with the base merged in, so a merge of the base after a pass no longer puts the base's changes in the range.
 - Tools: `sdd-pr status` points `Next` at `/sdd-review --since-last` after a code change only until the pass budget is spent, then says so.
 - Tools: `sdd-pr scope --diff` takes `sdd-spec-conformance-reviewer` (code and tests) and `sdd-doc-reviewer` (documents).
