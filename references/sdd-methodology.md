@@ -362,7 +362,7 @@ The review-enforced list is meant to shrink.
 | Generated blocks match | `generated` |
 | Unknown identifier cited in code | `tree-to-map` |
 | Lanes | review-enforced — `/sdd-review` |
-| Critical and important findings carry evidence; one about code the change did not touch carries `outside` | review-enforced — `/sdd-review` |
+| Critical and important findings carry evidence; one about what the change did not touch carries `outside` | review-enforced — `/sdd-review` |
 | No open critical or important finding about the change at merge | `sdd-pr status` |
 | The pass budget | review-enforced — `/sdd-triage` |
 | Collapse before you add | review-enforced |

@@ -170,9 +170,11 @@ if is_sdd_repo; then
   [ -n "$profile" ] || profile="$(desc_get "" profile)"
   case "$profile" in ''|full|lightweight) profile=formal ;; esac
   add "› Spec-Driven Development repo detected (profile $profile) — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR, or a knowledge-base page) · /sdd-deliver (workers → review → PR → close-out) · /sdd-review (review pass into the findings file) · /sdd-triage (work the open findings; --backlog after merges) · /sdd-trace (traceability, --audit) · /sdd-scaffold. Run /sdd-trace + the build's spec-check before claiming done."
-  # The skills redirect the gate's log and the reviewers' diffs into .sdd/ (ignored by the scaffold's
-  # line, and invisible to git while empty); a redirect into a missing folder fails, so make it here.
-  mkdir -p .sdd 2>/dev/null || true
+  # The skills redirect the gate's log and the reviewers' diffs into .sdd/; a redirect into a missing
+  # folder fails, so make it here, but only where the scaffold's ignore line keeps its files out of git.
+  if grep -qxE '/?\.sdd/?' .gitignore 2>/dev/null; then
+    mkdir -p .sdd 2>/dev/null || true
+  fi
 
   # 0. The plugin version, from the manifest beside this script (or the host's plugin root), and how it
   # compares with the version this repository vendored its gate at: an older gate wants an upgrade, an

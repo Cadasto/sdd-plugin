@@ -54,7 +54,7 @@ knowledge base in which only the constitution binds).
 writes it) and,
 on a pull request, in its inline threads, one summary per pass and the suggestion comments, which
 `sdd-pr` keeps in step. Three severities, by harm: critical and important about the change are resolved before
-merge and get inline threads; one about code the change did not touch keeps its severity, marked
+merge and get inline threads; one about code or a document the change did not touch keeps its severity, marked
 `outside`, blocks nothing and is carried after merge unless fixed here; suggestions never block, and after merge `/sdd-triage --backlog` carries them to
 `docs/backlog.md`. A suggestion is written down only when it outlives the change; taste (naming,
 wording, style) never does. Every critical or important
@@ -70,12 +70,13 @@ block, filled in.
 ── review request · <branch> · range <a>..<b> · profile <formal|informative> ──
 Review commits <a>..<b> of <repository>, and only those. Read docs/ai-workflow.md § Review.
 Report critical and important findings only, each with evidence (what you ran, or the two
-sentences that disagree) and a one-line fix, ending a defect in code the range did not change with
+sentences that disagree) and a one-line fix, ending a defect in what the range did not change with
 ` · outside`; write anything smaller as a suggestion.
 If you work on this machine, pipe your lines in that grammar to: <plugin root>/tools/sdd-pr.py add -
 If you work on the pull request, post one review: one inline comment per finding about the change,
-its first word **critical** or **important**, and a defect in code the range did not change in the
-review body, ending ` · outside`; post nothing else, and do not restate the PR body.
+its first word **critical** or **important** and its last line `By: <your name>`, and a defect in
+what the range did not change in the review body, in the grammar above; post nothing else, and do not
+restate the PR body.
 ──────────────────────────────────────────────────────────────────────────────
 ```
 

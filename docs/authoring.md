@@ -19,7 +19,7 @@ This page is for contributors adding or changing a skill, agent, or Cursor rule 
   - The body is the agent's system prompt: open it in the second person ("You are a report-only specialist that…"), then continue in the imperative.
   - Call an agent read-only only when its grant really is. `Bash` writes (`sed -i`, a redirect), so an agent holding it is report-only, and its body should say that no-edit is a contract it keeps rather than a sandbox.
   - A worker agent is kept from spawning workers by denying `Agent` (and its older name `Task`) through `disallowedTools:`, which leaves every other tool reachable; the reviewers keep allowlists because their no-edit contract matters more than reach. Do not move the worker to an allowlist.
-  - The three reviewers share one *Rules every finding meets* section and one *Output format* (findings-file lines with evidence), both owned by `references/review.md`; change all three together.
+  - The three reviewers share the *Rules every finding meets* heading and one *Output format* (findings-file lines with evidence), both owned by `references/review.md`. The auditor's rules drop the range and `outside`, as it reads the whole tree; change the two other reviewers' rules together, and the auditor's to match where the rule applies to it.
   - Both grants are Claude Code fields. Cursor subagents inherit every tool, so on Cursor the same rules hold as contracts stated in the body; write the body so it stands alone.
 - **Cursor rule:** a Cursor-only `.mdc` with `description` / `globs` / `alwaysApply` mirroring the router. See `rules/sdd-context.mdc`.
 

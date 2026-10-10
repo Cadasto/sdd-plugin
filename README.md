@@ -30,7 +30,7 @@ The plugin owns the spec, document, and traceability layer and the delivery pipe
 - **Requirements, specs, and decisions:** `/sdd-specify` writes the `REQ`, the RFC-2119 `SPEC §`, and the `ADR`, assigns stable identifiers, and wires the traceability map.
 - **Drift gate:** `sdd-check`, one vendored Python file, checks the chain `REQ → SPEC § → ADR → code → test` in both directions and fails the build on drift.
 - **Delivery pipeline:** `/sdd-deliver` takes one change from the dispatch gate through `sdd-implementer` workers and a first review pass to a pull request, and closes it out (`--close-out`) in that pull request, or after its merge.
-- **A findings file per branch:** `/sdd-review` writes findings, each critical and important one with its evidence, into one file per branch in the clone's git directory, which every worktree, Claude, Cursor and you can all read; `sdd-pr` makes every change to it, so nobody edits it by hand. `sdd-pr` mirrors the critical and important ones to the pull request's inline threads on GitHub or Azure DevOps (a defect in code the change did not touch keeps its severity but blocks nothing: it goes in the comment beside the suggestions and is carried to the backlog after merge unless fixed here), and tells you what is open, whether the branch is mergeable, and what to run next. It also posts one short review per pass, its summary on top even when the pass found nothing; the pull request's body stays a description of the branch. Each pass's suggestions go in a comment of their own, never inline, and after merge `/sdd-triage --backlog` carries the open ones to a committed `docs/backlog.md` and sorts them into themes, each what one delivery would take on; the next delivery that touches their files reads them.
+- **A findings file per branch:** `/sdd-review` writes findings, each critical and important one with its evidence, into one file per branch in the clone's git directory, which every worktree, Claude, Cursor and you can all read; `sdd-pr` makes every change to it, so nobody edits it by hand. `sdd-pr` mirrors the critical and important ones to the pull request's inline threads on GitHub or Azure DevOps (a defect in code the change did not touch keeps its severity but blocks nothing: it goes in the non-blocking comment, above the suggestions, and is carried to the backlog after merge unless fixed here), and tells you what is open, whether the branch is mergeable, and what to run next. It also posts one short review per pass, its summary on top even when the pass found nothing; the pull request's body stays a description of the branch. Each pass's suggestions go in that non-blocking comment too, never inline, and after merge `/sdd-triage --backlog` carries the open lines to a committed `docs/backlog.md` and sorts them into themes, each what one delivery would take on; the next delivery that touches their files reads them.
 - **Two profiles:** formal (requirements, RFC-2119 specifications, the traceability map and the drift gate) and informative (a knowledge base plus one binding architecture document, for repositories where code leads).
 - **Two lanes:** on the formal profile, a change that alters a normative statement takes the full lane; a refactor or other maintenance change skips the conformance reviewer, a changed document is still read for consistency, and the drift gate runs in both.
 - **Config-driven:** the `docs/.sdd.yaml` descriptor sets identifier style, paths, build targets, and delivery parameters, so the same skills serve a flat-numeric library or an area-prefixed service unchanged.
@@ -57,7 +57,7 @@ See [docs/install.md](docs/install.md) for marketplace, local-development, updat
 /sdd-scaffold                          # lay down the docs/ tree + .sdd.yaml in this repo
 /sdd-specify add a capability for <X>  # capture the REQ, write the normative SPEC, record any ADR
 /sdd-deliver REQ-...                   # preconditions → workers → review pass → PR
-/sdd-review --panel                    # print the prompt blocks for outside reviewers
+/sdd-review --panel                    # print the prompt blocks for reviewers outside the repository
 /sdd-triage                            # work the open findings: verify, fix, flip, mirror
 /sdd-deliver <PR> --close-out          # set the REQ shipped and write the PR body
 /sdd-triage --backlog                  # after merges: carry merged PRs' leftovers to docs/backlog.md
@@ -90,7 +90,7 @@ Claude Code enforces these grants. Cursor's subagent frontmatter carries no tool
 | Agent | Purpose |
 |---|---|
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans, dispatched by `/sdd-trace --audit` |
-| `sdd-doc-reviewer` | Reviews the changed hunks of the documents a change touched (**not** code): two homes for one rule, sentences that disagree, missing RFC-2119 force; consistency only on the informative profile |
+| `sdd-doc-reviewer` | Reviews the changed hunks of the documents a change touched (**not** code): two homes for one rule, sentences that disagree, missing RFC-2119 force; consistency on the informative profile and the maintenance lane |
 | `sdd-spec-conformance-reviewer` | Judges whether changed code satisfies the binding sentences it cites, clause by clause, running the tests and removing each touched guard as evidence |
 | `sdd-implementer` | Implements one bounded task from a brief: reads the quoted clauses, writes each test first and proves it can fail, cites `REQ`/`PROBE` ids in test names and its commit message, and returns `En-route findings` |
 
@@ -115,7 +115,9 @@ Full contract: [references/sdd-check.md](references/sdd-check.md).
 
 ### Hooks
 
-- **SessionStart:** detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a context line, the available `/sdd-*` surface, and a short orientation: the profile, the plugin version and any mismatch with the vendored gate, branch and tree state, the branch's open findings, and the drift gate's verdict when it is vendored.
+What each hook does on each host: [docs/install.md](docs/install.md#hooks).
+
+- **SessionStart:** detects an SDD repository (`docs/.sdd.yaml`, `docs/specifications/`, or a traceability map) and prints a context line, the available `/sdd-*` surface, and a short orientation: the profile, the plugin version and root and any mismatch with the vendored gate, branch and tree state, the branch's open findings (those outside the change counted apart), and the drift gate's verdict when it is vendored. It also creates `.sdd/`, where the skills write the gate's log and the reviewers' diffs.
 - **PostToolUse** *(Claude Code)*: after an edit to a requirement, spec, ADR, or the traceability map, reminds you to keep the traceability chain in sync: `/sdd-trace` to check it, `/sdd-specify`, `/sdd-deliver --close-out`, or the vendored `generate` command to regenerate; on the informative profile only a constitution edit prints one. Cursor's `afterFileEdit` event has no output channel, so there is no reminder on Cursor ([install notes](docs/install.md#cursor)).
 - **Stop** *(Claude Code)* / **stop** *(Cursor)*: a one-shot nudge when the session made no commit and leaves uncommitted changes in an SDD repository; the second stop in the same session passes silently. Opt out per repo with `hooks.stop_nudge: false` in `docs/.sdd.yaml`.
 

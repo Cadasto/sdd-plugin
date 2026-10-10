@@ -356,6 +356,23 @@ def comment_body(finding: Finding) -> str:
     return body
 
 
+def outside_lines(body: str) -> List[Finding]:
+    """A review body's lines that report a defect outside the change in the file's grammar, ending
+    `· outside`: the review request puts them there, as no inline comment can sit outside the diff."""
+    out = []
+    for raw in (body or "").splitlines():
+        text = re.sub(r"^\s*(?:[-*]\s+)?(?:\[ \]\s+)?", "", raw).replace("**", "").strip()
+        if not text.endswith(SEP.strip() + " outside"):
+            continue
+        try:
+            finding = parse_line("- [ ] " + text, 0)
+        except FileError:
+            continue
+        if finding.severity in BLOCKING:
+            out.append(finding)
+    return out
+
+
 def author_of(body: str) -> str:
     """The reviewer a thread was posted for: its `By:` line, since every thread is posted under one account."""
     match = re.search(r"^By: (.+)$", body or "", re.M)
@@ -1616,7 +1633,7 @@ def cmd_pull(session: Session, args) -> int:
         if thread["id"] in known:
             continue
         fields = {"by": author_of(thread["body"]) or thread["author"] or "forge", "forge": thread["id"]}
-        if not author_of(thread["body"]):
+        if not author_of(thread["body"]) and not (thread["author"] or "").endswith("[bot]"):
             people.append(_clean(thread["author"] or "forge").replace(":", "-"))
         text = first_sentence(thread["body"])
         outside = text.endswith(" - outside")  # the panel prompt's marker, its separator turned into a dash
@@ -1624,10 +1641,23 @@ def cmd_pull(session: Session, args) -> int:
                                 text[:-len(" - outside")] if outside else text, fields, ["outside"] if outside else []))
         known.add(thread["id"])
         added += 1
+    for body in session.forge.review_bodies(pr["number"]):
+        if SUGGESTIONS_RE.search(body):
+            continue  # the non-blocking comment, which the file wrote
+        for finding in outside_lines(body):
+            said = (finding.anchor, finding.text.casefold().rstrip(" ."))
+            if any((f.anchor, f.text.casefold().rstrip(" .")) == said for f in fs.items):
+                continue
+            finding.fields.setdefault("by", author_of(body) or "forge")
+            fs.items.append(finding)
+            added += 1
     people = sorted(set(people))
-    if people and not [p for p in fs.passes if p[0] == session.head[:7] and p[2] == "maintainer"]:
-        # A thread with no `By:` line is a person's: the maintainer's review, which opens the pass over the fixes.
-        fs.reviewed.append((session.head[:7], datetime.date.today().isoformat(), "maintainer",
+    # The commit the maintainer read: the pull request's head, when this checkout holds it.
+    seen = (pr["head"] if pr.get("head") and session.holds(pr["head"]) else session.head)[:7]
+    if people and not [p for p in fs.passes if p[0] == seen and p[2] == "maintainer"]:
+        # A thread with no `By:` line, not a bot's, is a person's: the maintainer's review, which opens the
+        # pass over the fixes.
+        fs.reviewed.append((seen, datetime.date.today().isoformat(), "maintainer",
                             "%s (%d of %d)" % (", ".join(people), len(people), len(people))))
     if added or not session.has_file():
         session.save()
@@ -1794,6 +1824,15 @@ def cmd_add(session: Session, args) -> int:
             raise CliError("add: %s%s %s finding needs %s (references/review.md § Evidence)"
                            % (where, "an" if finding.severity == "important" else "a", finding.severity,
                               "evidence:" if where else "--evidence"))
+    flagged = [f for f in new if "outside" in f.flags and f.line.isdigit()]
+    if flagged:
+        # `outside` is a fact about the diff: a line the branch changed is in the change, and blocks.
+        changed = changed_lines(session, sorted({f.path for f in flagged}))
+        for finding in flagged:
+            if int(finding.line) in changed.get(finding.path, set()):
+                finding.flags = [flag for flag in finding.flags if flag != "outside"]
+                print("add: the branch changed %s, so the finding blocks; `outside` dropped" % finding.anchor,
+                      file=sys.stderr)
     added = merged = 0
     for finding in new:
         twin = next((f for f in session.fs.items if _same(f, finding)), None)
@@ -1816,6 +1855,15 @@ def cmd_add(session: Session, args) -> int:
     session.save()
     print("add: %d added, %d merged into an existing line" % (added, merged))
     return 0
+
+
+def changed_lines(session: Session, paths: List[str]) -> Dict[str, set]:
+    """The lines of ``paths`` the branch changed, against its merge base; none when that cannot be told."""
+    try:
+        merge_base = git(session.root, "merge-base", base_ref(session.root, session.base()), "HEAD").strip()
+        return parse_hunks(git(session.root, "diff", "--no-ext-diff", "-U0", merge_base, "HEAD", "--", *paths))
+    except CliError:
+        return {}
 
 
 def priority(finding: Finding, globs: List[str]) -> Tuple[int, int]:
@@ -2108,7 +2156,8 @@ def cmd_harvest(session: Session, args) -> int:
     if not mark:
         return 0
     session.guard()
-    for line in recheck(session, get_watermark(read_backlog(session.root))):
+    # The lines to re-check: since the last harvest, or, on the first, since --since.
+    for line in recheck(session, get_watermark(read_backlog(session.root)) or (iso(start) if args.since else "")):
         print("re-check, its path changed since the last harvest: " + line[2:])
     added = carry(session.root, items, mark, session.globs, full=False)
     print("harvest: %d line%s carried to %s, %d already there, %d settled in their pull request, %d left out; "

@@ -64,7 +64,7 @@ Two reviewers' grades for one defect: the higher one with evidence.
 A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`; `--since-last` reads only the commits since the last `Reviewed` line (`--agent`: one
 agent's own, when it has one) and leaves out what a merge of the base brought in. Plans, and the vendored gate unless patched here, go to no reviewer. A stacked branch names its parent once
 with `--base`. A critical or
-important finding about code the branch did not change  keeps its
+important finding about code, or a document, the branch did not change keeps its
 severity and carries `outside`: it blocks nothing and is carried after merge unless the maintainer has it fixed here. Read the changed hunks and what surrounds them, not whole files.
 
 ## Evidence
@@ -81,7 +81,7 @@ With a pull request, `sdd-pr` keeps its inline threads, one review per pass and 
 in step with the file; nothing else about findings is posted. It never writes the pull request's body.
 
 - `pull` appends each unresolved thread the file does not know as an open finding with its `forge:` id;
-  a thread is `important` unless it opens with `**critical**`, `outside` when its first line ends `· outside`, and one reopened reopens its line; its `By:` line, when it has one, is the `by:`. A thread with none is a person's: it records the maintainer's review, a `maintainer` line at HEAD.
+  a thread is `important` unless it opens with `**critical**`, `outside` when its first line ends `· outside`, and one reopened reopens its line; its `By:` line, when it has one, is the `by:`. A thread with none, not a bot's, is a person's: it records the maintainer's review, a `maintainer` line at the pull request's head. A review body's line in the file's grammar that ends `· outside` becomes an `outside` finding.
 - `post` publishes one review per pass at HEAD: a summary above one inline thread, carrying its `By:` line, per open critical and important
   finding about the change without a `forge:` id, and writes the ids back. A line outside the diff is marked `unanchored` and listed in the review body. A clean pass
   posts the summary alone, once; the maintainer's recorded review gets
@@ -125,8 +125,8 @@ is as of its `from:`, and nobody refreshes it. An item is a lead, not a finding:
 
 ## Passes
 
-One pass before the maintainer's review (its `maintainer` line), and after it at most one `--since-last`
-pass over the fixes, a document-only fix included, dispatching only the reviewers whose file kinds changed.
+One pass before the maintainer's review (its `maintainer` line), and after each such review at most one
+`--since-last` pass over the fixes, a document-only fix included, dispatching only the reviewers whose file kinds changed.
 After that only a new critical finding reopens review; otherwise the orchestrator stops and shows the open
 list. A second opinion the maintainer asks for is outside this budget.
 
@@ -156,14 +156,14 @@ request. A plugin older than the repository's `check.version` refuses every writ
   one reviewer, the plugin's own reviewers included.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …] [--outside]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important
-  finding without evidence, and folds a line with the same anchor and sentence into the first: the higher severity, `outside` only when both say so.
+  finding without evidence, drops `outside` from a line the branch changed, and folds a line with the same anchor and sentence into the first: the higher severity, `outside` only when both say so.
 - `flip <#key | path:line> --fixed <sha> | --declined <reason> | --deferred <where> | --carry | --dropped`
   — resolves one line; `--fixed` needs the fix on `origin/<branch>` when that exists;  `--suggestions` in
   place of the line applies to every one left and, with `--carry`, to the open `outside` lines.
 - `harvest [--since <date | #PR>] [--dry-run]` — § The backlog.
 - `record --agent <name> --reviewers <a, b> --reported <n>/<m>` — the `Reviewed` line at HEAD; refuses
   (exit 2) a pass on which no reviewer reported, which still ends it; clears `scope --start`'s note and removes the scratch worktree.
-- `guard <path:line> --expect <text> (--delete | --replace <text>) [--timeout <s>] -- <test command>` — removes one guard in the pass's scratch worktree at HEAD (a path inside the repository; `--expect` found once on the line), runs the command there, which must first pass unchanged, restores the line, and prints `pinned` or `untested`; a run past the timeout (600 s) is a failure. It refuses when `PYTHONPATH` or `NODE_PATH` reaches the file in the checkout. `--cleanup` removes the
+- `guard <path:line> --expect <text> (--delete | --replace <text>) [--timeout <s>] -- <test command>` — removes one guard in the pass's scratch worktree at HEAD (a path inside the repository; `--expect` found once on the line), runs the command there, which must first pass unchanged, restores the line, and prints `pinned` or `untested`; a run past the timeout (600 s) is a failure. It refuses when `PYTHONPATH` or `NODE_PATH` reaches the file in the checkout. The worktree holds only what HEAD tracks, so a test that needs untracked inputs (installed dependencies, generated files) fails unchanged there, and guard refuses. `--cleanup` removes the
   worktree. It never touches the checkout or the findings file.
 - `rename --from <branch>` — moves a file to the checked-out branch without its `Reviewed` lines, thread
   and comment ids, which belonged to the old branch.

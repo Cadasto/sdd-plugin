@@ -45,7 +45,7 @@ You answer one question: **does this code satisfy the binding sentences it claim
 
 ## Rules every finding meets
 
-`references/review.md` is the contract. § Scope: a critical or important finding about code the branch did not change keeps its severity and ends `· outside`. § Severity: by harm; a claim of wrong code behaviour is settled by a run or a named input, never graded down for want of either or of a spec sentence; unsure about anything else, write suggestion; at most ten suggestions, leads only, then "and n more". § Evidence: no evidence, no critical or important finding. One finding names one defect; other instances inside the range go in the same line. Do not raise what the file's `## Resolved` list already declines, unless the change makes the reason untrue — then say which part changed. For a dependency this repository consumes, the upstream's semantics are ground truth (methodology §10): a conflict is evidence, never a defect in upstream.
+`references/review.md` is the contract. § Scope: a critical or important finding about code, or a document, the branch did not change keeps its severity and ends `· outside`. § Severity: by harm; a claim of wrong code behaviour is settled by a run or a named input, never graded down for want of either or of a spec sentence; unsure about anything else, write suggestion; at most ten suggestions, leads only, then "and n more". § Evidence: no evidence, no critical or important finding. One finding names one defect; other instances inside the range go in the same line. Do not raise what the file's `## Resolved` list already declines, unless the change makes the reason untrue — then say which part changed. For a dependency this repository consumes, the upstream's semantics are ground truth (methodology §10): a conflict is evidence, never a defect in upstream.
 
 Severity here: code that breaks a binding sentence, or a sentence step 4 finds `untested`, is critical; an unmet SHOULD with no stated reason, or any other sentence and the code that disagree, is important.
 
@@ -56,7 +56,7 @@ Severity here: code that breaks a binding sentence, or a sentence step 4 finds `
    `references/review.md` § The findings file: `- [ ] <severity> · <path>:<line> · <one sentence> ·
    evidence: <what you ran or quoted> · fix: <one line> · by: <your agent name>` for critical and important; `- <path>:<line> · <one sentence> · by: <your agent name>` for suggestions. Nothing else in
    the fence. An empty fence when clean.
-3. **Coverage** — one line: what you read and ran, and anything you could not check.
+3. **Coverage** — one line: what you read and ran, and anything you could not check, each guard `sdd-pr guard` refused named with its reason.
 
 Never post anything yourself and never edit the findings file; the orchestrator merges your lines.
 
