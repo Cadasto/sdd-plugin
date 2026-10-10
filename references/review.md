@@ -36,7 +36,7 @@ suggestion), `fixed <sha>`, `declined: <reason>`,
 `deferred: <where>`, the marker `outside` (§ Scope), and `unanchored` and `mirrored`, which `sdd-pr` writes. A suggestion line
 has no checkbox; a carried or deferred one is `- [~] suggestion · …`. Each pass adds one `Reviewed` line with
 `sdd-pr record`: the commit it read, the agent, the reviewers dispatched and how many reported.  A pass on which no reviewer reported adds none, so its range stays open
-until one reads it, or the maintainer's own review is recorded with `record --agent maintainer`.
+until one reads it, or the maintainer's own review is recorded: `pull` records it with their threads, `record --agent maintainer` otherwise.
 
 ## Severity
 
@@ -81,7 +81,7 @@ With a pull request, `sdd-pr` keeps its inline threads, one review per pass and 
 in step with the file; nothing else about findings is posted. It never writes the pull request's body.
 
 - `pull` appends each unresolved thread the file does not know as an open finding with its `forge:` id;
-  a thread is `important` unless it opens with `**critical**`, and one reopened reopens its line; and its `By:` line, when it has one, is the `by:`.
+  a thread is `important` unless it opens with `**critical**`, `outside` when its first line ends `· outside`, and one reopened reopens its line; its `By:` line, when it has one, is the `by:`. A thread with none is a person's: it records the maintainer's review, a `maintainer` line at HEAD.
 - `post` publishes one review per pass at HEAD: a summary above one inline thread, carrying its `By:` line, per open critical and important
   finding about the change without a `forge:` id, and writes the ids back. A line outside the diff is marked `unanchored` and listed in the review body. A clean pass
   posts the summary alone, once; the maintainer's recorded review gets
@@ -112,7 +112,7 @@ code, tests, other, documents. A line the maintainer wants tracked elsewhere bec
 
 `harvest` carries the open lines of the non-blocking comments, an `outside` defect with its severity,
 whose path still exists, of every pull request merged after the front matter's `harvested_through:`, and
-moves that watermark to the last merge read; the first harvest takes `--since`. Its lines are short: the
+moves that watermark to the last merge read; the first harvest takes `--since`. With `forge: none` it carries nothing, the close-out having carried the lines, and only names the lines to re-check. Its lines are short: the
 comment `from:` names keeps the evidence. `flip --carry` adds a deferred finding, and, with `forge: none`,
 the close-out's non-blocking lines. Both add each line once, under `## Unsorted`, defects first.
 
@@ -125,7 +125,7 @@ is as of its `from:`, and nobody refreshes it. An item is a lead, not a finding:
 
 ## Passes
 
-One pass before the maintainer's review, and after it at most one `--since-last`
+One pass before the maintainer's review (its `maintainer` line), and after it at most one `--since-last`
 pass over the fixes, a document-only fix included, dispatching only the reviewers whose file kinds changed.
 After that only a new critical finding reopens review; otherwise the orchestrator stops and shows the open
 list. A second opinion the maintainer asks for is outside this budget.
@@ -137,7 +137,7 @@ only when the code itself guarantees the behaviour and a cheap test can pin it.
 
 ## The tool
 
-`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `pull`, `post`, `resolve` and `harvest` need `gh` (GitHub) or `az` with the `azure-devops` extension (Azure DevOps), signed in; the rest need only git. `--pr`, by default the branch's open pull request, must
+`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `pull`, `post`, `resolve`, and `harvest` on a forge, need `gh` (GitHub) or `az` with the `azure-devops` extension (Azure DevOps), signed in; the rest need only git. `--pr`, by default the branch's open pull request, must
 name one whose branch, or head, this checkout holds, and `--branch` the checkout itself;
 otherwise the command stops and names the worktree to run from. `Base:` follows a retargeted pull
 request. A plugin older than the repository's `check.version` refuses every write, and `status` says so.
@@ -147,23 +147,23 @@ request. A plugin older than the repository's `check.version` refuses every writ
   on a forge, the threads the file does not know and the checks;
   then `Mergeable: yes` or `Mergeable: no — <reasons>` (no pull request, a closed one or an unreachable
   forge is a reason), and `Next: <command>`: `post` while a line is not on the pull request, `/sdd-triage` while one blocks,
-  `/sdd-review --since-last` after a code change until the pass budget is spent (§ Passes). A merged pull
+  `/sdd-review --since-last` after a code change once the maintainer has reviewed, until the pass budget is spent (§ Passes), and the close-out on a draft with nothing else open. A merged pull
   request at HEAD prints `Mergeable: merged`, what is left to carry or delete, and `/sdd-triage --backlog`
   while its watermark is older than the merge.
 - `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>] [--start <agent>]` — the range a
   pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it; `normative lines changed: n`, a hint for the lane;
-  `--start <agent>` notes a pass, and says `pass: running` instead while another agent's note is under an hour old. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
+  `--start <agent>` notes a pass, and refuses (exit 2) with `pass: running` while another agent's note is under an hour old. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
   one reviewer, the plugin's own reviewers included.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …] [--outside]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important
-  finding without evidence, and folds an identical line into the first.
+  finding without evidence, and folds a line with the same anchor and sentence into the first: the higher severity, `outside` only when both say so.
 - `flip <#key | path:line> --fixed <sha> | --declined <reason> | --deferred <where> | --carry | --dropped`
   — resolves one line; `--fixed` needs the fix on `origin/<branch>` when that exists;  `--suggestions` in
   place of the line applies to every one left and, with `--carry`, to the open `outside` lines.
 - `harvest [--since <date | #PR>] [--dry-run]` — § The backlog.
 - `record --agent <name> --reviewers <a, b> --reported <n>/<m>` — the `Reviewed` line at HEAD; refuses
   (exit 2) a pass on which no reviewer reported, which still ends it; clears `scope --start`'s note and removes the scratch worktree.
-- `guard <path:line> --expect <text> (--delete | --replace <text>) -- <test command>` — removes one guard in the pass's scratch worktree at HEAD, runs the command there, which must first pass unchanged, restores the line, and prints `pinned` or `untested`; `--cleanup` removes the
+- `guard <path:line> --expect <text> (--delete | --replace <text>) [--timeout <s>] -- <test command>` — removes one guard in the pass's scratch worktree at HEAD (a path inside the repository; `--expect` found once on the line), runs the command there, which must first pass unchanged, restores the line, and prints `pinned` or `untested`; a run past the timeout (600 s) is a failure. It refuses when `PYTHONPATH` or `NODE_PATH` reaches the file in the checkout. `--cleanup` removes the
   worktree. It never touches the checkout or the findings file.
 - `rename --from <branch>` — moves a file to the checked-out branch without its `Reviewed` lines, thread
   and comment ids, which belonged to the old branch.

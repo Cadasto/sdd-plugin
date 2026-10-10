@@ -451,21 +451,23 @@ class TestStatus(RepoCase):
         _, out, _ = self.run_main("status")
         self.assertIn("2 unresolved threads not open in the file", out)
         self.assertIn("Next: sdd-pr pull --pr 7", out)
-        # Nothing open, HEAD moved since the last pass with a code file changed → review.
-        self.use(
-            [(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")]
-            + git_routes(names="a.go\n")
-            + self._gh_routes()
-        )
+        # Nothing open, HEAD moved since the last pass with a code file changed, before the maintainer's
+        # review: the pass over the fixes waits for that review (review.md § Passes).
+        moved = [(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="a.go\n")
+        self.use(moved + self._gh_routes())
         _, out, _ = self.run_main("status")
         self.assertIn("code changed since", out)
         self.assertIn("Mergeable: yes", out)
-        self.assertIn("Next: /sdd-review --since-last", out)
-        # Once the pass over the fixes is in, the budget is spent: a fix after it does not steer to review.
+        self.assertNotIn("Next: /sdd-review", out)
+        # After the maintainer's review, a code change → the one pass over the fixes.
+        maintainer = "claude: go-reviewer (1 of 1)\nReviewed ddddddd · 2026-10-01 · maintainer: ana (1 of 1)\n"
+        self.findings(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)\n", maintainer))
+        self.use(moved + self._gh_routes())
+        self.assertIn("Next: /sdd-review --since-last", self.run_main("status")[1])
+        # Once that pass is in, the budget is spent: a fix after it does not steer to review.
         self.findings(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)\n",
-                                         "claude: go-reviewer (1 of 1)\nReviewed ddddddd · 2026-10-01 · claude: go-reviewer (1 of 1)\n"))
-        self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="a.go\n")
-                 + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "SUCCESS"}]))
+                                         maintainer + "Reviewed eeeeeee · 2026-10-02 · claude: go-reviewer (1 of 1)\n"))
+        self.use(moved + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "SUCCESS"}]))
         _, out, _ = self.run_main("status")
         self.assertIn("passes: the budget is spent", out)
         self.assertNotIn("Next: /sdd-review", out)
@@ -489,7 +491,7 @@ class TestStatus(RepoCase):
         self.assertTrue(out.rstrip().endswith("Next: merge"), out)
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(draft=True))
         _, out, _ = self.run_main("status")
-        self.assertIn("Next: mark the pull request ready", out)
+        self.assertIn("Next: /sdd-deliver --close-out, which marks it ready", out)
         # Failing checks.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "FAILURE"}]))
         _, out, _ = self.run_main("status")
@@ -510,7 +512,6 @@ class TestStatus(RepoCase):
         self.use(routes)
         _, out, _ = self.run_main("status")
         self.assertIn("(code changed since)", out)
-        self.assertIn("Next: /sdd-review", out)
         # can-fail control: a commit that changed no file is not.
         self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names=""))
         _, out, _ = self.run_main("status")
@@ -1371,11 +1372,18 @@ class TestScopeFlags(RepoCase):
         self.assertIn("diff from: %s, the last pass with main merged in" % merged[:12], out)
         self.assertIn("code: a.go\n", out)
         self.assertNotIn("from_main.go", out)
-        # can-fail control: when the merge cannot be written, the range's own start is the diff's.
-        self.use([routes[0], (git("merge-tree"), sdd_pr.CliError("conflict")), routes[2]] + git_routes())
+        # A conflicted merge exits 1 and still writes its tree: the diff holds the branch's resolutions.
+        conflicted = sdd_pr.CliError("CONFLICT (content)", 1, merged + "\n100644 x 1\tshared.go\n")
+        self.use([routes[0], (git("merge-tree"), conflicted), routes[2]] + git_routes())
+        _, out, _ = self.run_main("scope", "--since-last")
+        self.assertNotIn("from_main.go", out)
+        # can-fail control: git before 2.38 cannot write the merge, so the range's own start is the diff's,
+        # and both scope and status say the base's changes are in it.
+        self.use([routes[0], (git("merge-tree"), sdd_pr.CliError("unknown rev", 128)), routes[2]] + git_routes())
         _, out, _ = self.run_main("scope", "--since-last")
         self.assertIn("from_main.go", out)
-        self.assertNotIn("diff from:", out)
+        self.assertIn("the base's changes are in the range", out)
+        self.assertIn("the base's changes are in the range", self.run_main("status")[1])
 
     def test_diff_takes_the_plugins_own_reviewers(self):
         self.descriptor(forge="none")
@@ -2168,18 +2176,18 @@ class TestReviewSpeed(RepoCase):
         return tree
 
     def scratch_routes(self):
-        return [(git("reset", "--quiet", "--hard"), ""), (git("checkout", "--quiet", "--"), "")]
+        return [(git("reset", "--quiet", "--hard"), ""), (git("clean", "-fdq"), ""), (git("checkout", "--quiet", "--"), "")]
 
     def run_tests_as(self, code, output="ok", pristine=0):
         """The test passes (``pristine``) on the untouched file and answers ``code`` once a guard is gone."""
         seen = {"runs": 0}
 
-        def fake(argv, cwd):
+        def fake(argv, cwd, timeout=None):
             text = (Path(cwd) / "a.go").read_text()
             seen["runs"] += 1
             if "if x < 0" in text:
                 return pristine, "baseline"
-            seen.update(argv=argv, cwd=cwd, text=text)
+            seen.update(argv=argv, cwd=cwd, text=text, timeout=timeout)
             return code, output
         orig = sdd_pr.run_test
         self.addCleanup(setattr, sdd_pr, "run_test", orig)
@@ -2216,7 +2224,7 @@ class TestReviewSpeed(RepoCase):
         seen = self.run_tests_as(1, pristine=1)
         code, _, err = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--delete", "--", "go", "test", "./")
         self.assertEqual(2, code)
-        self.assertIn("fails in the scratch worktree with nothing changed", err)
+        self.assertIn("fails (exit 1) in the scratch worktree with nothing changed", err)
         self.assertEqual(1, seen["runs"])
 
     def test_guard_refuses_a_line_that_no_longer_reads_as_expected(self):
@@ -2237,8 +2245,9 @@ class TestReviewSpeed(RepoCase):
         self.use(git_routes(names="a.go\n"))
         _, out, _ = self.run_main("scope", "--start", "claude")
         self.assertIn("range:", out)
-        _, out, _ = self.run_main("scope", "--start", "cursor")
-        self.assertIn("pass: running — claude started one at", out)
+        code, out, err = self.run_main("scope", "--start", "cursor")
+        self.assertEqual(2, code)
+        self.assertIn("pass: running — claude started one at", err)
         self.assertNotIn("range:", out)
         # The same agent carries on; record clears the note, and the next agent may start.
         self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
@@ -2382,7 +2391,7 @@ class TestHarvest(GitHubCase):
         (self.root / "docs" / "s.md").write_text("# S\n", encoding="utf-8")
         self.backlog(self.head_with_mark() + "\n## Retry\n- old/r.go:5 · the retry ignores the context · from: #3\n"
                      "- docs/x.md:2 · reword the retry rule · from: #4\n")
-        self.changed_since = "old/r.go\nREADME.md\n"
+        self.changed_since = "M\told/r.go\nM\tREADME.md\n"
         self.use(self.harvest_routes({12: "2026-10-04T21:10:00Z"},
                                      {12: [self.comment_of("- docs/s.md:3 · a doc lead · by: claude",
                                                            "- a.go:9 · a code lead · by: claude")]}))
@@ -2395,12 +2404,19 @@ class TestHarvest(GitHubCase):
         self.assertLess(backlog.index("## Unsorted"), backlog.index("## Retry"))
         self.assertLess(backlog.index("a code lead"), backlog.index("a doc lead"))
 
-    def test_without_a_forge_there_is_nothing_to_harvest(self):
+    def test_without_a_forge_harvest_carries_nothing_and_names_the_lines_to_re_check(self):
+        # The close-out carried the lines; what is left is the re-check, so the settled ones get deleted.
         self.descriptor(forge="none")
-        self.use(git_routes())
-        code, _, err = self.run_main("harvest", "--since", "2026-10-01")
-        self.assertEqual(2, code)
-        self.assertIn("flip --carry", err)
+        self.backlog(self.head_with_mark() + "\n## Retry\n- old/r.go:5 · the retry ignores the context · from: feat/r\n"
+                     "- docs/x.md:2 · a doc lead · from: feat/r\n")
+        self.use([(git("log", "--since=" + self.MARK, "--first-parent", "-m"), "R087\told/r.go\tnew/r.go\n")] + git_routes())
+        code, out, err = self.run_main("harvest")
+        self.assertEqual(0, code, err)
+        self.assertIn("harvest: no forge, so nothing to carry", out)
+        self.assertIn("re-check, its path changed since the last harvest: old/r.go:5", out)
+        self.assertNotIn("docs/x.md:2", out)
+        self.assertNotIn(self.MARK, self.backlog())  # the watermark moved on
+        self.assertIn("- old/r.go:5 · the retry ignores the context", self.backlog())
 
     def test_instants_read_as_github_and_azure_devops_write_them(self):
         utc = sdd_pr.datetime.timezone.utc
@@ -2444,6 +2460,394 @@ class TestHarvestAzure(AzureCase):
         self.assertEqual(1, backlog.count("a.go:9"))
         self.assertIn("harvested_through: 2026-10-04T21:10:00Z", backlog)
         self.assertTrue(any("pullRequestId=12" in a for a in fake.called("az", "devops", "invoke")))
+
+
+FILE_OUTSIDE_ONLY = FILE_OUTSIDE.replace("- a.go:2 · name the retry budget · by: claude\n", "")
+GUARDED = "package a\nfunc f(x int) int {\n\tif x < 0 {\n\t\treturn 0\n\t}\n\treturn x\n}\n"
+
+
+class TestGuardEdges(RepoCase):
+    """guard edits only its scratch worktree, proves what it says, and never lets a test run go stale."""
+
+    def scratch(self, text=GUARDED):
+        tree = self.root / ".git" / "sdd" / "scratch" / sdd_pr.slug(self.BRANCH)
+        tree.mkdir(parents=True, exist_ok=True)
+        (tree / "a.go").write_bytes(text.encode("utf-8") if isinstance(text, str) else text)
+        return tree
+
+    def routes(self, head=HEAD):
+        return [(git("reset", "--quiet", "--hard"), ""), (git("clean", "-fdq"), ""),
+                (git("checkout", "--quiet", "--"), "")] + git_routes(head=head)
+
+    def run_tests_as(self, code, pristine=0, guard=b"if x < 0"):
+        seen = {"runs": 0}
+
+        def fake(argv, cwd, timeout=None):
+            data = (Path(cwd) / "a.go").read_bytes()
+            seen["runs"] += 1
+            if guard in data:
+                return pristine, "baseline"
+            seen.update(data=data, timeout=timeout)
+            return code, "out"
+        orig = sdd_pr.run_test
+        self.addCleanup(setattr, sdd_pr, "run_test", orig)
+        sdd_pr.run_test = fake
+        return seen
+
+    def guard(self, *args):
+        return self.run_main("guard", *(list(args) + ["--", "go", "test"]))
+
+    def test_a_path_outside_the_repository_is_refused_before_anything_runs(self):
+        self.descriptor(forge="none")
+        self.scratch()
+        (self.root / "a.go").write_text(GUARDED)
+        self.use(self.routes())
+        seen = self.run_tests_as(1)
+        for selector in ("../../a.go:3", "/etc/hosts:1", str(self.root.parent / "a.go") + ":3"):
+            code, _, err = self.guard(selector, "--expect", "if x < 0", "--replace", "if false")
+            self.assertEqual(2, code, selector)
+            self.assertIn("is not a path inside this repository", err)
+        self.assertEqual(0, seen["runs"])
+        # An absolute path under the root is the same file: the scratch copy changes, the checkout never.
+        code, out, err = self.guard(str(self.root / "a.go") + ":3", "--expect", "if x < 0", "--replace", "if false")
+        self.assertEqual(0, code, err)
+        self.assertIn("guard: a.go:3", out)
+        self.assertIn(b"\tif false {\n", seen["data"])
+        self.assertEqual(GUARDED, (self.root / "a.go").read_text())
+
+    def test_the_expected_text_must_appear_exactly_once_and_is_checked_before_any_run(self):
+        self.descriptor(forge="none")
+        self.scratch(GUARDED.replace("if x < 0", "if a == nil || b == nil"))
+        self.use(self.routes())
+        seen = self.run_tests_as(1, guard=b"b == nil")
+        code, _, err = self.guard("a.go:3", "--expect", "== nil", "--replace", "!= nil")
+        self.assertEqual(2, code)
+        self.assertIn("more than once; quote more of the line", err)
+        code, _, err = self.guard("a.go:3", "--expect", "", "--delete")
+        self.assertEqual(2, code)
+        self.assertIn("usage: guard", err)
+        self.assertEqual(0, seen["runs"])
+        code, out, err = self.guard("a.go:3", "--expect", "b == nil", "--replace", "b != nil")
+        self.assertEqual(0, code, err)
+        self.assertIn(b"if a == nil || b != nil {", seen["data"])
+
+    def test_only_the_one_line_changes_whatever_the_encoding_and_line_endings(self):
+        self.descriptor(forge="none")
+        self.scratch(b"// caf\xe9\r\nfunc f(x int) int {\r\n\tif x < 0 {\r\n\t\treturn 0\r\n\t}\r\n")
+        self.use(self.routes())
+        seen = self.run_tests_as(1)
+        code, _, err = self.guard("a.go:3", "--expect", "if x < 0", "--replace", "if false")
+        self.assertEqual(0, code, err)
+        self.assertEqual(b"// caf\xe9\r\nfunc f(x int) int {\r\n\tif false {\r\n\t\treturn 0\r\n\t}\r\n", seen["data"])
+
+    def test_delete_removes_the_line(self):
+        self.descriptor(forge="none")
+        self.scratch()
+        self.use(self.routes())
+        seen = self.run_tests_as(1)
+        code, out, err = self.guard("a.go:3", "--expect", "if x < 0", "--delete")
+        self.assertEqual(0, code, err)
+        self.assertIn("pinned", out)
+        self.assertEqual(GUARDED.replace("\tif x < 0 {\n", "").encode(), seen["data"])
+
+    def test_a_hang_without_the_guard_counts_as_a_failure(self):
+        # run_test itself kills a run that outlasts its timeout.
+        status, _ = sdd_pr.run_test(["python3", "-c", "import time; time.sleep(5)"], str(self.root), timeout=1)
+        self.assertIsNone(status)
+        self.descriptor(forge="none")
+        self.scratch()
+        self.use(self.routes())
+        seen = self.run_tests_as(None)
+        code, out, err = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--delete", "--timeout", "5", "--", "go", "test")
+        self.assertEqual(0, code, err)
+        self.assertEqual(5, seen["timeout"])
+        self.assertIn("did not finish in 5s", out)
+        self.assertIn("pinned: the test hangs without the guard", out)
+
+    def test_a_path_variable_reaching_the_checkout_is_refused(self):
+        # The test would import the checkout's copy, and call a guard it never saw untested.
+        self.descriptor(forge="none")
+        self.scratch()
+        self.use(self.routes())
+        seen = self.run_tests_as(0)
+        with mock.patch.dict(os.environ, {"PYTHONPATH": str(self.root)}):
+            code, _, err = self.guard("a.go:3", "--expect", "if x < 0", "--delete")
+        self.assertEqual(2, code)
+        self.assertIn("PYTHONPATH reaches a.go in the checkout", err)
+        with mock.patch.dict(os.environ, {"PYTHONPATH": str(self.root / ".venv")}):
+            self.assertEqual(0, self.guard("a.go:3", "--expect", "if x < 0", "--delete")[0])
+        self.assertEqual(2, seen["runs"])
+
+    def test_a_new_command_or_a_new_head_gets_its_own_unchanged_run(self):
+        self.descriptor(forge="none")
+        self.scratch()
+        self.use(self.routes())
+        self.run_tests_as(1)
+        self.assertIn("pinned", self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--delete", "--", "go", "test", "./a")[1])
+        self.scratch()  # the fake checkout restored nothing
+        self.run_tests_as(1, pristine=1)  # these fail even unchanged
+        code, _, err = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--delete", "--", "go", "test", "./b")
+        self.assertEqual(2, code)
+        self.assertIn("with nothing changed", err)
+        self.use(self.routes(head="c" * 40))
+        code, _, err = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--delete", "--", "go", "test", "./a")
+        self.assertEqual(2, code)
+        self.assertIn("with nothing changed", err)
+
+    def test_what_a_run_leaves_behind_is_cleaned_before_the_next(self):
+        self.descriptor(forge="none")
+        tree = self.scratch()
+        fake = self.use(self.routes())
+        self.run_tests_as(1)
+        self.assertEqual(0, self.guard("a.go:3", "--expect", "if x < 0", "--delete")[0])
+        # Once after the reset, once after the unchanged run.
+        self.assertEqual(2, len(fake.called("git", "-C", str(tree), "clean", "-fdq")))
+
+    def test_the_first_guard_of_a_pass_adds_a_detached_worktree_at_head(self):
+        self.descriptor(forge="none")
+        tree = self.root / ".git" / "sdd" / "scratch" / "feat--x"
+
+        def add(argv, _):
+            tree.mkdir(parents=True)
+            (tree / "a.go").write_text(GUARDED)
+            return ""
+        fake = self.use([(git("worktree", "add"), add)] + self.routes())
+        self.run_tests_as(1)
+        code, _, err = self.guard("a.go:3", "--expect", "if x < 0", "--delete")
+        self.assertEqual(0, code, err)
+        self.assertTrue(fake.called("worktree", "add", "--force", "--quiet", "--detach", str(tree), HEAD))
+
+    def test_the_lock_is_free_while_the_test_runs(self):
+        if sdd_pr.fcntl is None:
+            self.skipTest("no fcntl")
+        self.descriptor(forge="none")
+        self.scratch()
+        self.use(self.routes())
+        free = []
+
+        def fake(argv, cwd, timeout=None):
+            with open(self.root / ".git" / "sdd-pr.lock", "a") as other:
+                try:
+                    sdd_pr.fcntl.flock(other, sdd_pr.fcntl.LOCK_EX | sdd_pr.fcntl.LOCK_NB)
+                    free.append(True)
+                except BlockingIOError:
+                    free.append(False)
+            return 0, "ok"
+        orig = sdd_pr.run_test
+        self.addCleanup(setattr, sdd_pr, "run_test", orig)
+        sdd_pr.run_test = fake
+        self.guard("a.go:3", "--expect", "if x < 0", "--delete")
+        self.assertEqual([True, True], free)
+
+    def test_record_and_cleanup_remove_the_scratch_worktree(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        tree = self.root / ".git" / "sdd" / "scratch" / "feat--x"
+        tree.mkdir(parents=True)
+        fake = self.use([(git("worktree", "remove"), lambda argv, _: tree.rmdir() or ""), (git("worktree", "prune"), "")]
+                        + git_routes())
+        self.assertEqual(0, self.run_main("record", "--agent", "claude", "--reviewers", "r", "--reported", "1/1")[0])
+        self.assertFalse(tree.exists())
+        tree.mkdir(parents=True)
+        self.assertIn("removed", self.run_main("guard", "--cleanup")[1])
+        self.assertFalse(tree.exists())
+        # A folder deleted by hand stays registered: cleanup prunes it, or every later guard would fail.
+        self.assertIn("absent", self.run_main("guard", "--cleanup")[1])
+        self.assertTrue(fake.called("git", "worktree", "prune"))
+
+    def test_record_keeps_its_line_when_the_cleanup_fails(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        (self.root / ".git" / "sdd" / "scratch" / "feat--x").mkdir(parents=True)
+        self.use([(git("worktree", "remove"), sdd_pr.CliError("fatal: locked working tree"))] + git_routes())
+        code, out, err = self.run_main("record", "--agent", "cursor", "--reviewers", "r", "--reported", "1/1")
+        self.assertEqual(0, code, err)
+        self.assertIn("record: Reviewed", out)
+        self.assertIn("guard --cleanup", err)
+        self.assertEqual(1, self.read_findings().count("cursor: r (1 of 1)"))
+
+    def test_record_with_nothing_dispatched_ends_the_pass_without_naming_reviewers(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        self.use(git_routes(names="a.go\n"))
+        self.run_main("scope", "--start", "claude")
+        code, _, err = self.run_main("record", "--agent", "claude", "--reported", "0/0")
+        self.assertEqual(2, code)
+        self.assertIn("is not a pass", err)
+        self.assertEqual(0, self.run_main("scope", "--start", "cursor")[0])
+
+
+class TestPassesAndScope(RepoCase):
+    def merged_base_routes(self, names):
+        """A pass at 9c1e2ab, then a merge of the base: merge-base moves from d… to MB, the merged tree is e…."""
+        old_base, merged = "d" * 40, "e" * 40
+
+        def merge_base(argv, _):
+            return (old_base if argv[-1] == "9c1e2ab" else MB) + "\n"
+        return merged, [(lambda a: git("merge-base")(a) and "--is-ancestor" not in a, merge_base),
+                        (git("merge-tree", "--write-tree"), merged + "\n"),
+                        (git("diff", "--name-only"), lambda argv, _: names(argv, merged))]
+
+    def test_the_hunks_of_a_pass_over_the_fixes_start_at_the_merged_tree(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OPEN_IMPORTANT.replace(HEAD[:7], "9c1e2ab", 1))
+        seen = []
+        merged, routes = self.merged_base_routes(lambda argv, m: "a.go\n" if m in argv else "a.go\nfrom_main.go\n")
+        self.use(routes + [(git("diff", "--no-ext-diff"), lambda argv, _: seen.append(argv) or "DIFF")] + git_routes())
+        code, out, err = self.run_main("scope", "--since-last", "--diff", "code")
+        self.assertEqual((0, "DIFF"), (code, out), err)
+        self.assertEqual([merged, "HEAD", "--", "a.go"], seen[-1][-4:])
+
+    def test_status_after_a_merge_of_the_base_alone_says_no_change(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN.replace(HEAD[:7], "9c1e2ab", 1))
+        _, routes = self.merged_base_routes(lambda argv, m: "" if m in argv else "from_main.go\n")
+        self.use(routes + git_routes())
+        _, out, _ = self.run_main("status")
+        self.assertIn("(no change since)", out)
+        self.assertNotIn("Next: /sdd-review", out)
+
+    def test_two_agents_on_one_commit_and_the_maintainer_leave_the_pass_over_the_fixes(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN.replace(
+            "Reviewed %s · 2026-09-30 · claude: go-reviewer (1 of 1)\n" % HEAD[:7],
+            "Reviewed ccccccc · 2026-09-30 · claude: go-reviewer (1 of 1)\n"
+            "Reviewed ccccccc · 2026-09-30 · cursor: go-reviewer (1 of 1)\n"
+            "Reviewed ddddddd · 2026-10-01 · maintainer: ana (1 of 1)\n"))
+        self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="a.go\n"))
+        _, out, _ = self.run_main("status")
+        self.assertNotIn("budget is spent", out)
+        self.assertIn("Next: /sdd-review --since-last", out)
+
+    def test_a_pass_note_older_than_an_hour_or_unreadable_does_not_block(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        self.use(git_routes(names="a.go\n"))
+        note = self.root / ".git" / "sdd" / "findings" / "feat--x.pass"
+        now = sdd_pr.datetime.datetime.now(sdd_pr.datetime.timezone.utc)
+        old = now - sdd_pr.datetime.timedelta(hours=2)
+        note.write_text(json.dumps({"agent": "cursor", "when": sdd_pr.iso(old), "head": HEAD}) + "\n", encoding="utf-8")
+        self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
+        self.assertEqual("claude", json.loads(note.read_text(encoding="utf-8"))["agent"])
+        note.write_bytes(b"\xff\xfe not a note")
+        self.assertEqual(0, self.run_main("scope", "--start", "claude code")[0])
+        # A name with a space is one field: the next agent sees the pass running.
+        code, _, err = self.run_main("scope", "--start", "cursor")
+        self.assertEqual(2, code)
+        self.assertIn("pass: running — claude code started one at", err)
+
+    def test_a_keyword_in_code_is_not_a_normative_line(self):
+        self.descriptor(forge="none")
+        hunks = "--- a/a.go\n+++ b/a.go\n@@ -1 +1 @@\n+// the caller MUST close it\n"
+        self.use([(git("diff", "--no-ext-diff", "-U0"), hunks)] + git_routes(names="a.go\n"))
+        self.assertIn("normative lines changed: 0", self.run_main("scope")[1])
+
+
+class TestNonBlockingLines(GitHubCase):
+    """An open suggestion is a suggestion; an outside defect survives to the end of its branch."""
+
+    def backlog(self, text=None):
+        path = self.root / "docs" / "backlog.md"
+        if text is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        return path.read_text(encoding="utf-8") if path.exists() else None
+
+    def test_a_suggestion_with_an_open_checkbox_is_a_suggestion(self):
+        fs = sdd_pr.parse("# Findings — feat/x\nBase: main\n\n## Open\n"
+                          "- [ ] suggestion · a.go:3 · name the budget · evidence: read it · by: r\n")
+        self.assertEqual([], fs.open)
+        self.assertEqual(["a.go:3"], [f.anchor for f in fs.suggestions])
+        self.assertIn("\n- a.go:3 · name the budget", sdd_pr.render(fs))
+
+    def test_add_folds_one_defect_graded_twice_into_the_higher_and_blocking_line(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        self.run_main("add", "important", "z.go:9", "hangs forever", "--outside", "--evidence", "ran it", "--by", "a")
+        code, out, err = self.run_main("add", "critical", "z.go:9", "hangs forever", "--evidence", "ran it", "--by", "b")
+        self.assertEqual(0, code, err)
+        self.assertIn("1 merged", out)
+        (line,) = sdd_pr.parse(self.read_findings()).open
+        self.assertEqual(("critical", [], "a, b"), (line.severity, line.flags, line.fields["by"]))
+
+    def test_without_a_pull_request_an_outside_line_is_a_leftover(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OUTSIDE_ONLY)
+        self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes())
+        self.assertIn("Next: carry or drop 1 non-blocking line", self.run_main("status")[1])
+
+    def test_merged_with_an_outside_line_never_posted_or_posted(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_OUTSIDE_ONLY)
+        self.PR = {"state": "MERGED", "mergeCommit": {"oid": "e" * 40}, "mergedAt": "2026-10-04T21:10:00Z"}
+        self.use(self.routes())
+        self.assertIn("1 line not on the pull request", self.run_main("status")[1])
+        self.findings(FILE_OUTSIDE_ONLY.replace("by: go-reviewer · outside", "by: go-reviewer · comment: 901 · outside"))
+        self.use(self.routes())
+        self.assertIn("Next: /sdd-triage --backlog, then delete", self.run_main("status")[1])
+
+    def test_a_fixed_outside_line_shows_fixed_in_its_comment(self):
+        self.descriptor(forge="github")
+        text = FILE_OUTSIDE_ONLY.replace("by: go-reviewer · outside", "by: go-reviewer · comment: 901 · outside")
+        self.findings(text)
+        self.comments = [{"id": 901, "body": sdd_pr.suggestions_body(HEAD, sdd_pr.parse(text).outside)}]
+        self.use(self.routes())
+        self.assertEqual(0, self.run_main("flip", "z.go:9", "--fixed", "abc1234")[0])
+        code, _, err = self.run_main("resolve")
+        self.assertEqual(0, code, err)
+        self.assertEqual(["901"], self.comment_edits)
+        self.assertIn("- [x] important · z.go:9", self.comments[0]["body"])
+
+    def test_the_batch_defers_the_outside_lines_too(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OUTSIDE)
+        self.use(git_routes())
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--deferred", "dropped by the maintainer")[0])
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual(([], []), (fs.outside, fs.suggestions))
+
+    def test_pull_reads_the_outside_marker_and_records_the_maintainers_review(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN)
+        threads = [gh_thread(101, "z.go", 9, "**important** z.go hangs on empty input · outside"),
+                   gh_thread(102, "a.go", 3, "**critical** leak\n\nBy: cursor", login="bot")]
+        self.use(self.routes(threads=threads))
+        code, _, err = self.run_main("pull")
+        self.assertEqual(0, code, err)
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual(["z.go:9"], [f.anchor for f in fs.outside])
+        self.assertEqual("z.go hangs on empty input", fs.outside[0].text)
+        self.assertEqual([(HEAD[:7], "maintainer", "maint (1 of 1)")], [(p[0], p[2], p[3]) for p in fs.passes if p[2] == "maintainer"])
+        # A second pull adds no second review.
+        self.run_main("pull")
+        self.assertEqual(1, self.read_findings().count("maintainer: maint"))
+
+    def test_a_ready_draft_points_at_the_close_out(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN.replace("## Suggestions\n- a.go:9 · rename `n` to `count` · by: claude\n", "## Suggestions\n"))
+        self.PR = {"isDraft": True, "statusCheckRollup": [{"status": "COMPLETED", "conclusion": "SUCCESS"}]}
+        self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + self.routes())
+        self.assertIn("Next: /sdd-deliver --close-out, which marks it ready", self.run_main("status")[1])
+
+    def test_a_later_carry_re_sorts_the_unsorted_section(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OUTSIDE)
+        self.backlog(sdd_pr.BACKLOG_HEAD + "\n## Unsorted\n- docs/old.md:1 · an older doc lead · from: feat/old\n"
+                     "- old.go:1 · an older code lead · from: feat/old\n\n## Retry\n- r.go:5 · the retry ignores the context · from: #3\n")
+        self.use(git_routes())
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--carry")[0])
+        backlog = self.backlog()
+        self.assertEqual(1, backlog.count("## Unsorted"), backlog)
+        order = [backlog.index(t) for t in ("- important · z.go:9", "old.go:1", "a.go:2", "docs/old.md:1", "## Retry")]
+        self.assertEqual(sorted(order), order, backlog)
+
+    def test_defects_lead_whatever_their_kind_and_other_sits_before_documents(self):
+        fs = sdd_pr.parse("# Findings — feat/x\nBase: main\n\n## Open\n"
+                          "- [ ] important · a_test.go:9 · the test hangs · evidence: ran it · outside\n\n## Suggestions\n"
+                          "- docs/a.md:1 · a doc lead\n- Makefile:2 · an other lead\n- a_test.go:4 · a test lead\n- a.go:3 · a code lead\n")
+        body = sdd_pr.suggestions_body(HEAD, fs.items)
+        order = [body.index(t) for t in ("the test hangs", "a code lead", "a test lead", "an other lead", "a doc lead")]
+        self.assertEqual(sorted(order), order, body)
 
 
 class TestCommandLine(RepoCase):
