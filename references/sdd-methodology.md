@@ -171,7 +171,7 @@ another repository, not to this one (§10).
 one of these carries evidence — at least one `packages`, `tests`, or `operations` entry — and the gate
 fails when it does not.
 
-The close-out in the implementing PR sets **`shipped`** (§9). **`landed`** stays in the vocabulary for a
+The close-out sets **`shipped`** (§9). **`landed`** stays in the vocabulary for a
 maintainer who merges code that is not yet usable, such as work behind a flag; the close-out sets it
 instead of `shipped` only where a repository's map already uses it for delivered work.
 
@@ -240,7 +240,9 @@ the verification command is known (§1a).
 ### Close-out — the last step of `/sdd-deliver`
 
 When the work is done, the same PR that lands the code sets the `REQ`'s `implementation` to `shipped` (§6)
-with its `traceability.yaml` packages/tests/probes, runs `sdd-check generate`, and writes the PR body. A
+with its `traceability.yaml` packages/tests/probes, runs `sdd-check generate`, and writes the PR body. A PR
+merged first gets the same edits in a commit on the default branch, or a branch from it, and its body
+updated. A
 `SPEC §` is promoted to `stable` only when the maintainer confirms it, because promotion freezes the
 contract.
 
@@ -360,8 +362,8 @@ The review-enforced list is meant to shrink.
 | Generated blocks match | `generated` |
 | Unknown identifier cited in code | `tree-to-map` |
 | Lanes | review-enforced — `/sdd-review` |
-| Critical and important findings carry evidence and sit in the range | review-enforced — `/sdd-review` |
-| No open critical or important finding at merge | `sdd-pr status` |
+| Critical and important findings carry evidence; one about code the change did not touch carries `outside` | review-enforced — `/sdd-review` |
+| No open critical or important finding about the change at merge | `sdd-pr status` |
 | The pass budget | review-enforced — `/sdd-triage` |
 | Collapse before you add | review-enforced |
 | Mutation-detectability | the build gate's tests |

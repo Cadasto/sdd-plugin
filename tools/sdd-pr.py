@@ -10,6 +10,7 @@ Contract: references/review.md.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime
 import fnmatch
 import hashlib
@@ -62,7 +63,12 @@ DOC_SUFFIXES = (".md", ".mdx", ".rst", ".adoc", ".txt")
 
 
 class CliError(RuntimeError):
-    """An external command failed or is missing, or the command line cannot run."""
+    """An external command failed or is missing, or the command line cannot run. A failed command keeps its
+    exit status and standard output, for the one caller that reads an exit 1 as an answer."""
+
+    def __init__(self, message: str = "", code: Optional[int] = None, stdout: str = "") -> None:
+        super().__init__(message)
+        self.code, self.stdout = code, stdout
 
 
 class FileError(RuntimeError):
@@ -80,17 +86,21 @@ def run_cli(argv: List[str], stdin: Optional[str] = None) -> str:
     except OSError as exc:
         raise CliError("%s: %s" % (argv[0], exc.strerror or exc))
     if proc.returncode != 0:
-        raise CliError((proc.stderr or proc.stdout).strip() or "%s failed" % argv[0])
+        raise CliError((proc.stderr or proc.stdout).strip() or "%s failed" % argv[0], proc.returncode, proc.stdout)
     return proc.stdout
 
 
-def run_test(argv: List[str], cwd: str) -> Tuple[int, str]:
-    """Run a repository's test command in ``cwd``: its exit status and output, a failure included. The
-    second door to the outside. No Python bytecode is cached: a mutant and its restored source can share a
-    size and an mtime second, and a stale cache would then run the mutant again."""
+def run_test(argv: List[str], cwd: str, timeout: Optional[int] = None) -> Tuple[Optional[int], str]:
+    """Run a repository's test command in ``cwd``: its exit status and output, a failure included; a run
+    that outlasts ``timeout`` seconds is killed and has no status. The second door to the outside. No
+    Python bytecode is cached: a mutant and its restored source can share a size and an mtime second, and a
+    stale cache would then run the mutant again."""
     try:
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
-        proc = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, env=env)
+        proc = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, env=env, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        parts = [x.decode("utf-8", "replace") if isinstance(x, bytes) else x for x in (exc.stdout, exc.stderr)]
+        return None, "".join(x for x in parts if x)
     except OSError as exc:
         raise CliError("%s: %s" % (argv[0], exc.strerror or exc))
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
@@ -155,6 +165,8 @@ def parse_line(raw: str, lineno: int, section: str = "") -> Finding:
     parts = [p.strip() for p in match.group(3).split(SEP.strip())]
     parts = [p for p in parts if p != ""]
     status = "suggestion" if box is None else {" ": "open", "x": "fixed", "X": "fixed", "-": "declined", "~": "deferred"}[box]
+    if status == "open" and parts and parts[0] == "suggestion":
+        status, parts = "suggestion", parts[1:]  # an open suggestion is a suggestion: it never blocks
     if box is None and parts and parts[0] in SEVERITIES:
         # A writer who left out the checkbox still named the severity.
         status = "open" if parts[0] in BLOCKING else "suggestion"
@@ -683,23 +695,31 @@ def review_range(root: str, fs: Findings, base: str, head: str, since_last: bool
     return "%s..HEAD" % merge_base
 
 
-def diff_start(root: str, base: str, rng: Optional[str]) -> str:
-    """Where the range's diff starts. When the base was merged into the branch after the range's start, a
-    tree of that start with the new base merged in, so the diff holds the branch's own changes and its
-    conflict resolutions, not the base's; the range's start otherwise, or when that merge does not resolve
-    cleanly or git cannot write it (before 2.38)."""
+def diff_start(root: str, base: str, rng: Optional[str]) -> Tuple[str, str]:
+    """Where the range's diff starts, and a note when the base's changes are in it. When the base was merged
+    into the branch after the range's start, a tree of that start with the new base merged in, so the diff
+    holds the branch's own changes and its conflict resolutions, not the base's; the range's start
+    otherwise. A conflicted merge still writes its tree (exit 1); git before 2.38 cannot write one."""
     if not rng:
-        return ""
+        return "", ""
     start = rng.split("..")[0]
     ref = base_ref(root, base)
     try:
         then = git(root, "merge-base", ref, start).strip()
         now = git(root, "merge-base", ref, "HEAD").strip()
-        if not then or then == now:
-            return start
-        return git(root, "merge-tree", "--write-tree", start, now).splitlines()[0].strip() or start
-    except (CliError, IndexError):
-        return start
+    except CliError:
+        return start, ""
+    if not then or then == now:
+        return start, ""
+    try:
+        out = git(root, "merge-tree", "--write-tree", start, now)
+    except CliError as exc:
+        out = exc.stdout if exc.code == 1 else ""
+    tree = (out.splitlines() or [""])[0].strip()
+    if tree:
+        return tree, ""
+    return start, ("diff from: %s; %s was merged in after it and git could not write the merged tree (git before "
+                   "2.38): the base's changes are in the range" % (start[:12], base))
 
 
 KINDS = ("code", "tests", "documents", "other", "vendored", "plans")
@@ -1357,10 +1377,10 @@ def cmd_scope(session: Session, args) -> int:
         raise CliError("scope: --agent names whose last pass --since-last starts from; pass both")
     rng = review_range(session.root, session.fs, session.base(), session.head,
                        since_last=args.since_last, agent=args.agent or "")
-    start = diff_start(session.root, session.base(), rng)
+    start, widened = diff_start(session.root, session.base(), rng)
     files = changed_files(session.root, rng, session.globs, session.vendored, start)
     reviewers, unassigned = reviewers_for(session.data, files)
-    notes = []
+    notes = [widened] if widened else []
     agent = _clean(args.agent or "").replace(":", "-")
     if agent and session.fs.passes and not [p for p in session.fs.passes if p[2] == agent]:
         notes.append("since: no pass by %s; the last pass, by %s" % (agent, session.fs.passes[-1][2]))
@@ -1380,8 +1400,8 @@ def cmd_scope(session: Session, args) -> int:
         if rng and paths:
             sys.stdout.write(git(session.root, "diff", "--no-ext-diff", start, "HEAD", "--", *paths))
         return 0
-    if args.start and rng and not start_pass(session, args.start):
-        return 0
+    if args.start and rng:
+        start_pass(session, args.start)
     normative = normative_lines(session.root, start, files["documents"])
     if args.json:
         print(json.dumps({"range": rng, "diff_from": start or None, "base": session.base(), "head": session.head,
@@ -1411,25 +1431,26 @@ def pass_note(session: Session) -> str:
     return os.path.join(os.path.dirname(session.path), slug(session.branch) + ".pass")
 
 
-def start_pass(session: Session, agent: str) -> bool:
+def start_pass(session: Session, agent: str) -> None:
     """Note that ``agent`` starts a pass on this branch; ``record`` clears the note. Another agent's note
-    younger than an hour means a pass is running: say so and start nothing (two passes pay twice)."""
+    younger than an hour means a pass is running: refuse (two passes pay twice). Two sessions under one
+    agent name are one reviewer, as the skills name agents by host and model."""
     agent, path = _clean(agent).replace(":", "-"), pass_note(session)
     try:
         with open(path, encoding="utf-8") as handle:
-            other, when, head = (handle.read().split() + ["", "", ""])[:3]
-        started = instant(when)
+            note = json.loads(handle.read())
+        started = instant(note.get("when", ""))
         age = (datetime.datetime.now(datetime.timezone.utc) - started).total_seconds() if started else PASS_NOTE_AGE
-        if other != agent and age < PASS_NOTE_AGE:
-            print("pass: running — %s started one at %s on %s; ask before starting another" % (other, when, head[:7]))
-            return False
-    except FileNotFoundError:
-        pass
+        if note.get("agent") != agent and age < PASS_NOTE_AGE:
+            raise CliError("pass: running — %s started one at %s on %s; ask before starting another"
+                           % (note.get("agent"), note.get("when"), str(note.get("head", ""))[:7]))
+    except (OSError, ValueError, AttributeError):
+        pass  # no note, or one that cannot be read: nothing is running
     session.guard()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
-        handle.write("%s %s %s\n" % (agent, iso(datetime.datetime.now(datetime.timezone.utc)), session.head))
-    return True
+        handle.write(json.dumps({"agent": agent, "when": iso(datetime.datetime.now(datetime.timezone.utc)),
+                                 "head": session.head}) + "\n")
 
 
 def cmd_status(session: Session, args) -> int:
@@ -1444,14 +1465,16 @@ def cmd_status(session: Session, args) -> int:
             unreachable = str(exc).splitlines()[0]
     last = fs.last_reviewed_sha()
     rng = review_range(session.root, fs, session.base(), session.head, since_last=True)
-    files = changed_files(session.root, rng, session.globs, session.vendored,
-                          diff_start(session.root, session.base(), rng))
+    start, widened = diff_start(session.root, session.base(), rng)
+    files = changed_files(session.root, rng, session.globs, session.vendored, start)
     code_changed = bool(files["code"] or files["tests"] or files["other"])
     changed = code_changed or bool(files["documents"])
     since = "code changed" if code_changed else "documents changed" if changed else "no change"
     print("branch %s · base %s · head %s · last reviewed %s (%s since)"
           % (session.branch, session.base(), session.head[:7], (last or "none")[:7], since))
     print("findings: %s" % session.path)
+    if widened:
+        print(widened)
     if os.path.exists(session.notes):
         print("notes: %s" % session.notes)
     if session.stale:
@@ -1474,11 +1497,12 @@ def cmd_status(session: Session, args) -> int:
         reasons.append(", ".join(parts) + " open")
     unmirrored = [f for f in fs.blocking if not f.fields.get("forge") and "unanchored" not in f.flags]
     nxt = ("sdd-pr post --pr %d" % pr["number"] if live and unmirrored else "/sdd-triage") if reasons else ""
-    # The budget (review.md § Passes): the pass before ready and one pass over the fixes, at two commits.
-    spent = len({p[0] for p in fs.passes if p[2] != "maintainer"}) >= 2
-    if code_changed and last and spent:
+    # The budget (review.md § Passes): the pass before the maintainer's review, which is a `maintainer`
+    # pass (pull writes one for their threads), and one pass over the fixes after it.
+    reviewed = [i for i, p in enumerate(fs.passes) if p[2] == "maintainer"]
+    if code_changed and reviewed and fs.passes[reviewed[-1] + 1:]:
         print("passes: the budget is spent; only a new critical finding reopens review")
-    elif code_changed and last:
+    elif code_changed and reviewed:
         # Steers Next only. A change to documents alone does not steer: the close-out's own commit is one.
         nxt = nxt or "/sdd-review --since-last"
     elif not last and changed:
@@ -1534,7 +1558,7 @@ def cmd_status(session: Session, args) -> int:
                 nxt = nxt or "wait for the checks"
             if pr["draft"]:
                 reasons.append("the pull request is a draft")
-                nxt = nxt or (leftovers(fs, pr) or "mark the pull request ready")
+                nxt = nxt or (leftovers(fs, pr) or "/sdd-deliver --close-out, which marks it ready")
         except CliError as exc:
             print("forge: %s · not reachable (%s)" % (session.forge.name, str(exc).splitlines()[0]))
             reasons.append("the forge was not reachable")
@@ -1577,7 +1601,7 @@ def cmd_pull(session: Session, args) -> int:
     fs = session.fs
     known = fs.forge_ids()
     by_id = {f.fields["forge"]: f for f in fs.resolved if f.fields.get("forge")}
-    added = 0
+    added, people = 0, []
     for thread in session.forge.threads(pr["number"]):
         if thread["resolved"] or not thread["id"]:
             continue
@@ -1592,10 +1616,19 @@ def cmd_pull(session: Session, args) -> int:
         if thread["id"] in known:
             continue
         fields = {"by": author_of(thread["body"]) or thread["author"] or "forge", "forge": thread["id"]}
+        if not author_of(thread["body"]):
+            people.append(_clean(thread["author"] or "forge").replace(":", "-"))
+        text = first_sentence(thread["body"])
+        outside = text.endswith(" - outside")  # the panel prompt's marker, its separator turned into a dash
         fs.items.append(Finding("open", severity_of(thread["body"]), thread["path"], str(thread["line"] or ""),
-                                first_sentence(thread["body"]), fields))
+                                text[:-len(" - outside")] if outside else text, fields, ["outside"] if outside else []))
         known.add(thread["id"])
         added += 1
+    people = sorted(set(people))
+    if people and not [p for p in fs.passes if p[0] == session.head[:7] and p[2] == "maintainer"]:
+        # A thread with no `By:` line is a person's: the maintainer's review, which opens the pass over the fixes.
+        fs.reviewed.append((session.head[:7], datetime.date.today().isoformat(), "maintainer",
+                            "%s (%d of %d)" % (", ".join(people), len(people), len(people))))
     if added or not session.has_file():
         session.save()
     print("pull: %d new finding%s from PR %d" % (added, "" if added == 1 else "s", pr["number"]))
@@ -1726,8 +1759,8 @@ def _anchor(text: str) -> Tuple[str, str]:
 
 
 def _same(a: Finding, b: Finding) -> bool:
-    """Two lines about one defect: the same state, severity, anchor and sentence."""
-    return all(getattr(a, k) == getattr(b, k) for k in ("status", "severity", "anchor")) \
+    """Two lines about one defect: the same state, anchor and sentence, whatever each grades it."""
+    return all(getattr(a, k) == getattr(b, k) for k in ("status", "anchor")) \
         and a.text.casefold().rstrip(" .") == b.text.casefold().rstrip(" .")
 
 
@@ -1768,6 +1801,10 @@ def cmd_add(session: Session, args) -> int:
             session.fs.items.append(finding)
             added += 1
             continue
+        # One defect graded twice: the higher severity, and blocking unless both put it outside the change.
+        twin.severity = min(twin.severity, finding.severity, key=SEVERITIES.index)
+        if "outside" not in finding.flags:
+            twin.flags = [flag for flag in twin.flags if flag != "outside"]
         names = [n.strip() for n in twin.fields.get("by", "").split(",") if n.strip()]
         names += [n for n in (x.strip() for x in finding.fields.get("by", "").split(",")) if n and n not in names]
         if names:
@@ -1792,6 +1829,15 @@ def backlog_line(finding: Finding, origin: str, full: bool = True) -> str:
     if full:
         parts += ["%s: %s" % (key, finding.fields[key]) for key in ("evidence", "fix", "by") if finding.fields.get(key)]
     return "- " + SEP.join(parts + ["from: " + origin])
+
+
+def line_priority(line: str, globs: List[str]) -> Tuple[int, int]:
+    """``priority`` for a backlog line: its severity, when it names one, then its path's kind."""
+    parts = line[2:].split(SEP)
+    severity = parts[0] if parts[0] in BLOCKING else "suggestion"
+    path = _anchor(parts[1 if severity in BLOCKING and len(parts) > 1 else 0])[0]
+    kind = kind_of(path, globs)
+    return SEVERITIES.index(severity), KIND_ORDER.index(kind) if kind in KIND_ORDER else len(KIND_ORDER)
 
 
 def _backlog_item(line: str) -> Optional[Tuple[str, str]]:
@@ -1836,12 +1882,15 @@ def carry(root: str, items: List[Tuple[Finding, str]], watermark: str = "", glob
         new.append(backlog_line(finding, origin, full))
     if new:
         if UNSORTED in lines:
-            at = lines.index(UNSORTED) + 1
-            while at < len(lines) and not lines[at].startswith("## "):
-                at += 1
-            while not lines[at - 1].strip():
-                at -= 1
-            lines[at:at] = new
+            # Re-sort the whole section, so a defect carried later still leads; equal lines keep their order.
+            start = end = lines.index(UNSORTED) + 1
+            while end < len(lines) and not lines[end].startswith("## "):
+                end += 1
+            block = lines[start:end]
+            ranked = sorted([line for line in block if line.startswith("- ")] + new,
+                            key=lambda line: line_priority(line, globs))
+            lines[start:end] = ([line for line in block if line.strip() and not line.startswith("- ")] + ranked
+                                + ([""] if end < len(lines) else []))
         else:
             at = next((n for n, line in enumerate(lines) if line.startswith("## ")), len(lines))
             while at > 0 and not lines[at - 1].strip():
@@ -1928,7 +1977,7 @@ def cmd_flip(session: Session, args) -> int:
     if args.suggestions == bool(args.selector):
         raise CliError("flip: name one line (its #key or path:line), or pass --suggestions for every suggestion left")
     # The lines left that do not block: suggestions, and, carried, the defects outside the change.
-    left = fs.suggestions + (fs.outside if action == "carry" else [])
+    left = fs.suggestions + (fs.outside if action in ("carry", "deferred") else [])
     targets = list(left) if args.suggestions else [_select(fs, args.selector)]
     if not targets:
         print("flip: no suggestion left")
@@ -2004,7 +2053,11 @@ def recheck(session: Session, since: str) -> List[str]:
     fixed or made stale, so the harvest re-reads those and not the whole file."""
     if not instant(since):
         return []
-    changed = set(git(session.root, "log", "--since=" + since, "--name-only", "--format=", "HEAD").split())
+    # First parent, merges diffed against it: a pull request merged with a merge commit counts at its
+    # merge, though its own commits are older than ``since``.
+    # --name-status: a rename lists the old path too, the one a backlog line names.
+    changed = {path for row in git(session.root, "log", "--since=" + since, "--first-parent", "-m", "--name-status",
+                                   "--format=", "HEAD").splitlines() for path in row.split("\t")[1:]}
     out = []
     for line in read_backlog(session.root):
         item = _backlog_item(line)
@@ -2014,12 +2067,12 @@ def recheck(session: Session, since: str) -> List[str]:
 
 
 def cmd_harvest(session: Session, args) -> int:
-    """The open suggestions of every pull request merged since the backlog's watermark, carried to it."""
-    if session.forge.name == "none":
-        raise CliError("harvest: no forge, so no suggestion comments; the close-out carries them (flip --carry)")
+    """The open suggestions of every pull request merged since the backlog's watermark, carried to it.
+    Without a forge there are no comments (the close-out carried its lines): only the re-check runs."""
+    forge = session.forge.name != "none"
     start, inclusive = harvest_start(session, args.since or "", get_watermark(read_backlog(session.root)))
     prs = []
-    for pr in session.forge.merged(start):
+    for pr in session.forge.merged(start) if forge else []:
         when = instant(pr.get("merged_at", ""))
         if when and (when >= start if inclusive else when > start):
             prs.append((when, pr["number"]))
@@ -2038,9 +2091,13 @@ def cmd_harvest(session: Session, args) -> int:
                 else:
                     items.append((finding, "#%d" % number))
     mark = iso(prs[-1][0]) if prs else (iso(start - datetime.timedelta(seconds=1)) if inclusive else "")
-    print("harvest: %d pull request%s merged %s %s%s" % (
-        len(prs), "" if len(prs) == 1 else "s", "since" if inclusive else "after", iso(start),
-        " (%s)" % ", ".join("#%d" % n for _, n in prs) if prs else ""))
+    if not forge:
+        mark = iso(datetime.datetime.now(datetime.timezone.utc))
+        print("harvest: no forge, so nothing to carry; the lines to re-check since %s" % iso(start))
+    else:
+        print("harvest: %d pull request%s merged %s %s%s" % (
+            len(prs), "" if len(prs) == 1 else "s", "since" if inclusive else "after", iso(start),
+            " (%s)" % ", ".join("#%d" % n for _, n in prs) if prs else ""))
     for finding, origin in gone:
         print("left out, its path is gone: " + backlog_line(finding, origin)[2:])
     if args.dry_run:
@@ -2066,13 +2123,11 @@ def cmd_record(session: Session, args) -> int:
         raise CliError("record: --reported is <n>/<m>: how many of the dispatched reviewers reported")
     reported, dispatched = int(match.group(1)), int(match.group(2))
     if reported == 0:  # the pass ended, though it read nothing: another may start
-        if os.path.exists(pass_note(session)):
-            os.remove(pass_note(session))
-        remove_scratch(session)
+        end_pass(session)
     if reported == 0 or reported > dispatched:
         raise CliError("record: %d of %d is not a pass; no Reviewed line, so the range stays open"
                        % (reported, dispatched))
-    names = [_clean(r) for r in args.reviewers.split(",") if r.strip()]
+    names = [_clean(r) for r in (args.reviewers or "").split(",") if r.strip()]
     reviewers, agent = ", ".join(names), _clean(args.agent).replace(":", "-")
     if not reviewers or not agent:
         raise CliError("record: name the agent and the reviewers")
@@ -2081,11 +2136,21 @@ def cmd_record(session: Session, args) -> int:
     line = (session.head[:7], datetime.date.today().isoformat(), agent, "%s (%d of %d)" % (reviewers, reported, dispatched))
     session.fs.reviewed.append(line)
     session.save()
-    if os.path.exists(pass_note(session)):
-        os.remove(pass_note(session))
-    remove_scratch(session)
+    end_pass(session)
     print("record: Reviewed %s · %s · %s: %s" % line)
     return 0
+
+
+def end_pass(session: Session) -> None:
+    """Clear the pass note and the scratch worktree. Best effort: the pass is recorded either way, and a
+    retry would write its line twice."""
+    if os.path.exists(pass_note(session)):
+        os.remove(pass_note(session))
+    try:
+        remove_scratch(session)
+    except CliError as exc:
+        print("record: the scratch worktree stays (%s); `guard --cleanup` removes it"
+              % str(exc).splitlines()[0], file=sys.stderr)
 
 
 def scratch_dir(session: Session) -> str:
@@ -2093,19 +2158,58 @@ def scratch_dir(session: Session) -> str:
     return os.path.join(os.path.dirname(os.path.dirname(session.path)), "scratch", slug(session.branch))
 
 
-def remove_scratch(session: Session) -> bool:
+@contextlib.contextmanager
+def scratch_lock(tree: str):
+    """One guard run at a time in the scratch worktree, and no removal under a run."""
+    os.makedirs(os.path.dirname(tree), exist_ok=True)
+    with open(tree + ".lock", "a") as lock:
+        if fcntl is not None:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
+
+
+def remove_scratch(session: Session, prune: bool = False) -> bool:
     tree = scratch_dir(session)
-    if os.path.exists(tree + ".passes"):
-        os.remove(tree + ".passes")
-    if not os.path.exists(tree):
+    if not os.path.isdir(os.path.dirname(tree)):
         return False
-    git(session.root, "worktree", "remove", "--force", tree)
-    return True
+    with scratch_lock(tree):  # waits for a guard run to finish
+        if os.path.exists(tree + ".passes"):
+            os.remove(tree + ".passes")
+        if not os.path.exists(tree):
+            if prune:
+                git(session.root, "worktree", "prune")  # a folder deleted by hand stays registered until pruned
+            return False
+        git(session.root, "worktree", "remove", "--force", tree)
+        return True
 
 
-def baseline(tree: str, head: str, command: List[str]) -> None:
+def shadowing(root: str, path: str) -> str:
+    """The variable whose entry in the checkout holds ``path``, so the test would load the checkout's
+    unchanged copy instead of the scratch worktree's; "" when none does."""
+    for name in ("PYTHONPATH", "NODE_PATH"):
+        for entry in os.environ.get(name, "").split(os.pathsep):
+            if entry and os.path.isabs(entry):
+                rel = os.path.relpath(os.path.realpath(entry), os.path.realpath(root))
+                if rel == "." or (not rel.startswith(os.pardir) and path.startswith(rel + os.sep)):
+                    return name
+    return ""
+
+
+def inside(root: str, path: str) -> str:
+    """``path`` relative to the repository root, an absolute one under it included; refused when it leaves
+    the root, so guard edits only its scratch worktree, never the checkout or a file outside it."""
+    if os.path.isabs(path):
+        path = os.path.relpath(os.path.realpath(path), os.path.realpath(root))
+    path = os.path.normpath(path)
+    if path == "." or path == os.pardir or path.startswith(os.pardir + os.sep) or os.path.isabs(path):
+        raise CliError("guard: %s is not a path inside this repository" % path)
+    return path
+
+
+def baseline(tree: str, head: str, command: List[str], timeout: int) -> None:
     """The command passes in the scratch worktree with nothing changed, once per HEAD and command; else a
-    failure with the guard removed would prove nothing (a dependency or a generated file missing there)."""
+    failure with the guard removed would prove nothing (a dependency or a generated file missing there).
+    What the run leaves behind is cleaned, so it cannot fail the run without the guard."""
     mark, key = tree + ".passes", "%s %s" % (head, json.dumps(command))
     try:
         with open(mark, encoding="utf-8") as handle:
@@ -2113,12 +2217,14 @@ def baseline(tree: str, head: str, command: List[str]) -> None:
                 return
     except FileNotFoundError:
         pass
-    code, output = run_test(command, tree)
-    if code:
+    code, output = run_test(command, tree, timeout)
+    if code != 0:
         tail = "\n".join("  " + row for row in output.rstrip().splitlines()[-15:])
-        raise CliError("guard: `%s` fails in the scratch worktree with nothing changed (exit %d), so a failure "
-                       "without the guard would prove nothing; make it pass there first\n%s"
-                       % (" ".join(command), code, tail))
+        raise CliError("guard: `%s` %s in the scratch worktree with nothing changed, so a failure without the "
+                       "guard would prove nothing; make it pass there first\n%s"
+                       % (" ".join(command), "did not finish in %ds" % timeout if code is None else
+                          "fails (exit %d)" % code, tail))
+    git(tree, "clean", "-fdq")
     with open(mark, "a", encoding="utf-8") as handle:
         handle.write(key + "\n")
 
@@ -2127,47 +2233,61 @@ def cmd_guard(session: Session, args) -> int:
     """Remove one guard in the scratch worktree, run one test command there, and say whether the test
     noticed (references/review.md § The tool). The checkout and the findings file are never touched."""
     if args.cleanup:
-        print("guard: scratch worktree %s" % ("removed" if remove_scratch(session) else "absent"))
+        print("guard: scratch worktree %s" % ("removed" if remove_scratch(session, prune=True) else "absent"))
         return 0
     path, line = _anchor(args.selector or "")
     command = list(args.test_cmd)
-    if not line or args.expect is None or args.delete == (args.replace is not None) or not command:
+    if not line or not args.expect or args.delete == (args.replace is not None) or not command:
         raise CliError("usage: guard <path:line> --expect <text> (--delete | --replace <text>) -- <test command>")
+    path = inside(session.root, path)
+    shadow = shadowing(session.root, path)
+    if shadow:
+        raise CliError("guard: %s reaches %s in the checkout, so the test would load the unchanged file; run guard "
+                       "without it" % (shadow, path))
     tree = scratch_dir(session)
     session.close()  # a test can run for minutes: the findings stay free for other commands
-    os.makedirs(os.path.dirname(tree), exist_ok=True)
-    with open(tree + ".lock", "a") as lock:
-        if fcntl is not None:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+    with scratch_lock(tree):
         if os.path.exists(tree):
             git(tree, "reset", "--quiet", "--hard", session.head)
+            git(tree, "clean", "-fdq")  # a file an earlier run left behind could fail this one
         else:
-            git(session.root, "worktree", "add", "--quiet", "--detach", tree, session.head)
-        baseline(tree, session.head, command)
+            # --force: a folder deleted by hand is still registered, and add would refuse its path.
+            git(session.root, "worktree", "add", "--force", "--quiet", "--detach", tree, session.head)
         target = os.path.join(tree, path)
+        if not os.path.realpath(target).startswith(os.path.realpath(tree) + os.sep):
+            raise CliError("guard: %s leads out of the scratch worktree (a link)" % path)
         try:
-            with open(target, encoding="utf-8") as handle:
-                lines = handle.read().split("\n")
+            # Bytes: a file in any encoding, its line endings kept, so only the one line changes.
+            with open(target, "rb") as handle:
+                lines = handle.read().split(b"\n")
         except OSError:
             raise CliError("guard: %s is not in HEAD" % path)
-        n = int(line)
-        if not 1 <= n <= len(lines) or args.expect not in lines[n - 1]:
-            raise CliError("guard: %s:%d reads %r, not %r" % (path, n, lines[n - 1] if 1 <= n <= len(lines) else "",
-                                                               args.expect))
+        n, expect = int(line), args.expect.encode("utf-8")
+        current = lines[n - 1] if 1 <= n <= len(lines) else b""
+        if current.count(expect) != 1:
+            raise CliError("guard: %s:%d reads %r, which holds %r %s" % (
+                path, n, current.decode("utf-8", "replace"), args.expect,
+                "more than once; quote more of the line" if expect in current else "nowhere"))
+        baseline(tree, session.head, command, args.timeout)
         if args.delete:
             del lines[n - 1]
         else:
-            lines[n - 1] = lines[n - 1].replace(args.expect, args.replace, 1)
-        with open(target, "w", encoding="utf-8") as handle:
-            handle.write("\n".join(lines))
+            lines[n - 1] = current.replace(expect, args.replace.encode("utf-8"), 1)
+        with open(target, "wb") as handle:
+            handle.write(b"\n".join(lines))
         try:
-            code, output = run_test(command, tree)
+            code, output = run_test(command, tree, args.timeout)
         finally:
             git(tree, "checkout", "--quiet", "--", path)
     edit = "deleted" if args.delete else "%r -> %r" % (args.expect, args.replace)
-    print("guard: %s:%d %s; `%s` exited %d" % (path, n, edit, " ".join(command), code))
-    print("pinned: the test fails without the guard; read the tail, a build error pins nothing"
-          if code else "untested: the test stays green without the guard")
+    ran = "did not finish in %ds" % args.timeout if code is None else "exited %d" % code
+    print("guard: %s:%d %s; `%s` %s" % (path, n, edit, " ".join(command), ran))
+    if code is None:
+        print("pinned: the test hangs without the guard, which counts as a failure")
+    else:
+        print("pinned: the test fails without the guard; read the tail, a build error pins nothing" if code else
+              "untested: the test stays green without the guard, unless it loads this code from the checkout "
+              "(an editable install)")
     tail = output.rstrip().splitlines()[-15:]
     if tail:
         print("\n".join("  " + row for row in tail))
@@ -2227,6 +2347,8 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--delete", action="store_true", help="delete the line")
             cmd.add_argument("--replace", metavar="TEXT", help="replace --expect within the line with TEXT")
             cmd.add_argument("--cleanup", action="store_true", help="remove the scratch worktree")
+            cmd.add_argument("--timeout", type=int, default=600, metavar="SECONDS",
+                             help="a run longer than this is killed and counts as a failure (default 600)")
             cmd.set_defaults(test_cmd=[])  # what follows `--`, split off before parsing (main)
         if name in ("post", "harvest"):
             cmd.add_argument("--dry-run", action="store_true")
@@ -2249,7 +2371,7 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--suggestions", action="store_true", help="every suggestion left")
         if name == "record":
             cmd.add_argument("--agent", required=True)
-            cmd.add_argument("--reviewers", required=True)
+            cmd.add_argument("--reviewers", default="")
             cmd.add_argument("--reported", required=True, metavar="N/M")
         if name == "rename":
             cmd.add_argument("--from", dest="from_branch", required=True, metavar="BRANCH")

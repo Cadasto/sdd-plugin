@@ -151,12 +151,14 @@ Reviewed 9c1e2ab · 2026-09-30 · claude: sdd-spec-conformance-reviewer, go-codi
 - internal/auth/refresh.go:120 · rename `tok` to `token` · by: go-coding:go-reviewer
 ```
 
-And what `sdd-pr status` prints for it:
+And what `sdd-pr status` prints for it; `sdd-pr flip` takes the `#key`:
 
 ```text
 branch feat/auth-refresh · base main · head 4f0a1c2 · last reviewed 9c1e2ab (code changed since)
+findings: <clone>/.git/sdd/findings/feat--auth-refresh.md
 open: 0 critical, 1 important · outside the change: 0 · suggestions: 1
-- [ ] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: maintainer · forge: 5893201111
+#0e53b - [ ] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: maintainer · forge: 5893201111
+#72ee1 - internal/auth/refresh.go:120 · rename `tok` to `token` · by: go-coding:go-reviewer
 forge: github · PR 7 (ready) · 0 unresolved threads not open in the file · checks: pass
 Mergeable: no — 1 important open
 Next: /sdd-triage

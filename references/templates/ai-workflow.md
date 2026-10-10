@@ -58,7 +58,9 @@ merge and get inline threads; one about code the change did not touch keeps its 
 `outside`, blocks nothing and is carried after merge unless fixed here; suggestions never block, and after merge `/sdd-triage --backlog` carries them to
 `docs/backlog.md`. A suggestion is written down only when it outlives the change; taste (naming,
 wording, style) never does. Every critical or important
-finding carries evidence. Nothing else about findings is posted, the pull request's body included.
+finding carries evidence. A claim of wrong code behaviour is settled by running it, or by a named input,
+then graded by its harm; a missing specification sentence never lowers it. Nothing else about findings is
+posted, the pull request's body included.
 
 **The canonical review request.** Reviewers that run outside this repository never load the SDD plugin,
 so what is pasted to them must not drift from what the repo defines. `/sdd-review --panel` prints this
@@ -71,8 +73,9 @@ Report critical and important findings only, each with evidence (what you ran, o
 sentences that disagree) and a one-line fix, ending a defect in code the range did not change with
 ` · outside`; write anything smaller as a suggestion.
 If you work on this machine, pipe your lines in that grammar to: <plugin root>/tools/sdd-pr.py add -
-If you work on the pull request, post one review with one inline comment per finding, its
-first word **critical** or **important**; post nothing else, and do not restate the PR body.
+If you work on the pull request, post one review: one inline comment per finding about the change,
+its first word **critical** or **important**, and a defect in code the range did not change in the
+review body, ending ` · outside`; post nothing else, and do not restate the PR body.
 ──────────────────────────────────────────────────────────────────────────────
 ```
 

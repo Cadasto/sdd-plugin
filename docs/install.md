@@ -41,7 +41,7 @@ Restart the session for an update to take effect.
 
 ### Fewer permission prompts
 
-The plugin can't approve a command for you. Claude Code ignores `permissionMode` in a plugin's agents and drops `permissions` from a plugin's settings, and a subagent runs under the session's own permission rules ([subagents](https://code.claude.com/docs/en/sub-agents), [plugin settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings)). So `sdd-spec-conformance-reviewer` and `sdd-traceability-auditor` ask before they run the gate, your tests or a scratch worktree for the guard-removal check, until your settings allow those commands. Add rules like these to the repository's `.claude/settings.json`, which everyone shares, or to your own `~/.claude/settings.json`:
+The plugin can't approve a command for you. Claude Code ignores `permissionMode` in a plugin's agents and drops `permissions` from a plugin's settings, and a subagent runs under the session's own permission rules ([subagents](https://code.claude.com/docs/en/sub-agents), [plugin settings](https://code.claude.com/docs/en/plugins/manifest-reference#settings)). So `sdd-spec-conformance-reviewer` and `sdd-traceability-auditor` ask before they run the gate, your tests or `sdd-pr`, whose `guard` makes the scratch worktree for the guard-removal check, until your settings allow those commands. Add rules like these to the repository's `.claude/settings.json`, which everyone shares, or to your own `~/.claude/settings.json`:
 
 ```json
 {
@@ -51,14 +51,13 @@ The plugin can't approve a command for you. Claude Code ignores `permissionMode`
       "Bash(make spec-check)",
       "Bash(make ci)",
       "Bash(go test *)",
-      "Bash(git worktree add *)",
-      "Bash(git worktree remove *)"
+      "Bash(python3 /path/to/sdd/tools/sdd-pr.py *)"
     ]
   }
 }
 ```
 
-Write your own `check.script`, `build_entrypoint` and targets, and test command in place of the examples.
+Write your own `check.script`, `build_entrypoint` and targets, and test command in place of the examples. The session-start line `› sdd plugin <version> at <path>` names the plugin root for the `sdd-pr` rule; a marketplace install's root changes with each version, so update that rule after an upgrade.
 
 ## Cursor
 
