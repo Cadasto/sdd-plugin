@@ -105,8 +105,12 @@ case "$v_out" in
   *"› sdd plugin $want_ver at $ROOT"*) ok "session-start names the plugin root, which a permission rule for sdd-pr needs" ;;
   *) bad "session-start printed no plugin root: $v_out" ;;
 esac
+[ -d "$r/.sdd" ] && bad "session-start made .sdd/ in a repository that does not ignore it" \
+  || ok "session-start leaves .sdd/ alone where git would not ignore it"
+printf '/.sdd/\n' > "$r/.gitignore"
+(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" >/dev/null)
 [ -d "$r/.sdd" ] && ok "session-start makes .sdd/, where the skills redirect the gate log and the diffs" \
-  || bad "session-start made no .sdd/ in an SDD repository"
+  || bad "session-start made no .sdd/ in an SDD repository that ignores it"
 nv_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"
 case "$nv_out" in
   *"› sdd plugin $want_ver"*) ok "session-start reads the plugin version beside itself when the host names no plugin root" ;;

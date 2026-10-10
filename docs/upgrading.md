@@ -14,7 +14,9 @@ vendored gate is older than the plugin.
    own scratch worktree. Replace the `Bash(git worktree add *)` and `Bash(git worktree remove *)` rules
    with `Bash(python3 <plugin root>/tools/sdd-pr.py *)` ([install.md](install.md#fewer-permission-prompts)).
    The session-start line `› sdd plugin <version> at <path>` names the root, which changes with each
-   marketplace version.
+   marketplace version. `guard` runs the test in a worktree that holds only what HEAD tracks, so a test
+   that needs installed dependencies or generated files fails there; the reviewer names each guard
+   refused that way.
 2. **Ready pull requests.** `/sdd-deliver` opens a pull request ready for review; ask for a draft if you
    want one. With nothing open, `sdd-pr status` then reads `Next: merge`; on a draft it points at
    `/sdd-deliver --close-out`, which marks it ready. The close-out may also run after the merge: it then
@@ -24,7 +26,7 @@ vendored gate is older than the plugin.
    non-blocking comment above the suggestions, and is carried to the backlog with its severity.
    `/sdd-triage` fixes one only when you say so.
 4. **The pass over the fixes waits for your review.** `sdd-pr pull` records your threads (those with no
-   `By:` line) as a `maintainer` line, and `status` suggests `/sdd-review --since-last` only after it. A
+   `By:` line; the review request asks other reviewers for one) as a `maintainer` line, and `status` suggests `/sdd-review --since-last` only after it. A
    branch whose threads were pulled before the upgrade has no such line: record it once with
    `sdd-pr record --agent maintainer --reviewers <your name> --reported 1/1`.
 5. **One pass at a time.** `/sdd-review` stops on `pass: running` while another agent's pass on the

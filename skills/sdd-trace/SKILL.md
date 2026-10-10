@@ -29,7 +29,7 @@ With no REQ, run `check` and report its findings by family, with the offending i
 
 ## Mode C — `--audit`
 
-Dispatch the **`sdd-traceability-auditor`** agent and relay its report.
+Dispatch the **`sdd-traceability-auditor`** agent and relay its report: before a release, or when a `spec-check` failure is unexplained.
 
 ## Guardrails
 
