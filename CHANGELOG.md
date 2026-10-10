@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-11
+
+The ADR index keeps a wrapped `Resolves:` or `Amends:` bullet whole. Only the vendored gate changed.
+
 ### Fixed
 - Tools: `sdd-check generate` keeps a wrapped `Resolves:` or `Amends:` bullet whole in the ADR index, continuation lines included, and reads a value that starts on the line after its label; it kept the first line only.
 

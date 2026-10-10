@@ -2,6 +2,17 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.12.0 to 0.12.1
+
+The ADR index now reads a whole `Resolves:` or `Amends:` bullet, its wrapped continuation lines
+included, and a value that starts on the line after its label. Before, such a cell kept the first line
+only and could end on a dangling comma or semicolon. Only the vendored gate changed.
+
+1. **Re-vendor the gate.** Run `/sdd-scaffold --upgrade` so `check.script` carries 0.12.1 and
+   `check.version` agrees with it.
+2. **Regenerate the index.** Run `python3 <check.script> generate`. Cells cut short at a wrapped
+   Traceability bullet now carry the whole list; commit that diff.
+
 ## From 0.11.x to 0.12.0
 
 Findings are graded by harm wherever they are, so a defect in code the branch did not change keeps its
