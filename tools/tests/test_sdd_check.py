@@ -3283,6 +3283,31 @@ date: 2026-01-05
 - **Amends**: REQ-CORE-001, REQ-CORE-002
 """
 
+ADR_WITH_WRAPPED_REFS = """---
+id: ADR-0006
+title: Wrapped traceability bullets
+status: accepted
+date: 2026-01-06
+---
+
+# ADR-0006 — Wrapped traceability bullets
+
+## Traceability
+
+- **Amends:** REQ-CORE-001 and REQ-CORE-002 (their ordering rules change),
+  REQ-CORE-003 (constrains the planner)
+- Resolves: STRAND-02;
+continued lazily on a line with no indent
+  - a nested item is its own entry, not part of the value
+- **Spec:** the ordering contract in
+  SPEC-CORE §2
+- Amends: REQ-CORE-004
+- **Resolves:**
+  STRAND-03
+
+  a paragraph after a blank line is not part of the value
+"""
+
 ADR_BARE = """---
 id: ADR-0002
 title: Vendor the tool as one file
@@ -3340,6 +3365,25 @@ class TestAdrIndexRendering(BaselineCase):
             [
                 "| ADR-0005 | Emphasised traceability labels | Accepted | 2026-01-05 | "
                 "Resolves: STRAND-01; Amends: REQ-CORE-001, REQ-CORE-002 |",
+            ],
+            rows,
+        )
+
+    def test_a_wrapped_label_keeps_its_continuation_lines(self):
+        # A Markdown list item goes on until a blank line or the next item: an indented
+        # or lazy continuation line belongs to the value, a nested item and a paragraph
+        # after a blank line do not, a later item with no label adds nothing, and a
+        # value may start on the line after its label.
+        self.write("docs/adr/ADR-0006-wrapped.md", ADR_WITH_WRAPPED_REFS)
+        rendered = sdd_check.render_adr_index(self.ctx())
+        rows = rendered.split("\n")[2:]
+        self.assertEqual(
+            [
+                "| ADR-0006 | Wrapped traceability bullets | Accepted | 2026-01-06 | "
+                "Amends: REQ-CORE-001 and REQ-CORE-002 (their ordering rules change), "
+                "REQ-CORE-003 (constrains the planner); "
+                "Resolves: STRAND-02; continued lazily on a line with no indent; "
+                "Amends: REQ-CORE-004; Resolves: STRAND-03 |",
             ],
             rows,
         )
