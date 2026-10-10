@@ -35,7 +35,7 @@ maintainer's review, and `/sdd-triage --backlog` consolidates the backlog instea
 - References: methodology §6 lets the close-out write `landed`, §9 holds the close-out after merge, and §13's merge gate and the enforcement register count the findings about the change and name `outside`.
 - Templates: `ai-workflow.md` § Review states the `outside` rule and code first, and its review request puts an `outside` defect from a reviewer on the pull request in the review body; `AGENTS.md` and `ai-workflow.md` say agents open a pull request, a draft only when asked.
 - Hooks: the session-start line counts `outside` lines apart from the open ones, names the plugin root and creates `.sdd/`; `rules/sdd-context.mdc` states the `outside` rule.
-- Docs: `examples.md`, `README.md`, `quick-start.md` and `testing.md` describe the `outside` marker, the consolidating harvest, the ready pull request and the Cursor check that reviewers dispatch by name; `install.md` allows `sdd-pr` instead of the worktree commands.
+- Docs: `examples.md`, `README.md`, `quick-start.md` and `testing.md` describe the `outside` marker, the consolidating harvest, the ready pull request and the Cursor check that reviewers dispatch by name; `install.md` allows `sdd-pr` instead of the worktree commands; `upgrading.md` covers 0.11.x to 0.12.0.
 
 ### Fixed
 - Skills: paths written `/.sdd/` pointed at the filesystem root; `sdd-review` gave reviewers the whole branch's hunks on a `--since-last` pass and ran the plugin's own gate instead of the vendored one; `/sdd-triage --backlog` did nothing with `forge: none`; `sdd-trace` no longer adds audit lines to the findings file.

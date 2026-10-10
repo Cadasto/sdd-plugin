@@ -45,12 +45,12 @@ The code did one thing, the spec said another, and the spec was wrong. This is i
 Fix the code on the same branch, starting from a test that fails on the bug, then:
 
 ```text
-/sdd-review --lane full
+/sdd-review
 ```
 
-The review decides the lane by asking whether a normative statement changed meaning, and reads the answer from the changed document lines. Here one did, so the conformance and document reviewers run alongside the repository's own.
+The review decides the lane by asking whether a normative statement changed meaning, and reads the answer from the changed document lines; `sdd-pr scope` prints `normative lines changed: n` as a hint. Here one did, so the conformance and document reviewers run alongside the repository's own. `--lane full` or `--lane maintenance` sets the lane for one pass instead.
 
-Check: the pull request body carries `Lane: full`, and the spec section's status is not lagging behind the code.
+Check: the findings file's new `Reviewed` line names `sdd-spec-conformance-reviewer`, and the spec section's status is not lagging behind the code.
 
 ## Refactor with no behaviour change
 
@@ -95,16 +95,12 @@ That is useful in CI, or in any script that needs a requirement's context withou
 ## Check code against the spec it cites
 
 ```text
-Does the token refresh handler satisfy SPEC-AUTH §3, clause by clause?
+/sdd-review --lane full
 ```
 
-The `sdd-spec-conformance-reviewer` agent runs the tests each clause names and removes each touched guard in a scratch worktree; a test that stays green is a critical finding with both runs as evidence. It judges conformance, not code quality; the repository's own language reviewer does that.
+On the formal profile's full lane, the pass sends changed code that implements a cited `SPEC §` to the `sdd-spec-conformance-reviewer` agent, with the gate's log and the changed hunks. It judges the code clause by clause, and proves each MUST and MUST NOT the change touches with `sdd-pr guard`: the guard is removed in a scratch worktree, and a test that stays green is a critical finding with both runs as evidence. It judges conformance, not code quality; the repository's own language reviewer does that.
 
-```text
-Review REQ-AUTH-001 against the requirement contract.
-```
-
-The `sdd-doc-reviewer` agent checks the changed hunks for boundary violations: implementation detail in a requirement, a normative sentence duplicated from the canonical section, two sentences that disagree, a missing RFC-2119 keyword.
+When a document changed, the same pass sends its hunks to the `sdd-doc-reviewer` agent. Two sentences that disagree, or a sentence that contradicts the code, are important; a normative sentence that repeats one elsewhere with a different force is critical. A document's form, such as a missing RFC-2119 keyword or an acceptance criterion that cannot be observed, is a suggestion.
 
 ## Get a second opinion
 
@@ -120,13 +116,13 @@ It reads the whole branch, not only what came after the first pass, and records 
 /sdd-review --since-last
 ```
 
-## Run the outside review panel
+## Run the review panel
 
 ```text
 /sdd-review --panel
 ```
 
-Prints one review-request block per name in `agents.review_panel.<lane>`, filled from the repository's `docs/ai-workflow.md` § Review with the commit range to read. Paste each block to the reviewer it names. An outside reviewer working on this machine pipes its lines to `sdd-pr add -`. One working on the pull request posts inline comments, and `sdd-pr pull` brings them in.
+Prints one review-request block per name in `agents.review_panel.<lane>`, filled from the repository's `docs/ai-workflow.md` § Review with the commit range to read. Paste each block to the reviewer it names. A panel reviewer working on this machine pipes its lines to `sdd-pr add -`. One working on the pull request posts inline comments, and `sdd-pr pull` brings them in.
 
 ## Work the open findings
 
@@ -140,9 +136,10 @@ The open critical and important lines of the branch's findings file are the whol
 # Findings — feat/auth-refresh
 Base: main
 Reviewed 9c1e2ab · 2026-09-30 · claude: sdd-spec-conformance-reviewer, go-coding:go-reviewer (2 of 2)
+Reviewed 9c1e2ab · 2026-10-01 · maintainer: ana (1 of 1)
 
 ## Open
-- [ ] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: maintainer · forge: 5893201111
+- [ ] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: ana · forge: 5893201111
 
 ## Resolved
 - [x] critical · internal/auth/refresh.go:88 · a revoked token rotates instead of failing closed (SPEC-AUTH §3) · evidence: TestRefreshRevoked stays green with the check deleted · by: claude · fixed 4f0a1c2
@@ -157,7 +154,7 @@ And what `sdd-pr status` prints for it; `sdd-pr flip` takes the `#key`:
 branch feat/auth-refresh · base main · head 4f0a1c2 · last reviewed 9c1e2ab (code changed since)
 findings: <clone>/.git/sdd/findings/feat--auth-refresh.md
 open: 0 critical, 1 important · outside the change: 0 · suggestions: 1
-#0e53b - [ ] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: maintainer · forge: 5893201111
+#0e53b - [ ] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: ana · forge: 5893201111
 #72ee1 - internal/auth/refresh.go:120 · rename `tok` to `token` · by: go-coding:go-reviewer
 forge: github · PR 7 (ready) · 0 unresolved threads not open in the file · checks: pass
 Mergeable: no — 1 important open
@@ -177,7 +174,7 @@ Run it on the default branch after one or more merges. It reads the non-blocking
 - it sorts the new lines into themes, each what one delivery would take on;
 - it folds duplicates, and drops what is settled or only taste.
 
-Read the diff and commit it. The first harvest asks where to start: a date, or a pull request number.
+It commits `docs/backlog.md`; read that commit. With `forge: none` it carries nothing and only re-checks. The first harvest asks where to start: a date, or a pull request number.
 
 ## Resume an interrupted delivery
 
@@ -221,7 +218,7 @@ The upgrade re-vendors `tools/sdd-check.py` when the plugin ships a newer copy t
 
 When a hand-written index row has no matching record in `traceability.yaml`, `generate` refuses to drop it: the run writes nothing and names the row. Capture the requirement with `/sdd-specify`, or delete the stale row by hand, then run again. A note inside the markers is refused the same way; move it outside them.
 
-From 0.7.x the upgrade also proposes the 0.8.0 changes: drop the plans path, rename `profile: full` to `formal`, ignore `/.sdd/`, and merge template changes into the process documents section by section. Each is applied only when you say yes. The full procedure is in [docs/upgrading.md](upgrading.md).
+What each release changed, and what to do by hand, is in [docs/upgrading.md](upgrading.md).
 
 ## Draft a gap for an upstream repository
 

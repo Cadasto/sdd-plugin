@@ -2,6 +2,46 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.11.x to 0.12.0
+
+Findings are graded by harm wherever they are, so a defect in code the branch did not change keeps its
+severity as `outside` and a document's form is a suggestion. `/sdd-deliver` opens a pull request ready
+for review, and the backlog is consolidated into themes. `sdd-check` changed only its version number, so
+re-vendoring it with `/sdd-scaffold --upgrade` is optional: until then the session-start line says the
+vendored gate is older than the plugin.
+
+1. **Permission rule.** The conformance reviewer proves each MUST with `sdd-pr guard`, which makes its
+   own scratch worktree. Replace the `Bash(git worktree add *)` and `Bash(git worktree remove *)` rules
+   with `Bash(python3 <plugin root>/tools/sdd-pr.py *)` ([install.md](install.md#fewer-permission-prompts)).
+   The session-start line `› sdd plugin <version> at <path>` names the root, which changes with each
+   marketplace version.
+2. **Ready pull requests.** `/sdd-deliver` opens a pull request ready for review; ask for a draft if you
+   want one. With nothing open, `sdd-pr status` then reads `Next: merge`; on a draft it points at
+   `/sdd-deliver --close-out`, which marks it ready. The close-out may also run after the merge: it then
+   commits on the default branch, or a branch from it, and updates the pull request body.
+3. **`outside` findings.** A critical or important defect in code the branch did not change used to be a
+   suggestion at most. It now keeps its severity, is marked `outside`, blocks nothing, goes in the
+   non-blocking comment above the suggestions, and is carried to the backlog with its severity.
+   `/sdd-triage` fixes one only when you say so.
+4. **The pass over the fixes waits for your review.** `sdd-pr pull` records your threads (those with no
+   `By:` line) as a `maintainer` line, and `status` suggests `/sdd-review --since-last` only after it. A
+   branch whose threads were pulled before the upgrade has no such line: record it once with
+   `sdd-pr record --agent maintainer --reviewers <your name> --reported 1/1`.
+5. **One pass at a time.** `/sdd-review` stops on `pass: running` while another agent's pass on the
+   branch is under an hour old. A pass that died ends with
+   `sdd-pr record --agent <its name> --reported 0/1`, which refuses a line but clears the note.
+6. **Grading.** A document's form is a suggestion: a missing RFC-2119 keyword, the shape of an
+   acceptance criterion or an ADR, a plan citation. A claim that code behaves wrongly is settled by a run
+   or a named input before it is graded. Expect fewer blocking document findings.
+7. **Backlog.** New lines go under `## Unsorted`, and `/sdd-triage --backlog` sorts them into themes.
+   0.11 filed lines under one heading per directory, which is not a theme: move those lines under
+   `## Unsorted` so the first consolidation regroups them. The close-out no longer deletes the backlog
+   lines a branch settled; the next `--backlog` run does, with `forge: none` too.
+8. **Process documents.** `--upgrade` proposes the changed `docs/ai-workflow.md` § Review (the `outside`
+   rule, code first, the review request) and § Orchestration. It does not merge `AGENTS.md`: change its
+   "Agents open draft PRs and mark them ready" line by hand to "Agents open PRs, a draft only when
+   asked". Re-paste the review request to reviewers outside the repository.
+
 ## From 0.11.0 to 0.11.1
 
 The ADR index now reads a Traceability label written in Markdown emphasis (`- **Amends:** REQ-X`), so

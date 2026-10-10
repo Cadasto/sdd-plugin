@@ -84,7 +84,7 @@ The skill runs as the orchestrator and stops at each gate:
 2. **Lane.** A new capability is the full lane. The lane is passed to the review and written into the pull request body.
 3. **Workers.** The skill creates a feature branch and dispatches one `sdd-implementer` per task, on the model the `agents:` block declares. Tasks run one after another on the branch; only large tasks that touch disjoint files run in parallel, still on the same branch. Each brief quotes the clauses the task must satisfy. The worker writes each test first and shows that it fails with the guard removed. It names `REQ-AUTH-001` in its test names and its commit message, never in doc comments, and reports anything wrong outside its brief as en-route findings. The orchestrator keeps its own task list; nothing about the plan is committed.
 4. **Per-task gate.** With `task_review: lane`, the reviewers named in `agents.reviewers` check each task on the full lane. An empty list is reported as an unconfigured gate, and the skill asks before continuing.
-5. **First review pass.** After the full gate, `/sdd-review` reads the branch and writes its findings into the branch's findings file; `sdd-pr status` prints where it is. `/sdd-triage` fixes the critical and important ones before any pull request exists.
+5. **First review pass.** After the full gate, `/sdd-review` reads the branch and writes its findings into the branch's findings file; `sdd-pr status` prints where it is. `/sdd-triage` fixes the critical and important ones in the change before any pull request exists; one in code the branch did not change is marked `outside` and fixed only if you say so.
 6. **Pull request.** Opened ready for review (ask for a draft if you want one), with `Lane: full` under *Spec and traceability*. Anything still blocking is mirrored to its inline threads; the rest goes in one comment.
 
 It prints one review-request block per entry in `agents.review_panel.full`, for reviewers outside the repository; paste those where they go. Then it stops and waits for you.
@@ -99,9 +99,9 @@ Review the pull request as you would any other, with inline comments on the line
 /sdd-triage
 ```
 
-Triage pulls your unresolved threads into the findings file; a comment with no severity word counts as important. It checks each finding against the code and the cited spec section before fixing anything. Fixes land in this branch, each line in the file is flipped to fixed or declined with a reason (or deferred, when you say so), and your threads are answered and resolved. When the fixes changed anything, documents included, triage runs one more review pass over them.
+Triage pulls your unresolved threads into the findings file, and records them as your review. A comment counts as important unless it opens with **critical**; end its first line with `· outside` for a defect in code the branch did not change, which then blocks nothing. It checks each finding against the code and the cited spec section before fixing anything. Fixes land in this branch, each line in the file is flipped to fixed or declined with a reason (or deferred, when you say so), and your threads are answered and resolved. When the fixes changed anything, documents included, triage runs one more review pass over them.
 
-When `sdd-pr status` shows nothing blocking, close out:
+When `sdd-pr status` shows nothing blocking, close out. On a ready pull request `status` reads `Mergeable: yes` and `Next: merge`: close out first, or merge and run the close-out afterwards, which then commits on the default branch.
 
 ```text
 /sdd-deliver <N> --close-out
@@ -109,7 +109,7 @@ When `sdd-pr status` shows nothing blocking, close out:
 
 The close-out sets the requirement's traceability record to `implementation: shipped`; the spec section is promoted only if you confirm it. It runs the full gate before pushing, writes the pull request body, and marks the pull request ready if you asked for a draft. A person merges.
 
-Suggestions never block. Each review pass put its suggestions in a comment of their own on the pull request. After one or more merges, `/sdd-triage --backlog` carries the open ones to `docs/backlog.md`, where the next delivery that touches their files picks them up. The first harvest asks where to start.
+Suggestions never block. Each review pass put its suggestions, and any `outside` defects, in one non-blocking comment on the pull request. After one or more merges, `/sdd-triage --backlog` carries the open ones to `docs/backlog.md`, where the next delivery that touches their files picks them up. The first harvest asks where to start.
 
 Check: the requirement's record reads `implementation: shipped`, and the pull request body has Summary, Spec and traceability, Verification and the checklist.
 

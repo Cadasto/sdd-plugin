@@ -15,11 +15,11 @@ While on the `0.x` line, treat the plugin as pre-stable: a breaking change may s
 Steps 1 to 4 and 6 belong in the pull request that carries the release's changes, with the changelog notes still under `## [Unreleased]`. Steps 5, 7 and 8 happen on `main` after that pull request merges, so the release commit only dates the changelog.
 
 1. Bump `version` in both manifests, `.claude-plugin/plugin.json` and `.cursor-plugin/plugin.json`, and keep their `description`, `author`, `license`, `repository`, and `keywords` identical. In the same step, bump the `__version__` of `tools/sdd-check.py` and `tools/sdd-pr.py`, and `check.version` in `references/templates/sdd.yaml`. `scripts/validate.py` fails when any of these disagree. A repository that already vendored the gate picks up the new version with `/sdd-scaffold --upgrade`.
-2. Update the version badge at the top of [README.md](../README.md).
+2. Update the version badge at the top of [README.md](../README.md), its `check.version` example, and the version [quick-start.md](quick-start.md) says it describes. `scripts/validate.py` checks none of these.
 3. Run `./scripts/validate.sh` and `claude plugin validate .`.
 4. Dogfood: load the working copy (`claude --plugin-dir /path/to/sdd-plugin`) and run the full loop on a throwaway repo on both hosts; see [testing.md](testing.md).
 5. Fold the `## [Unreleased]` notes into a dated `## [X.Y.Z] - YYYY-MM-DD` section in [CHANGELOG.md](../CHANGELOG.md). The groups follow Keep a Changelog, in the order Added, Changed, Deprecated, Removed, Fixed, Security ([AGENTS.md](../AGENTS.md#changelog-style)).
-6. Sync AGENTS.md and README.md with what ships. When a skill is added or renamed, update the `/sdd-*` list in `hooks/session-start.sh` too.
+6. Sync AGENTS.md and README.md with what ships. When a skill is added or renamed, update the `/sdd-*` lists in `hooks/session-start.sh` and `rules/sdd-context.mdc` too.
 7. Commit (`chore(release): vX.Y.Z`) and tag: `git tag -a vX.Y.Z -m "sdd-plugin vX.Y.Z"`.
 8. Push the commit and the tag: `git push origin main --follow-tags`.
 9. **Update the marketplace entry.** The release is not live until this lands; see below.
