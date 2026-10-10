@@ -460,7 +460,16 @@ class TestStatus(RepoCase):
         _, out, _ = self.run_main("status")
         self.assertIn("code changed since", out)
         self.assertIn("Mergeable: yes", out)
-        self.assertIn("Next: /sdd-review", out)
+        self.assertIn("Next: /sdd-review --since-last", out)
+        # Once the pass over the fixes is in, the budget is spent: a fix after it does not steer to review.
+        self.findings(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)\n",
+                                         "claude: go-reviewer (1 of 1)\nReviewed ddddddd · 2026-10-01 · claude: go-reviewer (1 of 1)\n"))
+        self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="a.go\n")
+                 + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "SUCCESS"}]))
+        _, out, _ = self.run_main("status")
+        self.assertIn("passes: the budget is spent", out)
+        self.assertNotIn("Next: /sdd-review", out)
+        self.findings(FILE_CLEAN)
         # Nothing open, a draft → mark ready.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(draft=True))
         _, out, _ = self.run_main("status")
@@ -1337,9 +1346,46 @@ class TestScopeFlags(RepoCase):
         self.assertIn("range: empty", out)
         _, out, _ = self.run_main("scope", "--since-last", "--agent", "cursor")
         self.assertIn("range: ccccccc..HEAD", out)
-        # An agent with no pass of its own starts at the merge base.
+        # An agent with no pass of its own starts at the last pass by anyone, not the whole branch.
         _, out, _ = self.run_main("scope", "--since-last", "--agent", "codex")
-        self.assertIn("range: %s..HEAD" % MB, out)
+        self.assertIn("range: empty", out)
+        self.assertIn("since: no pass by codex; the last pass, by claude", out)
+
+    def test_since_last_leaves_out_what_a_merge_of_the_base_brought_in(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OPEN_IMPORTANT.replace(HEAD[:7], "9c1e2ab", 1))
+        old_base, merged = "d" * 40, "e" * 40
+
+        def merge_base(argv, _):
+            return (old_base if argv[-1] == "9c1e2ab" else MB) + "\n"
+
+        def names(argv, _):
+            return "a.go\n" if merged in argv else "a.go\nfrom_main.go\n"
+
+        routes = [(lambda a: git("merge-base")(a) and "--is-ancestor" not in a, merge_base),
+                  (git("merge-tree", "--write-tree"), merged + "\n"),
+                  (git("diff", "--name-only"), names)]
+        self.use(routes + git_routes())
+        _, out, _ = self.run_main("scope", "--since-last")
+        self.assertIn("range: 9c1e2ab..HEAD", out)
+        self.assertIn("diff from: %s, the last pass with main merged in" % merged[:12], out)
+        self.assertIn("code: a.go\n", out)
+        self.assertNotIn("from_main.go", out)
+        # can-fail control: when the merge cannot be written, the range's own start is the diff's.
+        self.use([routes[0], (git("merge-tree"), sdd_pr.CliError("conflict")), routes[2]] + git_routes())
+        _, out, _ = self.run_main("scope", "--since-last")
+        self.assertIn("from_main.go", out)
+        self.assertNotIn("diff from:", out)
+
+    def test_diff_takes_the_plugins_own_reviewers(self):
+        self.descriptor(forge="none")
+        self.use(git_routes(names="a.go\na_test.go\ndocs/x.md\n", diff="DIFF"))
+        for name, wanted in (("sdd:sdd-doc-reviewer", ["docs/x.md"]),
+                             ("sdd-spec-conformance-reviewer", ["a.go", "a_test.go"])):
+            code, out, err = self.run_main("scope", "--diff", name)
+            self.assertEqual((0, "DIFF"), (code, out), err)
+            argv = [a for a, _ in sdd_pr.run_cli.calls if a[-len(wanted):] == wanted and "--no-ext-diff" in a]
+            self.assertTrue(argv, name)
 
     def test_agent_without_since_last_is_refused(self):
         # --agent only says whose last pass --since-last starts from; alone it would be ignored.

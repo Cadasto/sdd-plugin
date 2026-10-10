@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- Tools: `sdd-pr scope --since-last` starts at the last pass by anyone when `--agent` has none of its own, and diffs from the last pass with the base merged in, so a merge of the base after a pass no longer puts the base's changes in the range.
+- Tools: `sdd-pr status` points `Next` at `/sdd-review --since-last` after a code change only until the pass budget is spent, then says so.
+- Tools: `sdd-pr scope --diff` takes `sdd-spec-conformance-reviewer` (code and tests) and `sdd-doc-reviewer` (documents).
+- Skills: `sdd-review --since-last` reads the commits since the last pass, whoever made it; `sdd-deliver --close-out` writes `landed` where the map uses it for delivered work.
+
 ## [0.11.1] - 2026-10-07
 
 The ADR index now fills its *Resolves / amends* column from a label in Markdown emphasis. Moving a repository

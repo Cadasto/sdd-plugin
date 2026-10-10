@@ -626,10 +626,10 @@ def review_range(root: str, fs: Findings, base: str, head: str, since_last: bool
                  agent: str = "") -> Optional[str]:
     """The range a pass reads, or ``None`` when nothing is in it (review.md § Scope): the whole branch,
     so a second reviewer gives a second opinion on all of it; with ``since_last``, only the commits
-    since the last pass, or since ``agent``'s own. A last pass that is no longer an ancestor of HEAD
-    (the branch was rebased) restarts at the merge base."""
+    since the last pass, or since ``agent``'s own when it has one. A last pass that is no longer an
+    ancestor of HEAD (the branch was rebased) restarts at the merge base."""
     agent = _clean(agent).replace(":", "-") if agent else ""  # spelled as record writes it
-    passes = [r for r in fs.passes if not agent or r[2] == agent]
+    passes = [r for r in fs.passes if r[2] == agent] or list(fs.passes)
     last = passes[-1][0] if since_last and passes else None
     if last:
         full = resolve_sha(root, last)
@@ -647,7 +647,28 @@ def review_range(root: str, fs: Findings, base: str, head: str, since_last: bool
     return "%s..HEAD" % merge_base
 
 
+def diff_start(root: str, base: str, rng: Optional[str]) -> str:
+    """Where the range's diff starts. When the base was merged into the branch after the range's start, a
+    tree of that start with the new base merged in, so the diff holds the branch's own changes and its
+    conflict resolutions, not the base's; the range's start otherwise, or when that merge does not resolve
+    cleanly or git cannot write it (before 2.38)."""
+    if not rng:
+        return ""
+    start = rng.split("..")[0]
+    ref = base_ref(root, base)
+    try:
+        then = git(root, "merge-base", ref, start).strip()
+        now = git(root, "merge-base", ref, "HEAD").strip()
+        if not then or then == now:
+            return start
+        return git(root, "merge-tree", "--write-tree", start, now).splitlines()[0].strip() or start
+    except (CliError, IndexError):
+        return start
+
+
 KINDS = ("code", "tests", "documents", "other", "vendored", "plans")
+#: The plugin's own reviewers, which no `agents.reviewers` entry names, and the kinds each one reads.
+OWN_REVIEWERS = {"sdd-spec-conformance-reviewer": ("code", "tests"), "sdd-doc-reviewer": ("documents",)}
 
 
 def _is_plan(root: str, path: str, start: str = "") -> bool:
@@ -665,14 +686,15 @@ def _is_plan(root: str, path: str, start: str = "") -> bool:
     return isinstance(front, dict) and str(front.get("kind", "")).strip() == "plan"
 
 
-def changed_files(root: str, rng: Optional[str], globs: List[str], vendored: str = "") -> Dict[str, List[str]]:
-    """The range's paths by kind. The vendored gate is upstream code and a plan a working file: both are
-    kept apart, so no reviewer reads them."""
+def changed_files(root: str, rng: Optional[str], globs: List[str], vendored: str = "",
+                  start: str = "") -> Dict[str, List[str]]:
+    """The range's paths by kind, diffed from ``start`` (diff_start) when given. The vendored gate is
+    upstream code and a plan a working file: both are kept apart, so no reviewer reads them."""
     files: Dict[str, List[str]] = {kind: [] for kind in KINDS}
     if not rng:
         return files
     vendored = os.path.normpath(vendored) if vendored else ""
-    for path in git(root, "diff", "--name-only", rng).splitlines():
+    for path in git(root, "diff", "--name-only", start or rng.split("..")[0], "HEAD").splitlines():
         path = path.strip()
         if not path:
             continue
@@ -1286,24 +1308,38 @@ def cmd_scope(session: Session, args) -> int:
         raise CliError("scope: --agent names whose last pass --since-last starts from; pass both")
     rng = review_range(session.root, session.fs, session.base(), session.head,
                        since_last=args.since_last, agent=args.agent or "")
-    files = changed_files(session.root, rng, session.globs, session.vendored)
+    start = diff_start(session.root, session.base(), rng)
+    files = changed_files(session.root, rng, session.globs, session.vendored, start)
     reviewers, unassigned = reviewers_for(session.data, files)
+    notes = []
+    agent = _clean(args.agent or "").replace(":", "-")
+    if agent and session.fs.passes and not [p for p in session.fs.passes if p[2] == agent]:
+        notes.append("since: no pass by %s; the last pass, by %s" % (agent, session.fs.passes[-1][2]))
+    if rng and start != rng.split("..")[0]:
+        notes.append("diff from: %s, the last pass with %s merged in; the base's changes are left out"
+                     % (start[:12], session.base()))
     if args.diff:
         paths = files.get(args.diff) if args.diff in KINDS else reviewers.get(args.diff)
+        own = OWN_REVIEWERS.get(args.diff.rsplit(":", 1)[-1])
+        if paths is None and own:
+            paths = [p for kind in own for p in files[kind]]
         if paths is None and args.diff in configured_reviewers(session.data):
             paths = []  # a reviewer with nothing in this range: nothing to print
         if paths is None:
-            raise CliError("scope: --diff takes a kind (%s) or a reviewer scope names, not %s"
-                           % (", ".join(KINDS), args.diff))
+            raise CliError("scope: --diff takes a kind (%s), a reviewer scope names, or %s, not %s"
+                           % (", ".join(KINDS), " or ".join(sorted(OWN_REVIEWERS)), args.diff))
         if rng and paths:
-            sys.stdout.write(git(session.root, "diff", "--no-ext-diff", rng, "--", *paths))
+            sys.stdout.write(git(session.root, "diff", "--no-ext-diff", start, "HEAD", "--", *paths))
         return 0
     if args.json:
-        print(json.dumps({"range": rng, "base": session.base(), "head": session.head, "files": files,
-                          "reviewers": reviewers, "unassigned": unassigned}, indent=2))
+        print(json.dumps({"range": rng, "diff_from": start or None, "base": session.base(), "head": session.head,
+                          "files": files, "reviewers": reviewers, "unassigned": unassigned, "notes": notes},
+                         indent=2))
         return 0
     print("base: %s" % session.base())
     print("range: %s" % (rng or "empty"))
+    for note in notes:
+        print(note)
     for kind in KINDS:
         if files[kind]:
             print("%s: %s" % (kind, " ".join(files[kind])))
@@ -1326,7 +1362,8 @@ def cmd_status(session: Session, args) -> int:
             unreachable = str(exc).splitlines()[0]
     last = fs.last_reviewed_sha()
     rng = review_range(session.root, fs, session.base(), session.head, since_last=True)
-    files = changed_files(session.root, rng, session.globs, session.vendored)
+    files = changed_files(session.root, rng, session.globs, session.vendored,
+                          diff_start(session.root, session.base(), rng))
     code_changed = bool(files["code"] or files["tests"] or files["other"])
     changed = code_changed or bool(files["documents"])
     since = "code changed" if code_changed else "documents changed" if changed else "no change"
@@ -1355,10 +1392,13 @@ def cmd_status(session: Session, args) -> int:
         reasons.append(", ".join(parts) + " open")
     unmirrored = [f for f in fs.open if f.severity in BLOCKING and not f.fields.get("forge") and "unanchored" not in f.flags]
     nxt = ("sdd-pr post --pr %d" % pr["number"] if live and unmirrored else "/sdd-triage") if reasons else ""
-    if code_changed and last:
-        # Steers Next only: after the pass budget is spent, a fix does not reopen review. A change to
-        # documents alone does not steer: the close-out's own commit is one.
-        nxt = nxt or "/sdd-review"
+    # The budget (review.md § Passes): the pass before ready and one pass over the fixes, at two commits.
+    spent = len({p[0] for p in fs.passes if p[2] != "maintainer"}) >= 2
+    if code_changed and last and spent:
+        print("passes: the budget is spent; only a new critical finding reopens review")
+    elif code_changed and last:
+        # Steers Next only. A change to documents alone does not steer: the close-out's own commit is one.
+        nxt = nxt or "/sdd-review --since-last"
     elif not last and changed:
         reasons.append("not reviewed yet")
         nxt = nxt or "/sdd-review"
