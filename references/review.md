@@ -63,7 +63,7 @@ deferred` instead. Unsure between important and suggestion: write suggestion.
 
 A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`, so a second reviewer gives a second
 opinion on all of it; `--since-last` reads only the commits since the last `Reviewed` line (`--agent`: one
-agent's own), as the pass over fixes does. `sdd-pr scope` prints the range, its paths as code, tests, documents, plans and other and the vendored gate
+agent's own, when it has one), as the pass over fixes does, and leaves out what a merge of the base brought in. `sdd-pr scope` prints the range, its paths as code, tests, documents, plans and other and the vendored gate
 (reviewed only when patched here), and the reviewer each code path goes to. A stacked branch names its parent once
 with `--base`; a local base that is only behind its remote counts from the remote. A critical or
 important finding is about a line in that range, or text an earlier fix on this branch wrote; anything
@@ -147,12 +147,13 @@ request. A plugin older than the repository's `check.version` refuses every writ
   on a forge, the threads the file does not know and the checks;
   then `Mergeable: yes` or `Mergeable: no — <reasons>` (no pull request, a closed one or an unreachable
   forge is a reason), and `Next: <command>`: `post` before triage while a blocking line is not mirrored,
+  `/sdd-review --since-last` after a code change until the pass budget is spent (§ Passes),
   `post` while a suggestion is not on the pull request (with no forge: carrying or dropping it). A merged pull request at HEAD prints `Mergeable: merged`, what
   the file still holds, and the file to delete, after `/sdd-triage --backlog` while its watermark is
   older than the merge; one merged or closed before the head moved is no pull request of this branch.
 - `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>]` — the range a
   pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
-  one reviewer, so no brief carries a diff built by hand.
+  one reviewer, the plugin's own reviewers included, so no brief carries a diff built by hand.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important
   finding without evidence, and folds an identical line into the first.
