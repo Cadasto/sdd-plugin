@@ -6,12 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-11
+
 Findings are graded by harm wherever they are: a defect in code the branch did not change keeps its
 severity, marked `outside`, and blocks nothing; a claim of wrong code behaviour is settled by a run
 before it is graded; a document's form is a suggestion. A review pass reuses the gate's log and one
 scratch worktree (`sdd-pr guard`) and runs one at a time, the pass over the fixes waits for the
 maintainer's review, and `/sdd-triage --backlog` consolidates the backlog instead of appending to it.
-`/sdd-deliver` opens a pull request ready for review, a draft only on request. `sdd-check` is unchanged.
+`/sdd-deliver` opens a pull request ready for review, a draft only on request. `sdd-check` changed only
+its version number. Moving a repository from 0.11.x is described in `docs/upgrading.md`.
 
 ### Added
 - Tools: the `outside` marker: a critical or important line about code the branch did not change keeps its severity, blocks nothing, goes in the non-blocking comment above the suggestions, and `harvest` carries it with its severity; `sdd-pr add --outside`, dropped from a line the branch changed; `pull` reads a thread's trailing `· outside` and a review body's `outside` lines; `flip --suggestions --carry` and `--deferred` take the open `outside` lines too; `status` counts them apart.
