@@ -2404,6 +2404,14 @@ class TestHarvest(GitHubCase):
         self.assertLess(backlog.index("## Unsorted"), backlog.index("## Retry"))
         self.assertLess(backlog.index("a code lead"), backlog.index("a doc lead"))
 
+    def test_the_first_harvest_re_checks_since_its_start(self):
+        self.descriptor(forge="none")
+        self.backlog(sdd_pr.BACKLOG_HEAD + "\n## Retry\n- old/r.go:5 · the retry ignores the context · from: feat/r\n")
+        self.use([(git("log", "--since=2026-10-01T00:00:00Z", "--first-parent", "-m"), "M\told/r.go\n")] + git_routes())
+        code, out, err = self.run_main("harvest", "--since", "2026-10-01")
+        self.assertEqual(0, code, err)
+        self.assertIn("re-check, its path changed since the last harvest: old/r.go:5", out)
+
     def test_without_a_forge_harvest_carries_nothing_and_names_the_lines_to_re_check(self):
         # The close-out carried the lines; what is left is the re-check, so the settled ones get deleted.
         self.descriptor(forge="none")
@@ -2848,6 +2856,83 @@ class TestNonBlockingLines(GitHubCase):
         body = sdd_pr.suggestions_body(HEAD, fs.items)
         order = [body.index(t) for t in ("the test hangs", "a code lead", "a test lead", "an other lead", "a doc lead")]
         self.assertEqual(sorted(order), order, body)
+
+
+class TestOutsideIsAFact(GitHubCase):
+    """`outside` holds only for what the branch did not change; a reviewer's word does not make it so."""
+
+    CHANGED = "--- a/pkg/calc.py\n+++ b/pkg/calc.py\n@@ -8,0 +9,2 @@\n+    if x > 9:\n+        return 9\n"
+
+    def test_add_drops_outside_from_a_line_the_branch_changed(self):
+        self.descriptor(forge="none")
+        fake = self.use([(git("diff", "--no-ext-diff", "-U0"), self.CHANGED)] + git_routes())
+        code, _, err = self.run_main("add", "critical", "pkg/calc.py:9", "more returns the wrong value",
+                                     "--evidence", "ran it", "--outside")
+        self.assertEqual(0, code, err)
+        self.assertIn("the branch changed pkg/calc.py:9, so the finding blocks", err)
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual((["pkg/calc.py:9"], []), ([f.anchor for f in fs.blocking], fs.outside))
+        self.assertTrue(fake.called("git", "diff", "--no-ext-diff", "-U0", MB, "HEAD", "--", "pkg/calc.py"))
+        # A line the branch did not change keeps it.
+        self.run_main("add", "important", "pkg/calc.py:30", "leaks the handle", "--evidence", "ran it", "--outside")
+        self.assertEqual(["pkg/calc.py:30"], [f.anchor for f in sdd_pr.parse(self.read_findings()).outside])
+
+    def test_pull_takes_outside_lines_from_a_review_body_once(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN)
+        self.reviews = [{"id": 5, "body": "Two notes.\n\n- **important** · z.go:9 · hangs on empty input · "
+                                          "evidence: ran it · outside\nBy: cursor"},
+                        {"id": 6, "body": "**critical** · y.go:2 · not outside, ignored · evidence: x"}]
+        self.use(self.routes())
+        code, _, err = self.run_main("pull")
+        self.assertEqual(0, code, err)
+        (line,) = sdd_pr.parse(self.read_findings()).outside
+        self.assertEqual(("important", "z.go:9", "hangs on empty input", "cursor"),
+                         (line.severity, line.anchor, line.text, line.fields["by"]))
+        self.assertNotIn("y.go", self.read_findings())
+        # Fixed in the file, it is not pulled again; nor does a review body make a maintainer line.
+        self.assertEqual(0, self.run_main("flip", "z.go:9", "--fixed", "abc1234")[0])
+        self.run_main("pull")
+        self.assertEqual(1, self.read_findings().count("z.go:9"))
+        self.assertNotIn("maintainer:", self.read_findings())
+
+    def test_only_a_persons_thread_is_the_maintainers_review_at_the_pull_requests_head(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN)
+        threads = [gh_thread(101, "a.go", 3, "**important** leak\n\nBy: cursor", login="maint"),
+                   gh_thread(102, "a.go", 4, "**important** retry", login="copilot-pull-request-reviewer[bot]")]
+        self.use(self.routes(threads=threads))
+        self.assertEqual(0, self.run_main("pull")[0])
+        self.assertNotIn("maintainer:", self.read_findings())
+        # The maintainer read the pull request's head, though this checkout has committed past it.
+        self.PR = {"headRefOid": "c" * 40}
+        self.use([(git("merge-base", "--is-ancestor"), "")] + self.routes(threads=[gh_thread(103, "b.go", 1, "why?")]))
+        self.assertEqual(0, self.run_main("pull")[0])
+        self.assertIn("Reviewed ccccccc · ", self.read_findings())
+        self.assertIn(" · maintainer: maint (1 of 1)", self.read_findings())
+
+
+class TestScratchLock(RepoCase):
+    def test_removing_the_scratch_worktree_waits_for_a_running_guard(self):
+        if sdd_pr.fcntl is None:
+            self.skipTest("no fcntl")
+        import threading
+        import time
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        tree = self.root / ".git" / "sdd" / "scratch" / "feat--x"
+        tree.mkdir(parents=True)
+        self.use([(git("worktree", "remove"), lambda argv, _: tree.rmdir() or "")] + git_routes())
+        session = sdd_pr.Session(mock.Mock(root=str(self.root), branch=None, pr=None))
+        with open(str(tree) + ".lock", "a") as held:  # a guard run holds it
+            sdd_pr.fcntl.flock(held, sdd_pr.fcntl.LOCK_EX)
+            remover = threading.Thread(target=sdd_pr.remove_scratch, args=(session,))
+            remover.start()
+            time.sleep(0.3)
+            self.assertTrue(tree.exists())
+            self.assertTrue(remover.is_alive())
+        remover.join(5)
+        self.assertFalse(tree.exists())
 
 
 class TestCommandLine(RepoCase):
