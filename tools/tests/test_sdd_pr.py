@@ -1741,7 +1741,7 @@ class TestFlip(RepoCase):
             path.write_text(text, encoding="utf-8")
         return path.read_text(encoding="utf-8") if path.exists() else None
 
-    def test_carry_appends_the_suggestions_to_the_backlog_by_directory(self):
+    def test_carry_adds_the_suggestions_under_unsorted_above_the_themes(self):
         self.descriptor(forge="none")
         flip = FILE_FLIP.replace("- a.go:10 · reword", "- internal/auth/b.go:10 · reword")
         self.findings(flip)
@@ -1752,9 +1752,9 @@ class TestFlip(RepoCase):
         code, out, err = self.run_main("flip", "--suggestions", "--carry")
         self.assertEqual(0, code, err)
         self.assertIn("2 lines carried to docs/backlog.md", out)
-        self.assertEqual(head + "\n## .\n- a.go:9 · rename n · by: claude · from: feat/x\n\n"
-                         "## internal/auth\n- internal/auth/c.go:1 · older · from: feat/old\n"
+        self.assertEqual(head + "\n## Unsorted\n- a.go:9 · rename n · by: claude · from: feat/x\n"
                          "- internal/auth/b.go:10 · reword · by: claude · from: feat/x\n\n"
+                         "## internal/auth\n- internal/auth/c.go:1 · older · from: feat/old\n\n"
                          "## zz\n- zz/y.go:2 · last · from: feat/old\n", self.backlog())
         text = self.read_findings()
         self.assertIn("- [~] suggestion · a.go:9 · rename n · by: claude · deferred: docs/backlog.md", text)
@@ -1764,6 +1764,14 @@ class TestFlip(RepoCase):
         self.findings(flip)
         self.assertEqual(0, self.run_main("flip", "--suggestions", "--carry")[0])
         self.assertEqual(before, self.backlog())
+
+    def test_carry_puts_code_before_documents_whatever_the_file_order(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_FLIP.replace("- a.go:9 · rename n", "- docs/g.md:9 · rename n"))
+        self.use(git_routes())
+        self.assertEqual(0, self.run_main("flip", "--suggestions", "--carry")[0])
+        backlog = self.backlog()
+        self.assertLess(backlog.index("a.go:10 · reword"), backlog.index("docs/g.md:9 · rename n"))
 
     def test_carry_matches_whole_fields_not_substrings(self):
         self.descriptor(forge="none")
@@ -1793,7 +1801,7 @@ class TestFlip(RepoCase):
         self.backlog("\n\n")
         self.findings(FILE_FLIP)
         self.assertEqual(0, self.run_main("flip", "a.go:9", "--carry")[0])
-        self.assertTrue(self.backlog().startswith(sdd_pr.BACKLOG_HEAD + "\n## .\n- a.go:9 · rename n"), self.backlog())
+        self.assertTrue(self.backlog().startswith(sdd_pr.BACKLOG_HEAD + "\n## Unsorted\n- a.go:9 · rename n"), self.backlog())
 
     def test_carry_starts_the_backlog_and_keeps_a_blocking_findings_severity(self):
         self.descriptor(forge="none")
@@ -1802,7 +1810,7 @@ class TestFlip(RepoCase):
         self.assertEqual(0, self.run_main("flip", "a.go:6", "--carry")[0])
         backlog = self.backlog()
         self.assertTrue(backlog.startswith("---\nkind: plan\n---\n# Backlog\n"), backlog)
-        self.assertTrue(backlog.endswith("\n## .\n- critical · a.go:6 · two · evidence: ran it · by: claude · from: feat/x\n"),
+        self.assertTrue(backlog.endswith("\n## Unsorted\n- critical · a.go:6 · two · evidence: ran it · by: claude · from: feat/x\n"),
                         backlog)
         self.assertIn("- [~] critical · a.go:6 · two · evidence: ran it · by: claude · deferred: docs/backlog.md",
                       self.read_findings())
@@ -2023,6 +2031,14 @@ class TestSuggestionComments(GitHubCase):
         # can-fail control: a comment without the marker holds no line.
         self.assertEqual([], sdd_pr.suggestion_lines(body.replace("sdd:suggestions", "sdd:other")))
 
+    def test_a_comment_lists_defects_then_code_then_tests_then_documents(self):
+        fs = sdd_pr.parse("# Findings — feat/x\nBase: main\n\n## Open\n"
+                          "- [ ] important · z.go:9 · hangs · evidence: ran it · outside\n\n## Suggestions\n"
+                          "- docs/a.md:1 · a doc lead\n- a_test.go:2 · a test lead\n- a.go:3 · a code lead\n")
+        body = sdd_pr.suggestions_body(HEAD, fs.items)
+        order = [body.index(t) for t in ("hangs", "a code lead", "a test lead", "a doc lead")]
+        self.assertEqual(sorted(order), order, body)
+
     def test_a_fixed_suggestion_shows_as_fixed_in_its_comment(self):
         self.descriptor(forge="github")
         self.findings(FILE_POSTED)
@@ -2154,11 +2170,16 @@ class TestReviewSpeed(RepoCase):
     def scratch_routes(self):
         return [(git("reset", "--quiet", "--hard"), ""), (git("checkout", "--quiet", "--"), "")]
 
-    def run_tests_as(self, code, output="ok"):
-        seen = {}
+    def run_tests_as(self, code, output="ok", pristine=0):
+        """The test passes (``pristine``) on the untouched file and answers ``code`` once a guard is gone."""
+        seen = {"runs": 0}
 
         def fake(argv, cwd):
-            seen.update(argv=argv, cwd=cwd, text=(Path(cwd) / "a.go").read_text())
+            text = (Path(cwd) / "a.go").read_text()
+            seen["runs"] += 1
+            if "if x < 0" in text:
+                return pristine, "baseline"
+            seen.update(argv=argv, cwd=cwd, text=text)
             return code, output
         orig = sdd_pr.run_test
         self.addCleanup(setattr, sdd_pr, "run_test", orig)
@@ -2178,11 +2199,25 @@ class TestReviewSpeed(RepoCase):
         self.assertEqual((["go", "test", "-run", "TestF", "./"], str(tree)), (seen["argv"], seen["cwd"]))
         self.assertTrue(fake.called("git", "-C", str(tree), "reset", "--quiet", "--hard", HEAD))
         self.assertTrue(fake.called("git", "-C", str(tree), "checkout", "--quiet", "--", "a.go"))
-        # A guard whose removal no test notices is untested (the fake checkout restored nothing).
+        self.assertEqual(2, seen["runs"])  # the unchanged run first, then the one without the guard
+        # A guard whose removal no test notices is untested (the fake checkout restored nothing). The
+        # unchanged run is not repeated for the same HEAD and command.
         self.scratch()
-        self.run_tests_as(0)
-        _, out, _ = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--delete", "--", "go", "test", "./")
+        seen = self.run_tests_as(0)
+        _, out, _ = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--replace", "if false",
+                                  "--", "go", "test", "-run", "TestF", "./")
         self.assertIn("untested: the test stays green without the guard", out)
+        self.assertEqual(1, seen["runs"])
+
+    def test_guard_refuses_when_the_test_fails_with_nothing_changed(self):
+        self.descriptor(forge="none")
+        self.scratch()
+        self.use(self.scratch_routes() + git_routes())
+        seen = self.run_tests_as(1, pristine=1)
+        code, _, err = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--delete", "--", "go", "test", "./")
+        self.assertEqual(2, code)
+        self.assertIn("fails in the scratch worktree with nothing changed", err)
+        self.assertEqual(1, seen["runs"])
 
     def test_guard_refuses_a_line_that_no_longer_reads_as_expected(self):
         self.descriptor(forge="none")
@@ -2209,6 +2244,17 @@ class TestReviewSpeed(RepoCase):
         self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
         self.assertEqual(0, self.run_main("record", "--agent", "claude", "--reviewers", "go-reviewer", "--reported", "1/1")[0])
         self.assertIn("range:", self.run_main("scope", "--start", "cursor")[1])
+        # A pass that read nothing ends too: record refuses its line but clears the note.
+        self.assertEqual(2, self.run_main("record", "--agent", "cursor", "--reviewers", "go-reviewer", "--reported", "0/1")[0])
+        self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
+
+    def test_an_empty_range_starts_no_pass(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes())
+        _, out, _ = self.run_main("scope", "--since-last", "--start", "claude")
+        self.assertIn("range: empty", out)
+        self.assertFalse((self.root / ".git" / "sdd" / "findings" / "feat--x.pass").exists())
 
     def test_a_guard_run_caches_no_python_bytecode(self):
         # A mutant and its restored source can share a size and an mtime second; a cached .pyc would then
@@ -2227,6 +2273,9 @@ class TestReviewSpeed(RepoCase):
         self.use([(git("diff", "--no-ext-diff", "-U0"), hunks)] + git_routes(names="docs/s.md\n"))
         _, out, _ = self.run_main("scope")
         self.assertIn("normative lines changed: 2", out)
+        # A range with no document changed says 0, so the lane hint is never silent.
+        self.use(git_routes(names="a.go\n"))
+        self.assertIn("normative lines changed: 0", self.run_main("scope")[1])
 
 
 class TestHarvest(GitHubCase):
@@ -2251,7 +2300,9 @@ class TestHarvest(GitHubCase):
             number = int(argv[2].split("/issues/")[1].split("/")[0])
             return json.dumps([{"id": 1000 + i, "body": b} for i, b in enumerate(comments.get(number, []))])
 
-        extra = [(has("gh", "pr", "list", "--state", "merged"), json.dumps(shaped)),
+        extra = [(git("log", "--since=" + self.MARK), getattr(self, "changed_since", "")),
+                 (git("log"), ""),
+                 (has("gh", "pr", "list", "--state", "merged"), json.dumps(shaped)),
                  (lambda a: a[:3] == ["gh", "pr", "view"] and a[3] != "7",
                   lambda argv, _: json.dumps(next(s for s in shaped if s["number"] == int(argv[3])))),
                  (lambda a: a[:2] == ["gh", "api"] and "/issues/" in a[2] and "--method" not in a, listed)]
@@ -2281,8 +2332,9 @@ class TestHarvest(GitHubCase):
         backlog = self.backlog()
         # #11 merged at the watermark: harvested already.
         self.assertNotIn("harvested before", backlog)
-        self.assertIn("- important · a.go:40 · the fetch hangs after a panic · evidence: ran it · from: #12\n", backlog)
-        self.assertIn("- a.go:9 · rename n · by: claude · from: #12\n", backlog)
+        # Harvested lines are short: the comment that `from:` names keeps the evidence. Defects come first.
+        self.assertIn("\n## Unsorted\n- important · a.go:40 · the fetch hangs after a panic · from: #12\n"
+                      "- a.go:9 · rename n · from: #12\n", backlog)
         self.assertNotIn("fixed outside defect", backlog)
         for settled in ("reword", "trim", "removed since"):
             self.assertNotIn(settled, backlog)
@@ -2309,16 +2361,35 @@ class TestHarvest(GitHubCase):
         self.assertIn("--since", err)
         code, out, err = self.run_main("harvest", "--since", "#12", "--dry-run")
         self.assertEqual(0, code, err)
-        self.assertIn("- a.go:9 · rename n · by: claude · from: #12", out)
+        self.assertIn("- a.go:9 · rename n · from: #12", out)
         self.assertIn("harvested_through: 2026-10-04T21:10:00Z (dry run", out)
         self.assertIsNone(self.backlog())
         # --since is inclusive: the pull request it names is in.
         self.assertEqual(0, self.run_main("harvest", "--since", "#12")[0])
-        self.assertIn("- a.go:9 · rename n · by: claude · from: #12", self.backlog())
+        self.assertIn("- a.go:9 · rename n · from: #12", self.backlog())
         # A date with nothing merged since still leaves a watermark for the next harvest.
         self.backlog("")
         self.assertEqual(0, self.run_main("harvest", "--since", "2026-10-05")[0])
         self.assertIn("harvested_through: 2026-10-04T23:59:59Z\n", self.backlog())
+
+    def test_harvest_names_the_lines_a_change_since_the_last_harvest_may_have_settled(self):
+        self.descriptor(forge="github")
+        (self.root / "a.go").write_text("package a\n", encoding="utf-8")
+        (self.root / "docs" / "s.md").write_text("# S\n", encoding="utf-8")
+        self.backlog(self.head_with_mark() + "\n## Retry\n- old/r.go:5 · the retry ignores the context · from: #3\n"
+                     "- docs/x.md:2 · reword the retry rule · from: #4\n")
+        self.changed_since = "old/r.go\nREADME.md\n"
+        self.use(self.harvest_routes({12: "2026-10-04T21:10:00Z"},
+                                     {12: [self.comment_of("- docs/s.md:3 · a doc lead · by: claude",
+                                                           "- a.go:9 · a code lead · by: claude")]}))
+        code, out, err = self.run_main("harvest")
+        self.assertEqual(0, code, err)
+        self.assertIn("re-check, its path changed since the last harvest: old/r.go:5 · the retry ignores the context", out)
+        self.assertNotIn("re-check, its path changed since the last harvest: docs/x.md", out)
+        # Code before documents under Unsorted, which sits above the themes.
+        backlog = self.backlog()
+        self.assertLess(backlog.index("## Unsorted"), backlog.index("## Retry"))
+        self.assertLess(backlog.index("a code lead"), backlog.index("a doc lead"))
 
     def test_without_a_forge_there_is_nothing_to_harvest(self):
         self.descriptor(forge="none")
@@ -2360,12 +2431,12 @@ class TestHarvestAzure(AzureCase):
                       "repository": {"id": "R1", "project": {"name": "proj"}}}]
         threads = [{"id": 40, "status": "closed", "comments": [{"id": 1, "content": body}]},
                    az_thread(41, "a.go", 9, "- a.go:9 · an inline thread is not a suggestions comment")]
-        fake = self.use([(has("az", "repos", "pr", "list", "--status", "completed"), json.dumps(completed))]
-                        + self.routes(threads=threads))
+        fake = self.use([(has("az", "repos", "pr", "list", "--status", "completed"), json.dumps(completed)),
+                         (git("log"), "")] + self.routes(threads=threads))
         code, out, err = self.run_main("harvest", "--since", "2026-10-04")
         self.assertEqual(0, code, err)
         backlog = (self.root / "docs" / "backlog.md").read_text(encoding="utf-8")
-        self.assertIn("- a.go:9 · rename n · by: claude · from: #12\n", backlog)
+        self.assertIn("- a.go:9 · rename n · from: #12\n", backlog)
         self.assertEqual(1, backlog.count("a.go:9"))
         self.assertIn("harvested_through: 2026-10-04T21:10:00Z", backlog)
         self.assertTrue(any("pullRequestId=12" in a for a in fake.called("az", "devops", "invoke")))

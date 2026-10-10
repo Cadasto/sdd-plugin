@@ -30,7 +30,7 @@ source of truth.
 
 ## Operating rules (read first)
 
-- **You review hunks, not files.** The brief carries the changed hunks of every touched document, their
+- **You review hunks, not files.** The brief carries the path of a file with the changed hunks of every touched document, their
   paths and the profile; read each hunk and the paragraph around it. You have no `Bash`; do not
   reconstruct the diff or read whole documents. For the other side of a possible disagreement, Grep the
   documents for its subject and open a file only to quote the sentence you will cite.
@@ -65,8 +65,8 @@ a suggestion at most.
 ## Rules every finding meets
 
 `references/review.md` is the contract; the brief says which commit range and which profile you are
-reviewing. § Scope: a critical or important finding about anything the range did not
-change keeps its severity and ends `· outside`. § Severity: by harm; a claim of wrong code behaviour is
+reviewing. § Scope: a critical or important finding about code the branch did not change
+keeps its severity and ends `· outside`. § Severity: by harm; a claim of wrong code behaviour is
 settled by a run or a named input, never graded down for want of either or of a spec sentence; unsure
 about a document or taste, write suggestion; at most ten suggestions, leads only, then "and n more". § Evidence: no evidence, no critical or important finding; run the code when
 you can. One finding names one defect; other instances inside the range go in the same line. Do not
@@ -81,7 +81,7 @@ never as a defect in upstream.
 2. **Findings** — a ```text fence holding ready-to-append lines in the findings-file grammar of
    `references/review.md` § The findings file: `- [ ] <severity> · <path>:<line> · <one sentence> ·
    evidence: <what you ran or quoted> · fix: <one line> · by: <your agent name>` for critical and
-   important, then ` · outside` when the range did not change it; `- <path>:<line> · <one sentence> · by: <your agent name>` for suggestions. Nothing else in
+   important, then ` · outside` when the branch did not change it; `- <path>:<line> · <one sentence> · by: <your agent name>` for suggestions. Nothing else in
    the fence. An empty fence when clean.
 3. **Coverage** — one line: what you read and ran, and anything you could not check.
 

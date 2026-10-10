@@ -172,7 +172,8 @@ one of these carries evidence — at least one `packages`, `tests`, or `operatio
 fails when it does not.
 
 The close-out in the implementing PR sets **`shipped`** (§9). **`landed`** stays in the vocabulary for a
-maintainer who merges code that is not yet usable, such as work behind a flag; no skill sets it.
+maintainer who merges code that is not yet usable, such as work behind a flag; the close-out sets it
+instead of `shipped` only where a repository's map already uses it for delivered work.
 
 **`retired`** marks a withdrawn requirement whose identifier is kept only so it is never reused (§14). It
 is allowed only when `status` is `deprecated`, and it owes no evidence. The reverse does not hold: during a
@@ -319,7 +320,7 @@ lane field. The informative profile has one lane.
 **The merge gate.** The code is correct; every binding sentence the change touches has a named test that
 fails when its guard is removed; the code conforms to the sentences it cites (all specifications on the
 formal profile, the constitution on the informative one); the drift gate is green; no critical or
-important finding about the change is open. Everything else is a suggestion ([review.md](review.md) § Severity).
+important finding about the change is open. Everything else blocks nothing ([review.md](review.md) § Severity).
 
 **Findings live in the branch's findings file** and, when there is a pull request, in its inline threads
 and suggestion comments — nowhere else. Format, severities, scope, evidence, the mirror, resolution, the pass budget:
