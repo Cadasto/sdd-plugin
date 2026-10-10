@@ -2065,8 +2065,10 @@ def cmd_record(session: Session, args) -> int:
     if not match:
         raise CliError("record: --reported is <n>/<m>: how many of the dispatched reviewers reported")
     reported, dispatched = int(match.group(1)), int(match.group(2))
-    if reported == 0 and os.path.exists(pass_note(session)):
-        os.remove(pass_note(session))  # the pass ended, though it read nothing: another may start
+    if reported == 0:  # the pass ended, though it read nothing: another may start
+        if os.path.exists(pass_note(session)):
+            os.remove(pass_note(session))
+        remove_scratch(session)
     if reported == 0 or reported > dispatched:
         raise CliError("record: %d of %d is not a pass; no Reviewed line, so the range stays open"
                        % (reported, dispatched))

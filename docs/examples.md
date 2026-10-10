@@ -157,8 +157,8 @@ And what `sdd-pr status` prints for it:
 branch feat/auth-refresh · base main · head 4f0a1c2 · last reviewed 9c1e2ab (code changed since)
 open: 0 critical, 1 important · outside the change: 0 · suggestions: 1
 - [ ] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: maintainer · forge: 5893201111
-forge: github · PR 7 (draft) · 0 unresolved threads not open in the file · checks: pass
-Mergeable: no — 1 important open; the pull request is a draft
+forge: github · PR 7 (ready) · 0 unresolved threads not open in the file · checks: pass
+Mergeable: no — 1 important open
 Next: /sdd-triage
 ```
 
