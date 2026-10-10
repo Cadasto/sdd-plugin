@@ -37,7 +37,7 @@ spec updated in the same PR).
 
 ## Orchestration
 
-- **The maintainer merges and orchestrates.** Agents open draft PRs and mark them ready; a person merges.
+- **The maintainer merges and orchestrates.** Agents open PRs, a draft only when asked; a person merges.
 - **One orchestrator, bounded workers.** The main session holds the judgement and dispatches
   `sdd-implementer` workers for bounded tasks. It does not write product code, except for a task that
   cannot be made self-contained — and it says so in the PR body.

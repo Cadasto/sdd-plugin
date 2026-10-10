@@ -7,7 +7,7 @@ The assistant's wording varies between runs. The files each step produces, and t
 ## Before you start
 
 - Claude Code with the plugin installed: see [install.md](install.md).
-- A git repository with a GitHub remote and the `gh` CLI signed in. `/sdd-deliver` opens the draft pull request with it, and `sdd-pr` mirrors findings to it.
+- A git repository with a GitHub remote and the `gh` CLI signed in. `/sdd-deliver` opens the pull request with it, and `sdd-pr` mirrors findings to it.
 - One build entry point. This walkthrough uses `make`; `task`, `just`, and `npm` work the same way.
 
 The example capability is refreshing an expired access token in a service that issues API tokens. Replace it with your own; the steps do not change.
@@ -85,15 +85,15 @@ The skill runs as the orchestrator and stops at each gate:
 3. **Workers.** The skill creates a feature branch and dispatches one `sdd-implementer` per task, on the model the `agents:` block declares. Tasks run one after another on the branch; only large tasks that touch disjoint files run in parallel, still on the same branch. Each brief quotes the clauses the task must satisfy. The worker writes each test first and shows that it fails with the guard removed. It names `REQ-AUTH-001` in its test names and its commit message, never in doc comments, and reports anything wrong outside its brief as en-route findings. The orchestrator keeps its own task list; nothing about the plan is committed.
 4. **Per-task gate.** With `task_review: lane`, the reviewers named in `agents.reviewers` check each task on the full lane. An empty list is reported as an unconfigured gate, and the skill asks before continuing.
 5. **First review pass.** After the full gate, `/sdd-review` reads the branch and writes its findings into the branch's findings file; `sdd-pr status` prints where it is. `/sdd-triage` fixes the critical and important ones before any pull request exists.
-6. **Draft pull request.** Opened as a draft, with `Lane: full` under *Spec and traceability*. Anything still open is mirrored to its inline threads.
+6. **Pull request.** Opened ready for review (ask for a draft if you want one), with `Lane: full` under *Spec and traceability*. Anything still open is mirrored to its inline threads.
 
-Then it stops and waits for you.
+It prints one review-request block per entry in `agents.review_panel.full`, for reviewers outside the repository; paste those where they go. Then it stops and waits for you.
 
 Check: `python3 <plugin root>/tools/sdd-pr.py status` prints the open counts, `Mergeable:` and `Next:`.
 
 ## 4. Review, triage, close out
 
-Review the draft as you would any pull request, with inline comments on the lines you mean.
+Review the pull request as you would any other, with inline comments on the lines you mean.
 
 ```text
 /sdd-triage
@@ -107,11 +107,11 @@ When `sdd-pr status` shows nothing open, close out:
 /sdd-deliver <N> --close-out
 ```
 
-The close-out sets the requirement's traceability record to `implementation: shipped`; the spec section is promoted only if you confirm it. It runs the full gate before pushing, writes the pull request body and marks the pull request ready. Last, it prints one review-request block per entry in `agents.review_panel.full`, for reviewers that run outside the repository. Paste those where they go. A person merges.
+The close-out sets the requirement's traceability record to `implementation: shipped`; the spec section is promoted only if you confirm it. It runs the full gate before pushing, writes the pull request body, and marks the pull request ready if you asked for a draft. A person merges.
 
 Suggestions never block. Each review pass put its suggestions in a comment of their own on the pull request. After one or more merges, `/sdd-triage --backlog` carries the open ones to `docs/backlog.md`, where the next delivery that touches their files picks them up. The first harvest asks where to start.
 
-Check: the requirement's record reads `implementation: shipped`, the pull request is no longer a draft, and its body has Summary, Spec and traceability, Verification and the checklist.
+Check: the requirement's record reads `implementation: shipped`, its body has Summary, Spec and traceability, Verification and the checklist.
 
 ## What you have now
 
