@@ -68,7 +68,8 @@ block, filled in.
 ── review request · <branch> · range <a>..<b> · profile <formal|informative> ──
 Review commits <a>..<b> of <repository>, and only those. Read docs/ai-workflow.md § Review.
 Report critical and important findings only, each with evidence (what you ran, or the two
-sentences that disagree) and a one-line fix; write anything smaller as a suggestion.
+sentences that disagree) and a one-line fix, ending a defect in code the range did not change with
+` · outside`; write anything smaller as a suggestion.
 If you work on this machine, pipe your lines in that grammar to: <plugin root>/tools/sdd-pr.py add -
 If you work on the pull request, post one review with one inline comment per finding, its
 first word **critical** or **important**; post nothing else, and do not restate the PR body.

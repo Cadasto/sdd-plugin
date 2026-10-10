@@ -2170,11 +2170,16 @@ class TestReviewSpeed(RepoCase):
     def scratch_routes(self):
         return [(git("reset", "--quiet", "--hard"), ""), (git("checkout", "--quiet", "--"), "")]
 
-    def run_tests_as(self, code, output="ok"):
-        seen = {}
+    def run_tests_as(self, code, output="ok", pristine=0):
+        """The test passes (``pristine``) on the untouched file and answers ``code`` once a guard is gone."""
+        seen = {"runs": 0}
 
         def fake(argv, cwd):
-            seen.update(argv=argv, cwd=cwd, text=(Path(cwd) / "a.go").read_text())
+            text = (Path(cwd) / "a.go").read_text()
+            seen["runs"] += 1
+            if "if x < 0" in text:
+                return pristine, "baseline"
+            seen.update(argv=argv, cwd=cwd, text=text)
             return code, output
         orig = sdd_pr.run_test
         self.addCleanup(setattr, sdd_pr, "run_test", orig)
@@ -2194,11 +2199,25 @@ class TestReviewSpeed(RepoCase):
         self.assertEqual((["go", "test", "-run", "TestF", "./"], str(tree)), (seen["argv"], seen["cwd"]))
         self.assertTrue(fake.called("git", "-C", str(tree), "reset", "--quiet", "--hard", HEAD))
         self.assertTrue(fake.called("git", "-C", str(tree), "checkout", "--quiet", "--", "a.go"))
-        # A guard whose removal no test notices is untested (the fake checkout restored nothing).
+        self.assertEqual(2, seen["runs"])  # the unchanged run first, then the one without the guard
+        # A guard whose removal no test notices is untested (the fake checkout restored nothing). The
+        # unchanged run is not repeated for the same HEAD and command.
         self.scratch()
-        self.run_tests_as(0)
-        _, out, _ = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--delete", "--", "go", "test", "./")
+        seen = self.run_tests_as(0)
+        _, out, _ = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--replace", "if false",
+                                  "--", "go", "test", "-run", "TestF", "./")
         self.assertIn("untested: the test stays green without the guard", out)
+        self.assertEqual(1, seen["runs"])
+
+    def test_guard_refuses_when_the_test_fails_with_nothing_changed(self):
+        self.descriptor(forge="none")
+        self.scratch()
+        self.use(self.scratch_routes() + git_routes())
+        seen = self.run_tests_as(1, pristine=1)
+        code, _, err = self.run_main("guard", "a.go:3", "--expect", "if x < 0", "--delete", "--", "go", "test", "./")
+        self.assertEqual(2, code)
+        self.assertIn("fails in the scratch worktree with nothing changed", err)
+        self.assertEqual(1, seen["runs"])
 
     def test_guard_refuses_a_line_that_no_longer_reads_as_expected(self):
         self.descriptor(forge="none")
@@ -2225,6 +2244,17 @@ class TestReviewSpeed(RepoCase):
         self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
         self.assertEqual(0, self.run_main("record", "--agent", "claude", "--reviewers", "go-reviewer", "--reported", "1/1")[0])
         self.assertIn("range:", self.run_main("scope", "--start", "cursor")[1])
+        # A pass that read nothing ends too: record refuses its line but clears the note.
+        self.assertEqual(2, self.run_main("record", "--agent", "cursor", "--reviewers", "go-reviewer", "--reported", "0/1")[0])
+        self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
+
+    def test_an_empty_range_starts_no_pass(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN)
+        self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes())
+        _, out, _ = self.run_main("scope", "--since-last", "--start", "claude")
+        self.assertIn("range: empty", out)
+        self.assertFalse((self.root / ".git" / "sdd" / "findings" / "feat--x.pass").exists())
 
     def test_a_guard_run_caches_no_python_bytecode(self):
         # A mutant and its restored source can share a size and an mtime second; a cached .pyc would then
@@ -2243,6 +2273,9 @@ class TestReviewSpeed(RepoCase):
         self.use([(git("diff", "--no-ext-diff", "-U0"), hunks)] + git_routes(names="docs/s.md\n"))
         _, out, _ = self.run_main("scope")
         self.assertIn("normative lines changed: 2", out)
+        # A range with no document changed says 0, so the lane hint is never silent.
+        self.use(git_routes(names="a.go\n"))
+        self.assertIn("normative lines changed: 0", self.run_main("scope")[1])
 
 
 class TestHarvest(GitHubCase):

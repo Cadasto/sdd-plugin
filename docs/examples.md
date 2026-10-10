@@ -114,7 +114,7 @@ After one review, open another session, on another model or host, and run:
 /sdd-review
 ```
 
-It reads the whole branch, not only what came after the first pass, and records its own `Reviewed` line, named by host and model. The reviewers it dispatches do not see the open findings, so their opinion is independent; a defect the file already holds gains the new reviewer in `by:` instead of a second line. To review only the commits since this agent's own last pass:
+It reads the whole branch, not only what came after the first pass, and records its own `Reviewed` line, named by host and model. The reviewers it dispatches do not see the open findings, so their opinion is independent; a defect the file already holds gains the new reviewer in `by:` instead of a second line. To review only the commits since the last pass, whoever made it, without what a merge of the base brought in:
 
 ```text
 /sdd-review --since-last
@@ -155,7 +155,7 @@ And what `sdd-pr status` prints for it:
 
 ```text
 branch feat/auth-refresh · base main · head 4f0a1c2 · last reviewed 9c1e2ab (code changed since)
-open: 0 critical, 1 important · suggestions: 1
+open: 0 critical, 1 important · outside the change: 0 · suggestions: 1
 - [ ] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: maintainer · forge: 5893201111
 forge: github · PR 7 (draft) · 0 unresolved threads not open in the file · checks: pass
 Mergeable: no — 1 important open; the pull request is a draft

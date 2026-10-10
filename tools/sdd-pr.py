@@ -1380,7 +1380,7 @@ def cmd_scope(session: Session, args) -> int:
         if rng and paths:
             sys.stdout.write(git(session.root, "diff", "--no-ext-diff", start, "HEAD", "--", *paths))
         return 0
-    if args.start and not start_pass(session, args.start):
+    if args.start and rng and not start_pass(session, args.start):
         return 0
     normative = normative_lines(session.root, start, files["documents"])
     if args.json:
@@ -1392,7 +1392,7 @@ def cmd_scope(session: Session, args) -> int:
     print("range: %s" % (rng or "empty"))
     for note in notes:
         print(note)
-    if files["documents"]:
+    if rng:
         print("normative lines changed: %d" % normative)
     for kind in KINDS:
         if files[kind]:
@@ -2065,6 +2065,8 @@ def cmd_record(session: Session, args) -> int:
     if not match:
         raise CliError("record: --reported is <n>/<m>: how many of the dispatched reviewers reported")
     reported, dispatched = int(match.group(1)), int(match.group(2))
+    if reported == 0 and os.path.exists(pass_note(session)):
+        os.remove(pass_note(session))  # the pass ended, though it read nothing: another may start
     if reported == 0 or reported > dispatched:
         raise CliError("record: %d of %d is not a pass; no Reviewed line, so the range stays open"
                        % (reported, dispatched))
@@ -2091,10 +2093,32 @@ def scratch_dir(session: Session) -> str:
 
 def remove_scratch(session: Session) -> bool:
     tree = scratch_dir(session)
+    if os.path.exists(tree + ".passes"):
+        os.remove(tree + ".passes")
     if not os.path.exists(tree):
         return False
     git(session.root, "worktree", "remove", "--force", tree)
     return True
+
+
+def baseline(tree: str, head: str, command: List[str]) -> None:
+    """The command passes in the scratch worktree with nothing changed, once per HEAD and command; else a
+    failure with the guard removed would prove nothing (a dependency or a generated file missing there)."""
+    mark, key = tree + ".passes", "%s %s" % (head, json.dumps(command))
+    try:
+        with open(mark, encoding="utf-8") as handle:
+            if key in handle.read().splitlines():
+                return
+    except FileNotFoundError:
+        pass
+    code, output = run_test(command, tree)
+    if code:
+        tail = "\n".join("  " + row for row in output.rstrip().splitlines()[-15:])
+        raise CliError("guard: `%s` fails in the scratch worktree with nothing changed (exit %d), so a failure "
+                       "without the guard would prove nothing; make it pass there first\n%s"
+                       % (" ".join(command), code, tail))
+    with open(mark, "a", encoding="utf-8") as handle:
+        handle.write(key + "\n")
 
 
 def cmd_guard(session: Session, args) -> int:
@@ -2117,6 +2141,7 @@ def cmd_guard(session: Session, args) -> int:
             git(tree, "reset", "--quiet", "--hard", session.head)
         else:
             git(session.root, "worktree", "add", "--quiet", "--detach", tree, session.head)
+        baseline(tree, session.head, command)
         target = os.path.join(tree, path)
         try:
             with open(target, encoding="utf-8") as handle:
@@ -2139,7 +2164,8 @@ def cmd_guard(session: Session, args) -> int:
             git(tree, "checkout", "--quiet", "--", path)
     edit = "deleted" if args.delete else "%r -> %r" % (args.expect, args.replace)
     print("guard: %s:%d %s; `%s` exited %d" % (path, n, edit, " ".join(command), code))
-    print("pinned: the test fails without the guard" if code else "untested: the test stays green without the guard")
+    print("pinned: the test fails without the guard; read the tail, a build error pins nothing"
+          if code else "untested: the test stays green without the guard")
     tail = output.rstrip().splitlines()[-15:]
     if tail:
         print("\n".join("  " + row for row in tail))

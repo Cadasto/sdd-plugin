@@ -7,23 +7,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- Tools: `sdd-pr guard <path:line> --expect … (--delete | --replace …) -- <test command>` removes one guard in a scratch worktree reused for the pass, runs the test there without a Python bytecode cache, restores the line and prints `pinned` or `untested`; `record` removes the worktree.
-- Tools: `sdd-pr harvest` names the backlog lines whose path changed since the last harvest, the ones to re-check.
+- Tools: the `outside` marker: a critical or important line about code the branch did not change keeps its severity, blocks nothing, goes in the non-blocking comment above the suggestions, and `harvest` carries it with its severity; `sdd-pr add --outside`; `flip --suggestions --carry` takes the open `outside` lines too; `status` counts them apart.
+- Tools: `sdd-pr guard <path:line> --expect … (--delete | --replace …) -- <test command>` removes one guard in a scratch worktree reused for the pass, after one unchanged run per HEAD and command, runs the test there without a Python bytecode cache, restores the line and prints `pinned` or `untested`; `--cleanup` and `record` remove the worktree.
 - Tools: `sdd-pr scope --start <agent>` notes a pass and prints `pass: running` while another agent's pass is under an hour old; `record` clears the note. `scope` prints `normative lines changed`, a hint for the lane.
-- Tools: the `outside` marker: a critical or important line about code the change did not touch keeps its severity, blocks nothing, goes in the non-blocking comment above the suggestions, and `harvest` carries it with its severity; `sdd-pr add --outside`; `flip --suggestions --carry` takes the open `outside` lines too.
+- Tools: `sdd-pr harvest` names the backlog lines whose path changed since the last harvest, the ones to re-check.
 
 ### Changed
-- Tools: `sdd-pr harvest` and `flip --carry` add lines under `## Unsorted`, defects first and then code, tests, other, documents; harvested lines keep the anchor, the sentence, the severity and `from:`, leaving the evidence in the comment. The non-blocking comment uses the same order.
-- References: `review.md` § The backlog defines themes (what one delivery takes on, defects first) and the consolidation: re-check the lines a change touched, sort Unsorted into themes, fold duplicates, drop what is settled or below the lead bar; line numbers stay as of their `from:`.
-- Skills: `sdd-triage --backlog` consolidates the backlog after the harvest instead of only appending; `sdd-deliver` no longer deletes the backlog lines a branch settled, which the next harvest does.
 - References: `review.md` § Severity grades by harm wherever the line is, settles a claim of wrong code behaviour by a run or a named input instead of grading it down, and makes a document finding important only when a reader would build or test the wrong thing from it; § Scope replaces "a suggestion at most" with the `outside` marker; methodology §13's merge gate counts findings about the change.
-- Agents: the three reviewers carry the new scope and severity digest and end an `outside` line with `· outside`; `sdd-doc-reviewer` moves the form findings (a missing keyword, the shape of an acceptance criterion or an ADR, a plan citation) to suggestions.
-- Skills: `sdd-review` settles a code line that claims wrong behaviour before filing it and keeps the higher severity when two reviewers disagree; `sdd-triage` fixes an `outside` line only when the maintainer says so; `sdd-deliver` files an implementer's out-of-scope defect as `outside`.
-- Templates: `ai-workflow.md` § Review states the `outside` rule.
-- Tools: `sdd-pr scope --since-last` starts at the last pass by anyone when `--agent` has none of its own, and diffs from the last pass with the base merged in, so a merge of the base after a pass no longer puts the base's changes in the range.
-- Tools: `sdd-pr status` points `Next` at `/sdd-review --since-last` after a code change only until the pass budget is spent, then says so.
+- References: `review.md` § The backlog defines themes (what one delivery takes on, defects first) and the consolidation: re-check the lines a change touched, sort Unsorted into themes, fold duplicates, drop what is settled or below the lead bar; line numbers stay as of their `from:`; methodology §6 lets the close-out write `landed`.
+- Skills: `sdd-review` settles a code line that claims wrong behaviour before filing it, keeps the higher severity when two reviewers disagree, and reads the commits since the last pass, whoever made it, with `--since-last`.
+- Skills: `sdd-review` reuses the full gate's log at HEAD in `/.sdd/`, gives each reviewer paths (the log, its diff, `sdd-pr`) and names the agent instead of restating it, keeps the session's model on the full lane, stops on `pass: running`, and never pushes another's pull request; `sdd-deliver` and `sdd-triage` write that log.
+- Skills: `sdd-triage` fixes an `outside` line only when the maintainer says so and consolidates the backlog after the harvest; `sdd-deliver` files an implementer's out-of-scope defect as `outside`, closes out when nothing blocks, writes `landed` where the map uses it, and no longer deletes the backlog lines a branch settled.
+- Agents: the three reviewers carry the new scope and severity digest and end an `outside` line with `· outside`; `sdd-spec-conformance-reviewer` proves each MUST through `sdd-pr guard` against the brief's gate log; `sdd-doc-reviewer` reads its hunks from a file, searches for the other side of a disagreement before opening a file, and moves the form findings (a missing keyword, the shape of an acceptance criterion or an ADR, a plan citation) to suggestions.
+- Tools: `sdd-pr harvest` and `flip --carry` add lines under `## Unsorted`, defects first and then code, tests, other, documents; harvested lines keep the anchor, the sentence, the severity and `from:`, leaving the evidence in the comment. The non-blocking comment uses the same order.
 - Tools: `sdd-pr scope --diff` takes `sdd-spec-conformance-reviewer` (code and tests) and `sdd-doc-reviewer` (documents).
-- Skills: `sdd-review --since-last` reads the commits since the last pass, whoever made it; `sdd-deliver --close-out` writes `landed` where the map uses it for delivered work.
+- Templates: `ai-workflow.md` § Review and its review request state the `outside` rule.
+- Hooks: the session-start line counts `outside` lines apart from the open ones; `rules/sdd-context.mdc` states the `outside` rule.
+- Docs: `examples.md`, `README.md` and `testing.md` describe the `outside` marker, the consolidating harvest and the Cursor check that reviewers dispatch by name.
+
+### Fixed
+- Tools: `sdd-pr scope --since-last` started at the merge base when `--agent` had no pass of its own, and a merge of the base after a pass put the base's changes in the range; it now starts at the last pass by anyone and diffs from that pass with the base merged in.
+- Tools: `sdd-pr status` pointed `Next` at `/sdd-review` after the pass budget was spent.
+- Agents: `sdd-spec-conformance-reviewer` let a silent spec lower a behaviour defect.
 
 ## [0.11.1] - 2026-10-07
 
