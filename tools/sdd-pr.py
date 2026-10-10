@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """sdd-pr — the branch's findings file, mirrored to the pull request's inline threads and suggestion comments.
 
-Commands: status, scope, pull, post, resolve, harvest, and add, flip, record, rename, which own every write
-to the file. One file, Python 3.9+, standard library only.
-Every external call (git, gh, az) goes through run_cli(); the tests replace it.
+Commands: status, scope, pull, post, resolve, harvest, guard, and add, flip, record, rename, which own every
+write to the file. One file, Python 3.9+, standard library only.
+Every external call (git, gh, az) goes through run_cli(), and a test command through run_test(); the tests
+replace both.
 Contract: references/review.md.
 """
 from __future__ import annotations
@@ -34,16 +35,21 @@ SEVERITIES = ("critical", "important", "suggestion")
 BLOCKING = ("critical", "important")
 SEP = " · "
 FIELD_KEYS = ("evidence", "fix", "by", "forge", "comment", "declined", "deferred")
-FLAGS = ("unanchored", "mirrored")
+FLAGS = ("unanchored", "mirrored", "outside")
 SECTIONS = ("Open", "Resolved", "Suggestions")
 DESCRIPTOR = os.path.join("docs", ".sdd.yaml")
 BACKLOG = "docs/backlog.md"
 BACKLOG_HEAD = (
     "---\nkind: plan\n---\n# Backlog\n\n"
-    "Leftovers of merged branches, by directory: suggestions, and findings the maintainer deferred here. "
-    "Each line is a lead, not a finding: verify it before acting. A delivery whose `Files` touch a line's path "
-    "folds it in and deletes the line. `sdd-pr harvest` and `sdd-pr flip --carry` append; edit freely.\n"
+    "Leftovers of merged branches: defects outside their change, suggestions, and findings the maintainer "
+    "deferred here. Each line is a lead, not a finding: verify it before acting. Themes group what one "
+    "delivery takes, defects first; `sdd-pr harvest` and `sdd-pr flip --carry` add lines under Unsorted, and "
+    "`/sdd-triage --backlog` sorts them, merges duplicates and drops what is settled. Line numbers are as of "
+    "the pull request in `from:`. Edit freely.\n"
 )
+UNSORTED = "## Unsorted"
+#: The order of what does not block: defects first (by severity), then code, tests, other, documents.
+KIND_ORDER = ("code", "tests", "other", "documents")
 WATERMARK = "harvested_through"
 DROPPED = "dropped by the maintainer"
 DEFAULT_TEST_GLOBS = ("*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs")
@@ -76,6 +82,18 @@ def run_cli(argv: List[str], stdin: Optional[str] = None) -> str:
     if proc.returncode != 0:
         raise CliError((proc.stderr or proc.stdout).strip() or "%s failed" % argv[0])
     return proc.stdout
+
+
+def run_test(argv: List[str], cwd: str) -> Tuple[int, str]:
+    """Run a repository's test command in ``cwd``: its exit status and output, a failure included. The
+    second door to the outside. No Python bytecode is cached: a mutant and its restored source can share a
+    size and an mtime second, and a stale cache would then run the mutant again."""
+    try:
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+        proc = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, env=env)
+    except OSError as exc:
+        raise CliError("%s: %s" % (argv[0], exc.strerror or exc))
+    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
 
 # ---------------------------------------------------------------- file model
@@ -178,6 +196,17 @@ class Findings:
     @property
     def open(self) -> List[Finding]:
         return [f for f in self.items if f.status == "open"]
+
+    @property
+    def blocking(self) -> List[Finding]:
+        """The open lines that block the merge: those about the change itself."""
+        return [f for f in self.open if "outside" not in f.flags]
+
+    @property
+    def outside(self) -> List[Finding]:
+        """The open critical and important lines about code the change did not touch: they keep their
+        severity, block nothing, and are carried after merge unless fixed here (review.md § Scope)."""
+        return [f for f in self.open if "outside" in f.flags]
 
     @property
     def resolved(self) -> List[Finding]:
@@ -328,7 +357,7 @@ def reply_for(finding: Finding) -> str:
 
 
 def open_verdict(fs: Findings) -> str:
-    opened = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
+    opened = {s: len([f for f in fs.blocking if f.severity == s]) for s in BLOCKING}
     if any(opened.values()):
         return "%d critical and %d important open" % (opened["critical"], opened["important"])
     return "no critical or important finding open"
@@ -340,9 +369,11 @@ PASS_RE = re.compile(r"<!-- sdd:pass (\S+) (.+?) -->")
 
 def pass_summary(fs: Findings, head: str, passes: List[Tuple[str, str, str, str]]) -> str:
     """The body of a pass's one review: the verdict, who reviewed, and a marker per pass so it is posted once."""
-    n = len(fs.suggestions)
-    lines = ["**Review at `%s`:** %s; %s." % (head[:7], open_verdict(fs), "%d suggestion%s, in a separate comment"
-                                                % (n, "" if n == 1 else "s") if n else "no suggestion")]
+    n, out = len(fs.suggestions), len(fs.outside)
+    rest = ["%d outside the change" % out] if out else []
+    rest += ["%d suggestion%s" % (n, "" if n == 1 else "s")] if n else []
+    lines = ["**Review at `%s`:** %s; %s." % (head[:7], open_verdict(fs), "%s, in a separate comment" % " and ".join(rest)
+                                                if rest else "nothing else")]
     lines += ["- %s: %s" % (agent, reviewers) for _, _, agent, reviewers in passes]
     return "\n".join(lines + [PASS_MARK % (sha, agent) for sha, _, agent, _ in passes])
 
@@ -361,18 +392,23 @@ SUGGESTIONS_MARK = "<!-- sdd:suggestions %s -->"
 SUGGESTIONS_RE = re.compile(r"<!-- sdd:suggestions (\S+) -->")
 
 
-def suggestions_body(sha: str, lines: List[Finding]) -> str:
+def suggestions_body(sha: str, lines: List[Finding], globs: Optional[List[str]] = None) -> str:
     """One comment of suggestions: every line in the file's grammar, without the comment's own id, so
     `harvest` reads it back with parse_line; a fixed, carried or dropped line keeps its checkbox."""
-    rows = []
+    rows, globs = [], list(globs or DEFAULT_TEST_GLOBS)
+    lines = sorted(lines, key=lambda f: priority(f, globs))  # defects first, then code, tests, other, documents
     for finding in lines:
         shown = Finding(finding.status, finding.severity, finding.path, finding.line, finding.text,
-                        {k: v for k, v in finding.fields.items() if k not in ("comment", "forge")}, [], finding.fixed)
+                        {k: v for k, v in finding.fields.items() if k not in ("comment", "forge")},
+                        [flag for flag in finding.flags if flag == "outside"], finding.fixed)
         rows.append(shown.render())
-    left = len([f for f in lines if f.status == "suggestion"])
-    head = ("**Suggestions at `%s`:** %d, none blocking; after merge `/sdd-triage --backlog` carries the open ones "
-            "to `%s`." % (sha[:7], len(lines), BACKLOG))
-    summary = "%d suggestion%s, %d open" % (len(lines), "" if len(lines) == 1 else "s", left)
+    left = len([f for f in lines if f.status in ("suggestion", "open")])
+    defects = len([f for f in lines if f.severity in BLOCKING])
+    head = ("**Not blocking, at `%s`:** %s; after merge `/sdd-triage --backlog` carries the open ones to `%s`."
+            % (sha[:7], ", ".join(([("%d outside the change" % defects)] if defects else [])
+                                   + ["%d suggestion%s" % (len(lines) - defects, "" if len(lines) - defects == 1 else "s")]),
+               BACKLOG))
+    summary = "%d line%s, %d open" % (len(lines), "" if len(lines) == 1 else "s", left)
     return "\n".join([head, "", "<details><summary>%s</summary>" % summary, ""] + rows
                      + ["", "</details>", SUGGESTIONS_MARK % sha[:7]])
 
@@ -401,7 +437,7 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
     into one new comment, whose id each line takes, and a posted comment whose lines changed is edited.
     A comment deleted on the forge frees its open lines to be posted again. Returns (posted, edited)."""
     fs = session.fs
-    mine = [f for f in fs.items if f.severity == "suggestion"]
+    mine = [f for f in fs.items if f.severity == "suggestion" or "outside" in f.flags]
     held: Dict[str, List[Finding]] = {}
     for finding in mine:
         if finding.fields.get("comment"):
@@ -415,16 +451,16 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
                     finding.fields.pop("comment", None)
                 continue
             match = SUGGESTIONS_RE.search(current[comment_id])
-            body = suggestions_body(match.group(1) if match else session.head, lines)
+            body = suggestions_body(match.group(1) if match else session.head, lines, session.globs)
             if not _same_text(body, current[comment_id]):
                 if dry_run:
                     print(body)
                 else:
                     session.forge.edit_comment(pr["number"], comment_id, body)
                 edited += 1
-    fresh = [f for f in mine if f.status == "suggestion" and not f.fields.get("comment")]
+    fresh = [f for f in mine if f.status in ("suggestion", "open") and not f.fields.get("comment")]
     if fresh:
-        body = suggestions_body(session.head, fresh)
+        body = suggestions_body(session.head, fresh, session.globs)
         if dry_run:
             print(body)
             return len(fresh), edited
@@ -439,9 +475,9 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
 def sync_report(posted: int, edited: int, number: int) -> str:
     parts = []
     if posted:
-        parts.append("%d suggestion%s in a new comment" % (posted, "" if posted == 1 else "s"))
+        parts.append("%d line%s in a new comment" % (posted, "" if posted == 1 else "s"))
     if edited:
-        parts.append("%d suggestion comment%s edited" % (edited, "" if edited == 1 else "s"))
+        parts.append("%d comment%s edited" % (edited, "" if edited == 1 else "s"))
     return "%s on PR %d" % ("; ".join(parts), number) if parts else ""
 
 
@@ -667,6 +703,19 @@ def diff_start(root: str, base: str, rng: Optional[str]) -> str:
 
 
 KINDS = ("code", "tests", "documents", "other", "vendored", "plans")
+RFC2119 = re.compile(r"\b(MUST|SHALL|SHOULD|MAY|REQUIRED|RECOMMENDED|OPTIONAL)\b")
+
+
+def normative_lines(root: str, start: str, documents: List[str]) -> int:
+    """How many added or removed lines of the range's documents hold an RFC-2119 keyword: a hint for the
+    lane, which stays a judgement (methodology §12)."""
+    if not start or not documents:
+        return 0
+    text = git(root, "diff", "--no-ext-diff", "-U0", start, "HEAD", "--", *documents)
+    return sum(1 for line in text.splitlines()
+               if line[:1] in "+-" and not line.startswith(("+++", "---")) and RFC2119.search(line))
+
+
 #: The plugin's own reviewers, which no `agents.reviewers` entry names, and the kinds each one reads.
 OWN_REVIEWERS = {"sdd-spec-conformance-reviewer": ("code", "tests"), "sdd-doc-reviewer": ("documents",)}
 
@@ -1331,15 +1380,20 @@ def cmd_scope(session: Session, args) -> int:
         if rng and paths:
             sys.stdout.write(git(session.root, "diff", "--no-ext-diff", start, "HEAD", "--", *paths))
         return 0
+    if args.start and rng and not start_pass(session, args.start):
+        return 0
+    normative = normative_lines(session.root, start, files["documents"])
     if args.json:
         print(json.dumps({"range": rng, "diff_from": start or None, "base": session.base(), "head": session.head,
-                          "files": files, "reviewers": reviewers, "unassigned": unassigned, "notes": notes},
-                         indent=2))
+                          "files": files, "reviewers": reviewers, "unassigned": unassigned, "notes": notes,
+                          "normative_lines": normative}, indent=2))
         return 0
     print("base: %s" % session.base())
     print("range: %s" % (rng or "empty"))
     for note in notes:
         print(note)
+    if rng:
+        print("normative lines changed: %d" % normative)
     for kind in KINDS:
         if files[kind]:
             print("%s: %s" % (kind, " ".join(files[kind])))
@@ -1348,6 +1402,34 @@ def cmd_scope(session: Session, args) -> int:
     if unassigned:
         print("no reviewer: %s" % " ".join(unassigned))
     return 0
+
+
+PASS_NOTE_AGE = 3600  # seconds after which a pass that never recorded is taken as abandoned
+
+
+def pass_note(session: Session) -> str:
+    return os.path.join(os.path.dirname(session.path), slug(session.branch) + ".pass")
+
+
+def start_pass(session: Session, agent: str) -> bool:
+    """Note that ``agent`` starts a pass on this branch; ``record`` clears the note. Another agent's note
+    younger than an hour means a pass is running: say so and start nothing (two passes pay twice)."""
+    agent, path = _clean(agent).replace(":", "-"), pass_note(session)
+    try:
+        with open(path, encoding="utf-8") as handle:
+            other, when, head = (handle.read().split() + ["", "", ""])[:3]
+        started = instant(when)
+        age = (datetime.datetime.now(datetime.timezone.utc) - started).total_seconds() if started else PASS_NOTE_AGE
+        if other != agent and age < PASS_NOTE_AGE:
+            print("pass: running — %s started one at %s on %s; ask before starting another" % (other, when, head[:7]))
+            return False
+    except FileNotFoundError:
+        pass
+    session.guard()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("%s %s %s\n" % (agent, iso(datetime.datetime.now(datetime.timezone.utc)), session.head))
+    return True
 
 
 def cmd_status(session: Session, args) -> int:
@@ -1379,9 +1461,9 @@ def cmd_status(session: Session, args) -> int:
         print("workers: " + " · ".join(["%s %s" % w for w in pending] + ["%s merged" % w for w in merged]))
     for sha in fs.unreviewed_passes():
         print("Reviewed %s: no reviewer reported; not a pass" % sha[:7])
-    counts = {s: len([f for f in fs.open if f.severity == s]) for s in BLOCKING}
-    print("open: %d critical, %d important · suggestions: %d"
-          % (counts["critical"], counts["important"], len(fs.suggestions)))
+    counts = {s: len([f for f in fs.blocking if f.severity == s]) for s in BLOCKING}
+    print("open: %d critical, %d important · outside the change: %d · suggestions: %d"
+          % (counts["critical"], counts["important"], len(fs.outside), len(fs.suggestions)))
     for finding in fs.open + fs.suggestions:
         print("#%s %s" % (key_of(finding), finding.render()))
 
@@ -1390,7 +1472,7 @@ def cmd_status(session: Session, args) -> int:
     if counts["critical"] or counts["important"]:
         parts = ["%d %s" % (counts[s], s) for s in BLOCKING if counts[s]]
         reasons.append(", ".join(parts) + " open")
-    unmirrored = [f for f in fs.open if f.severity in BLOCKING and not f.fields.get("forge") and "unanchored" not in f.flags]
+    unmirrored = [f for f in fs.blocking if not f.fields.get("forge") and "unanchored" not in f.flags]
     nxt = ("sdd-pr post --pr %d" % pr["number"] if live and unmirrored else "/sdd-triage") if reasons else ""
     # The budget (review.md § Passes): the pass before ready and one pass over the fixes, at two commits.
     spent = len({p[0] for p in fs.passes if p[2] != "maintainer"}) >= 2
@@ -1419,13 +1501,13 @@ def cmd_status(session: Session, args) -> int:
         nxt = nxt or "open the pull request (/sdd-deliver step 8)"
     elif pr["state"] == "merged":
         print("forge: %s · PR %d merged at %s" % (session.forge.name, pr["number"], (pr["merge"] or "?")[:7]))
-        unposted = [f for f in fs.suggestions if not f.fields.get("comment")]
-        if fs.open or unposted:
-            print("still in the file: %d open line%s, %d suggestion%s not on the pull request; carry or drop them "
-                  "before deleting it" % (len(fs.open), "" if len(fs.open) == 1 else "s", len(unposted),
+        unposted = [f for f in fs.suggestions + fs.outside if not f.fields.get("comment")]
+        if fs.blocking or unposted:
+            print("still in the file: %d open line%s, %d line%s not on the pull request; carry or drop them "
+                  "before deleting it" % (len(fs.blocking), "" if len(fs.blocking) == 1 else "s", len(unposted),
                                           "" if len(unposted) == 1 else "s"))
         nxt = cleanup_line(session.path, session.notes)
-        if len(unposted) < len(fs.suggestions) and not harvested(session, pr):
+        if len(unposted) < len(fs.suggestions + fs.outside) and not harvested(session, pr):
             nxt = "/sdd-triage --backlog, then " + nxt
         print("Mergeable: merged")
         print("Next: " + nxt)
@@ -1436,7 +1518,7 @@ def cmd_status(session: Session, args) -> int:
         nxt = nxt or "reopen pull request %d, or open a new one" % pr["number"]
     else:
         try:
-            shown_open = {f.fields["forge"] for f in fs.open if f.fields.get("forge")}
+            shown_open = {f.fields["forge"] for f in fs.open if f.fields.get("forge")}  # outside lines too
             unknown = [t for t in session.forge.threads(pr["number"]) if not t["resolved"] and t["id"] not in shown_open]
             checks = session.forge.checks(pr["number"])
             print("forge: %s · PR %d (%s) · %d unresolved threads not open in the file · checks: %s"
@@ -1469,10 +1551,10 @@ def cmd_status(session: Session, args) -> int:
 def leftovers(fs: Findings, pr: Optional[dict]) -> str:
     """Suggestions not on the pull request yet go there; with no pull request, the close-out carries or drops them."""
     if pr is None:
-        n = len(fs.suggestions)
-        return "carry or drop %d suggestion%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
-    n = len([f for f in fs.suggestions if not f.fields.get("comment")])
-    return "sdd-pr post --pr %d (%d suggestion%s not on it)" % (pr["number"], n, "" if n == 1 else "s") if n else ""
+        n = len(fs.suggestions + fs.outside)
+        return "carry or drop %d non-blocking line%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
+    n = len([f for f in fs.suggestions + fs.outside if not f.fields.get("comment")])
+    return "sdd-pr post --pr %d (%d line%s not on it)" % (pr["number"], n, "" if n == 1 else "s") if n else ""
 
 
 def harvested(session: Session, pr: dict) -> bool:
@@ -1535,7 +1617,7 @@ def cmd_post(session: Session, args) -> int:
 
 def _post(session: Session, args, pr: dict) -> int:
     fs = session.fs
-    candidates = [f for f in fs.open if f.severity in BLOCKING and not f.fields.get("forge")]
+    candidates = [f for f in fs.blocking if not f.fields.get("forge")]
     adopted = 0
     if candidates:
         # A finding the forge already carries (an id that was not read back, a post interrupted before
@@ -1664,7 +1746,9 @@ def cmd_add(session: Session, args) -> int:
             raise CliError("add: %r is not a path[:line]" % anchor)
         path, line = _anchor(anchor)
         fields = {k: _clean(v) for k, v in (("evidence", args.evidence), ("fix", args.fix), ("by", args.by)) if v}
-        new = [Finding("suggestion" if severity == "suggestion" else "open", severity, path, line, _clean(sentence), fields)]
+        flags = ["outside"] if args.outside and severity in BLOCKING else []
+        new = [Finding("suggestion" if severity == "suggestion" else "open", severity, path, line, _clean(sentence), fields,
+                       flags)]
     else:
         raise CliError("usage: add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] "
                        "[--by …], or add - to read finding lines")
@@ -1697,10 +1781,17 @@ def cmd_add(session: Session, args) -> int:
     return 0
 
 
-def backlog_line(finding: Finding, branch: str) -> str:
+def priority(finding: Finding, globs: List[str]) -> Tuple[int, int]:
+    kind = kind_of(finding.path, globs)
+    return SEVERITIES.index(finding.severity), KIND_ORDER.index(kind) if kind in KIND_ORDER else len(KIND_ORDER)
+
+
+def backlog_line(finding: Finding, origin: str, full: bool = True) -> str:
+    """A backlog line. A harvested one is short: its comment, which `from:` names, keeps the evidence."""
     parts = ([finding.severity] if finding.severity in BLOCKING else []) + [finding.anchor, finding.text]
-    parts += ["%s: %s" % (key, finding.fields[key]) for key in ("evidence", "fix", "by") if finding.fields.get(key)]
-    return "- " + SEP.join(parts + ["from: " + branch])
+    if full:
+        parts += ["%s: %s" % (key, finding.fields[key]) for key in ("evidence", "fix", "by") if finding.fields.get(key)]
+    return "- " + SEP.join(parts + ["from: " + origin])
 
 
 def _backlog_item(line: str) -> Optional[Tuple[str, str]]:
@@ -1726,38 +1817,38 @@ def write_backlog(root: str, lines: List[str]) -> None:
         handle.write("\n".join(lines) + "\n")
 
 
-def carry(root: str, items: List[Tuple[Finding, str]], watermark: str = "") -> int:
-    """Append each finding to the backlog under its directory's heading, headings in order, tagged with
-    where it came from; an item the backlog already holds, by its anchor and sentence, is not written
-    twice. ``watermark`` is written to the front matter. Returns how many were new."""
+def carry(root: str, items: List[Tuple[Finding, str]], watermark: str = "", globs: Optional[List[str]] = None,
+          full: bool = True) -> int:
+    """Add each finding under `## Unsorted`, the first section, defects first and then by kind, tagged with
+    where it came from; `/sdd-triage --backlog` sorts them into themes. An item the backlog already holds,
+    by its anchor and sentence, is not written twice. ``watermark`` is written to the front matter.
+    Returns how many were new."""
+    globs = list(globs or DEFAULT_TEST_GLOBS)
     lines = read_backlog(root)
     if watermark:
         set_watermark(lines, watermark)
     held = {item for item in map(_backlog_item, lines) if item}
-    added = 0
-    for finding, origin in items:
+    new = []
+    for finding, origin in sorted(items, key=lambda item: priority(item[0], globs)):
         if (finding.anchor, finding.text) in held:
             continue
         held.add((finding.anchor, finding.text))
-        heading, entry = "## " + (os.path.dirname(finding.path) or "."), backlog_line(finding, origin)
-        if heading in lines:
-            at = lines.index(heading) + 1
+        new.append(backlog_line(finding, origin, full))
+    if new:
+        if UNSORTED in lines:
+            at = lines.index(UNSORTED) + 1
             while at < len(lines) and not lines[at].startswith("## "):
                 at += 1
             while not lines[at - 1].strip():
                 at -= 1
-            lines.insert(at, entry)
+            lines[at:at] = new
         else:
-            at = next((n for n, line in enumerate(lines) if line.startswith("## ") and line > heading), len(lines))
-            if at < len(lines):
-                lines[at:at] = ([""] if at and lines[at - 1].strip() else []) + [heading, entry, ""]
-            else:
-                while lines and not lines[-1].strip():
-                    lines.pop()
-                lines += ["", heading, entry]
-        added += 1
+            at = next((n for n, line in enumerate(lines) if line.startswith("## ")), len(lines))
+            while at > 0 and not lines[at - 1].strip():
+                at -= 1
+            lines[at:at] = ["", UNSORTED] + new + ([""] if at < len(lines) and lines[at].strip() else [])
     write_backlog(root, lines)
-    return added
+    return len(new)
 
 
 def _front_matter_end(lines: List[str]) -> int:
@@ -1836,7 +1927,9 @@ def cmd_flip(session: Session, args) -> int:
     action, fs = chosen[0], session.fs
     if args.suggestions == bool(args.selector):
         raise CliError("flip: name one line (its #key or path:line), or pass --suggestions for every suggestion left")
-    targets = list(fs.suggestions) if args.suggestions else [_select(fs, args.selector)]
+    # The lines left that do not block: suggestions, and, carried, the defects outside the change.
+    left = fs.suggestions + (fs.outside if action == "carry" else [])
+    targets = list(left) if args.suggestions else [_select(fs, args.selector)]
     if not targets:
         print("flip: no suggestion left")
         return 0
@@ -1860,7 +1953,7 @@ def cmd_flip(session: Session, args) -> int:
     new = 0
     if action == "carry":
         session.guard()
-        new = carry(session.root, [(f, session.branch) for f in targets])
+        new = carry(session.root, [(f, session.branch) for f in targets], globs=session.globs)
     for finding in targets:
         if action == "dropped":
             if finding.fields.get("comment"):
@@ -1906,6 +1999,20 @@ def harvest_start(session: Session, since: str, mark: str) -> Tuple[datetime.dat
     return start, False
 
 
+def recheck(session: Session, since: str) -> List[str]:
+    """The backlog lines whose path a commit on HEAD changed after ``since``: the ones a delivery may have
+    fixed or made stale, so the harvest re-reads those and not the whole file."""
+    if not instant(since):
+        return []
+    changed = set(git(session.root, "log", "--since=" + since, "--name-only", "--format=", "HEAD").split())
+    out = []
+    for line in read_backlog(session.root):
+        item = _backlog_item(line)
+        if item and _anchor(item[0])[0] in changed:
+            out.append(line)
+    return out
+
+
 def cmd_harvest(session: Session, args) -> int:
     """The open suggestions of every pull request merged since the backlog's watermark, carried to it."""
     if session.forge.name == "none":
@@ -1923,7 +2030,8 @@ def cmd_harvest(session: Session, args) -> int:
     for _, number in prs:
         for comment in session.forge.comments(number):
             for finding in suggestion_lines(comment["body"]):
-                if finding.severity != "suggestion" or finding.status not in ("suggestion", "open"):
+                defect = finding.severity in BLOCKING and finding.status == "open" and "outside" in finding.flags
+                if not defect and (finding.severity != "suggestion" or finding.status not in ("suggestion", "open")):
                     settled += 1  # fixed, carried or dropped in its pull request
                 elif not os.path.exists(os.path.join(session.root, finding.path)):
                     gone.append((finding, "#%d" % number))
@@ -1937,13 +2045,15 @@ def cmd_harvest(session: Session, args) -> int:
         print("left out, its path is gone: " + backlog_line(finding, origin)[2:])
     if args.dry_run:
         for finding, origin in items:
-            print(backlog_line(finding, origin))
+            print(backlog_line(finding, origin, full=False))
         print("%s: %s (dry run: nothing written)" % (WATERMARK, mark or "unchanged"))
         return 0
     if not mark:
         return 0
     session.guard()
-    added = carry(session.root, items, mark)
+    for line in recheck(session, get_watermark(read_backlog(session.root))):
+        print("re-check, its path changed since the last harvest: " + line[2:])
+    added = carry(session.root, items, mark, session.globs, full=False)
     print("harvest: %d line%s carried to %s, %d already there, %d settled in their pull request, %d left out; "
           "%s: %s; commit it" % (added, "" if added == 1 else "s", BACKLOG, len(items) - added, settled, len(gone),
                                  WATERMARK, mark))
@@ -1955,6 +2065,8 @@ def cmd_record(session: Session, args) -> int:
     if not match:
         raise CliError("record: --reported is <n>/<m>: how many of the dispatched reviewers reported")
     reported, dispatched = int(match.group(1)), int(match.group(2))
+    if reported == 0 and os.path.exists(pass_note(session)):
+        os.remove(pass_note(session))  # the pass ended, though it read nothing: another may start
     if reported == 0 or reported > dispatched:
         raise CliError("record: %d of %d is not a pass; no Reviewed line, so the range stays open"
                        % (reported, dispatched))
@@ -1967,7 +2079,96 @@ def cmd_record(session: Session, args) -> int:
     line = (session.head[:7], datetime.date.today().isoformat(), agent, "%s (%d of %d)" % (reviewers, reported, dispatched))
     session.fs.reviewed.append(line)
     session.save()
+    if os.path.exists(pass_note(session)):
+        os.remove(pass_note(session))
+    remove_scratch(session)
     print("record: Reviewed %s · %s · %s: %s" % line)
+    return 0
+
+
+def scratch_dir(session: Session) -> str:
+    """The pass's one scratch worktree, beside the findings: reused by every guard call, removed by record."""
+    return os.path.join(os.path.dirname(os.path.dirname(session.path)), "scratch", slug(session.branch))
+
+
+def remove_scratch(session: Session) -> bool:
+    tree = scratch_dir(session)
+    if os.path.exists(tree + ".passes"):
+        os.remove(tree + ".passes")
+    if not os.path.exists(tree):
+        return False
+    git(session.root, "worktree", "remove", "--force", tree)
+    return True
+
+
+def baseline(tree: str, head: str, command: List[str]) -> None:
+    """The command passes in the scratch worktree with nothing changed, once per HEAD and command; else a
+    failure with the guard removed would prove nothing (a dependency or a generated file missing there)."""
+    mark, key = tree + ".passes", "%s %s" % (head, json.dumps(command))
+    try:
+        with open(mark, encoding="utf-8") as handle:
+            if key in handle.read().splitlines():
+                return
+    except FileNotFoundError:
+        pass
+    code, output = run_test(command, tree)
+    if code:
+        tail = "\n".join("  " + row for row in output.rstrip().splitlines()[-15:])
+        raise CliError("guard: `%s` fails in the scratch worktree with nothing changed (exit %d), so a failure "
+                       "without the guard would prove nothing; make it pass there first\n%s"
+                       % (" ".join(command), code, tail))
+    with open(mark, "a", encoding="utf-8") as handle:
+        handle.write(key + "\n")
+
+
+def cmd_guard(session: Session, args) -> int:
+    """Remove one guard in the scratch worktree, run one test command there, and say whether the test
+    noticed (references/review.md § The tool). The checkout and the findings file are never touched."""
+    if args.cleanup:
+        print("guard: scratch worktree %s" % ("removed" if remove_scratch(session) else "absent"))
+        return 0
+    path, line = _anchor(args.selector or "")
+    command = list(args.test_cmd)
+    if not line or args.expect is None or args.delete == (args.replace is not None) or not command:
+        raise CliError("usage: guard <path:line> --expect <text> (--delete | --replace <text>) -- <test command>")
+    tree = scratch_dir(session)
+    session.close()  # a test can run for minutes: the findings stay free for other commands
+    os.makedirs(os.path.dirname(tree), exist_ok=True)
+    with open(tree + ".lock", "a") as lock:
+        if fcntl is not None:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+        if os.path.exists(tree):
+            git(tree, "reset", "--quiet", "--hard", session.head)
+        else:
+            git(session.root, "worktree", "add", "--quiet", "--detach", tree, session.head)
+        baseline(tree, session.head, command)
+        target = os.path.join(tree, path)
+        try:
+            with open(target, encoding="utf-8") as handle:
+                lines = handle.read().split("\n")
+        except OSError:
+            raise CliError("guard: %s is not in HEAD" % path)
+        n = int(line)
+        if not 1 <= n <= len(lines) or args.expect not in lines[n - 1]:
+            raise CliError("guard: %s:%d reads %r, not %r" % (path, n, lines[n - 1] if 1 <= n <= len(lines) else "",
+                                                               args.expect))
+        if args.delete:
+            del lines[n - 1]
+        else:
+            lines[n - 1] = lines[n - 1].replace(args.expect, args.replace, 1)
+        with open(target, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(lines))
+        try:
+            code, output = run_test(command, tree)
+        finally:
+            git(tree, "checkout", "--quiet", "--", path)
+    edit = "deleted" if args.delete else "%r -> %r" % (args.expect, args.replace)
+    print("guard: %s:%d %s; `%s` exited %d" % (path, n, edit, " ".join(command), code))
+    print("pinned: the test fails without the guard; read the tail, a build error pins nothing"
+          if code else "untested: the test stays green without the guard")
+    tail = output.rstrip().splitlines()[-15:]
+    if tail:
+        print("\n".join("  " + row for row in tail))
     return 0
 
 
@@ -1992,7 +2193,8 @@ def cmd_rename(session: Session, args) -> int:
 
 
 COMMANDS = {"status": cmd_status, "scope": cmd_scope, "pull": cmd_pull, "post": cmd_post, "resolve": cmd_resolve,
-            "harvest": cmd_harvest, "add": cmd_add, "flip": cmd_flip, "record": cmd_record, "rename": cmd_rename}
+            "harvest": cmd_harvest, "guard": cmd_guard, "add": cmd_add, "flip": cmd_flip, "record": cmd_record,
+            "rename": cmd_rename}
 
 
 class _Parser(argparse.ArgumentParser):
@@ -2016,6 +2218,14 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--base", help="the branch this one starts from (a stacked branch's parent); kept in the file")
             cmd.add_argument("--agent", help="with --since-last: since this agent's own last pass")
             cmd.add_argument("--diff", metavar="KIND|REVIEWER", help="print the range's hunks for one kind or reviewer")
+            cmd.add_argument("--start", metavar="AGENT", help="note that AGENT starts a pass; record clears the note")
+        if name == "guard":
+            cmd.add_argument("selector", nargs="?", help="the guard's <path:line>")
+            cmd.add_argument("--expect", metavar="TEXT", help="text the line holds now")
+            cmd.add_argument("--delete", action="store_true", help="delete the line")
+            cmd.add_argument("--replace", metavar="TEXT", help="replace --expect within the line with TEXT")
+            cmd.add_argument("--cleanup", action="store_true", help="remove the scratch worktree")
+            cmd.set_defaults(test_cmd=[])  # what follows `--`, split off before parsing (main)
         if name in ("post", "harvest"):
             cmd.add_argument("--dry-run", action="store_true")
         if name == "harvest":
@@ -2026,6 +2236,7 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--evidence")
             cmd.add_argument("--fix")
             cmd.add_argument("--by")
+            cmd.add_argument("--outside", action="store_true", help="a critical or important line about code the change did not touch")
         if name == "flip":
             cmd.add_argument("selector", nargs="?", help="the #key status prints, or <path:line>")
             cmd.add_argument("--fixed", metavar="SHA")
@@ -2045,7 +2256,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[List[str]] = None) -> int:
     try:
+        argv = list(sys.argv[1:] if argv is None else argv)
+        # guard's test command follows `--` and is never parsed: its own options are not sdd-pr's.
+        test_cmd = []
+        if "guard" in argv and "--" in argv[argv.index("guard"):]:
+            cut = argv.index("--", argv.index("guard"))
+            argv, test_cmd = argv[:cut], argv[cut + 1:]
         args = build_parser().parse_args(argv)
+        if test_cmd:
+            args.test_cmd = test_cmd
         if not args.command:
             raise CliError("usage: sdd-pr [--root DIR] {%s} ..." % ",".join(COMMANDS))
         session = Session(args)

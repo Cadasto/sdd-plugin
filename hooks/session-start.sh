@@ -235,10 +235,14 @@ if is_sdd_repo; then
     ff="$(git rev-parse --git-common-dir 2>/dev/null)/sdd/findings/$name"
     [ -f "$ff" ] || ff=".sdd/findings/$name"
     if [ -n "$cur" ] && [ -f "$ff" ]; then
-      c="$(grep -c '^- \[ \] critical' "$ff" 2>/dev/null)"
-      i="$(grep -c '^- \[ \] important' "$ff" 2>/dev/null)"
+      # A line about code the change did not touch (` · outside`) keeps its severity but blocks nothing.
+      c="$(grep '^- \[ \] critical' "$ff" 2>/dev/null | grep -vc ' · outside\( \|$\)')"
+      i="$(grep '^- \[ \] important' "$ff" 2>/dev/null | grep -vc ' · outside\( \|$\)')"
+      o="$(grep '^- \[ \] \(critical\|important\) ' "$ff" 2>/dev/null | grep -c ' · outside\( \|$\)')"
       s="$(awk '/^## /{ sec = $0; next } sec == "## Suggestions" && /^- / { n++ } END { print n + 0 }' "$ff" 2>/dev/null)"
-      add "› findings: ${c:-0} critical, ${i:-0} important open, ${s:-0} suggestions ($ff)"
+      out=""
+      [ "${o:-0}" -gt 0 ] && out=", $o outside the change"
+      add "› findings: ${c:-0} critical, ${i:-0} important open$out, ${s:-0} suggestions ($ff)"
     fi
   fi
 

@@ -34,7 +34,7 @@ One finding is one line: `- [ ]` open, `- [x]` fixed, `- [-]` declined, `- [~]` 
 separated by ` · ` (space, middle dot, space): the severity, `path:line`, one plain sentence, then any of
 `evidence:`, `fix:`, `by:`, `forge:` (the pull request's thread id), `comment:` (the comment carrying a
 suggestion), `fixed <sha>`, `declined: <reason>`,
-`deferred: <where>`, and the markers `unanchored` and `mirrored` that `sdd-pr` writes. A suggestion line
+`deferred: <where>`, the marker `outside` (§ Scope), and `unanchored` and `mirrored`, which `sdd-pr` writes. A suggestion line
 has no checkbox; a carried or deferred one is `- [~] suggestion · …`. Each pass adds one `Reviewed` line with
 `sdd-pr record`: the commit it read, the agent, the reviewers dispatched and how many reported. The last
 one is where a `--since-last` pass starts. A pass on which no reviewer reported adds none, so its range stays open
@@ -50,14 +50,23 @@ until one reads it, or the maintainer's own review is recorded with `record --ag
 - **suggestion** — anything else worth writing down: wording, keyword form, parity the gate does not flag,
   style, a cheap refactor, a test that could be stronger.
 
-Critical and important findings are resolved (fixed, declined with the reason, or deferred by the
-maintainer) before merge, and only they get inline threads. Suggestions, an implementer's out-of-scope
-findings among them, never block and are never worked unless the maintainer names one (§ The forge
+Severity is the harm, wherever the line is; § Scope says where it is fixed. Critical and important
+findings in the change are resolved (fixed, declined with the reason, or deferred by the maintainer)
+before merge, and only they get inline threads. Suggestions, an implementer's out-of-scope
+leads among them, never block and are never worked unless the maintainer names one (§ The forge
 mirror, § The backlog). Write one down only when it is a lead: still true without this change's diff, and
 improving a behaviour, a test, a contract or a document. Taste (naming, wording, formatting, what a
 linter could enforce) is no lead; worth doing, it is done here. Weigh impact, not effort; unsure, write
 it down. A gap in a specification or requirement goes to *Known gaps* or `implementation:
-deferred` instead. Unsure between important and suggestion: write suggestion.
+deferred` instead.
+
+**Code first.** A claim of wrong code behaviour (a wrong result, a crash or hang, a leak, a lost or
+corrupted write, an exposure, a refusal the wrong way round) is settled by a run, or by reasoning the
+line through with a named input, then graded by its harm; disproven, it is dropped. Neither a missing
+run nor a missing specification sentence lowers it. A document finding is important only when a reader
+would build or test the wrong thing from it: sentences, or a sentence and the code, that disagree; an
+open question settled silently. Its form is a suggestion. Unsure about a document or taste: suggestion.
+Two reviewers' grades for one defect: the higher one with evidence.
 
 ## Scope
 
@@ -66,8 +75,9 @@ opinion on all of it; `--since-last` reads only the commits since the last `Revi
 agent's own, when it has one), as the pass over fixes does, and leaves out what a merge of the base brought in. `sdd-pr scope` prints the range, its paths as code, tests, documents, plans and other and the vendored gate
 (reviewed only when patched here), and the reviewer each code path goes to. A stacked branch names its parent once
 with `--base`; a local base that is only behind its remote counts from the remote. A critical or
-important finding is about a line in that range, or text an earlier fix on this branch wrote; anything
-else is a suggestion at most. Read the changed hunks and what surrounds them, not whole files.
+important finding about code the branch did not change (a defect older than the branch) keeps its
+severity and carries `outside`: it blocks nothing, goes in the non-blocking comment, and is
+carried after merge unless the maintainer has it fixed here. Read the changed hunks and what surrounds them, not whole files.
 
 ## Evidence
 
@@ -85,14 +95,15 @@ which describes the branch.
 
 - `pull` appends each unresolved thread the file does not know as an open finding with its `forge:` id;
   a thread with no severity word is `important`, and its `By:` line, when it has one, is the `by:`.
-- `post` publishes one review per pass at HEAD: a summary (verdict, agents, reviewers, suggestion count) above one inline thread, carrying its `By:` line, per open critical and important
-  finding without a `forge:` id, and writes the ids back; a finding the forge already carries adopts that thread's
+- `post` publishes one review per pass at HEAD: a summary (verdict, agents, reviewers, the count of lines that do not block) above one inline thread, carrying its `By:` line, per open critical and important
+  finding about the change without a `forge:` id, and writes the ids back; a finding the forge already carries adopts that thread's
   id instead. A line outside the diff is marked `unanchored` and listed in the review body. A clean pass
   posts the summary alone (a closed thread on Azure DevOps), once; the maintainer's recorded review gets
   none.
 - `resolve` answers each resolved finding's thread (`fixed in <sha>`, `declined: <reason>` or
   `deferred: <where>`) and closes it.
-- `post` and `resolve` put the suggestions not yet posted in one new comment off the diff (a closed thread
+- `post` and `resolve` put the lines that do not block and are not yet posted, `outside` defects above
+  suggestions, in one new comment off the diff (a closed thread
   on Azure DevOps), each line taking its id as `comment:`, and edit a comment whose lines changed; one
   deleted on the forge is posted again.
 
@@ -106,18 +117,30 @@ decline flips it to `- [-]` with `declined: <reason>`, and is not argued in a th
 defers: the line flips to
 `- [~]` with `deferred: <where>`: the *Known gaps* line in the specification, the `REQ` that took
 `implementation: deferred`, `docs/backlog.md` (`--carry`), or `dropped by the maintainer`. A suggestion
-is not declined; dropped once posted, it stays as `- [~]`, so its comment shows it. A finding has no id,
+is not declined; dropped once posted, it stays as `- [~]`, so its comment shows it. An `outside` line not
+fixed here stays open. A finding has no id,
 and commit messages never name one.
 
 ## The backlog
 
 Leftovers outlive the findings file in one committed file, `docs/backlog.md`, marked `kind: plan` so the
-gate and the reviewers skip it. Each line is appended once, under its directory's heading
-(`- [<severity> · ]<path:line> · <sentence> · … · from: <branch or #PR>`). `harvest` carries the open
-suggestions, whose path still exists, of every pull request merged after the front matter's
-`harvested_through:`, and moves that watermark to the last merge read; the first harvest takes
-`--since`. `flip --carry` appends a deferred finding, and the close-out's suggestions with `forge: none`. An item is a lead, not a finding: the delivery whose `Files`
-touch its path verifies it, fixes it or finds it stale, and deletes its line.
+gate and the reviewers skip it. Its lines sit in themes, each what one delivery would take on: `## <what
+that delivery does> (<REQ ids>)`, one sentence, then `- [<severity> · ]<path:line> · <sentence> · from:
+<#PR or branch>` lines (a carried one keeps its evidence); themes that hold a defect come first, then
+code, tests, other, documents. A line the maintainer wants tracked elsewhere becomes `tracked in <link>`.
+
+`harvest` carries the open lines of the non-blocking comments, an `outside` defect with its severity,
+whose path still exists, of every pull request merged after the front matter's `harvested_through:`, and
+moves that watermark to the last merge read; the first harvest takes `--since`. Its lines are short: the
+comment `from:` names keeps the evidence. `flip --carry` adds a deferred finding, and, with `forge: none`,
+the close-out's non-blocking lines. Both add each line once, under `## Unsorted`, defects first.
+
+`/sdd-triage --backlog` then consolidates. It re-checks the lines `harvest` names because their path
+changed since the last harvest, deleting one that is fixed or stale. It moves each Unsorted line into its
+theme, or starts one, and folds a line about the same defect into the line already there, keeping the
+higher severity and both `from:`. It deletes what falls below the lead bar (§ Severity). A line number
+is as of its `from:`, and nobody refreshes it. An item is a lead, not a finding: the delivery whose
+`Files` touch its path verifies it, and fixes it or finds it stale; the next harvest deletes the line.
 
 ## Passes
 
@@ -151,19 +174,24 @@ request. A plugin older than the repository's `check.version` refuses every writ
   `post` while a suggestion is not on the pull request (with no forge: carrying or dropping it). A merged pull request at HEAD prints `Mergeable: merged`, what
   the file still holds, and the file to delete, after `/sdd-triage --backlog` while its watermark is
   older than the merge; one merged or closed before the head moved is no pull request of this branch.
-- `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>]` — the range a
-  pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
+- `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>] [--start <agent>]` — the range a
+  pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it; `normative lines changed: n`, a hint for the lane;
+  `--start <agent>` notes a pass, and says `pass: running` instead while another agent's note is under an hour old. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
   one reviewer, the plugin's own reviewers included, so no brief carries a diff built by hand.
-- `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …]`, or
+- `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …] [--outside]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important
   finding without evidence, and folds an identical line into the first.
 - `flip <#key | path:line> --fixed <sha> | --declined <reason> | --deferred <where> | --carry | --dropped`
   — resolves one line; `--fixed` needs the fix on `origin/<branch>` when that exists; `--carry` appends it
   to the backlog (§ The backlog); `--dropped` drops a suggestion (§ Resolution), and `--suggestions` in
-  place of the line applies to every one left.
+  place of the line applies to every one left and, with `--carry`, to the open `outside` lines.
 - `harvest [--since <date | #PR>] [--dry-run]` — § The backlog.
 - `record --agent <name> --reviewers <a, b> --reported <n>/<m>` — the `Reviewed` line at HEAD; refuses a
-  pass on which no reviewer reported.
+  pass on which no reviewer reported; clears `scope --start`'s note and removes the scratch worktree.
+- `guard <path:line> --expect <text> (--delete | --replace <text>) -- <test command>` — removes one guard
+  in the pass's scratch worktree (one per branch, at HEAD, reused), runs the command there without a
+  Python bytecode cache, restores the line, and prints `pinned` or `untested`; `--cleanup` removes the
+  worktree. It never touches the checkout or the findings file.
 - `rename --from <branch>` — moves a file to the checked-out branch without its `Reviewed` lines, thread
   and comment ids, which belonged to the old branch.
 - `pull`, `post [--dry-run]`, `resolve` — § The forge mirror. `--version` prints the version.

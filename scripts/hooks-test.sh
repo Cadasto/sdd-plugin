@@ -170,6 +170,11 @@ MD
   f_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep '^› findings')"
   [ "$f_line" = "› findings: 1 critical, 1 important open, 2 suggestions (.sdd/findings/feat--x.md)" ] \
     && ok "session-start still reads a findings file left in the checkout" || bad "legacy findings line was '$f_line'"
+  # A defect outside the change keeps its severity but is counted apart: it blocks nothing.
+  awk '/^## Resolved/{ print "- [ ] important · z.go:9 · hangs · evidence: ran it · outside"; print ""; } { print }' "$r/.sdd/findings/feat--x.md" > "$r/f.tmp" && mv "$r/f.tmp" "$r/.sdd/findings/feat--x.md"
+  f_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep '^› findings')"
+  [ "$f_line" = "› findings: 1 critical, 1 important open, 1 outside the change, 2 suggestions (.sdd/findings/feat--x.md)" ] \
+    && ok "session-start counts a defect outside the change apart from the open ones" || bad "outside findings line was '$f_line'"
 fi
 
 # --- session-start: a vendored gate with no verdict is reported, not silenced ---------

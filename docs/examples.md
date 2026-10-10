@@ -114,7 +114,7 @@ After one review, open another session, on another model or host, and run:
 /sdd-review
 ```
 
-It reads the whole branch, not only what came after the first pass, and records its own `Reviewed` line, named by host and model. The reviewers it dispatches do not see the open findings, so their opinion is independent; a defect the file already holds gains the new reviewer in `by:` instead of a second line. To review only the commits since this agent's own last pass:
+It reads the whole branch, not only what came after the first pass, and records its own `Reviewed` line, named by host and model. The reviewers it dispatches do not see the open findings, so their opinion is independent; a defect the file already holds gains the new reviewer in `by:` instead of a second line. To review only the commits since the last pass, whoever made it, without what a merge of the base brought in:
 
 ```text
 /sdd-review --since-last
@@ -155,7 +155,7 @@ And what `sdd-pr status` prints for it:
 
 ```text
 branch feat/auth-refresh · base main · head 4f0a1c2 · last reviewed 9c1e2ab (code changed since)
-open: 0 critical, 1 important · suggestions: 1
+open: 0 critical, 1 important · outside the change: 0 · suggestions: 1
 - [ ] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: maintainer · forge: 5893201111
 forge: github · PR 7 (draft) · 0 unresolved threads not open in the file · checks: pass
 Mergeable: no — 1 important open; the pull request is a draft
@@ -164,13 +164,18 @@ Next: /sdd-triage
 
 The format and its rules live in [review.md](../references/review.md).
 
-## Carry merged pull requests' suggestions to the backlog
+## Carry merged pull requests' leftovers to the backlog
 
 ```text
 /sdd-triage --backlog
 ```
 
-Run it on the default branch after one or more merges. It reads the suggestions comment of every pull request merged since `harvested_through:` in `docs/backlog.md`. It carries the open lines, each tagged `from: #<n>`, and leaves out those fixed, carried or dropped in their pull request and those whose file is gone. Then it moves the watermark. Read the diff and commit it. The first harvest asks where to start: a date, or a pull request number.
+Run it on the default branch after one or more merges. It reads the non-blocking comment of every pull request merged since `harvested_through:` in `docs/backlog.md`. It carries the open lines under `## Unsorted`, defects outside their change first, each line tagged `from: #<n>`. It leaves out lines fixed, carried or dropped in their pull request, and lines whose file is gone. Then it consolidates:
+- it re-checks the older lines whose file changed since the last harvest;
+- it sorts the new lines into themes, each what one delivery would take on;
+- it folds duplicates, and drops what is settled or only taste.
+
+Read the diff and commit it. The first harvest asks where to start: a date, or a pull request number.
 
 ## Resume an interrupted delivery
 
