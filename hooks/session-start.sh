@@ -169,7 +169,7 @@ if is_sdd_repo; then
   profile="$(desc_get sdd profile)"
   [ -n "$profile" ] || profile="$(desc_get "" profile)"
   case "$profile" in ''|full|lightweight) profile=formal ;; esac
-  add "› Spec-Driven Development repo detected (profile $profile) — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR, or a knowledge-base page) · /sdd-deliver (workers → review → PR → close-out) · /sdd-review (review pass into the findings file) · /sdd-triage (work the open findings; --backlog after merges) · /sdd-trace (traceability, --audit) · /sdd-scaffold. Run /sdd-trace + the build's spec-check before claiming done."
+  add "› Spec-Driven Development repo detected (profile $profile) — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR, or a knowledge-base page) · /sdd-deliver (workers → review → PR) · /sdd-close (close-out; clean-up after the merge) · /sdd-review (review pass into the findings file) · /sdd-triage (work the open findings; --backlog after merges) · /sdd-trace (traceability, --audit) · /sdd-scaffold. Run /sdd-trace + the build's spec-check before claiming done."
   # The skills redirect the gate's log and the reviewers' diffs into .sdd/; a redirect into a missing
   # folder fails, so make it here, but only where the scaffold's ignore line keeps its files out of git.
   if grep -qxE '/?\.sdd/?' .gitignore 2>/dev/null; then

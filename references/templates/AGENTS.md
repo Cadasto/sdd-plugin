@@ -29,7 +29,7 @@ The linked docs are **canonical** — defer to them rather than duplicating thei
 ## Workflow (short form)
 
 `REQ` (what + acceptance) → `SPEC §` (RFC-2119) → `ADR` (if an irreversible fork) → `CODE + TESTS` (tests
-cite ids) → update traceability → update `REQ` status and write the PR body (`/sdd-deliver --close-out`) —
+cite ids) → update traceability → update `REQ` status and write the PR body (`/sdd-close`) —
 all in the same PR that implements it. Review findings live in the branch's findings file, which `sdd-pr` keeps in the clone's git directory;
 `sdd-pr status` says what is open. A `SPEC §` is promoted only when the maintainer
 confirms. New behaviour is *spec-first*; hardening shipped code is *implementation-aligned* (code may lead,

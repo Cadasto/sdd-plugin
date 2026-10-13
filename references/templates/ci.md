@@ -30,4 +30,4 @@ The non-negotiable SDD gate is **`spec-check`** (`<build_entrypoint> <spec_check
 "we have specs" into "our specs can't silently rot", and it runs on **both** lanes. Before a done-claim,
 run the full build gate (`<build_entrypoint> <ci_target>`) and read its output, then `/sdd-trace` for
 traceability drift — `/sdd-trace` reports it in session; `spec-check` fails on it. `/sdd-review` writes findings into the branch's findings file and mirrors the blocking ones to
-the PR's inline threads; `/sdd-deliver --close-out` performs the close-out inside the implementing PR.
+the PR's inline threads; `/sdd-close` performs the close-out inside the implementing PR.

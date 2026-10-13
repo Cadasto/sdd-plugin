@@ -117,8 +117,9 @@ code, tests, other, documents. A line the maintainer wants tracked elsewhere bec
 `harvest` carries the open lines of the non-blocking comments, an `outside` defect with its severity,
 whose path still exists, of every pull request merged after the front matter's `harvested_through:`, and
 moves that watermark to the last merge read; the first harvest takes `--since`. With `forge: none` it carries nothing, the close-out having carried the lines, and only names the lines to re-check. Its lines are short: the
-comment `from:` names keeps the evidence. `flip --carry` adds a deferred finding, and, with `forge: none`,
-the close-out's non-blocking lines. Both add each line once, under `## Unsorted`, defects first.
+comment `from:` names keeps the evidence. `flip --carry` adds a deferred finding, and the close-out's
+non-blocking lines when the maintainer carries them in the pull request; its comment then shows them
+carried, and `harvest` leaves them out. Both add each line once, under `## Unsorted`, defects first.
 
 `/sdd-triage --backlog` then consolidates. It re-checks the lines `harvest` names because their path
 changed since the last harvest, deleting one that is fixed or stale. It moves each Unsorted line into its
@@ -153,9 +154,9 @@ request. A plugin older than the repository's `check.version` refuses every writ
   on a forge, the threads the file does not know and the checks;
   then `Mergeable: yes` or `Mergeable: no — <reasons>` (no pull request, a closed one or an unreachable
   forge is a reason), and `Next: <command>`: `post` while a line is not on the pull request, `/sdd-triage` while one blocks,
-  `/sdd-review --since-last` after a code change once the maintainer has reviewed, until the pass budget is spent (§ Passes), and the close-out on a draft with nothing else open. A merged pull
-  request at HEAD prints `Mergeable: merged`, what is left to carry or delete, and `/sdd-triage --backlog`
-  while its watermark is older than the merge.
+  `/sdd-review --since-last` after a code change once the maintainer has reviewed, until the pass budget is spent (§ Passes), and `/sdd-close` on a draft with nothing else open. A merged pull
+  request at HEAD prints `Mergeable: merged`, what is left to carry, the lines that wait for
+  `/sdd-triage --backlog` while its watermark is older than the merge, and `/sdd-close`.
 - `start --agent <name> [--pr N] [--since-last] [--lane full|maintenance] [--base <ref>]` — a review pass's
   preparation in one call: the pull request's threads pulled (its head must be in this checkout), the
   pass noted, the lane (the flag, the PR body's `Lane:` line, else `decide` with the normative-line
@@ -179,6 +180,12 @@ request. A plugin older than the repository's `check.version` refuses every writ
   worktree. It never touches the checkout or the findings file.
 - `rename --from <branch>` — moves a file to the checked-out branch without its `Reviewed` lines, thread
   and comment ids, which belonged to the old branch.
+- `clean [<branch>] [--pr N] [--dry-run]` — after the merge, from any checkout: removes the branch's
+  worktree, the branch (only when it holds no commit the merged pull request lacks; with `forge: none`,
+  once in the base), its findings file and delivery notes; refuses, changing nothing, while a line would be
+  lost or a worktree holds uncommitted work, and refuses the base, the default branch and, unnamed, a
+  branch with no findings file or notes. A worktree it runs in is left, with the commands; the pull request
+  and the remote branch are never touched.
 - `pull`, `post [--dry-run]`, `resolve` — § The forge mirror. `--version` prints the version.
 
 Exit `0` when the command ran, whether or not the branch is mergeable; `2`, with the reason on standard error, when it refused or failed.

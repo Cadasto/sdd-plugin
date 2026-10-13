@@ -91,7 +91,7 @@ It prints one line per entry in `agents.review_panel.full`, such as `cursor: /sd
 
 Check: `python3 <plugin root>/tools/sdd-pr.py status` prints the open counts, `Mergeable:` and `Next:`.
 
-## 4. Review, triage, close out
+## 4. Review, triage, close out, clean up
 
 Review the pull request as you would any other, with inline comments on the lines you mean.
 
@@ -104,12 +104,14 @@ Triage pulls your unresolved threads into the findings file, and records them as
 When `sdd-pr status` shows nothing blocking, close out. On a ready pull request `status` reads `Mergeable: yes` and `Next: merge`: close out first, or merge and run the close-out afterwards, which then commits on the default branch.
 
 ```text
-/sdd-deliver <N> --close-out
+/sdd-close <N>
 ```
 
-The close-out sets the requirement's traceability record to `implementation: shipped`; the spec section is promoted only if you confirm it. It runs the full gate before pushing, writes the pull request body, and marks the pull request ready if you asked for a draft. A person merges.
+The close-out sets the requirement's traceability record to `implementation: shipped`; the spec section is promoted only if you confirm it. It ticks the acceptance criteria the change delivered, adds the changelog line, runs the full gate before pushing, writes the pull request body, and marks the pull request ready if you asked for a draft.
 
-Suggestions never block. Each review pass put its suggestions, and any `outside` defects, in one non-blocking comment on the pull request. After one or more merges, `/sdd-triage --backlog` carries the open ones to `docs/backlog.md`, where the next delivery that touches their files picks them up. The first harvest asks where to start.
+Suggestions never block. Each review pass put its suggestions, and any `outside` defects, in its comment on the pull request. The close-out asks you once whether to carry the ones still open to `docs/backlog.md` in this pull request, where the next delivery that touches their files picks them up. Say no and they stay on the pull request until `/sdd-triage --backlog`, which you run now and then on the default branch; its first harvest asks where to start.
+
+You merge the pull request on the forge; the skill never merges or closes one. Then run `/sdd-close <N>` again: it removes the branch, its worktree and its findings file, and refuses while anything in that file would be lost.
 
 Check: the requirement's record reads `implementation: shipped`, and the pull request body has Summary, Spec and traceability, Verification and the checklist.
 

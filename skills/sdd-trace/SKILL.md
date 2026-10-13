@@ -1,6 +1,6 @@
 ---
 name: sdd-trace
-description: This skill should be used when the user asks to "show traceability for REQ-X", "what implements or tests this requirement", "give me the context for REQ-X", "are there orphan requirements", "run a quick drift scan", "run the drift gate", or "audit the traceability" (`--audit`). Report-only — prints a REQ's context bundle, relays the drift gate's findings by family, or dispatches the isolated whole-tree audit. Not for authoring (sdd-specify), close-out (sdd-deliver --close-out), or test and build results (the build gate).
+description: This skill should be used when the user asks to "show traceability for REQ-X", "what implements or tests this requirement", "give me the context for REQ-X", "are there orphan requirements", "run a quick drift scan", "run the drift gate", or "audit the traceability" (`--audit`). Report-only — prints a REQ's context bundle, relays the drift gate's findings by family, or dispatches the isolated whole-tree audit. Not for authoring (sdd-specify), close-out (sdd-close), or test and build results (the build gate).
 argument-hint: "[REQ-id, or blank for a whole-tree drift scan] [--audit]"
 allowed-tools: Read, Glob, Grep, Bash, Agent, Task
 ---
@@ -33,7 +33,7 @@ Dispatch the **`sdd-traceability-auditor`** agent and relay its report: before a
 
 ## Guardrails
 
-- **Strictly report-only.** The owning skill fixes: `/sdd-specify` for spec and index, `/sdd-deliver` for code and tests, `/sdd-deliver --close-out` for the close-out, `/sdd-scaffold --upgrade` for the version pin. Recommend fixes; `Bash` runs only read-only commands and the gate.
+- **Strictly report-only.** The owning skill fixes: `/sdd-specify` for spec and index, `/sdd-deliver` for code and tests, `/sdd-close` for the close-out, `/sdd-scaffold --upgrade` for the version pin. Recommend fixes; `Bash` runs only read-only commands and the gate.
 - **Scope is traceability, not test results.** Name `<build_entrypoint> <ci_target>` as the next step; do not run it here.
 
 ## Reference

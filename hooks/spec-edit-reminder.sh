@@ -114,7 +114,7 @@ check_script="$(desc_get check script)"
 if [ -f "$check_script" ]; then
   regen="run \`python3 $check_script generate --root .\`"
 else
-  regen="regenerate them with /sdd-specify (or /sdd-deliver --close-out)"
+  regen="regenerate them with /sdd-specify (or /sdd-close)"
 fi
 
 case "$f" in

@@ -38,13 +38,14 @@ Skills, agents, references, tools and hook scripts are shared by both hosts; man
 
 The **spec, document and traceability layer** and the **delivery pipeline on it**: workers → review → triage → close-out.
 
-### Skills (7)
+### Skills (8)
 | Skill | Purpose |
 |-------|---------|
 | `spec-driven-development` | The always-on router: explains the methodology, routes intent, names where a general engineering plugin fits, blocks code-first work when no `REQ` or spec exists |
 | `sdd-scaffold` | Initialises the `docs/` tree, templates, `AGENTS.md`, process docs and descriptor; vendors the gate and wires `spec-check`; suggests `agents.reviewers` from the build manifests; idempotent, `--upgrade` tops up an older scaffold |
 | `sdd-specify` | Authors the `REQ` (capability and acceptance), the RFC-2119 `SPEC §` and the `ADR`; assigns identifiers; wires traceability |
-| `sdd-deliver` | Drives delivery: the dispatch gate by profile and lane, `sdd-implementer` workers (in sequence; a parallel wave only for large tasks with disjoint files, on the one branch), the per-task gate, the first review pass, the pull request (a draft only on request), `--close-out` (`REQ` shipped, `generate`, the PR body), ready |
+| `sdd-deliver` | Drives delivery: the dispatch gate by profile and lane, `sdd-implementer` workers (in sequence; a parallel wave only for large tasks with disjoint files, on the one branch), the per-task gate, the first review pass, the pull request (a draft only on request) |
+| `sdd-close` | The close-out in the pull request (`REQ` shipped, the acceptance ticks, the changelog line, `generate`, the PR body, ready) and one question: carry the lines that do not block to the backlog there; after the merge, `sdd-pr clean`. Never merges or closes a pull request |
 | `sdd-review` | One review pass over the whole branch (`--since-last`: only the commits since the last pass) with the reviewers the profile, lane and changed files call for, prepared by `sdd-pr start`, into the findings file; mirrors them, one comment per pass; `--panel` prints a line per panel host |
 | `sdd-triage` | Works the open critical and important findings: verify, fix in this branch, flip, mirror, and one re-review after the maintainer's review when anything changed; `--backlog` carries the suggestions and `outside` defects of pull requests merged since the backlog's watermark to `docs/backlog.md` and consolidates it |
 | `sdd-trace` | A `REQ`'s context bundle and the whole-tree drift report; `--audit` dispatches the auditor. Report-only |
@@ -61,7 +62,7 @@ The **spec, document and traceability layer** and the **delivery pipeline on it*
 | Tool | Purpose |
 |------|---------|
 | `sdd-check` | The vendored drift gate (`check`, `generate`, `context`, `selftest`): the chain in both directions, the mechanical prose lints, every derived index from one source; reads the profile |
-| `sdd-pr` | The findings file in the clone's git directory and its GitHub or Azure DevOps mirror: `add`, `flip`, `record`, `rename` (and `pull`, `post`, `resolve`) make every write; `status` prints `Mergeable` and `Next`; `start` a review pass's preparation in one call; `scope` the range a pass reads; `post` one comment per pass (who reviewed, the counts, its new lines that do not block) and a review only for the inline threads; `harvest` merged pull requests' leftovers and `flip --carry` this branch's to `docs/backlog.md`; `guard` one guard-removal proof in a scratch worktree; never the PR body |
+| `sdd-pr` | The findings file in the clone's git directory and its GitHub or Azure DevOps mirror: `add`, `flip`, `record`, `rename` (and `pull`, `post`, `resolve`) make every write; `status` prints `Mergeable` and `Next`; `start` a review pass's preparation in one call; `scope` the range a pass reads; `post` one comment per pass (who reviewed, the counts, its new lines that do not block) and a review only for the inline threads; `harvest` merged pull requests' leftovers and `flip --carry` this branch's to `docs/backlog.md`; `guard` one guard-removal proof in a scratch worktree; `clean` the merged branch, its worktree and its findings file; never the PR body |
 
 ### Hooks
 - **SessionStart** (`session-start.sh`): in an SDD repository, the profile, the `/sdd-*` surface and an orientation (plugin version and any mismatch with the vendored gate, branch, open findings, the gate's verdict); elsewhere, a scaffold pointer when `docs/` exists.
@@ -82,7 +83,7 @@ claude plugin validate .                       # manifest + component structure 
 claude --plugin-dir /path/to/sdd-plugin        # load the working copy for one session
 ```
 
-CI runs `python3 scripts/validate.py` strictly, then the unit tests, `selftest` and `bash scripts/hooks-test.sh`. Then run the loop (`/sdd-scaffold` → `/sdd-specify` → `/sdd-deliver` → `/sdd-review` → `/sdd-triage` → `/sdd-deliver --close-out`) on both profiles in a throwaway repository, on both hosts: [docs/testing.md](docs/testing.md#local-triggering-tests). To check that a test guards a fix by mutating `tools/*.py` in place, run with `PYTHONDONTWRITEBYTECODE=1 python3 -B`: a cached `.pyc` can otherwise run instead of the mutant.
+CI runs `python3 scripts/validate.py` strictly, then the unit tests, `selftest` and `bash scripts/hooks-test.sh`. Then run the loop (`/sdd-scaffold` → `/sdd-specify` → `/sdd-deliver` → `/sdd-review` → `/sdd-triage` → `/sdd-close`) on both profiles in a throwaway repository, on both hosts: [docs/testing.md](docs/testing.md#local-triggering-tests). To check that a test guards a fix by mutating `tools/*.py` in place, run with `PYTHONDONTWRITEBYTECODE=1 python3 -B`: a cached `.pyc` can otherwise run instead of the mutant.
 
 ### File Conventions
 - Frontmatter on every Markdown component; its `name` MUST equal the directory (skills) or the filename stem (agents). No `commands/` folder: slash commands are user-invoked skills. Detail: [docs/authoring.md](docs/authoring.md).
@@ -117,6 +118,6 @@ Feature branches and pull requests. CI runs on every pull request and on push to
 - **Plugin agent files are read-only at runtime** (they live in the install cache). `sdd-implementer` ships `model: inherit`; `/sdd-deliver` passes `agents.worker_model`, and the skills pick other models, per dispatch.
 - **An agent's `skills:` frontmatter may not name another plugin's skill** (unconfirmed); `worker_skills` goes through the dispatch brief instead.
 - **`spec-driven-development` is not named `sdd`,** which would collide as `sdd:sdd`. The command prefix is `sdd-`.
-- **Don't grow a second delivery loop.** The plugin owns plan → workers → review → triage → close-out; a general engineering plugin complements it at the exploration end only.
+- **Don't grow a second delivery loop.** The plugin owns plan → workers → review → triage → close-out → clean-up; a general engineering plugin complements it at the exploration end only.
 - **`tools/` is shipped and vendored; `scripts/` is this repository's own validation.** Never import a tool from the validator.
 - **Release here, then repin the marketplace.** The entry in `Cadasto/plugin-marketplace` is pinned to a tag, so a release ships nothing until its `version` and `source.ref` move: [docs/versioning.md](docs/versioning.md#marketplace).

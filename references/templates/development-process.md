@@ -58,7 +58,7 @@ REQ (capability + acceptance)            [gate: worth doing]
          └─ TASKS (a working list, never committed)  [gate: dispatch preconditions]
              └─ CODE + TESTS (tests cite ids)  [gate: tests green + drift gate green]
                  └─ update traceability; promote the SPEC § only if confirmed  [gate: same PR]
-                     └─ update REQ status; write the PR body  [/sdd-deliver --close-out]
+                     └─ update REQ status; write the PR body  [/sdd-close]
 ```
 
 The close-out lands in the **same PR** as the slice. No follow-up PR.
