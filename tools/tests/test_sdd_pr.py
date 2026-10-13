@@ -2956,10 +2956,11 @@ class TestScratchLock(RepoCase):
 class TestStart(GitHubCase):
     """One call prepares a review pass: the threads, the range, the lane, each reviewer's hunks, the brief."""
 
-    def vendor_gate(self, last_line="sdd-check: OK — 0 new errors, 1 new warning"):
+    def vendor_gate(self, verdict="sdd-check: OK — 0 new errors, 1 new warning"):
         gate = self.root / "scripts" / "sdd-check.py"
         gate.parent.mkdir(parents=True, exist_ok=True)
-        gate.write_text("import sys\nprint(%r, sys.argv[1:])\nprint(%r)\n" % ("ran", last_line), encoding="utf-8")
+        gate.write_text("import sys\nprint(%r, sys.argv[1:])\nprint(%r)\nprint('families run: descriptor')\n"
+                        % ("ran", verdict), encoding="utf-8")
 
     def test_start_writes_every_reviewers_hunks_and_the_brief_and_prints_the_plan(self):
         self.descriptor(forge="none", extra="  agents:\n    reviewers: [go-coding:go-reviewer]\n")
@@ -3017,6 +3018,16 @@ class TestStart(GitHubCase):
         code, out, _ = self.run_main("start", "--agent", "claude", "--since-last")
         self.assertEqual(0, code)
         self.assertIn("range: empty", out)
+
+    def test_start_wants_a_descriptor_and_names_a_missing_agents_block(self):
+        self.use(git_routes(names="a.go\n", diff="DIFF"))
+        code, _, err = self.run_main("start", "--agent", "claude")
+        self.assertEqual(2, code)
+        self.assertIn("/sdd-scaffold", err)
+        self.descriptor(forge="none")
+        code, out, err = self.run_main("start", "--agent", "claude")
+        self.assertEqual(0, code, err)
+        self.assertIn("agents: no agents: block", out)
 
     def test_start_refuses_a_pull_request_whose_head_this_checkout_lacks(self):
         self.descriptor(forge="github")

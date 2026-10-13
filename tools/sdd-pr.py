@@ -1616,6 +1616,8 @@ def cmd_start(session: Session, args) -> int:
     """Everything a review pass needs before its reviewers are dispatched, in one call (references/review.md
     § The tool): the pull request's threads, the range, the lane, every reviewer's hunks, the drift gate's
     new lines, one shared brief, and the dispatch plan."""
+    if not session.descriptor.strip():
+        raise CliError("start: no %s here; set the repository up with /sdd-scaffold first" % DESCRIPTOR)
     pr = None
     if session.forge.name != "none":
         pr = session.pr(required=False)
@@ -1638,8 +1640,8 @@ def cmd_start(session: Session, args) -> int:
     others = start_pass(session, args.agent)
     profile = profile_of(session.data)
     lane = lane_of(args, pr, normative_lines(session.root, start, files["documents"]), profile)
-    head = session.head[:7]
-    out = os.path.join(session.root, ".sdd", "review", head)
+    head, root = session.head[:7], os.path.abspath(session.root)  # paths a subagent reads from anywhere
+    out = os.path.join(root, ".sdd", "review", head)
     os.makedirs(out, exist_ok=True)
 
     plan = []
@@ -1652,7 +1654,8 @@ def cmd_start(session: Session, args) -> int:
                      else "only when the range touches what a constitution sentence binds"))
     if files["documents"]:
         plan.append(("sdd-doc-reviewer", files["documents"],
-                     "form" if profile == "formal" and lane.startswith("full") else "consistency"))
+                     "consistency" if profile == "informative" or lane.startswith("maintenance") else
+                     "form" if lane.startswith("full") else "form on the full lane, consistency on maintenance"))
     rows = []
     for name, paths, when in plan:
         patch = os.path.join(out, "diff-%s.patch" % _safe_name(name))
@@ -1661,19 +1664,20 @@ def cmd_start(session: Session, args) -> int:
         rows.append("- %s: %s (%d file%s)%s" % (name, patch, len(paths), "" if len(paths) == 1 else "s",
                                                  "; %s" % when if when else ""))
 
-    gate_log = os.path.join(session.root, ".sdd", "gate-%s.log" % head)
+    gate_log = os.path.join(root, ".sdd", "gate-%s.log" % head)
     gate = ("`%s`, the full gate at HEAD. Do not rebuild or rerun the suite; run one test only to pin a failure "
             "the log lacks." % gate_log if os.path.exists(gate_log)
             else "none at HEAD. Run only the tests your findings need.")
     drift_path, drift_line = os.path.join(out, "drift.txt"), "not vendored"
-    gate_script = os.path.join(session.root, session.vendored)
+    gate_script = os.path.join(root, session.vendored)
     if os.path.exists(gate_script):
         code_run, output = run_test(["python3", gate_script, "check", "--changed-since", rng.split("..")[0],
                                      "--new-only"], session.root)
         with open(drift_path, "w", encoding="utf-8") as handle:
             handle.write(output)
-        last = [row for row in output.strip().splitlines() if row.strip()]
-        drift_line = "%s (`%s`)" % (last[-1].strip() if last else "exit %s" % code_run, drift_path)
+        verdict = [row for row in output.splitlines() if row.startswith("sdd-check:")] or \
+            [row for row in output.strip().splitlines() if row.strip()][-1:]
+        drift_line = "%s (`%s`)" % (verdict[0].strip() if verdict else "exit %s" % code_run, drift_path)
     resolved = "none"
     if session.fs.resolved:
         path = os.path.join(out, "resolved.md")
@@ -1683,12 +1687,16 @@ def cmd_start(session: Session, args) -> int:
     here = os.path.dirname(os.path.abspath(__file__))
     brief = os.path.join(out, "brief.md")
     with open(brief, "w", encoding="utf-8") as handle:
-        handle.write(BRIEF.format(branch=session.branch, head=head, range=rng, start=start[:12], profile=profile,
+        handle.write(BRIEF.format(branch=session.branch, head=head, range="%s..HEAD" % rng.split("..")[0][:12],
+                                  start=start[:12], profile=profile,
                                   lane=lane.split(" (")[0], gate=gate, drift=drift_line, resolved=resolved,
                                   sdd_pr=os.path.join(here, "sdd-pr.py"),
                                   review_md=os.path.join(os.path.dirname(here), "references", "review.md")))
 
-    print("review: %s at %s · range %s · %s profile · lane %s" % (session.branch, head, rng, profile, lane))
+    print("review: %s at %s · range %s..HEAD · %s profile · lane %s"
+          % (session.branch, head, rng.split("..")[0][:12], profile, lane))
+    if not _setting(session.data, "agents"):
+        print("agents: no agents: block in %s; /sdd-scaffold --upgrade adds it" % DESCRIPTOR)
     if widened:
         print(widened)
     if pr:
