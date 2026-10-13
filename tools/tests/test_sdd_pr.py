@@ -2239,27 +2239,33 @@ class TestReviewSpeed(RepoCase):
         self.assertEqual(2, code)
         self.assertIn("usage: guard", err)
 
-    def test_one_pass_at_a_time_and_record_clears_the_note(self):
+    def test_passes_run_side_by_side_and_record_clears_its_own_note(self):
         self.descriptor(forge="none")
         self.findings(FILE_CLEAN)
         self.use(git_routes(names="a.go\n"))
         _, out, _ = self.run_main("scope", "--start", "claude")
         self.assertIn("range:", out)
+        self.assertNotIn("also running", out)
+        # A second agent is told who else is reviewing, and runs beside it: a second opinion is not stopped.
         code, out, err = self.run_main("scope", "--start", "cursor")
-        self.assertEqual(2, code)
-        self.assertIn("pass: running — claude started one at", err)
-        self.assertNotIn("range:", out)
-        # The same agent carries on; record clears the note, and the next agent may start.
-        self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
+        self.assertEqual(0, code, err)
+        self.assertIn("pass: also running, claude since", out)
+        self.assertIn("range:", out)
+        # record clears only its own note; the other pass is still running.
         self.assertEqual(0, self.run_main("record", "--agent", "claude", "--reviewers", "go-reviewer", "--reported", "1/1")[0])
-        self.assertIn("range:", self.run_main("scope", "--start", "cursor")[1])
-        # A pass that read nothing ends too: record refuses its line but clears the note and the scratch tree.
+        out = self.run_main("scope", "--start", "gemini")[1]
+        self.assertIn("also running, cursor since", out)
+        self.assertNotIn("claude since", out)
+        # A pass that read nothing ends too: record refuses its line but clears its note. With another pass
+        # still noted, the scratch tree stays for that pass's guard.
         scratch = self.root / ".git" / "sdd" / "scratch" / "feat--x"
         scratch.mkdir(parents=True)
         self.use([(git("worktree", "remove"), lambda argv, _: scratch.rmdir() or "")] + git_routes(names="a.go\n"))
         self.assertEqual(2, self.run_main("record", "--agent", "cursor", "--reviewers", "go-reviewer", "--reported", "0/1")[0])
+        self.assertTrue(scratch.exists())
+        self.assertEqual(0, self.run_main("record", "--agent", "gemini", "--reviewers", "r", "--reported", "1/1")[0])
         self.assertFalse(scratch.exists())
-        self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
+        self.assertFalse((self.root / ".git" / "sdd" / "findings" / "feat--x.pass").exists())
 
     def test_an_empty_range_starts_no_pass(self):
         self.descriptor(forge="none")
@@ -2734,15 +2740,18 @@ class TestPassesAndScope(RepoCase):
         note = self.root / ".git" / "sdd" / "findings" / "feat--x.pass"
         now = sdd_pr.datetime.datetime.now(sdd_pr.datetime.timezone.utc)
         old = now - sdd_pr.datetime.timedelta(hours=2)
+        # A 0.12 note (one pass, the old shape) older than an hour is not reported, and is replaced.
         note.write_text(json.dumps({"agent": "cursor", "when": sdd_pr.iso(old), "head": HEAD}) + "\n", encoding="utf-8")
-        self.assertIn("range:", self.run_main("scope", "--start", "claude")[1])
-        self.assertEqual("claude", json.loads(note.read_text(encoding="utf-8"))["agent"])
+        out = self.run_main("scope", "--start", "claude")[1]
+        self.assertIn("range:", out)
+        self.assertNotIn("also running", out)
+        self.assertEqual(["claude"], list(json.loads(note.read_text(encoding="utf-8"))["passes"]))
         note.write_bytes(b"\xff\xfe not a note")
         self.assertEqual(0, self.run_main("scope", "--start", "claude code")[0])
-        # A name with a space is one field: the next agent sees the pass running.
-        code, _, err = self.run_main("scope", "--start", "cursor")
-        self.assertEqual(2, code)
-        self.assertIn("pass: running — claude code started one at", err)
+        # A name with a space is one name: the next agent sees it running.
+        code, out, err = self.run_main("scope", "--start", "cursor")
+        self.assertEqual(0, code, err)
+        self.assertIn("also running, claude code since", out)
 
     def test_a_keyword_in_code_is_not_a_normative_line(self):
         self.descriptor(forge="none")
@@ -2935,6 +2944,118 @@ class TestScratchLock(RepoCase):
         self.assertFalse(tree.exists())
 
 
+class TestStart(GitHubCase):
+    """One call prepares a review pass: the threads, the range, the lane, each reviewer's hunks, the brief."""
+
+    def vendor_gate(self, last_line="sdd-check: OK — 0 new errors, 1 new warning"):
+        gate = self.root / "scripts" / "sdd-check.py"
+        gate.parent.mkdir(parents=True, exist_ok=True)
+        gate.write_text("import sys\nprint(%r, sys.argv[1:])\nprint(%r)\n" % ("ran", last_line), encoding="utf-8")
+
+    def test_start_writes_every_reviewers_hunks_and_the_brief_and_prints_the_plan(self):
+        self.descriptor(forge="none", extra="  agents:\n    reviewers: [go-coding:go-reviewer]\n")
+        self.findings(FILE_RESOLVED)
+        self.vendor_gate()
+        (self.root / ".sdd").mkdir()
+        (self.root / ".sdd" / ("gate-%s.log" % HEAD[:7])).write_text("ok\n", encoding="utf-8")
+        fake = self.use(git_routes(names="a.go\na_test.go\ndocs/s.md\n", diff="DIFF"))
+        code, out, err = self.run_main("start", "--agent", "claude-opus-5-5", "--lane", "full")
+        self.assertEqual(0, code, err)
+        review = self.root / ".sdd" / "review" / HEAD[:7]
+        self.assertIn("lane full (--lane)", out)
+        self.assertIn("gate log: %s" % (self.root / ".sdd" / ("gate-%s.log" % HEAD[:7])), out)
+        self.assertIn("drift gate: sdd-check: OK — 0 new errors, 1 new warning", out)
+        for name in ("go-coding--go-reviewer", "sdd-spec-conformance-reviewer", "sdd-doc-reviewer"):
+            patch = review / ("diff-%s.patch" % name)
+            self.assertEqual("DIFF", patch.read_text(encoding="utf-8"))
+            self.assertIn(str(patch), out)
+        self.assertIn("sdd-doc-reviewer: %s (1 file); form" % (review / "diff-sdd-doc-reviewer.patch"), out)
+        brief = (review / "brief.md").read_text(encoding="utf-8")
+        self.assertIn("the full gate at HEAD. Do not rebuild or rerun the suite", brief)
+        self.assertIn("ask for every file you need in one turn", brief)
+        self.assertIn(str(review / "resolved.md"), brief)
+        self.assertIn("- [ ] <critical|important> · <path>:<line>", brief)
+        self.assertIn("--changed-since", (review / "drift.txt").read_text(encoding="utf-8"))
+        # The conformance reviewer reads code and tests; the doc reviewer documents.
+        self.assertTrue(fake.called("diff", "--no-ext-diff", MB, "HEAD", "--", "a.go", "a_test.go"))
+        # The pass is noted; the gate is never run here.
+        self.assertTrue((self.root / ".git" / "sdd" / "findings" / "feat--x.pass").exists())
+
+    def test_start_reads_the_lane_from_the_pull_request_and_pulls_its_threads(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN.replace(HEAD[:7], "9c1e2ab", 1))
+        self.PR = {"isDraft": False, "body": "## Spec and traceability\n\nLane: maintenance\n"}
+        self.use(self.routes(threads=[gh_thread(101, "a.go", 3, "why?")], diff="DIFF",
+                             extra=[(git("diff", "--name-only"), "a.go\n")]))
+        code, out, err = self.run_main("start", "--agent", "cursor-grok", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("lane maintenance (the pull request body)", out)
+        self.assertIn("pull request 7 (open): 1 new finding pulled", out)
+        self.assertIn("gate log: none at %s" % HEAD[:7], out)
+        self.assertIn("drift gate: not vendored", out)
+        self.assertIn("a.go:3 · why?", self.read_findings())
+        brief = (self.root / ".sdd" / "review" / HEAD[:7] / "brief.md").read_text(encoding="utf-8")
+        self.assertIn("none at HEAD. Run only the tests your findings need.", brief)
+
+    def test_start_without_a_lane_hints_at_the_normative_lines_and_stops_on_an_empty_range(self):
+        self.descriptor(forge="none")
+        hunks = "--- a/docs/s.md\n+++ b/docs/s.md\n@@ -1 +1 @@\n+The client MUST retry.\n"
+        self.use([(git("diff", "--no-ext-diff", "-U0"), hunks)] + git_routes(names="docs/s.md\n", diff="DIFF"))
+        out = self.run_main("start", "--agent", "claude")[1]
+        self.assertIn("lane decide (methodology §12): normative lines changed: 1", out)
+        self.findings(FILE_CLEAN)
+        self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes())
+        code, out, _ = self.run_main("start", "--agent", "claude", "--since-last")
+        self.assertEqual(0, code)
+        self.assertIn("range: empty", out)
+
+    def test_start_refuses_a_pull_request_whose_head_this_checkout_lacks(self):
+        self.descriptor(forge="github")
+        self.PR = {"headRefOid": "c" * 40}
+        self.use([(git("merge-base", "--is-ancestor"), sdd_pr.CliError("no"))] + self.routes())
+        code, _, err = self.run_main("start", "--agent", "claude")
+        self.assertEqual(2, code)
+        self.assertIn("is not in this checkout", err)
+
+
+class TestPullRequestKeying(GitHubCase):
+    def test_a_review_checkout_under_another_name_works_on_the_pull_requests_file(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT)  # feat/x's file, the pull request's branch
+        renamed = (git("rev-parse", "--abbrev-ref", "HEAD"), "pr-7-review\n")
+        self.use([renamed] + self.routes())
+        code, out, err = self.run_main("status", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("the findings of feat/x (pull request 7), which this checkout (pr-7-review) holds", err)
+        self.assertIn("open: 0 critical, 1 important", out)
+        code, _, err = self.run_main("add", "suggestion", "a.go:9", "rename n", "--by", "cursor", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("a.go:9 · rename n", self.read_findings())
+        self.assertFalse(self.store("pr-7-review").exists())
+
+
+class TestSelfDescribing(RepoCase):
+    def test_add_help_carries_the_line_grammar(self):
+        code, out, _ = self.run_main("add", "--help")
+        self.assertEqual(0, code)
+        self.assertIn("- [ ] critical · <path>:<line> · <one sentence> · evidence:", out)
+        self.assertIn("ends · outside", out)
+
+    def test_a_newer_install_beside_this_one_is_named(self):
+        cache = self.root / "cache"
+        for version in ("0.12.0", "0.12.1", "9.9.9"):
+            (cache / version / "tools").mkdir(parents=True)
+            (cache / version / "tools" / "sdd-pr.py").write_text("", encoding="utf-8")
+        with mock.patch.object(sdd_pr, "PLUGIN_ROOT", str(cache / "0.12.0")), \
+                mock.patch.object(sdd_pr, "__version__", "0.12.0"):
+            self.assertEqual(str(cache / "9.9.9" / "tools" / "sdd-pr.py"), sdd_pr.newer_install())
+        with mock.patch.object(sdd_pr, "PLUGIN_ROOT", str(cache / "9.9.9")), \
+                mock.patch.object(sdd_pr, "__version__", "9.9.9"):
+            self.assertEqual("", sdd_pr.newer_install())
+        # A working copy, not a versioned install, never warns.
+        self.assertEqual("", sdd_pr.newer_install())
+
+
 class TestCommandLine(RepoCase):
     def test_cli_errors_exit_2(self):
         self.use(git_routes())
@@ -2951,7 +3072,7 @@ class TestCommandLine(RepoCase):
     def test_version(self):
         code, out, _ = self.run_main("--version")
         self.assertEqual(0, code)
-        self.assertEqual("sdd-pr %s" % sdd_pr.__version__, out.strip())
+        self.assertEqual("sdd-pr %s at %s" % (sdd_pr.__version__, sdd_pr.PLUGIN_ROOT), out.strip())
         self.assertEqual("0.12.1", sdd_pr.__version__)
 
     def test_run_cli_reports_a_missing_program(self):
