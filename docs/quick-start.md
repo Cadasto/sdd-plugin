@@ -1,6 +1,6 @@
 # Quick start
 
-This walkthrough is for a first-time user. It takes one capability from idea to a ready pull request with the `/sdd-*` skills, in a repository that has never been scaffolded. It describes sdd 0.12 on Claude Code with a GitHub remote, on the formal profile. Cursor installation and hook wiring differ; see [install.md](install.md).
+This walkthrough is for a first-time user. It takes one capability from idea to a ready pull request with the `/sdd-*` skills, in a repository that has never been scaffolded. It describes sdd 0.13 on Claude Code with a GitHub remote, on the formal profile. Cursor installation and hook wiring differ; see [install.md](install.md).
 
 The assistant's wording varies between runs. The files each step produces, and the gates it stops at, do not. Check those.
 

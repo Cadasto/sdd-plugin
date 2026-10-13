@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-10-13
+
+A review pass starts with one call, `sdd-pr start`, which writes each reviewer's hunks and one shared
+brief and prints the dispatch plan, so the review reads nothing and runs no gate before it dispatches.
+Passes by different hosts run side by side, a panel host gets `/sdd-review --pr N` instead of a block to
+paste, and each pass is one comment on the pull request. Delivery reconciles documents on both profiles
+and the close-out writes the changelog line and the acceptance ticks, so reviewers file fewer
+preventable findings; fix rounds go to a new worker instead of a resumed one. `sdd-check` changed only
+its version number. Moving a repository from 0.12.x is described in `docs/upgrading.md`.
+
 ### Added
 - Tools: `sdd-pr start --agent <a> [--pr N] [--since-last] [--lane] [--base]` prepares a review pass in one call: it pulls the pull request's threads, checks this checkout holds its head, notes the pass, settles the lane (the flag, the PR body's `Lane:` line, else a hint), writes each reviewer's hunks, the drift gate's new lines, the settled lines and one shared brief under `.sdd/review/<head>/`, and prints the dispatch plan; it never runs the gate.
 - Templates: `review_panel.external` in `sdd.yaml` names the panel reviewers that never load the plugin.
