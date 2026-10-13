@@ -122,7 +122,7 @@ It reads the whole branch, not only what came after the first pass, and records 
 /sdd-review --panel
 ```
 
-Prints one review-request block per name in `agents.review_panel.<lane>`, filled from the repository's `docs/ai-workflow.md` § Review with the commit range to read. Paste each block to the reviewer it names. A panel reviewer working on this machine pipes its lines to `sdd-pr add -`. One working on the pull request posts inline comments, and `sdd-pr pull` brings them in.
+Prints one line per name in `agents.review_panel.<lane>`, such as `cursor: /sdd-review --pr 7`: run it in that host, which loads the plugin, and its pass lands in the same findings file beside yours. Passes run side by side, so start them together if you like. Only a name listed in `agents.review_panel.external` gets the review-request block from `docs/ai-workflow.md` § Review, to paste to a reviewer that never loads the plugin. One working on this machine pipes its lines to `sdd-pr add -`; one working on the pull request posts inline comments, and `sdd-pr pull` brings them in.
 
 ## Work the open findings
 

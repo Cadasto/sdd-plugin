@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Tools: `sdd-pr start --agent <a> [--pr N] [--since-last] [--lane] [--base]` prepares a review pass in one call: it pulls the pull request's threads, checks this checkout holds its head, notes the pass, settles the lane (the flag, the PR body's `Lane:` line, else a hint), writes each reviewer's hunks, the drift gate's new lines, the settled lines and one shared brief under `.sdd/review/<head>/`, and prints the dispatch plan; it never runs the gate.
+- Templates: `review_panel.external` in `sdd.yaml` names the panel reviewers that never load the plugin.
+
+### Changed
+- Tools: `sdd-pr post` publishes each pass as one comment (who reviewed, the blocking verdict, the lines that do not block new in the pass and open on the branch, then the new ones in a fold) and posts a review only for the inline threads and the lines it cannot anchor, which keep their evidence; an edit keeps a pass comment's header.
+- Tools: `sdd-pr scope --start` and `start` report the passes running beside them instead of stopping; `record` clears only its own agent's note; with `--pr`, a checkout whose local branch has another name works on the pull request's findings file.
+- Tools: `add --help` prints the line grammar; `--version` names the plugin root; every run names a newer `sdd-pr` installed beside this one; the PR record carries its body.
+- Skills: `sdd-review` starts with `sdd-pr start`, dispatches the plan with "Read <brief>; your hunks: <patch>", reads nothing before it and never runs the gate; `--panel` prints `/sdd-review --pr N` per panel host and the request block only for an external reviewer.
+- Skills: `sdd-deliver` reconciles the documents on both profiles, sends a per-task review's findings to a new worker instead of resuming the finished one, edits a specification sentence in `/sdd-specify`'s form, and at close-out ticks the delivered acceptance criteria and writes the changelog line; `sdd-triage` briefs a new worker per fix round and never deletes or weakens a test that pins an earlier fix; both fix code that does not meet a sentence instead of narrowing it, and ask the maintainer in plain words.
+- Skills: each skill takes the plugin root from its own path and never searches the disk for it.
+- Agents: `sdd-spec-conformance-reviewer` works without a gate log, builds or runs tests only for a guard or to pin a failure the log lacks, and both reviewers ask for every file in one turn; `sdd-doc-reviewer` files a form suggestion only on a section the branch added or rewrote and only where it changes how a sentence binds or reads, and neither files what the close-out writes.
+- References: `review.md` § Severity leaves what the close-out writes to it; § The forge mirror and § The tool describe one comment per pass, `start`, passes side by side and the `--pr` keying; methodology §9's close-out ticks the acceptance criteria and writes the changelog line.
+- Templates: `brief.md` lists the sentences that describe changed behaviour in `Files` and keeps pinning tests; `task-review.md` sends findings to a new worker; `development-process.md`'s PR body counts the per-task review; `ai-workflow.md` § Review prints a line per panel host.
+- Docs: `upgrading.md` covers 0.12.x to 0.13.0; `README.md`, `examples.md`, `quick-start.md` and `testing.md` describe `start`, the panel lines and one comment per pass.
+
+### Fixed
+- Tools: a pass's summary counted the branch's open lines while its comment held only the pass's new ones; `<…>` outside code spans vanished from comments and threads, and `@name` mentioned someone.
+
 ## [0.12.1] - 2026-10-11
 
 The ADR index keeps a wrapped `Resolves:` or `Amends:` bullet whole. Only the vendored gate changed.

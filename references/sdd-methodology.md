@@ -240,7 +240,8 @@ the verification command is known (§1a).
 ### Close-out — the last step of `/sdd-deliver`
 
 When the work is done, the same PR that lands the code sets the `REQ`'s `implementation` to `shipped` (§6)
-with its `traceability.yaml` packages/tests/probes, runs `sdd-check generate`, and writes the PR body. A PR
+with its `traceability.yaml` packages/tests/probes, ticks each acceptance criterion it delivered, adds
+its changelog line when the repository keeps one, runs `sdd-check generate`, and writes the PR body. A PR
 merged first gets the same edits in a commit on the default branch, or a branch from it, and its body
 updated. A
 `SPEC §` is promoted to `stable` only when the maintainer confirms it, because promotion freezes the

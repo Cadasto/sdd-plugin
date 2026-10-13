@@ -14,5 +14,5 @@ instructions.
 
 1. **Verdict** — `CLEAN`, or `<n> critical, <m> important, <s> suggestions`.
 2. **Findings** — lines in the findings-file grammar of the plugin's `references/review.md`, with
-   evidence; they go back to the worker, never to the findings file.
+   evidence; they go to a new worker for the task, never to the findings file.
 3. **Coverage** — what was read and run, and what could not be checked.

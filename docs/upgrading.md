@@ -13,6 +13,33 @@ only and could end on a dangling comma or semicolon. Only the vendored gate chan
 2. **Regenerate the index.** Run `python3 <check.script> generate`. Cells cut short at a wrapped
    Traceability bullet now carry the whole list; commit that diff.
 
+## From 0.12.x to 0.13.0
+
+A review pass starts with one call, `sdd-pr start`, and is one comment on the pull request. Passes by
+different hosts run side by side, and the panel is a line per host instead of a block to paste.
+`sdd-check` changed only its version number, so re-vendoring it with `/sdd-scaffold --upgrade` is
+optional.
+
+1. **Panel.** `/sdd-review --panel`, and the end of `/sdd-deliver`, print `<name>: /sdd-review --pr N` for
+   each `review_panel` host, which loads the plugin. A reviewer that never loads it (a web reviewer, say)
+   goes in the new `review_panel.external` list, which you add by hand; only it gets the request block.
+   Without the list, every panel name is taken to load the plugin.
+2. **Passes side by side.** `pass: running` no longer stops a pass: each names the others running beside
+   it. A review worktree whose local branch has another name (`pr-28-review`) now works on the pull
+   request's findings file when given `--pr`. Files that 0.12 wrote under such names
+   (`<git-common-dir>/sdd/findings/pr-*-review*.md`) duplicate the pull request's: check that their
+   open lines are settled there, then delete them.
+3. **One comment per pass.** A pass posts one comment: who reviewed, the counts and its lines that do not
+   block. A review is posted only for the inline threads. Comments posted by 0.12 still read, for
+   `harvest` too, and are rewritten in the new layout when a line in them changes.
+4. **The review never runs the gate.** `/sdd-deliver` and `/sdd-triage` write `.sdd/gate-<head>.log`, and
+   the reviewers read it. A standalone review on a commit without one tells reviewers to run only the
+   tests they need.
+5. **Close-out.** It ticks each delivered acceptance criterion and writes the change's changelog line.
+   Reviewers no longer file either before it.
+6. **Process documents.** `--upgrade` proposes the changed `docs/ai-workflow.md` § Review (the panel
+   paragraph) and the per-task review line in `docs/development-process.md` § The PR body.
+
 ## From 0.11.x to 0.12.0
 
 Findings are graded by harm wherever they are, so a defect in code the branch did not change keeps its

@@ -62,9 +62,10 @@ finding carries evidence. A claim of wrong code behaviour is settled by running 
 then graded by its harm; a missing specification sentence never lowers it. Nothing else about findings is
 posted, the pull request's body included.
 
-**The canonical review request.** Reviewers that run outside this repository never load the SDD plugin,
-so what is pasted to them must not drift from what the repo defines. `/sdd-review --panel` prints this
-block, filled in.
+**The canonical review request.** A panel host that loads the SDD plugin runs `/sdd-review --pr <N>`,
+which `/sdd-review --panel` prints as one line. Reviewers named in `agents.review_panel.external` never
+load it, so what is pasted to them must not drift from what the repo defines: `--panel` prints this
+block, filled in, for them only.
 
 ```text
 ── review request · <branch> · range <a>..<b> · profile <formal|informative> ──

@@ -51,7 +51,8 @@ leads among them, never block and are never worked unless the maintainer names o
 improving a behaviour, a test, a contract or a document. Taste (naming, wording, formatting, what a
 linter could enforce) is no lead; worth doing, it is done here. Weigh impact, not effort; unsure, write
 it down. A gap in a specification or requirement goes to *Known gaps* or `implementation:
-deferred` instead.
+deferred` instead. What the close-out writes (`implementation:` values, acceptance ticks, the changelog
+line, the PR body) is no finding before the close-out.
 
 **Code first.** A claim of wrong code behaviour (a wrong result, a crash or hang, a leak, a lost or
 corrupted write, an exposure, a refusal the wrong way round) is settled by a run, or by reasoning the
@@ -82,15 +83,18 @@ in step with the file; nothing else about findings is posted. It never writes th
 
 - `pull` appends each unresolved thread the file does not know as an open finding with its `forge:` id;
   a thread is `important` unless it opens with `**critical**`, `outside` when its first line ends `· outside`, and one reopened reopens its line; its `By:` line, when it has one, is the `by:`. A thread with none, not a bot's, is a person's: it records the maintainer's review, a `maintainer` line at the pull request's head. A review body's line in the file's grammar that ends `· outside` becomes an `outside` finding.
-- `post` publishes one review per pass at HEAD: a summary above one inline thread, carrying its `By:` line, per open critical and important
-  finding about the change without a `forge:` id, and writes the ids back. A line outside the diff is marked `unanchored` and listed in the review body. A clean pass
-  posts the summary alone, once; the maintainer's recorded review gets
-  none.
+- `post` publishes each pass at HEAD as one comment: who reviewed, the blocking verdict, how many lines
+  that do not block are new in the pass and open on the branch, then the new ones in one fold, defects
+  first. A review is posted only for what sits on a line: one inline thread, carrying its `By:` line,
+  per open critical and important finding about the change without a `forge:` id, whose ids are written
+  back; a line outside the diff is marked `unanchored` and listed in that review with its evidence. A
+  clean pass is its comment alone, once; the maintainer's recorded review gets none.
 - `resolve` answers each resolved finding's thread (`fixed in <sha>`, `declined: <reason>` or
   `deferred: <where>`) and closes it.
-- `post` and `resolve` put the lines that do not block and are not yet posted in one new comment off the diff (a closed thread on Azure DevOps, so no merge policy waits on it),
-  and edit a comment whose lines changed; one
-  deleted on the forge is posted again.
+- `post` and `resolve` put the lines that do not block, posted between passes, in a comment of their own
+  (comments are closed threads on Azure DevOps, so no merge policy waits on them), and edit a comment
+  whose lines changed, keeping a pass's header; one deleted on the forge is posted again. Comments and
+  threads show text as written, HTML and mentions defused outside code spans, and read back exactly.
 
 The backend is GitHub or Azure DevOps, from `forge:` in the descriptor, else the remote URL, else `none`;
 with `none` the file is the whole record and every skill still works.
@@ -139,7 +143,9 @@ only when the code itself guarantees the behaviour and a cheap test can pin it.
 
 `sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `pull`, `post`, `resolve`, and `harvest` on a forge, need `gh` (GitHub) or `az` with the `azure-devops` extension (Azure DevOps), signed in; the rest need only git. `--pr`, by default the branch's open pull request, must
 name one whose branch, or head, this checkout holds, and `--branch` the checkout itself;
-otherwise the command stops and names the worktree to run from. `Base:` follows a retargeted pull
+otherwise the command stops and names the worktree to run from. A checkout under another name that holds
+the pull request's head works on that pull request's file. `add --help` prints the line grammar;
+`--version` names the plugin root, and a newer `sdd-pr` installed beside this one is named on every run. `Base:` follows a retargeted pull
 request. A plugin older than the repository's `check.version` refuses every write, and `status` says so.
 
 - `status [--pr N]` — the file's path, the open counts, and each open line and suggestion
@@ -150,9 +156,15 @@ request. A plugin older than the repository's `check.version` refuses every writ
   `/sdd-review --since-last` after a code change once the maintainer has reviewed, until the pass budget is spent (§ Passes), and the close-out on a draft with nothing else open. A merged pull
   request at HEAD prints `Mergeable: merged`, what is left to carry or delete, and `/sdd-triage --backlog`
   while its watermark is older than the merge.
+- `start --agent <name> [--pr N] [--since-last] [--lane full|maintenance] [--base <ref>]` — a review pass's
+  preparation in one call: the pull request's threads pulled (its head must be in this checkout), the
+  pass noted, the lane (the flag, the PR body's `Lane:` line, else `decide` with the normative-line
+  count), and under `.sdd/review/<head>/` each reviewer's hunks, the drift gate's new lines, the settled
+  lines and one shared brief; then the dispatch plan. It never runs the gate: the brief names
+  `.sdd/gate-<head>.log` when it exists.
 - `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>] [--start <agent>]` — the range a
   pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it; `normative lines changed: n`, a hint for the lane;
-  `--start <agent>` notes a pass, and refuses (exit 2) with `pass: running` while another agent's note is under an hour old. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
+  `--start <agent>` notes a pass and names the passes running beside it (noted under an hour ago); passes run side by side, and `record` clears its own agent's note. `--base` is written to the file; `--diff` prints the range's hunks for one kind or
   one reviewer, the plugin's own reviewers included.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …] [--outside]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important

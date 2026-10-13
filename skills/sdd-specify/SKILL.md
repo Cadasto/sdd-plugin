@@ -7,7 +7,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 
 # Specify — the SDD definition layer
 
-> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code); `references/…` resolves from it.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it; `references/…` resolves from it.
 
 Read `docs/.sdd.yaml` first for the profile, identifier style and paths. Drop a template's leading `<!-- Template: … -->` comment in the file created from it.
 

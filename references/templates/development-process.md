@@ -120,6 +120,7 @@ Lane: <full | maintenance — no normative change>     <!-- formal profile only 
 - `<build_entrypoint> <ci_target>` — <what the output said>
 - red before green: <the tests that failed before the change>
 - can-fail proof: <the guards removed and the tests that then failed>
+- per-task review: <tasks reviewed; findings fixed in-task, by severity>
 
 ## Notes for review                  <!-- omit when there is nothing to say -->
 - <where to look hardest; what is out of scope; a known gap left on purpose>

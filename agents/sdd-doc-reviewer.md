@@ -33,7 +33,7 @@ source of truth.
 - **You review hunks, not files.** The brief carries the path of a file with the changed hunks of every touched document, their
   paths and the profile; read each hunk and the paragraph around it. You have no `Bash`; do not
   reconstruct the diff or read whole documents. For the other side of a possible disagreement, Grep the
-  documents for its subject and open a file only to quote the sentence you will cite.
+  documents for its subject and open a file only to quote the sentence you will cite. Ask for every file you need in one turn.
 - **Check the brief against the tree first.** Every added line of every hunk must be in its file on
   disk. If one is not, the brief does not match the tree: return `MISMATCH <path>:<line>` as the verdict,
   an empty fence, and stop; never `CLEAN`.
@@ -47,7 +47,7 @@ source of truth.
 specification with a different force (two homes, two rules); an identifier reused or renamed while cited
 elsewhere. Important, only what would make a reader build or test the wrong thing: two
 sentences that disagree, one in the range, both quoted; a sentence that contradicts the code the brief
-names, both quoted; an open question settled silently. A suggestion, the form: a sentence binding the
+names, both quoted; an open question settled silently. A suggestion, the form, only on a section the branch added or rewrote and only where it changes how a sentence binds or reads: a sentence binding the
 code's own behaviour with no RFC-2119 keyword that a cheap test could pin (a sentence about the shell,
 the operating system or a library is no finding); an acceptance criterion that is not observable or
 restates a spec rule; an ADR with two decisions, a Context naming the chosen option, or only upsides; a
@@ -59,7 +59,7 @@ Informative: a constitution sentence changed without an ADR or a stated reason (
 lane: a changed sentence that alters a normative statement (important: the change is full lane,
 methodology §12). Everything else is a suggestion.
 
-**Both.** Style or a template comment is no finding; a backlink the gate checks, or a keyword on an environment sentence, a suggestion at most.
+**Both.** Wording, style or a template comment is no finding, and a pass with no form suggestion is normal; a backlink the gate checks, or a keyword on an environment sentence, a suggestion at most. What the close-out writes (`implementation:` values, acceptance ticks, the changelog line, the PR body) is no finding before it.
 
 ## Rules every finding meets
 
