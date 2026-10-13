@@ -92,9 +92,10 @@ sdd:
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
     reviewers: []                   # this repo's own language reviewers, by agent name; /sdd-scaffold suggests from the build manifests
     task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
-    review_panel:                   # who reviews the PR, per lane; names are prompt targets, not integrations
+    review_panel:                   # who reviews the PR, per lane; a host that loads the plugin gets `/sdd-review --pr N`
       full: [claude, cursor]
       maintenance: [claude]
+      external: []                  # names that never load the plugin; --panel prints them the request block
 ```
 
 ### Fields
@@ -153,7 +154,8 @@ requirements, specifications, ADR paths and the traceability map are optional, a
 | `worker_skills` | Skills a worker should apply. **Named in the brief**, not preloaded in frontmatter. |
 | `reviewers` | The repository's own language reviewers, by agent name. Used for the per-task gate and as the code-review member of the review panel. A list gives every reviewer every changed code path; a block map of path patterns to a name or a list of names (`"**/*.go": go-coding:go-reviewer`) gives each reviewer only its paths (`*` matches across `/`), and `sdd-pr scope` names the paths no pattern, and no name in an empty list, covers. `/sdd-scaffold` suggests a value from the build manifests in the tree; the maintainer confirms it. |
 | `task_review` | `on` · `off` · `lane`. `lane` means on for the full lane and off for the maintenance lane. |
-| `review_panel.full` / `review_panel.maintenance` | Which reviewers `/sdd-review --panel` prints a prompt block for, per lane. Values are **examples**; a repository picks its own, and none is mandated. |
+| `review_panel.full` / `review_panel.maintenance` | Which reviewers `/sdd-review --panel` names, per lane. A host that loads the plugin gets one line, `/sdd-review --pr <N>`. Values are **examples**; a repository picks its own, and none is mandated. |
+| `review_panel.external` | The panel names that never load the plugin; `--panel` prints them the canonical review request from `docs/ai-workflow.md` § Review. Default: none. |
 
 > **`worker_model` is applied per dispatch, never written into an agent file.** Plugin agent definitions
 > live in the host's read-only install cache, so no skill can rewrite their frontmatter. `sdd-implementer`

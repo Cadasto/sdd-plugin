@@ -14,6 +14,7 @@ import contextlib
 import datetime
 import fnmatch
 import hashlib
+import html
 import importlib.util
 import json
 import os
@@ -325,7 +326,7 @@ def first_sentence(body: str) -> str:
     """The thread's first line, with a leading **severity** marker and separator dropped."""
     text = (body or "").strip().splitlines()[0] if (body or "").strip() else ""
     text = re.sub(r"^\s*\*\*(critical|important|suggestion)\*\*\s*[—:\-–]?\s*", "", text)
-    return text.replace(SEP.strip(), "-").strip() or "(no text)"
+    return md_unescape(text).replace(SEP.strip(), "-").strip() or "(no text)"
 
 
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -348,11 +349,26 @@ def parse_hunks(diff_text: str) -> Dict[str, set]:
     return lines
 
 
+CODE_SPAN = re.compile(r"(`[^`\n]+`)")
+
+
+def md_escape(text: str) -> str:
+    """Text a forge renders as Markdown, shown as written: outside code spans `<`, `>` and `&` are entities
+    and `@` mentions nobody; md_unescape reverses it."""
+    return "".join(part if CODE_SPAN.fullmatch(part) else
+                   part.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("@", "&#64;")
+                   for part in CODE_SPAN.split(text))
+
+
+def md_unescape(text: str) -> str:
+    return "".join(part if CODE_SPAN.fullmatch(part) else html.unescape(part) for part in CODE_SPAN.split(text))
+
+
 def comment_body(finding: Finding) -> str:
-    body = "**%s** — %s" % (finding.severity, finding.text)
+    body = "**%s** — %s" % (finding.severity, md_escape(finding.text))
     for key in ("evidence", "fix", "by"):
         if finding.fields.get(key):
-            body += "\n\n%s: %s" % (key.capitalize(), finding.fields[key])
+            body += "\n\n%s: %s" % (key.capitalize(), md_escape(finding.fields[key]))
     return body
 
 
@@ -396,54 +412,87 @@ PASS_MARK = "<!-- sdd:pass %s %s -->"
 PASS_RE = re.compile(r"<!-- sdd:pass (\S+) (.+?) -->")
 
 
-def pass_summary(fs: Findings, head: str, passes: List[Tuple[str, str, str, str]]) -> str:
-    """The body of a pass's one review: the verdict, who reviewed, and a marker per pass so it is posted once."""
-    n, out = len(fs.suggestions), len(fs.outside)
-    rest = ["%d outside the change" % out] if out else []
-    rest += ["%d suggestion%s" % (n, "" if n == 1 else "s")] if n else []
-    lines = ["**Review at `%s`:** %s; %s." % (head[:7], open_verdict(fs), "%s, in a separate comment" % " and ".join(rest)
-                                                if rest else "nothing else")]
-    lines += ["- %s: %s" % (agent, reviewers) for _, _, agent, reviewers in passes]
-    return "\n".join(lines + [PASS_MARK % (sha, agent) for sha, _, agent, _ in passes])
+def reviewer_names(reviewers: str) -> str:
+    """A Reviewed line's reviewers with repeats counted: `go-reviewer ×3, sdd-doc-reviewer (4 of 4)`."""
+    match = re.match(r"^(.*?)\s*(\(\d+ of \d+\))?$", reviewers.strip())
+    names, tally = match.group(1), match.group(2) or ""
+    counted: Dict[str, int] = {}
+    for name in (n.strip() for n in names.split(",")):
+        if name:
+            counted[name] = counted.get(name, 0) + 1
+    shown = ", ".join(name if n == 1 else "%s ×%d" % (name, n) for name, n in counted.items())
+    return ("%s %s" % (shown, tally)).strip()
+
+
+def pass_header(fs: Findings, head: str, passes: List[Tuple[str, str, str, str]], new: int) -> str:
+    """The top of a pass's one comment: who reviewed, then each count named for what it counts, and a marker
+    per pass so it is posted once."""
+    rows = ["**Review at `%s`** by `%s`: %s" % (head[:7], agent, reviewer_names(reviewers))
+            for _, _, agent, reviewers in passes]
+    left = len(fs.suggestions) + len(fs.outside)
+    rows.append("**Blocking:** %s. **Not blocking:** %s; %d open on the branch, carried to `%s` after merge."
+                % (open_verdict(fs), "%d new in this pass, below" % new if new else "nothing new", left, BACKLOG))
+    return "\n".join(rows + [PASS_MARK % (sha, agent) for sha, _, agent, _ in passes])
 
 
 def unsummarised(session: Session, pr: dict) -> List[Tuple[str, str, str, str]]:
-    """The passes at HEAD whose summary the pull request does not carry yet. The maintainer's own review is
-    already on it."""
+    """The passes at HEAD the pull request does not carry yet, in a comment or, before 0.13, a review. The
+    maintainer's own review is already on it."""
     passes = [p for p in session.fs.passes if session.head.startswith(p[0]) and p[2] != "maintainer"]
     if not passes:
         return []
-    posted = {m.groups() for body in session.forge.review_bodies(pr["number"]) for m in PASS_RE.finditer(body)}
+    bodies = session.forge.review_bodies(pr["number"]) + [c["body"] for c in session.forge.comments(pr["number"])]
+    posted = {m.groups() for body in bodies for m in PASS_RE.finditer(body)}
     return [p for p in passes if (p[0], p[2]) not in posted]
 
 
 SUGGESTIONS_MARK = "<!-- sdd:suggestions %s -->"
 SUGGESTIONS_RE = re.compile(r"<!-- sdd:suggestions (\S+) -->")
+ANCHOR_SHOWN = re.compile(r"^(- (?:\[.\] )?(?:(?:critical|important|suggestion) · )?)`([^`]+)`")
 
 
-def suggestions_body(sha: str, lines: List[Finding], globs: Optional[List[str]] = None) -> str:
-    """One comment of suggestions: every line in the file's grammar, without the comment's own id, so
-    `harvest` reads it back with parse_line; a fixed, carried or dropped line keeps its checkbox."""
-    rows, globs = [], list(globs or DEFAULT_TEST_GLOBS)
-    lines = sorted(lines, key=lambda f: priority(f, globs))  # defects first, then code, tests, other, documents
+def shown_row(finding: Finding) -> str:
+    """A line as the forge shows it: the file's grammar, its anchor as code, the rest escaped."""
+    row = finding.render()
+    at = row.find(finding.anchor) if finding.anchor else -1
+    if at < 0:
+        return md_escape(row)
+    return md_escape(row[:at]) + "`%s`" % finding.anchor + md_escape(row[at + len(finding.anchor):])
+
+
+def lines_block(lines: List[Finding], globs: List[str]) -> List[str]:
+    """The lines that do not block, defects first, then code, tests, other, documents, in one fold."""
+    lines = sorted(lines, key=lambda f: priority(f, globs))
+    rows = []
     for finding in lines:
         shown = Finding(finding.status, finding.severity, finding.path, finding.line, finding.text,
                         {k: v for k, v in finding.fields.items() if k not in ("comment", "forge")},
                         [flag for flag in finding.flags if flag == "outside"], finding.fixed)
-        rows.append(shown.render())
+        rows.append(shown_row(shown))
     left = len([f for f in lines if f.status in ("suggestion", "open")])
     defects = len([f for f in lines if f.severity in BLOCKING])
-    head = ("**Not blocking, at `%s`:** %s; after merge `/sdd-triage --backlog` carries the open ones to `%s`."
-            % (sha[:7], ", ".join(([("%d outside the change" % defects)] if defects else [])
-                                   + ["%d suggestion%s" % (len(lines) - defects, "" if len(lines) - defects == 1 else "s")]),
-               BACKLOG))
-    summary = "%d line%s, %d open" % (len(lines), "" if len(lines) == 1 else "s", left)
-    return "\n".join([head, "", "<details><summary>%s</summary>" % summary, ""] + rows
-                     + ["", "</details>", SUGGESTIONS_MARK % sha[:7]])
+    kinds = ([("%d outside the change" % defects)] if defects else []) + \
+        (["%d suggestion%s" % (len(lines) - defects, "" if len(lines) - defects == 1 else "s")] if len(lines) > defects else [])
+    return ["<details><summary>%s; %d open</summary>" % (", ".join(kinds), left), ""] + rows + ["", "</details>"]
+
+
+def suggestions_body(sha: str, lines: List[Finding], globs: Optional[List[str]] = None, header: str = "",
+                     fs: Optional[Findings] = None) -> str:
+    """One comment: a pass's header, or the not-blocking header of lines posted between passes, then the
+    lines in the file's grammar (anchor as code, text escaped), so `harvest` reads them back; a fixed,
+    carried or dropped line keeps its checkbox."""
+    globs = list(globs or DEFAULT_TEST_GLOBS)
+    if not header:
+        left = len(fs.suggestions) + len(fs.outside) if fs is not None else 0
+        header = ("**Not blocking, at `%s`:** %d line%s below; %d open on the branch, carried to `%s` after merge."
+                  % (sha[:7], len(lines), "" if len(lines) == 1 else "s", left, BACKLOG))
+    if not lines:
+        return header
+    return "\n".join([header, ""] + lines_block(lines, globs) + [SUGGESTIONS_MARK % sha[:7]])
 
 
 def suggestion_lines(body: str) -> List[Finding]:
-    """The lines of one suggestions comment; any other comment holds none."""
+    """The lines of one comment that carries lines that do not block; any other comment holds none."""
     if not SUGGESTIONS_RE.search(body or ""):
         return []
     out = []
@@ -451,7 +500,7 @@ def suggestion_lines(body: str) -> List[Finding]:
         raw = raw.strip()
         if raw.startswith("- "):
             try:
-                out.append(parse_line(raw, 0))
+                out.append(parse_line(md_unescape(ANCHOR_SHOWN.sub(r"\1\2", raw, count=1)), 0))
             except FileError:
                 continue  # a hand edit on the forge that no longer reads is not a lead
     return out
@@ -461,10 +510,13 @@ def _same_text(a: str, b: str) -> bool:
     return a.replace("\r\n", "\n").strip() == b.replace("\r\n", "\n").strip()
 
 
-def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tuple[int, int]:
-    """Keep the pull request's suggestion comments in step with the file: the suggestions not posted yet go
-    into one new comment, whose id each line takes, and a posted comment whose lines changed is edited.
-    A comment deleted on the forge frees its open lines to be posted again. Returns (posted, edited)."""
+def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False,
+                     passes: Optional[List[Tuple[str, str, str, str]]] = None) -> Tuple[int, int]:
+    """Keep the pull request's comments in step with the file. A pass gets one comment: its header (who
+    reviewed, the counts) and the lines that do not block and are not posted yet, whose id each line takes.
+    Lines posted between passes get a comment of their own. A posted comment whose lines changed is edited,
+    its pass header kept. A comment deleted on the forge frees its open lines to be posted again. Returns
+    (lines posted, comments edited)."""
     fs = session.fs
     mine = [f for f in fs.items if f.severity == "suggestion" or "outside" in f.flags]
     held: Dict[str, List[Finding]] = {}
@@ -480,7 +532,9 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
                     finding.fields.pop("comment", None)
                 continue
             match = SUGGESTIONS_RE.search(current[comment_id])
-            body = suggestions_body(match.group(1) if match else session.head, lines, session.globs)
+            cut = current[comment_id].find("<details>")
+            header = current[comment_id][:cut].rstrip() if cut > 0 and PASS_RE.search(current[comment_id][:cut]) else ""
+            body = suggestions_body(match.group(1) if match else session.head, lines, session.globs, header, fs)
             if not _same_text(body, current[comment_id]):
                 if dry_run:
                     print(body)
@@ -488,8 +542,9 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
                     session.forge.edit_comment(pr["number"], comment_id, body)
                 edited += 1
     fresh = [f for f in mine if f.status in ("suggestion", "open") and not f.fields.get("comment")]
-    if fresh:
-        body = suggestions_body(session.head, fresh, session.globs)
+    if fresh or passes:
+        header = pass_header(fs, session.head, passes, len(fresh)) if passes else ""
+        body = suggestions_body(session.head, fresh, session.globs, header, fs)
         if dry_run:
             print(body)
             return len(fresh), edited
@@ -501,9 +556,12 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
     return len(fresh), edited
 
 
-def sync_report(posted: int, edited: int, number: int) -> str:
+def sync_report(posted: int, edited: int, number: int, passes: int = 0) -> str:
     parts = []
-    if posted:
+    if passes:
+        parts.append("the summary of %d pass%s and %d line%s not blocking in one comment"
+                     % (passes, "" if passes == 1 else "es", posted, "" if posted == 1 else "s"))
+    elif posted:
         parts.append("%d line%s in a new comment" % (posted, "" if posted == 1 else "s"))
     if edited:
         parts.append("%d comment%s edited" % (edited, "" if edited == 1 else "s"))
@@ -950,18 +1008,18 @@ class GitHubForge(Forge):
         return {"number": data["number"], "head": data.get("headRefOid", ""), "branch": data.get("headRefName", ""),
                 "base": data.get("baseRefName", ""), "draft": bool(data.get("isDraft")), "url": data.get("url", ""),
                 "state": (data.get("state") or "OPEN").lower(), "merge": (data.get("mergeCommit") or {}).get("oid", ""),
-                "merged_at": data.get("mergedAt") or "", "raw": data}
+                "merged_at": data.get("mergedAt") or "", "body": data.get("body") or "", "raw": data}
 
     def pr_for_branch(self, branch):
         data = _json(run_cli(["gh", "pr", "list", "--head", branch, "--state", "all",
-                              "--json", "number,headRefOid,headRefName,baseRefName,isDraft,url,state,mergeCommit,mergedAt"])) or []
+                              "--json", "number,headRefOid,headRefName,baseRefName,isDraft,url,state,mergeCommit,mergedAt,body"])) or []
         # The open one, else the latest: a merged or closed pull request is a state worth saying.
         data = sorted(data, key=lambda d: (d.get("state") or "OPEN").upper() != "OPEN")
         return self._shape(data[0]) if data else None
 
     def pr(self, number):
         return self._shape(_json(run_cli(["gh", "pr", "view", str(number), "--json",
-                                          "number,headRefOid,headRefName,baseRefName,isDraft,url,statusCheckRollup,state,mergeCommit,mergedAt"])))
+                                          "number,headRefOid,headRefName,baseRefName,isDraft,url,statusCheckRollup,state,mergeCommit,mergedAt,body"])))
 
     def checks(self, number):
         rollup = self.pr(number)["raw"].get("statusCheckRollup") or []
@@ -1081,6 +1139,7 @@ class AzureDevOpsForge(Forge):
         return {"number": number, "head": (data.get("lastMergeSourceCommit") or {}).get("commitId", ""),
                 "branch": _short_ref(data.get("sourceRefName", "")), "base": _short_ref(data.get("targetRefName", "")),
                 "draft": bool(data.get("isDraft")), "url": data.get("url", ""), "state": state,
+                "body": data.get("description") or "",
                 "merge": (data.get("lastMergeCommit") or {}).get("commitId", ""),
                 "merged_at": (data.get("closedDate") or "") if state == "merged" else "", "raw": data}
 
@@ -1276,15 +1335,34 @@ class Session:
             fcntl.flock(self._lock, fcntl.LOCK_EX)
         self._adopt_legacy()
         self.fs = load_findings(self.path, self.branch, "")
+        if self._pr_number is not None and self.forge.name != "none":
+            try:
+                self.pr()  # a checkout under another name that holds the pull request's head works on its file
+            except BaseException:
+                self.close()  # a refusal here must not keep the clone's lock for the next command
+                raise
+
+    def _rekey(self, branch: str) -> None:
+        """Work on ``branch``'s findings file and notes: the pull request's, though this checkout's local
+        branch has another name (a review worktree), so every reviewer of one pull request shares one file."""
+        print("sdd-pr: the findings of %s (pull request %s), which this checkout (%s) holds"
+              % (branch, self._pr_number, self.branch), file=sys.stderr)
+        self.branch = branch
+        store = store_dir(self.root)
+        self.path = os.path.join(store, slug(branch) + ".md")
+        self.notes = os.path.join(os.path.dirname(store), "deliver", slug(branch) + ".md")
+        self.fs = load_findings(self.path, branch, "")
 
     def pr(self, required: bool = True) -> Optional[dict]:
         if self._pr is None:
             if self._pr_number is not None:
                 pr = self.forge.pr(self._pr_number)
-                if pr.get("branch") and pr["branch"] != self.branch and not self.holds(pr["head"]):
-                    raise CheckoutError("pull request %d is %s at %s; this checkout is %s at %s; %s"
-                                        % (pr["number"], pr["branch"], pr["head"][:7], self.branch,
-                                           self.head[:7], elsewhere(self.root, pr["branch"])))
+                if pr.get("branch") and pr["branch"] != self.branch:
+                    if not self.holds(pr["head"]):
+                        raise CheckoutError("pull request %d is %s at %s; this checkout is %s at %s; %s"
+                                            % (pr["number"], pr["branch"], pr["head"][:7], self.branch,
+                                               self.head[:7], elsewhere(self.root, pr["branch"])))
+                    self._rekey(pr["branch"])
                 self._pr = pr
             else:
                 pr = self.forge.pr_for_branch(self.branch)
@@ -1418,7 +1496,8 @@ def cmd_scope(session: Session, args) -> int:
             sys.stdout.write(git(session.root, "diff", "--no-ext-diff", start, "HEAD", "--", *paths))
         return 0
     if args.start and rng:
-        start_pass(session, args.start)
+        for other in start_pass(session, args.start):
+            notes.append("pass: also running, %s; this one runs beside it" % other)
     normative = normative_lines(session.root, start, files["documents"])
     if args.json:
         print(json.dumps({"range": rng, "diff_from": start or None, "base": session.base(), "head": session.head,
@@ -1448,26 +1527,193 @@ def pass_note(session: Session) -> str:
     return os.path.join(os.path.dirname(session.path), slug(session.branch) + ".pass")
 
 
-def start_pass(session: Session, agent: str) -> None:
-    """Note that ``agent`` starts a pass on this branch; ``record`` clears the note. Another agent's note
-    younger than an hour means a pass is running: refuse (two passes pay twice). Two sessions under one
-    agent name are one reviewer, as the skills name agents by host and model."""
-    agent, path = _clean(agent).replace(":", "-"), pass_note(session)
+def _pass_notes(path: str) -> Dict[str, dict]:
+    """The passes noted as running on this branch, by agent; an unreadable note is none."""
     try:
         with open(path, encoding="utf-8") as handle:
-            note = json.loads(handle.read())
-        started = instant(note.get("when", ""))
-        age = (datetime.datetime.now(datetime.timezone.utc) - started).total_seconds() if started else PASS_NOTE_AGE
-        if note.get("agent") != agent and age < PASS_NOTE_AGE:
-            raise CliError("pass: running — %s started one at %s on %s; ask before starting another"
-                           % (note.get("agent"), note.get("when"), str(note.get("head", ""))[:7]))
-    except (OSError, ValueError, AttributeError):
-        pass  # no note, or one that cannot be read: nothing is running
-    session.guard()
+            data = json.loads(handle.read())
+    except (OSError, ValueError):
+        return {}
+    if isinstance(data, dict) and "agent" in data:  # 0.12: one pass
+        data = {"passes": {str(data["agent"]): data}}
+    passes = data.get("passes") if isinstance(data, dict) else None
+    return {str(k): v for k, v in passes.items() if isinstance(v, dict)} if isinstance(passes, dict) else {}
+
+
+def _write_pass_notes(path: str, notes: Dict[str, dict]) -> None:
+    if not notes:
+        if os.path.exists(path):
+            os.remove(path)
+        return
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as handle:
-        handle.write(json.dumps({"agent": agent, "when": iso(datetime.datetime.now(datetime.timezone.utc)),
-                                 "head": session.head}) + "\n")
+        handle.write(json.dumps({"passes": notes}, sort_keys=True) + "\n")
+
+
+def start_pass(session: Session, agent: str) -> List[str]:
+    """Note that ``agent`` starts a pass on this branch, and return the other passes running (noted under an
+    hour ago). Two passes run side by side: a second opinion is the maintainer's to ask for. ``record``
+    clears the agent's note."""
+    agent, path = _clean(agent).replace(":", "-"), pass_note(session)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    notes, others = {}, []
+    for name, note in _pass_notes(path).items():
+        started = instant(str(note.get("when", "")))
+        if started and (now - started).total_seconds() < PASS_NOTE_AGE:
+            notes[name] = note
+            if name != agent:
+                others.append("%s since %s on %s" % (name, note.get("when"), str(note.get("head", ""))[:7]))
+    session.guard()
+    notes[agent] = {"agent": agent, "when": iso(now), "head": session.head}
+    _write_pass_notes(path, notes)
+    return others
+
+
+def _safe_name(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", name.replace(":", "--")).strip("-") or "reviewer"
+
+
+def profile_of(data: dict) -> str:
+    value = str(_setting(data, "profile") or "formal")
+    return "informative" if value == "informative" else "formal"
+
+
+def lane_of(args, pr: Optional[dict], normative: int, profile: str) -> str:
+    """The pass's lane: --lane, else the PR body's `Lane:` line, else a hint for methodology §12's test."""
+    if profile == "informative":
+        return "none (informative profile)"
+    if args.lane:
+        return "%s (--lane)" % args.lane
+    match = re.search(r"(?im)^\W*Lane:\W*(full|maintenance)\b", (pr or {}).get("body") or "")
+    if match:
+        return "%s (the pull request body)" % match.group(1).lower()
+    return "decide (methodology §12): normative lines changed: %d" % normative
+
+
+BRIEF = """# Review brief: {branch} at `{head}`
+
+- **Range** {range} (diff from `{start}`), profile {profile}, lane {lane}. Review only this range.
+- **Your hunks** are in the patch your dispatch names. Read the changed hunks and what surrounds them, not
+  whole files, and ask for every file you need in one turn.
+- **Gate log:** {gate}
+- **Drift gate,** what the range added: {drift}
+- **Already settled on this branch:** {resolved}. Do not raise one again unless the change makes its
+  reason untrue.
+- **sdd-pr** is `python3 {sdd_pr}`; for a reviewer it only proves a guard (`guard`).
+- **Severity and scope** are `{review_md}` § Severity and § Scope: by harm wherever the line is; a defect
+  in code or a document the branch did not change keeps its severity and ends ` · outside`.
+- **Return** one verdict line (`CLEAN`, or `<n> critical, <m> important, <s> suggestions`), then one fenced
+  block of finding lines, then one **Coverage** line (what you read and ran, and what you could not check):
+
+  ```
+  - [ ] <critical|important> · <path>:<line> · <one sentence> · evidence: <what you ran or quoted> · fix: <one line> · by: <your name>
+  - <path>:<line> · <one sentence> · by: <your name>
+  ```
+"""
+
+
+def cmd_start(session: Session, args) -> int:
+    """Everything a review pass needs before its reviewers are dispatched, in one call (references/review.md
+    § The tool): the pull request's threads, the range, the lane, every reviewer's hunks, the drift gate's
+    new lines, one shared brief, and the dispatch plan."""
+    if not session.descriptor.strip():
+        raise CliError("start: no %s here; set the repository up with /sdd-scaffold first" % DESCRIPTOR)
+    pr = None
+    if session.forge.name != "none":
+        pr = session.pr(required=False)
+        if pr and pr["state"] == "open" and pr.get("head") and not session.holds(pr["head"]):
+            raise CliError("pull request %d's head %s is not in this checkout (HEAD %s): fetch it and check it "
+                           "out, then start again" % (pr["number"], pr["head"][:7], session.head[:7]))
+    pulled = pull_threads(session, pr) if pr and pr["state"] == "open" else 0
+    if args.base:
+        if not resolve_sha(session.root, args.base) and not resolve_sha(session.root, "origin/" + args.base):
+            raise CliError("start: --base %s is not a branch or commit here" % args.base)
+        session.fs.base = args.base
+        session.save()
+    rng = review_range(session.root, session.fs, session.base(), session.head, since_last=args.since_last)
+    if not rng:
+        print("range: empty; nothing to review since the last pass (sdd-pr status)")
+        return 0
+    start, widened = diff_start(session.root, session.base(), rng)
+    files = changed_files(session.root, rng, session.globs, session.vendored, start)
+    reviewers, unassigned = reviewers_for(session.data, files)
+    others = start_pass(session, args.agent)
+    profile = profile_of(session.data)
+    lane = lane_of(args, pr, normative_lines(session.root, start, files["documents"]), profile)
+    head, root = session.head[:7], os.path.abspath(session.root)  # paths a subagent reads from anywhere
+    out = os.path.join(root, ".sdd", "review", head)
+    os.makedirs(out, exist_ok=True)
+
+    plan = []
+    for name, paths in reviewers.items():
+        plan.append((name, paths, ""))
+    code = files["code"] + files["tests"]
+    if code:
+        plan.append(("sdd-spec-conformance-reviewer", code,
+                     "formal full lane, when the code implements a cited SPEC §" if profile == "formal"
+                     else "only when the range touches what a constitution sentence binds"))
+    if files["documents"]:
+        plan.append(("sdd-doc-reviewer", files["documents"],
+                     "consistency" if profile == "informative" or lane.startswith("maintenance") else
+                     "form" if lane.startswith("full") else "form on the full lane, consistency on maintenance"))
+    rows = []
+    for name, paths, when in plan:
+        patch = os.path.join(out, "diff-%s.patch" % _safe_name(name))
+        with open(patch, "w", encoding="utf-8") as handle:
+            handle.write(git(session.root, "diff", "--no-ext-diff", start, "HEAD", "--", *paths))
+        rows.append("- %s: %s (%d file%s)%s" % (name, patch, len(paths), "" if len(paths) == 1 else "s",
+                                                 "; %s" % when if when else ""))
+
+    gate_log = os.path.join(root, ".sdd", "gate-%s.log" % head)
+    gate = ("`%s`, the full gate at HEAD. Do not rebuild or rerun the suite; run one test only to pin a failure "
+            "the log lacks." % gate_log if os.path.exists(gate_log)
+            else "none at HEAD. Run only the tests your findings need.")
+    drift_path, drift_line = os.path.join(out, "drift.txt"), "not vendored"
+    gate_script = os.path.join(root, session.vendored)
+    if os.path.exists(gate_script):
+        code_run, output = run_test(["python3", gate_script, "check", "--changed-since", rng.split("..")[0],
+                                     "--new-only"], session.root)
+        with open(drift_path, "w", encoding="utf-8") as handle:
+            handle.write(output)
+        verdict = [row for row in output.splitlines() if row.startswith("sdd-check:")] or \
+            [row for row in output.strip().splitlines() if row.strip()][-1:]
+        drift_line = "%s (`%s`)" % (verdict[0].strip() if verdict else "exit %s" % code_run, drift_path)
+    resolved = "none"
+    if session.fs.resolved:
+        path = os.path.join(out, "resolved.md")
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(f.render() for f in session.fs.resolved) + "\n")
+        resolved = "`%s`" % path
+    here = os.path.dirname(os.path.abspath(__file__))
+    brief = os.path.join(out, "brief.md")
+    with open(brief, "w", encoding="utf-8") as handle:
+        handle.write(BRIEF.format(branch=session.branch, head=head, range="%s..HEAD" % rng.split("..")[0][:12],
+                                  start=start[:12], profile=profile,
+                                  lane=lane.split(" (")[0], gate=gate, drift=drift_line, resolved=resolved,
+                                  sdd_pr=os.path.join(here, "sdd-pr.py"),
+                                  review_md=os.path.join(os.path.dirname(here), "references", "review.md")))
+
+    print("review: %s at %s · range %s..HEAD · %s profile · lane %s"
+          % (session.branch, head, rng.split("..")[0][:12], profile, lane))
+    if not _setting(session.data, "agents"):
+        print("agents: no agents: block in %s; /sdd-scaffold --upgrade adds it" % DESCRIPTOR)
+    if widened:
+        print(widened)
+    if pr:
+        print("pull request %d (%s): %d new finding%s pulled" % (pr["number"], pr["state"], pulled,
+                                                                "" if pulled == 1 else "s"))
+    for other in others:
+        print("pass: also running, %s; this one runs beside it" % other)
+    print("gate log: %s" % (gate_log if os.path.exists(gate_log) else "none at %s" % head))
+    print("drift gate: %s" % drift_line)
+    print("brief: %s" % brief)
+    print("dispatch, in parallel, each with \"Read <brief>; your hunks: <patch>\":")
+    print("\n".join(rows) if rows else "- nobody: no code, tests, other files or documents changed")
+    if unassigned:
+        print("no reviewer: %s" % " ".join(unassigned))
+    if files["vendored"] or files["plans"]:
+        print("not reviewed: %s" % " ".join(files["vendored"] + files["plans"]))
+    return 0
 
 
 def cmd_status(session: Session, args) -> int:
@@ -1615,6 +1861,13 @@ def harvested(session: Session, pr: dict) -> bool:
 def cmd_pull(session: Session, args) -> int:
     session.need_forge()
     pr = session.pr()
+    added = pull_threads(session, pr)
+    print("pull: %d new finding%s from PR %d" % (added, "" if added == 1 else "s", pr["number"]))
+    return 0
+
+
+def pull_threads(session: Session, pr: dict) -> int:
+    """Bring the pull request's unresolved threads the file does not know into it; return how many."""
     fs = session.fs
     known = fs.forge_ids()
     by_id = {f.fields["forge"]: f for f in fs.resolved if f.fields.get("forge")}
@@ -1642,8 +1895,8 @@ def cmd_pull(session: Session, args) -> int:
         known.add(thread["id"])
         added += 1
     for body in session.forge.review_bodies(pr["number"]):
-        if SUGGESTIONS_RE.search(body):
-            continue  # the non-blocking comment, which the file wrote
+        if SUGGESTIONS_RE.search(body) or PASS_RE.search(body):
+            continue  # the plugin's own comment, which the file wrote
         for finding in outside_lines(body):
             said = (finding.anchor, finding.text.casefold().rstrip(" ."))
             if any((f.anchor, f.text.casefold().rstrip(" .")) == said for f in fs.items):
@@ -1661,8 +1914,7 @@ def cmd_pull(session: Session, args) -> int:
                             "%s (%d of %d)" % (", ".join(people), len(people), len(people))))
     if added or not session.has_file():
         session.save()
-    print("pull: %d new finding%s from PR %d" % (added, "" if added == 1 else "s", pr["number"]))
-    return 0
+    return added
 
 
 def cmd_post(session: Session, args) -> int:
@@ -1671,14 +1923,22 @@ def cmd_post(session: Session, args) -> int:
     if pr["state"] != "open":
         raise CliError("pull request %d is %s; nothing to post" % (pr["number"], pr["state"]))
     session.guard()
-    code = _post(session, args, pr)
-    note = sync_report(*sync_suggestions(session, pr, args.dry_run), pr["number"])
+    passes = unsummarised(session, pr)
+    if passes and pr["head"] and pr["head"] != session.head:
+        raise CliError("local HEAD %s is not the pull request's head %s; push or pull first"
+                       % (session.head[:7], pr["head"][:7]))
+    published = _post(session, args, pr)
+    posted, edited = sync_suggestions(session, pr, args.dry_run, passes)
+    note = sync_report(posted, edited, pr["number"], len(passes))
     if note:
         print("post: " + note)
-    return code
+    elif not published:
+        print("post: nothing to post")
+    return 0
 
 
 def _post(session: Session, args, pr: dict) -> int:
+    """Post the review for the blocking lines not yet on the forge; return how many lines it carries."""
     fs = session.fs
     candidates = [f for f in fs.blocking if not f.fields.get("forge")]
     adopted = 0
@@ -1689,9 +1949,7 @@ def _post(session: Session, args, pr: dict) -> int:
         candidates = [f for f in candidates if not f.fields.get("forge")]
         if adopted and not args.dry_run:
             session.save()
-    passes = unsummarised(session, pr)
-    if not candidates and not passes:
-        print("post: nothing to post%s" % ("; %d already on the forge" % adopted if adopted else ""))
+    if not candidates:
         return 0
     if pr["head"] and pr["head"] != session.head:
         raise CliError("local HEAD %s is not the pull request's head %s; push or pull first"
@@ -1707,17 +1965,14 @@ def _post(session: Session, args, pr: dict) -> int:
             anchored.append(finding)
         elif "unanchored" not in finding.flags:
             unanchored.append(finding)
-    parts = [pass_summary(fs, session.head, passes)] if passes else []
-    if unanchored:
-        parts.append("### Not anchored to the diff\n\n" + "\n".join(
-            "- %s — %s" % (f.anchor, comment_body(f).split("\n")[0]) for f in unanchored))
-    body = "\n\n".join(parts)
+    # The pass's counts are in its comment; a review carries only what sits on a line, and what cannot.
+    body = ("### Not anchored to the diff\n\n" + "\n".join(
+        "- `%s` %s" % (f.anchor, comment_body(f).replace("\n\n", " · ")) for f in unanchored)) if unanchored else ""
     comments = [{"path": f.path, "line": int(f.line), "body": comment_body(f)} for f in anchored]
     if args.dry_run:
         print(json.dumps({"commit_id": session.head, "event": "COMMENT", "body": body, "comments": comments}, indent=2))
-        return 0
+        return len(comments) + len(unanchored)
     if not comments and not body:
-        print("post: nothing new to post")
         return 0
     ids = session.forge.post(pr["number"], session.head, body, comments, quiet=not unanchored)
     for finding, thread_id in zip(anchored, ids):
@@ -1735,11 +1990,10 @@ def _post(session: Session, args, pr: dict) -> int:
         except CliError as exc:
             print("sdd-pr: ids not read back: %s" % str(exc).splitlines()[0], file=sys.stderr)
     session.save()
-    print("post: %s%d thread%s on PR %d, %d not anchored%s"
-          % ("the summary of %d pass%s and " % (len(passes), "" if len(passes) == 1 else "es") if passes else "",
-             len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),
+    print("post: %d thread%s on PR %d, %d not anchored%s"
+          % (len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),
              "; %d without an id read back" % len(missing) if missing else ""))
-    return 0
+    return len(anchored) + len(unanchored)
 
 
 def adopt(session: Session, pr: dict, findings: List[Finding]) -> List[Finding]:
@@ -2171,8 +2425,8 @@ def cmd_record(session: Session, args) -> int:
     if not match:
         raise CliError("record: --reported is <n>/<m>: how many of the dispatched reviewers reported")
     reported, dispatched = int(match.group(1)), int(match.group(2))
-    if reported == 0:  # the pass ended, though it read nothing: another may start
-        end_pass(session)
+    if reported == 0:  # the pass ended, though it read nothing
+        end_pass(session, args.agent)
     if reported == 0 or reported > dispatched:
         raise CliError("record: %d of %d is not a pass; no Reviewed line, so the range stays open"
                        % (reported, dispatched))
@@ -2185,16 +2439,19 @@ def cmd_record(session: Session, args) -> int:
     line = (session.head[:7], datetime.date.today().isoformat(), agent, "%s (%d of %d)" % (reviewers, reported, dispatched))
     session.fs.reviewed.append(line)
     session.save()
-    end_pass(session)
+    end_pass(session, args.agent)
     print("record: Reviewed %s · %s · %s: %s" % line)
     return 0
 
 
-def end_pass(session: Session) -> None:
-    """Clear the pass note and the scratch worktree. Best effort: the pass is recorded either way, and a
-    retry would write its line twice."""
-    if os.path.exists(pass_note(session)):
-        os.remove(pass_note(session))
+def end_pass(session: Session, agent: str) -> None:
+    """Clear the agent's pass note and, when no other pass runs, the scratch worktree. Best effort: the pass
+    is recorded either way, and a retry would write its line twice."""
+    notes = _pass_notes(pass_note(session))
+    notes.pop(_clean(agent).replace(":", "-"), None)
+    _write_pass_notes(pass_note(session), notes)
+    if notes:
+        return  # another pass may be running guard in the scratch worktree
     try:
         remove_scratch(session)
     except CliError as exc:
@@ -2363,9 +2620,42 @@ def cmd_rename(session: Session, args) -> int:
     return 0
 
 
-COMMANDS = {"status": cmd_status, "scope": cmd_scope, "pull": cmd_pull, "post": cmd_post, "resolve": cmd_resolve,
+COMMANDS = {"status": cmd_status, "start": cmd_start, "scope": cmd_scope, "pull": cmd_pull, "post": cmd_post, "resolve": cmd_resolve,
             "harvest": cmd_harvest, "guard": cmd_guard, "add": cmd_add, "flip": cmd_flip, "record": cmd_record,
             "rename": cmd_rename}
+
+
+PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+#: The grammar an agent needs, so nobody reads this file to learn it.
+EPILOGS = {
+    "add": """lines on stdin (add -), one per finding, in the findings file's grammar (references/review.md):
+  - [ ] critical · <path>:<line> · <one sentence> · evidence: <what was run or quoted> · fix: <one line> · by: <reviewer>
+  - [ ] important · <path>:<line> · <one sentence> · evidence: … · fix: … · by: … · outside
+  - <path>:<line> · <one sentence> · by: <reviewer>                       (a suggestion)
+a reviewer's ``` fence lines are skipped; a critical or important line needs evidence:; a line about code or
+a document the branch did not change ends · outside, and add drops it from a line the branch changed""",
+    "start": """prints the dispatch plan: one line per reviewer with its patch; dispatch each with
+"Read <brief>; your hunks: <patch>". Files go under .sdd/review/<head>/. Another agent's pass on the
+branch is reported, never a stop. The gate is never run here.""",
+}
+
+
+def newer_install() -> str:
+    """A newer sdd-pr installed beside this one (a plugin cache keeps every version): its path, else ""."""
+    parent, here = os.path.split(PLUGIN_ROOT)
+    if not re.match(r"^\d+\.\d+\.\d+$", here):
+        return ""
+    best, found = __version__, ""
+    try:
+        names = os.listdir(parent)
+    except OSError:
+        return ""
+    for name in names:
+        tool = os.path.join(parent, name, "tools", "sdd-pr.py")
+        if re.match(r"^\d+\.\d+\.\d+$", name) and version_lt(best, name) and os.path.exists(tool):
+            best, found = name, tool
+    return found
 
 
 class _Parser(argparse.ArgumentParser):
@@ -2375,13 +2665,19 @@ class _Parser(argparse.ArgumentParser):
 
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="sdd-pr", description="The branch's findings file and its pull-request mirror.")
-    parser.add_argument("--version", action="version", version="sdd-pr %s" % __version__)
+    parser.add_argument("--version", action="version", version="sdd-pr %s at %s" % (__version__, PLUGIN_ROOT))
     parser.add_argument("--root", default=".", help="the repository root (default: .)")
     parser.add_argument("--branch", default=None, help="the branch (default: the checked-out one)")
     sub = parser.add_subparsers(dest="command", parser_class=_Parser)
     for name in COMMANDS:
-        cmd = sub.add_parser(name)
+        cmd = sub.add_parser(name, epilog=EPILOGS.get(name), formatter_class=argparse.RawDescriptionHelpFormatter)
         cmd.add_argument("--pr", type=int, default=None, help="the pull request (default: the branch's open one)")
+        if name == "start":
+            cmd.add_argument("--agent", required=True, help="who runs the pass: host and model, e.g. claude-opus-5-5")
+            cmd.add_argument("--since-last", action="store_true",
+                             help="only the commits since the last pass, by anyone, not the whole branch")
+            cmd.add_argument("--lane", choices=("full", "maintenance"), help="this pass's lane")
+            cmd.add_argument("--base", help="the branch this one starts from (a stacked branch's parent); kept in the file")
         if name == "scope":
             cmd.add_argument("--json", action="store_true")
             cmd.add_argument("--since-last", action="store_true",
@@ -2436,6 +2732,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             cut = argv.index("--", argv.index("guard"))
             argv, test_cmd = argv[:cut], argv[cut + 1:]
         args = build_parser().parse_args(argv)
+        newer = newer_install()
+        if newer:
+            print("sdd-pr: this is %s at %s; a newer one is installed: python3 %s" % (__version__, PLUGIN_ROOT, newer),
+                  file=sys.stderr)
         if test_cmd:
             args.test_cmd = test_cmd
         if not args.command:

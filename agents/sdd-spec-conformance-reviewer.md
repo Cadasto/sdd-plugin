@@ -40,8 +40,8 @@ You answer one question: **does this code satisfy the binding sentences it claim
 
 1. **Resolve what binds:** formal — the `REQ` acceptance criteria and `SPEC §` the brief cites; informative — only the constitution sentences the brief quotes.
 2. **Enumerate the contract**, the **negative space** included: a refusal clause weighs as much as a happy path.
-3. **Scope** to the range and hunks the brief carries; use the traceability map, if any, only to find where a sentence is realised.
-4. **Give each sentence a status with evidence from running:** the brief's gate log is the first run; for every MUST or MUST NOT the range touches, invert its guard with `sdd-pr guard <path:line> --expect <text> --replace <text> -- <its test command>` so the code still builds (`--delete` only when that keeps it building; a build error pins nothing) — `untested` makes the sentence a critical finding, with the log and the guard run as evidence. A MUST the range touches with no test is `untested` too; a claim with no runnable reproduction otherwise: **not evident**; say what you would need.
+3. **Scope** to the range and hunks the brief carries, and ask for every file you need in one turn; use the traceability map, if any, only to find where a sentence is realised.
+4. **Give each sentence a status with evidence from running:** the brief's gate log, when it names one, is the first run (without one, run each touched sentence's test once); build or run anything else only to prove a guard or to pin a failure the log lacks; for every MUST or MUST NOT the range touches, invert its guard with `sdd-pr guard <path:line> --expect <text> --replace <text> -- <its test command>` so the code still builds (`--delete` only when that keeps it building; a build error pins nothing) — `untested` makes the sentence a critical finding, with the log and the guard run as evidence. A MUST the range touches with no test is `untested` too; a claim with no runnable reproduction otherwise: **not evident**; say what you would need.
 
 ## Rules every finding meets
 
