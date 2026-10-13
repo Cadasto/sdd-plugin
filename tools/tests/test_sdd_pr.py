@@ -3396,7 +3396,7 @@ class TestCommandLine(RepoCase):
         code, out, _ = self.run_main("--version")
         self.assertEqual(0, code)
         self.assertEqual("sdd-pr %s at %s" % (sdd_pr.__version__, sdd_pr.PLUGIN_ROOT), out.strip())
-        self.assertEqual("0.13.0", sdd_pr.__version__)
+        self.assertEqual("0.14.0", sdd_pr.__version__)
 
     def test_run_cli_reports_a_missing_program(self):
         with self.assertRaises(sdd_pr.CliError) as caught:

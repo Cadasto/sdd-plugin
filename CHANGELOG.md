@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-13
+
+The close-out is its own skill, `/sdd-close`: it ships the requirement in the pull request, asks once whether to carry leftovers into that pull request, and after the merge runs `sdd-pr clean`. `/sdd-deliver` ends at the maintainer's review. `sdd-check` changed only its version number. Moving a repository from 0.13.x is described in `docs/upgrading.md`.
+
 ### Added
 - Skills: `sdd-close` closes out a delivered change in its pull request (the `REQ` shipped, the acceptance ticks, the changelog line, `generate`, the full gate, the PR body, a draft marked ready), asks once whether to carry the lines that do not block to `docs/backlog.md` there, and after the merge runs `sdd-pr clean`; it never merges or closes a pull request.
 - Tools: `sdd-pr clean [<branch>] [--pr N] [--dry-run]` removes a merged branch's worktree, the local branch (only when it holds no commit the pull request lacks; with `forge: none`, once in the base) and its findings file and delivery notes, from any checkout, a detached one included; it refuses, changing nothing, while the pull request is open, a worktree holds uncommitted work or is locked, or a line would be lost, refuses the base, the default branch and, unnamed, a branch with no findings file or notes, and leaves a worktree it runs in to the maintainer with the commands.
