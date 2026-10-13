@@ -9,6 +9,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import os
 import tempfile
 import unittest
@@ -780,17 +781,20 @@ class TestPost(GitHubCase):
         comment = payload["comments"][0]
         self.assertEqual(("a.go", 5, "RIGHT"), (comment["path"], comment["line"], comment["side"]))
         self.assertTrue(comment["body"].startswith("**important**"))
-        self.assertTrue(payload["body"].startswith(
-            "**Review at `%s`:** 0 critical and 2 important open; 1 suggestion, in a separate comment.\n"
-            "- claude: go-reviewer (1 of 1)" % HEAD[:7]), payload["body"])
-        self.assertIn("<!-- sdd:pass %s claude -->" % HEAD[:7], payload["body"])
-        self.assertIn("### Not anchored to the diff", payload["body"])
-        self.assertIn("z.go:40", payload["body"])
+        # The review carries only what sits on a line, and what cannot be anchored, with its evidence.
+        self.assertTrue(payload["body"].startswith("### Not anchored to the diff\n\n- `z.go:40` **important** — "
+                                                   "outside the diff · By: claude"), payload["body"])
+        self.assertNotIn("sdd:pass", payload["body"])
         self.assertNotIn("suggestion is never inline", json.dumps(payload))
-        # The suggestion goes in its own comment on the pull request, whose id the line takes.
+        # The pass's one comment: who reviewed, the counts, and the lines that do not block, whose id each takes.
         self.assertEqual(1, len(self.comments))
-        self.assertIn("\n- a.go:2 · a suggestion is never inline · by: claude\n", self.comments[0]["body"])
-        self.assertIn("post: 1 line in a new comment on PR 7", out)
+        body = self.comments[0]["body"]
+        self.assertTrue(body.startswith(
+            "**Review at `%s`** by `claude`: go-reviewer (1 of 1)\n**Blocking:** 0 critical and 2 important open. "
+            "**Not blocking:** 1 new in this pass, below; 1 open on the branch" % HEAD[:7]), body)
+        self.assertIn("<!-- sdd:pass %s claude -->" % HEAD[:7], body)
+        self.assertIn("\n- `a.go:2` · a suggestion is never inline · by: claude\n", body)
+        self.assertIn("post: the summary of 1 pass and 1 line not blocking in one comment on PR 7", out)
         text = self.read_findings()
         self.assertIn("in the diff · evidence: ran it · fix: guard · by: claude · forge: 4242", text)
         self.assertIn("z.go:40 · outside the diff · by: claude · unanchored", text)
@@ -882,11 +886,15 @@ class TestPost(GitHubCase):
 
     def test_post_with_nothing_to_post_sends_nothing(self):
         self.descriptor(forge="github")
-        self.findings(FILE_CLEAN.replace("Reviewed %s" % HEAD[:7], "Reviewed ccccccc"))
-        self.use(self.routes())
+        self.findings(FILE_CLEAN.replace("Reviewed %s" % HEAD[:7], "Reviewed ccccccc")
+                      .replace("rename `n` to `count` · by: claude", "rename `n` to `count` · by: claude · comment: 901"))
+        self.comments = [{"id": 901, "body": sdd_pr.suggestions_body(HEAD, sdd_pr.parse(
+            FILE_CLEAN.replace("by: claude\n", "by: claude · comment: 901\n")).suggestions, fs=sdd_pr.parse(FILE_CLEAN))}]
+        fake = self.use(self.routes())
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
         self.assertIn("nothing to post", out)
+        self.assertFalse([a for a, _ in fake.calls if "POST" in a])
         self.assertEqual([], self.edits)
 
     def test_a_clean_pass_posts_its_summary_once(self):
@@ -907,22 +915,22 @@ class TestPost(GitHubCase):
         self.use(self.routes(extra=extra))
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
-        self.assertEqual(1, len(posts))
-        self.assertEqual(([], "COMMENT"), (posts[0]["comments"], posts[0]["event"]))
-        body = posts[0]["body"]
-        # Two passes at HEAD, two opinions: one review names both.
-        self.assertTrue(body.startswith(
-            "**Review at `%s`:** no critical or important finding open; 1 suggestion, in a separate comment.\n"
-            "- claude: go-reviewer (1 of 1)\n- claude-sonnet-5-5: go-reviewer (1 of 1)\n" % HEAD[:7]), body)
-        self.assertIn("<!-- sdd:pass %s claude-sonnet-5-5 -->" % HEAD[:7], body)
-        self.assertNotIn("Not anchored", body)
-        self.assertIn("post: the summary of 2 passes", out)
+        # Nothing sits on a line, so no review: the pass is one comment.
+        self.assertEqual([], posts)
         self.assertEqual(1, len(self.comments))
+        body = self.comments[0]["body"]
+        # Two passes at HEAD, two opinions: one comment names both.
+        self.assertTrue(body.startswith(
+            "**Review at `%s`** by `claude`: go-reviewer (1 of 1)\n**Review at `%s`** by `claude-sonnet-5-5`: "
+            "go-reviewer (1 of 1)\n**Blocking:** no critical or important finding open. **Not blocking:** 1 new in "
+            "this pass, below;" % (HEAD[:7], HEAD[:7])), body)
+        self.assertIn("<!-- sdd:pass %s claude-sonnet-5-5 -->" % HEAD[:7], body)
+        self.assertIn("post: the summary of 2 passes", out)
         # A second post finds the summary and the suggestion on the forge and sends nothing.
         self.use(self.routes(extra=extra))
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
-        self.assertEqual((1, 1, []), (len(posts), len(self.comments), self.comment_edits))
+        self.assertEqual((0, 1, []), (len(posts), len(self.comments), self.comment_edits))
         self.assertIn("nothing to post", out)
 
     def test_reviews_are_read_from_every_page(self):
@@ -939,8 +947,9 @@ class TestPost(GitHubCase):
         fake = self.use(self.routes())
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
-        self.assertIn("nothing to post", out)
+        self.assertNotIn("summary", out)
         self.assertFalse([a for a, _ in fake.calls if "POST" in a and a[2].endswith("/reviews")])
+        self.assertFalse([c for c in self.comments if "sdd:pass" in c["body"]])
 
     def test_a_summary_waits_for_the_push(self):
         self.descriptor(forge="github")
@@ -1093,10 +1102,10 @@ class TestPostAzure(AzureCase):
         general = [p for _, p in payloads if "threadContext" not in p]
         self.assertEqual(2, len(general))
         # The suggestions thread is closed: no merge policy waits on it.
-        self.assertIn("- a.go:2 · a suggestion is never inline", general[1]["comments"][0]["content"])
+        self.assertIn("- `a.go:2` · a suggestion is never inline", general[1]["comments"][0]["content"])
         self.assertEqual("closed", general[1]["status"])
         self.assertIn("z.go:40", general[0]["comments"][0]["content"])
-        self.assertIn("**Review at `%s`:**" % HEAD[:7], general[0]["comments"][0]["content"])
+        self.assertIn("**Review at `%s`**" % HEAD[:7], general[1]["comments"][0]["content"])
         self.assertEqual("active", general[0]["status"])
         text = self.read_findings()
         self.assertIn("by: claude · forge: 501", text)
@@ -1110,14 +1119,15 @@ class TestPostAzure(AzureCase):
         self.use(self.routes(on_post=lambda argv, payload: payloads.append(payload)))
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
-        self.assertEqual(2, len(payloads))
+        self.assertEqual(1, len(payloads))
         self.assertNotIn("threadContext", payloads[0])
-        self.assertEqual(["closed", "closed"], [p["status"] for p in payloads])
+        self.assertEqual(["closed"], [p["status"] for p in payloads])
         content = payloads[0]["comments"][0]["content"]
         self.assertIn("no critical or important finding open", content)
-        # The summary and the suggestions are on the pull request: the next post sends nothing.
-        posted = [{"id": 77, "status": "closed", "comments": [{"id": 1, "content": content}]},
-                  {"id": 502, "status": "closed", "comments": [{"id": 1, "content": payloads[1]["comments"][0]["content"]}]}]
+        self.assertIn("rename `n` to `count`", content)
+        # The pass and its lines are on the pull request in one closed comment: the next post sends nothing.
+        held = re.search(r"comment: (\d+)", self.read_findings()).group(1)
+        posted = [{"id": int(held), "status": "closed", "comments": [{"id": 1, "content": content}]}]
         payloads.clear()
         self.use(self.routes(threads=posted, on_post=lambda argv, payload: payloads.append(payload)))
         code, out, err = self.run_main("post")
@@ -2031,7 +2041,7 @@ class TestSuggestionComments(GitHubCase):
         fs = sdd_pr.parse(FILE_POSTED.replace("- a.go:10 · reword · by: claude · comment: 901",
                                               "- [x] suggestion · a.go:10 · reword · by: claude · comment: 901 · fixed abc1234"))
         body = sdd_pr.suggestions_body(HEAD, fs.items)
-        self.assertIn("<details><summary>2 lines, 1 open</summary>", body)
+        self.assertIn("<details><summary>2 suggestions; 1 open</summary>", body)
         self.assertNotIn("comment:", body)
         back = sdd_pr.suggestion_lines(body)
         self.assertEqual([("suggestion", "a.go", "9", "rename n"), ("fixed", "a.go", "10", "reword")],
@@ -2059,8 +2069,8 @@ class TestSuggestionComments(GitHubCase):
         code, out, err = self.run_main("resolve")
         self.assertEqual(0, code, err)
         self.assertEqual(["901"], self.comment_edits)
-        self.assertIn("\n- [x] suggestion · a.go:9 · rename n · by: claude · fixed abc1234\n", self.comments[0]["body"])
-        self.assertIn("\n- a.go:10 · reword · by: claude\n", self.comments[0]["body"])
+        self.assertIn("\n- [x] suggestion · `a.go:9` · rename n · by: claude · fixed abc1234\n", self.comments[0]["body"])
+        self.assertIn("\n- `a.go:10` · reword · by: claude\n", self.comments[0]["body"])
         self.assertIn("resolve: 1 comment edited on PR 7", out)
         # In step: nothing more to edit.
         self.run_main("resolve")
@@ -2133,14 +2143,13 @@ class TestOutside(GitHubCase):
         self.use(self.routes(extra=extra, diff=DIFF))
         code, out, err = self.run_main("post")
         self.assertEqual(0, code, err)
-        self.assertEqual([], posts[0]["comments"])
-        self.assertIn("no critical or important finding open; 1 outside the change and 1 suggestion", posts[0]["body"])
+        self.assertEqual([], posts)
         body = self.comments[0]["body"]
-        self.assertIn("**Not blocking, at `%s`:** 1 outside the change, 1 suggestion" % HEAD[:7], body)
-        defect = body.index("- [ ] important · z.go:9")
-        self.assertLess(defect, body.index("- a.go:2 · name the retry budget"))
+        self.assertIn("**Blocking:** no critical or important finding open. **Not blocking:** 2 new in this pass", body)
+        self.assertIn("<details><summary>1 outside the change, 1 suggestion; 2 open</summary>", body)
+        defect = body.index("- [ ] important · `z.go:9`")
+        self.assertLess(defect, body.index("- `a.go:2` · name the retry budget"))
         self.assertIn("by: go-reviewer · outside\n", body)
-        self.assertNotIn("z.go", posts[0]["body"])
         self.assertIn("by: go-reviewer · comment: 901 · outside", self.read_findings())
 
     def test_carry_takes_the_outside_defects_and_drop_leaves_them(self):
@@ -2813,7 +2822,7 @@ class TestNonBlockingLines(GitHubCase):
         code, _, err = self.run_main("resolve")
         self.assertEqual(0, code, err)
         self.assertEqual(["901"], self.comment_edits)
-        self.assertIn("- [x] important · z.go:9", self.comments[0]["body"])
+        self.assertIn("- [x] important · `z.go:9`", self.comments[0]["body"])
 
     def test_the_batch_defers_the_outside_lines_too(self):
         self.descriptor(forge="none")
@@ -3054,6 +3063,55 @@ class TestSelfDescribing(RepoCase):
             self.assertEqual("", sdd_pr.newer_install())
         # A working copy, not a versioned install, never warns.
         self.assertEqual("", sdd_pr.newer_install())
+
+
+class TestOneCommentPerPass(GitHubCase):
+    """A pass is one comment: who reviewed, the counts, and its lines; what a forge renders shows as written."""
+
+    TRICKY = ("- <root>/composer drops DV_INTERVAL<DV_ORDERED> & `<ext:units>` keeps @archetype_node_id"
+              " · by: go-reviewer")
+
+    def test_lines_read_back_exactly_whatever_markdown_would_eat(self):
+        fs = sdd_pr.parse("# Findings — feat/x\nBase: main\n\n## Open\n"
+                          "- [ ] important · z.go:9 · a <nil> map panics · evidence: ran it · by: r · outside\n\n"
+                          "## Suggestions\n- a.go:3 · <root>/composer drops DV_INTERVAL<DV_ORDERED> & `<ext:units>` "
+                          "keeps @archetype_node_id · by: go-reviewer\n")
+        body = sdd_pr.suggestions_body(HEAD, fs.items, fs=fs)
+        self.assertIn("`a.go:3` · &lt;root&gt;/composer drops DV_INTERVAL&lt;DV_ORDERED&gt; &amp; `<ext:units>` keeps "
+                      "&#64;archetype_node_id", body)  # code spans stay as written
+        self.assertEqual([(f.status, f.severity, f.anchor, f.text, f.flags) for f in fs.items],
+                         [(f.status, f.severity, f.anchor, f.text, f.flags) for f in sdd_pr.suggestion_lines(body)])
+
+    def test_a_comment_from_0_12_still_reads(self):
+        old = ("**Not blocking, at `bbbbbbb`:** 1 suggestion; after merge `/sdd-triage --backlog` carries the open "
+               "ones to `docs/backlog.md`.\n\n<details><summary>1 line, 1 open</summary>\n\n"
+               "- a.go:9 · rename n · by: claude\n\n</details>\n<!-- sdd:suggestions bbbbbbb -->")
+        self.assertEqual([("a.go:9", "rename n")], [(f.anchor, f.text) for f in sdd_pr.suggestion_lines(old)])
+
+    def test_an_inline_thread_shows_as_written_and_pulls_back_the_same(self):
+        finding = sdd_pr.parse_line("- [ ] important · a.go:5 · a <nil> map panics · evidence: @x ran it · by: r", 0)
+        body = sdd_pr.comment_body(finding)
+        self.assertIn("a &lt;nil&gt; map panics", body)
+        self.assertIn("&#64;x ran it", body)
+        self.assertEqual("a <nil> map panics", sdd_pr.first_sentence(body))
+
+    def test_an_edit_keeps_the_passes_header(self):
+        self.descriptor(forge="github")
+        self.findings(FILE_CLEAN)
+        self.use(self.routes())
+        self.assertEqual(0, self.run_main("post")[0])
+        first = self.comments[0]["body"]
+        self.assertTrue(first.startswith("**Review at `%s`** by `claude`" % HEAD[:7]), first)
+        self.assertEqual(0, self.run_main("flip", "a.go:9", "--fixed", "abc1234")[0])
+        self.assertEqual(0, self.run_main("resolve")[0])
+        edited = self.comments[0]["body"]
+        self.assertEqual(first.split("<details>")[0], edited.split("<details>")[0])
+        self.assertIn("- [x] suggestion · `a.go:9`", edited)
+        self.assertIn("<!-- sdd:pass %s claude -->" % HEAD[:7], edited)
+
+    def test_reviewer_names_are_counted(self):
+        self.assertEqual("go-reviewer ×3, sdd-doc-reviewer (4 of 4)",
+                         sdd_pr.reviewer_names("go-reviewer, go-reviewer, sdd-doc-reviewer, go-reviewer (4 of 4)"))
 
 
 class TestCommandLine(RepoCase):

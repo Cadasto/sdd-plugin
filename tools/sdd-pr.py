@@ -14,6 +14,7 @@ import contextlib
 import datetime
 import fnmatch
 import hashlib
+import html
 import importlib.util
 import json
 import os
@@ -325,7 +326,7 @@ def first_sentence(body: str) -> str:
     """The thread's first line, with a leading **severity** marker and separator dropped."""
     text = (body or "").strip().splitlines()[0] if (body or "").strip() else ""
     text = re.sub(r"^\s*\*\*(critical|important|suggestion)\*\*\s*[—:\-–]?\s*", "", text)
-    return text.replace(SEP.strip(), "-").strip() or "(no text)"
+    return md_unescape(text).replace(SEP.strip(), "-").strip() or "(no text)"
 
 
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
@@ -348,11 +349,26 @@ def parse_hunks(diff_text: str) -> Dict[str, set]:
     return lines
 
 
+CODE_SPAN = re.compile(r"(`[^`\n]+`)")
+
+
+def md_escape(text: str) -> str:
+    """Text a forge renders as Markdown, shown as written: outside code spans `<`, `>` and `&` are entities
+    and `@` mentions nobody; md_unescape reverses it."""
+    return "".join(part if CODE_SPAN.fullmatch(part) else
+                   part.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("@", "&#64;")
+                   for part in CODE_SPAN.split(text))
+
+
+def md_unescape(text: str) -> str:
+    return "".join(part if CODE_SPAN.fullmatch(part) else html.unescape(part) for part in CODE_SPAN.split(text))
+
+
 def comment_body(finding: Finding) -> str:
-    body = "**%s** — %s" % (finding.severity, finding.text)
+    body = "**%s** — %s" % (finding.severity, md_escape(finding.text))
     for key in ("evidence", "fix", "by"):
         if finding.fields.get(key):
-            body += "\n\n%s: %s" % (key.capitalize(), finding.fields[key])
+            body += "\n\n%s: %s" % (key.capitalize(), md_escape(finding.fields[key]))
     return body
 
 
@@ -396,54 +412,87 @@ PASS_MARK = "<!-- sdd:pass %s %s -->"
 PASS_RE = re.compile(r"<!-- sdd:pass (\S+) (.+?) -->")
 
 
-def pass_summary(fs: Findings, head: str, passes: List[Tuple[str, str, str, str]]) -> str:
-    """The body of a pass's one review: the verdict, who reviewed, and a marker per pass so it is posted once."""
-    n, out = len(fs.suggestions), len(fs.outside)
-    rest = ["%d outside the change" % out] if out else []
-    rest += ["%d suggestion%s" % (n, "" if n == 1 else "s")] if n else []
-    lines = ["**Review at `%s`:** %s; %s." % (head[:7], open_verdict(fs), "%s, in a separate comment" % " and ".join(rest)
-                                                if rest else "nothing else")]
-    lines += ["- %s: %s" % (agent, reviewers) for _, _, agent, reviewers in passes]
-    return "\n".join(lines + [PASS_MARK % (sha, agent) for sha, _, agent, _ in passes])
+def reviewer_names(reviewers: str) -> str:
+    """A Reviewed line's reviewers with repeats counted: `go-reviewer ×3, sdd-doc-reviewer (4 of 4)`."""
+    match = re.match(r"^(.*?)\s*(\(\d+ of \d+\))?$", reviewers.strip())
+    names, tally = match.group(1), match.group(2) or ""
+    counted: Dict[str, int] = {}
+    for name in (n.strip() for n in names.split(",")):
+        if name:
+            counted[name] = counted.get(name, 0) + 1
+    shown = ", ".join(name if n == 1 else "%s ×%d" % (name, n) for name, n in counted.items())
+    return ("%s %s" % (shown, tally)).strip()
+
+
+def pass_header(fs: Findings, head: str, passes: List[Tuple[str, str, str, str]], new: int) -> str:
+    """The top of a pass's one comment: who reviewed, then each count named for what it counts, and a marker
+    per pass so it is posted once."""
+    rows = ["**Review at `%s`** by `%s`: %s" % (head[:7], agent, reviewer_names(reviewers))
+            for _, _, agent, reviewers in passes]
+    left = len(fs.suggestions) + len(fs.outside)
+    rows.append("**Blocking:** %s. **Not blocking:** %s; %d open on the branch, carried to `%s` after merge."
+                % (open_verdict(fs), "%d new in this pass, below" % new if new else "nothing new", left, BACKLOG))
+    return "\n".join(rows + [PASS_MARK % (sha, agent) for sha, _, agent, _ in passes])
 
 
 def unsummarised(session: Session, pr: dict) -> List[Tuple[str, str, str, str]]:
-    """The passes at HEAD whose summary the pull request does not carry yet. The maintainer's own review is
-    already on it."""
+    """The passes at HEAD the pull request does not carry yet, in a comment or, before 0.13, a review. The
+    maintainer's own review is already on it."""
     passes = [p for p in session.fs.passes if session.head.startswith(p[0]) and p[2] != "maintainer"]
     if not passes:
         return []
-    posted = {m.groups() for body in session.forge.review_bodies(pr["number"]) for m in PASS_RE.finditer(body)}
+    bodies = session.forge.review_bodies(pr["number"]) + [c["body"] for c in session.forge.comments(pr["number"])]
+    posted = {m.groups() for body in bodies for m in PASS_RE.finditer(body)}
     return [p for p in passes if (p[0], p[2]) not in posted]
 
 
 SUGGESTIONS_MARK = "<!-- sdd:suggestions %s -->"
 SUGGESTIONS_RE = re.compile(r"<!-- sdd:suggestions (\S+) -->")
+ANCHOR_SHOWN = re.compile(r"^(- (?:\[.\] )?(?:(?:critical|important|suggestion) · )?)`([^`]+)`")
 
 
-def suggestions_body(sha: str, lines: List[Finding], globs: Optional[List[str]] = None) -> str:
-    """One comment of suggestions: every line in the file's grammar, without the comment's own id, so
-    `harvest` reads it back with parse_line; a fixed, carried or dropped line keeps its checkbox."""
-    rows, globs = [], list(globs or DEFAULT_TEST_GLOBS)
-    lines = sorted(lines, key=lambda f: priority(f, globs))  # defects first, then code, tests, other, documents
+def shown_row(finding: Finding) -> str:
+    """A line as the forge shows it: the file's grammar, its anchor as code, the rest escaped."""
+    row = finding.render()
+    at = row.find(finding.anchor) if finding.anchor else -1
+    if at < 0:
+        return md_escape(row)
+    return md_escape(row[:at]) + "`%s`" % finding.anchor + md_escape(row[at + len(finding.anchor):])
+
+
+def lines_block(lines: List[Finding], globs: List[str]) -> List[str]:
+    """The lines that do not block, defects first, then code, tests, other, documents, in one fold."""
+    lines = sorted(lines, key=lambda f: priority(f, globs))
+    rows = []
     for finding in lines:
         shown = Finding(finding.status, finding.severity, finding.path, finding.line, finding.text,
                         {k: v for k, v in finding.fields.items() if k not in ("comment", "forge")},
                         [flag for flag in finding.flags if flag == "outside"], finding.fixed)
-        rows.append(shown.render())
+        rows.append(shown_row(shown))
     left = len([f for f in lines if f.status in ("suggestion", "open")])
     defects = len([f for f in lines if f.severity in BLOCKING])
-    head = ("**Not blocking, at `%s`:** %s; after merge `/sdd-triage --backlog` carries the open ones to `%s`."
-            % (sha[:7], ", ".join(([("%d outside the change" % defects)] if defects else [])
-                                   + ["%d suggestion%s" % (len(lines) - defects, "" if len(lines) - defects == 1 else "s")]),
-               BACKLOG))
-    summary = "%d line%s, %d open" % (len(lines), "" if len(lines) == 1 else "s", left)
-    return "\n".join([head, "", "<details><summary>%s</summary>" % summary, ""] + rows
-                     + ["", "</details>", SUGGESTIONS_MARK % sha[:7]])
+    kinds = ([("%d outside the change" % defects)] if defects else []) + \
+        (["%d suggestion%s" % (len(lines) - defects, "" if len(lines) - defects == 1 else "s")] if len(lines) > defects else [])
+    return ["<details><summary>%s; %d open</summary>" % (", ".join(kinds), left), ""] + rows + ["", "</details>"]
+
+
+def suggestions_body(sha: str, lines: List[Finding], globs: Optional[List[str]] = None, header: str = "",
+                     fs: Optional[Findings] = None) -> str:
+    """One comment: a pass's header, or the not-blocking header of lines posted between passes, then the
+    lines in the file's grammar (anchor as code, text escaped), so `harvest` reads them back; a fixed,
+    carried or dropped line keeps its checkbox."""
+    globs = list(globs or DEFAULT_TEST_GLOBS)
+    if not header:
+        left = len(fs.suggestions) + len(fs.outside) if fs is not None else 0
+        header = ("**Not blocking, at `%s`:** %d line%s below; %d open on the branch, carried to `%s` after merge."
+                  % (sha[:7], len(lines), "" if len(lines) == 1 else "s", left, BACKLOG))
+    if not lines:
+        return header
+    return "\n".join([header, ""] + lines_block(lines, globs) + [SUGGESTIONS_MARK % sha[:7]])
 
 
 def suggestion_lines(body: str) -> List[Finding]:
-    """The lines of one suggestions comment; any other comment holds none."""
+    """The lines of one comment that carries lines that do not block; any other comment holds none."""
     if not SUGGESTIONS_RE.search(body or ""):
         return []
     out = []
@@ -451,7 +500,7 @@ def suggestion_lines(body: str) -> List[Finding]:
         raw = raw.strip()
         if raw.startswith("- "):
             try:
-                out.append(parse_line(raw, 0))
+                out.append(parse_line(md_unescape(ANCHOR_SHOWN.sub(r"\1\2", raw, count=1)), 0))
             except FileError:
                 continue  # a hand edit on the forge that no longer reads is not a lead
     return out
@@ -461,10 +510,13 @@ def _same_text(a: str, b: str) -> bool:
     return a.replace("\r\n", "\n").strip() == b.replace("\r\n", "\n").strip()
 
 
-def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tuple[int, int]:
-    """Keep the pull request's suggestion comments in step with the file: the suggestions not posted yet go
-    into one new comment, whose id each line takes, and a posted comment whose lines changed is edited.
-    A comment deleted on the forge frees its open lines to be posted again. Returns (posted, edited)."""
+def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False,
+                     passes: Optional[List[Tuple[str, str, str, str]]] = None) -> Tuple[int, int]:
+    """Keep the pull request's comments in step with the file. A pass gets one comment: its header (who
+    reviewed, the counts) and the lines that do not block and are not posted yet, whose id each line takes.
+    Lines posted between passes get a comment of their own. A posted comment whose lines changed is edited,
+    its pass header kept. A comment deleted on the forge frees its open lines to be posted again. Returns
+    (lines posted, comments edited)."""
     fs = session.fs
     mine = [f for f in fs.items if f.severity == "suggestion" or "outside" in f.flags]
     held: Dict[str, List[Finding]] = {}
@@ -480,7 +532,9 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
                     finding.fields.pop("comment", None)
                 continue
             match = SUGGESTIONS_RE.search(current[comment_id])
-            body = suggestions_body(match.group(1) if match else session.head, lines, session.globs)
+            cut = current[comment_id].find("<details>")
+            header = current[comment_id][:cut].rstrip() if cut > 0 and PASS_RE.search(current[comment_id][:cut]) else ""
+            body = suggestions_body(match.group(1) if match else session.head, lines, session.globs, header, fs)
             if not _same_text(body, current[comment_id]):
                 if dry_run:
                     print(body)
@@ -488,8 +542,9 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
                     session.forge.edit_comment(pr["number"], comment_id, body)
                 edited += 1
     fresh = [f for f in mine if f.status in ("suggestion", "open") and not f.fields.get("comment")]
-    if fresh:
-        body = suggestions_body(session.head, fresh, session.globs)
+    if fresh or passes:
+        header = pass_header(fs, session.head, passes, len(fresh)) if passes else ""
+        body = suggestions_body(session.head, fresh, session.globs, header, fs)
         if dry_run:
             print(body)
             return len(fresh), edited
@@ -501,9 +556,12 @@ def sync_suggestions(session: "Session", pr: dict, dry_run: bool = False) -> Tup
     return len(fresh), edited
 
 
-def sync_report(posted: int, edited: int, number: int) -> str:
+def sync_report(posted: int, edited: int, number: int, passes: int = 0) -> str:
     parts = []
-    if posted:
+    if passes:
+        parts.append("the summary of %d pass%s and %d line%s not blocking in one comment"
+                     % (passes, "" if passes == 1 else "es", posted, "" if posted == 1 else "s"))
+    elif posted:
         parts.append("%d line%s in a new comment" % (posted, "" if posted == 1 else "s"))
     if edited:
         parts.append("%d comment%s edited" % (edited, "" if edited == 1 else "s"))
@@ -1829,8 +1887,8 @@ def pull_threads(session: Session, pr: dict) -> int:
         known.add(thread["id"])
         added += 1
     for body in session.forge.review_bodies(pr["number"]):
-        if SUGGESTIONS_RE.search(body):
-            continue  # the non-blocking comment, which the file wrote
+        if SUGGESTIONS_RE.search(body) or PASS_RE.search(body):
+            continue  # the plugin's own comment, which the file wrote
         for finding in outside_lines(body):
             said = (finding.anchor, finding.text.casefold().rstrip(" ."))
             if any((f.anchor, f.text.casefold().rstrip(" .")) == said for f in fs.items):
@@ -1857,10 +1915,14 @@ def cmd_post(session: Session, args) -> int:
     if pr["state"] != "open":
         raise CliError("pull request %d is %s; nothing to post" % (pr["number"], pr["state"]))
     session.guard()
+    passes = unsummarised(session, pr)
+    if passes and pr["head"] and pr["head"] != session.head:
+        raise CliError("local HEAD %s is not the pull request's head %s; push or pull first"
+                       % (session.head[:7], pr["head"][:7]))
     code = _post(session, args, pr)
-    note = sync_report(*sync_suggestions(session, pr, args.dry_run), pr["number"])
-    if note:
-        print("post: " + note)
+    posted, edited = sync_suggestions(session, pr, args.dry_run, passes)
+    note = sync_report(posted, edited, pr["number"], len(passes))
+    print("post: " + note if note else "post: nothing to post")
     return code
 
 
@@ -1875,9 +1937,7 @@ def _post(session: Session, args, pr: dict) -> int:
         candidates = [f for f in candidates if not f.fields.get("forge")]
         if adopted and not args.dry_run:
             session.save()
-    passes = unsummarised(session, pr)
-    if not candidates and not passes:
-        print("post: nothing to post%s" % ("; %d already on the forge" % adopted if adopted else ""))
+    if not candidates:
         return 0
     if pr["head"] and pr["head"] != session.head:
         raise CliError("local HEAD %s is not the pull request's head %s; push or pull first"
@@ -1893,11 +1953,9 @@ def _post(session: Session, args, pr: dict) -> int:
             anchored.append(finding)
         elif "unanchored" not in finding.flags:
             unanchored.append(finding)
-    parts = [pass_summary(fs, session.head, passes)] if passes else []
-    if unanchored:
-        parts.append("### Not anchored to the diff\n\n" + "\n".join(
-            "- %s — %s" % (f.anchor, comment_body(f).split("\n")[0]) for f in unanchored))
-    body = "\n\n".join(parts)
+    # The pass's counts are in its comment; a review carries only what sits on a line, and what cannot.
+    body = ("### Not anchored to the diff\n\n" + "\n".join(
+        "- `%s` %s" % (f.anchor, comment_body(f).replace("\n\n", " · ")) for f in unanchored)) if unanchored else ""
     comments = [{"path": f.path, "line": int(f.line), "body": comment_body(f)} for f in anchored]
     if args.dry_run:
         print(json.dumps({"commit_id": session.head, "event": "COMMENT", "body": body, "comments": comments}, indent=2))
@@ -1921,9 +1979,8 @@ def _post(session: Session, args, pr: dict) -> int:
         except CliError as exc:
             print("sdd-pr: ids not read back: %s" % str(exc).splitlines()[0], file=sys.stderr)
     session.save()
-    print("post: %s%d thread%s on PR %d, %d not anchored%s"
-          % ("the summary of %d pass%s and " % (len(passes), "" if len(passes) == 1 else "es") if passes else "",
-             len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),
+    print("post: %d thread%s on PR %d, %d not anchored%s"
+          % (len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),
              "; %d without an id read back" % len(missing) if missing else ""))
     return 0
 
