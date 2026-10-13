@@ -163,13 +163,23 @@ Next: /sdd-triage
 
 The format and its rules live in [review.md](../references/review.md).
 
+## Close out, then clean up after the merge
+
+```text
+/sdd-close <N>
+```
+
+Run it when `sdd-pr status` shows nothing blocking. It sets the requirement to `shipped`, ticks the acceptance criteria the change delivered, adds the changelog line, writes the pull request body and marks a draft ready. It asks once whether to carry the suggestions and `outside` defects still open to `docs/backlog.md` in this pull request; say no and they wait on the pull request for `/sdd-triage --backlog`.
+
+You merge on the forge. Then run `/sdd-close <N>` again, from any checkout: `sdd-pr clean` removes the branch's worktree, the local branch and its findings file. It keeps the branch when it holds a commit the pull request does not, and refuses while a line in the findings file would be lost. Run from inside the worktree it would remove, it prints the commands for you instead. The pull request and the remote branch are yours.
+
 ## Carry merged pull requests' leftovers to the backlog
 
 ```text
 /sdd-triage --backlog
 ```
 
-Run it on the default branch after one or more merges. It reads the non-blocking comment of every pull request merged since `harvested_through:` in `docs/backlog.md`. It carries the open lines under `## Unsorted`, defects outside their change first, each line tagged `from: #<n>`. It leaves out lines fixed, carried or dropped in their pull request, and lines whose file is gone. Then it consolidates:
+Run it on the default branch now and then, after merges. It reads the non-blocking comment of every pull request merged since `harvested_through:` in `docs/backlog.md`. It carries the open lines under `## Unsorted`, defects outside their change first, each line tagged `from: #<n>`. It leaves out lines fixed, carried or dropped in their pull request, and lines whose file is gone. Then it consolidates:
 - it re-checks the older lines whose file changed since the last harvest;
 - it sorts the new lines into themes, each what one delivery would take on;
 - it folds duplicates, and drops what is settled or only taste.

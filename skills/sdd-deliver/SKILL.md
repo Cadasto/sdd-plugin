@@ -1,7 +1,7 @@
 ---
 name: sdd-deliver
-description: This skill should be used when the user asks to "deliver REQ-…", "run the delivery pipeline", "take this REQ to a pull request", "build this requirement end to end", "resume the delivery of PR N", or "close out the requirement and write the PR body" (`--close-out`). Drives one change from the dispatch gate through workers, gates and the first review pass to a ready pull request, and closes it out. Not for authoring documents (sdd-specify), a standalone review (sdd-review), or working findings (sdd-triage).
-argument-hint: "<REQ-id, task in words, plan path, or PR number to resume> [--lane full|maintenance] [--close-out]"
+description: This skill should be used when the user asks to "deliver REQ-…", "run the delivery pipeline", "take this REQ to a pull request", "build this requirement end to end", or "resume the delivery of PR N". Drives one change from the dispatch gate through workers, gates and the first review pass to a ready pull request. Not for authoring documents (sdd-specify), a standalone review (sdd-review), working findings (sdd-triage), or the close-out (sdd-close).
+argument-hint: "<REQ-id, task in words, plan path, or PR number to resume> [--lane full|maintenance]"
 allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 ---
 
@@ -9,7 +9,7 @@ allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 
 > The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it; `references/…` and `tools/…` resolve from it. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
 
-The procedure and its parameters come from the descriptor and this file, never from session memory. Run as the orchestrator on the strongest model available. `--lane` overrides step 1; `--close-out` runs steps 0 and 10 on an existing PR.
+The procedure and its parameters come from the descriptor and this file, never from session memory. Run as the orchestrator on the strongest model available. `--lane` overrides step 1. `--close-out` is now `/sdd-close`: follow that skill, with the same PR number.
 
 ## Steps
 
@@ -23,11 +23,7 @@ The procedure and its parameters come from the descriptor and this file, never f
 7. **Gate, then the first review pass.** Worker branches, if any: merge each in dependency order after a trial merge in a throwaway worktree, then `git worktree remove`, `git worktree prune` and `git branch -d` each (`sdd-pr status` names any left). Run the generator once and commit what it wrote. Run the full gate — `<build_entrypoint> <ci_target>` (output to `.sdd/gate-<short head>.log`) and `<build_entrypoint> <spec_check_target>` — on the integrated branch and read the output. First **reconcile the documents**: every sentence in `docs/`, the README and the code's comments that describes what the change altered is brought up to date in this branch, a binding sentence or the constitution only through `/sdd-specify`. Then run `/sdd-review --lane <lane>` (no `--lane` on the informative profile; `references/review.md` § Passes) and fix its open lines with `/sdd-triage`.
 8. **Push, and open the pull request** with the repository's forge CLI, ready for review (a draft only when the maintainer asked for one); the body follows `docs/development-process.md` § The PR body (one sentence of Summary until close-out), or, when that section is missing, the repository's PR template, which the hand-back names. Then `sdd-pr post` mirrors anything still open.
 9. **The maintainer's review.** Print the panel's lines (`/sdd-review --panel`: `/sdd-review --pr N` for a host with the plugin, the request block only for an external reviewer), then stop and wait; never merge, or mark a draft ready, on the orchestrator's own judgement. A conversation comment is an instruction; work the review with `/sdd-triage`.
-10. **Close out.** When `sdd-pr status` shows nothing blocking, a draft aside:
-    - formal profile — methodology §9's close-out: the `REQ`'s `implementation: shipped` (`landed` where the map uses it, §6) with its landed `packages`, `tests` and `probes`, each acceptance criterion the change delivered ticked, the spec status mirrored (`stable` only on the maintainer's word: it freezes the contract), then `sdd-check generate`; commit the map, the status edits and the regenerated files by path, citing the `REQ`;
-    - both profiles — with a pull request, `sdd-pr resolve` brings its suggestion comments up to date; with `forge: none`, ask the maintainer once: carry (`sdd-pr flip --suggestions --carry`) or drop (`--deferred "dropped by the maintainer"`) the lines left that do not block, then commit `docs/backlog.md` by path. Leave the backlog lines this branch settled: the next `/sdd-triage --backlog` deletes them;
-    - both profiles — when the repository keeps a changelog (`check.changelog`), the change's line under its `[Unreleased]` heading, in the repository's style;
-    - both profiles — run the full gate on the branch as it stands and read it; when it is red, stop with nothing pushed. Write the PR body from `docs/development-process.md` § The PR body in full, push, and mark a draft ready. The maintainer merges. Already merged: commit on the default branch or a branch from it, as the maintainer prefers, update the PR body, and end with `/sdd-triage --backlog`.
+10. **Close out** with `/sdd-close` once the maintainer's review is worked; after the merge, it runs again to clean up.
 
 **Resuming.** Resume with the PR number, passed as `--pr N` to every `sdd-pr` call, or on the branch before a pull request exists: the delivery notes, `sdd-pr status` (which lists worker branches not yet integrated), the findings file and the PR body are the state; a resume re-checks step 2 before it dispatches again. Two sessions on one branch take turns on one checkout. Re-enter at the first step not yet done.
 
@@ -41,7 +37,7 @@ The procedure and its parameters come from the descriptor and this file, never f
 
 ## Reference
 
-- `references/sdd-methodology.md` — §1a the profiles, §9 the dispatch preconditions and the close-out, §12 the lanes, §13 the merge gate.
+- `references/sdd-methodology.md` — §1a the profiles, §9 the dispatch preconditions, §12 the lanes, §13 the merge gate.
 - `references/review.md` — the findings file, the mirror and `sdd-pr` (§ The tool).
 - `references/sdd-check.md` — what `spec_check_target` runs and what `generate` writes.
 - `references/traceability-schema.md` §1 — the `agents:` block this skill reads.

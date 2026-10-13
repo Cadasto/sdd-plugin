@@ -359,7 +359,7 @@ class TestStatus(RepoCase):
         self.assertIn("open: 0 critical, 0 important · outside the change: 0 · suggestions: 1", out)
         self.assertIn("forge: none", out)
         self.assertIn("Mergeable: yes", out)
-        self.assertTrue(out.rstrip().endswith("Next: carry or drop 1 non-blocking line (/sdd-deliver --close-out)"), out)
+        self.assertTrue(out.rstrip().endswith("Next: carry or drop 1 non-blocking line (/sdd-close)"), out)
         self.assertFalse([a for a, _ in fake.calls if a[0] in ("gh", "az")])
         # With an open finding the next step is triage.
         self.findings(FILE_OPEN_IMPORTANT)
@@ -492,7 +492,7 @@ class TestStatus(RepoCase):
         self.assertTrue(out.rstrip().endswith("Next: merge"), out)
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(draft=True))
         _, out, _ = self.run_main("status")
-        self.assertIn("Next: /sdd-deliver --close-out, which marks it ready", out)
+        self.assertIn("Next: /sdd-close, which marks it ready", out)
         # Failing checks.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(checks=[{"status": "COMPLETED", "conclusion": "FAILURE"}]))
         _, out, _ = self.run_main("status")
@@ -1914,11 +1914,253 @@ class TestLeftovers(RepoCase):
         reviewed_at_head = (git("rev-parse", "--verify", "--quiet"), lambda argv, _: HEAD + "\n")
         self.use([reviewed_at_head] + git_routes())
         _, out, _ = self.run_main("status")
-        self.assertIn("Next: carry or drop 1 non-blocking line (/sdd-deliver --close-out)", out)
+        self.assertIn("Next: carry or drop 1 non-blocking line (/sdd-close)", out)
         self.assertEqual(0, self.run_main("flip", "--suggestions", "--dropped")[0])
         _, out, _ = self.run_main("status")
         self.assertIn("Mergeable: yes", out)
         self.assertTrue(out.rstrip().endswith("Next: merge"), out)
+
+
+class TestClean(GitHubCase):
+    """After the merge, clean removes what the branch leaves in the clone, or refuses and changes nothing."""
+
+    MERGED = {"state": "MERGED", "mergeCommit": {"oid": "e" * 40}, "mergedAt": "2026-10-04T21:10:00Z"}
+    SETTLED = FILE_CLEAN.replace("rename `n` to `count` · by: claude", "rename `n` to `count` · by: claude · comment: 901")
+
+    def wt(self, name):
+        """A worktree folder that exists, beside the repository root."""
+        path = self.root / "wt" / name
+        path.mkdir(parents=True, exist_ok=True)
+        return str(path)
+
+    def tree_routes(self, listing, tip=HEAD, dirty=""):
+        return [(git("rev-parse", "--verify", "--quiet", "refs/heads/feat/x^{commit}"), tip + "\n"),
+                (git("worktree", "list"), listing),
+                (git("status", "--porcelain"), dirty),
+                (git("worktree", "remove"), ""), (git("worktree", "prune"), ""), (git("branch", "-D"), ""),
+                (git("checkout"), "")]
+
+    def leftovers(self):
+        notes = self.root / ".git" / "sdd" / "deliver" / "feat--x.md"
+        notes.parent.mkdir(parents=True, exist_ok=True)
+        notes.write_text("lane: full\n", encoding="utf-8")
+        return [self.store(), notes]
+
+    def listing(self, *trees):
+        """(path, HEAD, branch[, extra lines]) per worktree, as `git worktree list --porcelain` prints them."""
+        blocks = []
+        for tree in trees:
+            path, head, branch = tree[:3]
+            blocks.append("worktree %s\nHEAD %s\n%s%s" % (path, head, "branch refs/heads/%s" % branch if branch else "detached",
+                                                         "".join("\n" + line for line in tree[3:])))
+        return "\n\n".join(blocks) + "\n"
+
+    def merged(self, listing, text=None, extra=(), **kw):
+        self.descriptor(forge="github")
+        self.findings(text or self.SETTLED)
+        self.PR = self.MERGED
+        return self.use(list(extra) + self.tree_routes(listing, **kw) + self.routes())
+
+    def test_a_merged_branch_loses_its_worktree_branch_and_files(self):
+        tree, review = self.wt("feat-x"), self.wt("pr-7-review")
+        fake = self.merged(self.listing(("/repo", "a" * 40, "main"), (tree, HEAD, "feat/x"), (review, HEAD, "pr-7-review")),
+                           extra=[(git("status", "--porcelain", "--ignored"), "!! .env\n!! .sdd/\n")])
+        files_before = self.leftovers()
+        code, out, err = self.run_main("clean")
+        self.assertEqual(0, code, err)
+        self.assertTrue([a for a in fake.called("git", "status", "--porcelain") if tree in a])
+        self.assertTrue(fake.called("git", "worktree", "remove", tree))
+        self.assertTrue(fake.called("git", "branch", "-D", "feat/x"))
+        self.assertEqual([False, False], [path.exists() for path in files_before])
+        self.assertIn("clean: removed the worktree %s, with its ignored .env\n" % tree, out)
+        self.assertIn("also on the pull request's head, remove when done: %s (pr-7-review)" % review, out)
+        # The pull request and the remote branch are the maintainer's.
+        self.assertFalse([a for a, _ in fake.calls if a[:1] == ["gh"] and ("close" in a or "--method" in a)])
+        self.assertFalse(fake.called("git", "push"))
+
+    def test_nothing_changes_while_the_pull_request_is_open(self):
+        self.descriptor(forge="github")
+        self.findings(self.SETTLED)
+        files = self.leftovers()
+        fake = self.use(self.tree_routes(self.listing((self.wt("feat-x"), HEAD, "feat/x"))) + self.routes())
+        code, _, err = self.run_main("clean")
+        self.assertEqual(2, code)
+        self.assertIn("pull request 7 is open; the maintainer merges it on the forge first", err)
+        self.assertEqual([True, True], [path.exists() for path in files])
+        self.assertFalse(fake.called("git", "branch", "-D"))
+
+    def test_nothing_changes_when_a_line_would_be_lost_a_commit_is_not_on_the_pull_request_or_work_is_uncommitted(self):
+        tree = self.wt("feat-x")
+        listing = self.listing((tree, HEAD, "feat/x"))
+        for text, routes, tip, said in (
+                (FILE_CLEAN, [], HEAD, "1 line in the findings file would be lost"),
+                (FILE_OPEN_IMPORTANT, [], HEAD, "1 line in the findings file would be lost"),
+                (self.SETTLED, [(git("merge-base", "--is-ancestor"), sdd_pr.CliError("no"))], "c" * 40,
+                 "feat/x at ccccccc holds commits pull request 7's head bbbbbbb does not"),
+                (self.SETTLED, [(git("rev-parse", "--verify", "--quiet", HEAD + "^{commit}"), sdd_pr.CliError("unknown"))],
+                 "c" * 40, "(this clone lacks it: git fetch origin pull/7/head)"),
+                (self.SETTLED, [(git("status", "--porcelain"), " M a.go\n")], HEAD, "%s holds uncommitted work" % tree),
+                (self.SETTLED, [(git("worktree", "list"), self.listing((tree, HEAD, "feat/x", "locked in use")))], HEAD,
+                 "the worktree %s is locked (in use)" % tree)):
+            fake = self.merged(listing, text=text, extra=routes, tip=tip)
+            code, _, err = self.run_main("clean")
+            self.assertEqual(2, code, said)
+            self.assertIn(said, err)
+            self.assertTrue(self.store().exists())
+            self.assertFalse(fake.called("git", "worktree", "remove"))
+            self.assertFalse(fake.called("git", "branch", "-D"))
+
+    def test_a_branch_behind_the_merged_head_is_deleted(self):
+        # Another host pushed after this clone's last pull: nothing here is missing from the pull request.
+        tree = self.wt("feat-x")
+        fake = self.merged(self.listing(("/repo", "a" * 40, "main"), (tree, "c" * 40, "feat/x")), tip="c" * 40)
+        code, _, err = self.run_main("clean")
+        self.assertEqual(0, code, err)
+        self.assertTrue(fake.called("git", "branch", "-D", "feat/x"))
+
+    def test_the_default_branch_and_an_undelivered_branch_are_refused(self):
+        # A release pull request develop -> main merged: a bare clean on develop must not delete develop.
+        self.descriptor(forge="github")
+        self.PR = dict(self.MERGED, headRefName="develop")
+        routes = [(git("rev-parse", "--abbrev-ref", "HEAD"), "develop\n")]
+        fake = self.use(routes + self.tree_routes(self.listing(("/repo", HEAD, "develop"))) + self.routes())
+        code, _, err = self.run_main("clean")
+        self.assertEqual(2, code)
+        self.assertIn("develop has no findings file or delivery notes", err)
+        self.assertFalse(fake.called("git", "branch", "-D"))
+        self.PR = dict(self.MERGED, headRefName="main", baseRefName="production")
+        fake = self.use([(git("rev-parse", "--abbrev-ref", "HEAD"), "main\n")]
+                        + self.tree_routes(self.listing(("/repo", HEAD, "main"))) + self.routes())
+        code, _, err = self.run_main("clean", "--pr", "7")
+        self.assertEqual(2, code)
+        self.assertIn("main is the default branch", err)
+
+    def test_a_named_branch_must_be_the_pull_requests(self):
+        fake = self.merged(self.listing((self.wt("feat-x"), HEAD, "feat/x")))
+        code, _, err = self.run_main("clean", "feat/y", "--pr", "7")
+        self.assertEqual(2, code)
+        self.assertIn("pull request 7 is feat/x, not feat/y", err)
+        self.assertFalse(fake.called("git", "branch", "-D"))
+
+    def test_the_worktree_this_command_runs_in_is_left_with_its_commands(self):
+        # --root names the repository, but the shell sits in the worktree: removing it would strand the shell.
+        tree = self.wt("feat x")
+        fake = self.merged(self.listing(("/repo", "a" * 40, "main"), (tree, HEAD, "feat/x")))
+        files = self.leftovers()
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(tree)
+        code, out, err = self.run_main("clean")
+        os.chdir(here)
+        self.assertEqual(0, code, err)
+        self.assertFalse(fake.called("git", "worktree", "remove"))
+        self.assertFalse(fake.called("git", "branch", "-D"))
+        self.assertEqual([False, False], [path.exists() for path in files])
+        self.assertIn("left for you, from another checkout (this one runs in it): git worktree remove '%s' && "
+                      "git branch -D feat/x" % tree, out)
+
+    def test_the_main_checkout_steps_onto_the_base_before_the_branch_goes(self):
+        fake = self.merged(self.listing((str(self.root), HEAD, "feat/x"), (self.wt("other"), "a" * 40, "other")),
+                           extra=[(git("rev-parse", "--verify", "--quiet", "refs/heads/main^{commit}"), "a" * 40 + "\n")])
+        code, out, err = self.run_main("clean")
+        self.assertEqual(0, code, err)
+        steps = [a[a.index(word):] for a, _ in fake.calls for word in ("checkout", "branch")
+                 if a[:1] == ["git"] and word in a]
+        self.assertEqual([["checkout", "--quiet", "main", "--"], ["branch", "-D", "feat/x"]], steps)
+        self.assertIn("clean: switched %s to main" % self.root, out)
+
+    def test_the_main_checkout_detaches_at_a_base_another_worktree_holds_and_refuses_a_missing_base(self):
+        holder = self.wt("main")
+        fake = self.merged(self.listing((str(self.root), HEAD, "feat/x"), (holder, "a" * 40, "main")))
+        code, out, err = self.run_main("clean")
+        self.assertEqual(0, code, err)
+        self.assertTrue(fake.called("git", "checkout", "--quiet", "--detach", "main", "--"))
+        self.assertIn("which %s holds" % holder, out)
+        # A stacked branch whose parent is gone: nothing runs.
+        self.PR = dict(self.MERGED, baseRefName="feat/parent")
+        missing = [(git("rev-parse", "--verify", "--quiet", "refs/heads/feat/parent^{commit}"), sdd_pr.CliError("no")),
+                   (git("rev-parse", "--verify", "--quiet", "refs/remotes/origin/feat/parent^{commit}"), sdd_pr.CliError("no"))]
+        self.findings(self.SETTLED)
+        fake = self.use(missing + self.tree_routes(self.listing((str(self.root), HEAD, "feat/x"))) + self.routes())
+        code, _, err = self.run_main("clean")
+        self.assertEqual(2, code)
+        self.assertIn("its base feat/parent is neither a branch here nor on origin", err)
+        self.assertFalse(fake.called("git", "checkout"))
+
+    def test_a_worktree_whose_folder_is_gone_is_pruned(self):
+        gone = str(self.root / "wt" / "deleted-by-hand")
+        fake = self.merged(self.listing(("/repo", "a" * 40, "main"),
+                                        (gone, HEAD, "feat/x", "prunable gitdir file points to non-existent location")))
+        code, out, err = self.run_main("clean", "--dry-run")
+        self.assertEqual(0, code, err)
+        self.assertIn("would run: git worktree prune", out)
+        self.assertFalse(fake.called("git", "status", "--porcelain"))
+        code, out, err = self.run_main("clean")
+        self.assertEqual(0, code, err)
+        self.assertTrue(fake.called("git", "worktree", "prune"))
+        self.assertTrue(fake.called("git", "branch", "-D", "feat/x"))
+
+    def test_a_failed_step_keeps_the_files(self):
+        tree = self.wt("feat-x")
+        self.merged(self.listing(("/repo", "a" * 40, "main"), (tree, HEAD, "feat/x")),
+                    extra=[(git("branch", "-D"), sdd_pr.CliError("error: branch is in use"))])
+        files = self.leftovers()
+        code, _, err = self.run_main("clean")
+        self.assertEqual(2, code)
+        self.assertIn("clean: git branch -D feat/x failed, after the steps above: error: branch is in use", err)
+        self.assertEqual([True, True], [path.exists() for path in files])
+
+    def test_from_a_detached_checkout_after_a_squash_merge_with_pr(self):
+        # The default branch holds a squashed commit, not the head: --pr still finds the branch.
+        tree = self.wt("feat-x")
+        routes = [(git("rev-parse", "--abbrev-ref", "HEAD"), "HEAD\n"), (git("rev-parse", "HEAD"), "a" * 40 + "\n")]
+        fake = self.merged(self.listing((str(self.root), "a" * 40, ""), (tree, HEAD, "feat/x")), extra=routes)
+        code, _, err = self.run_main("clean", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertTrue(fake.called("git", "worktree", "remove", tree))
+        self.assertTrue(fake.called("git", "branch", "-D", "feat/x"))
+        self.assertFalse(self.store().exists())
+        self.use(routes + self.tree_routes(self.listing((str(self.root), "a" * 40, ""))) + self.routes())
+        code, _, err = self.run_main("clean")
+        self.assertEqual(2, code)
+        self.assertIn("this checkout is detached; name the merged branch, or pass --pr", err)
+
+    def test_the_scratch_worktree_is_not_left_to_the_maintainer(self):
+        scratch = self.root / ".git" / "sdd" / "scratch" / "feat--x"
+        scratch.mkdir(parents=True)
+        (scratch.parent / "feat--x.lock").write_text("", encoding="utf-8")
+        fake = self.merged(self.listing(("/repo", "a" * 40, "main"), (self.wt("feat-x"), HEAD, "feat/x"),
+                                        (str(scratch), HEAD, "")))
+        code, out, err = self.run_main("clean")
+        self.assertEqual(0, code, err)
+        self.assertNotIn("also on the pull request's head", out)
+        self.assertTrue(fake.called("git", "worktree", "remove", "--force", str(scratch)))
+        self.assertFalse((scratch.parent / "feat--x.lock").exists())
+
+    def test_without_a_forge_the_branch_must_be_in_the_base(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN.replace("- a.go:9 · rename `n` to `count` · by: claude\n", ""))
+        listing = self.listing(("/repo", "a" * 40, "main"))
+        fake = self.use([(git("merge-base", "--is-ancestor"), sdd_pr.CliError("no"))]
+                        + self.tree_routes(listing) + git_routes())
+        code, _, err = self.run_main("clean")
+        self.assertEqual(2, code)
+        self.assertIn("feat/x at bbbbbbb is not in main; merge it first", err)
+        fake = self.use(self.tree_routes(listing) + git_routes())
+        code, out, err = self.run_main("clean")
+        self.assertEqual(0, code, err)
+        self.assertTrue(fake.called("git", "branch", "-D", "feat/x"))
+        self.assertFalse(self.store().exists())
+
+    def test_dry_run_changes_nothing(self):
+        tree = self.wt("feat-x")
+        fake = self.merged(self.listing(("/repo", "a" * 40, "main"), (tree, HEAD, "feat/x")))
+        code, out, err = self.run_main("clean", "--dry-run")
+        self.assertEqual(0, code, err)
+        self.assertIn("would run: git worktree remove %s" % tree, out)
+        self.assertIn("would delete: %s" % self.store(), out)
+        self.assertTrue(self.store().exists())
+        self.assertFalse(fake.called("git", "worktree", "remove"))
 
 
 class TestStatusStates(GitHubCase):
@@ -1942,7 +2184,7 @@ class TestStatusStates(GitHubCase):
         _, out, _ = self.run_main("status")
         self.assertIn("PR 7 merged at eeeeeee", out)
         self.assertIn("Mergeable: merged", out)
-        self.assertIn("Next: delete %s, then the branch and its worktree" % self.store(), out)
+        self.assertIn("Next: /sdd-close, whose sdd-pr clean deletes %s, then the branch and its worktree" % self.store(), out)
 
     def test_the_open_pull_request_wins_over_a_newer_closed_one(self):
         self.descriptor(forge="github")
@@ -2467,10 +2709,12 @@ class TestHarvest(GitHubCase):
         self.use(self.routes())
         _, out, _ = self.run_main("status")
         self.assertIn("still in the file: 0 open lines, 1 line not on the pull request", out)
-        self.assertIn("Next: /sdd-triage --backlog, then delete", out)
+        self.assertIn("wait for the next /sdd-triage --backlog", out)
+        self.assertIn("Next: /sdd-close, whose sdd-pr clean deletes", out)
         self.backlog(self.head_with_mark("2026-10-04T21:10:00Z"))
         _, out, _ = self.run_main("status")
-        self.assertIn("Next: delete", out)
+        self.assertNotIn("/sdd-triage --backlog", out)
+        self.assertIn("Next: /sdd-close", out)
 
 
 class TestHarvestAzure(AzureCase):
@@ -2820,7 +3064,7 @@ class TestNonBlockingLines(GitHubCase):
         self.assertIn("1 line not on the pull request", self.run_main("status")[1])
         self.findings(FILE_OUTSIDE_ONLY.replace("by: go-reviewer · outside", "by: go-reviewer · comment: 901 · outside"))
         self.use(self.routes())
-        self.assertIn("Next: /sdd-triage --backlog, then delete", self.run_main("status")[1])
+        self.assertIn("1 line on the pull request waits for the next /sdd-triage --backlog", self.run_main("status")[1])
 
     def test_a_fixed_outside_line_shows_fixed_in_its_comment(self):
         self.descriptor(forge="github")
@@ -2863,7 +3107,7 @@ class TestNonBlockingLines(GitHubCase):
         self.findings(FILE_CLEAN.replace("## Suggestions\n- a.go:9 · rename `n` to `count` · by: claude\n", "## Suggestions\n"))
         self.PR = {"isDraft": True, "statusCheckRollup": [{"status": "COMPLETED", "conclusion": "SUCCESS"}]}
         self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + self.routes())
-        self.assertIn("Next: /sdd-deliver --close-out, which marks it ready", self.run_main("status")[1])
+        self.assertIn("Next: /sdd-close, which marks it ready", self.run_main("status")[1])
 
     def test_a_later_carry_re_sorts_the_unsorted_section(self):
         self.descriptor(forge="none")

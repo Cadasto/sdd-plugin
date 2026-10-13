@@ -237,7 +237,7 @@ ticked in a file:
 An unmet precondition stops the dispatch and is named. On the informative profile the task is clear and
 the verification command is known (§1a).
 
-### Close-out — the last step of `/sdd-deliver`
+### Close-out — `/sdd-close`
 
 When the work is done, the same PR that lands the code sets the `REQ`'s `implementation` to `shipped` (§6)
 with its `traceability.yaml` packages/tests/probes, ticks each acceptance criterion it delivered, adds

@@ -2,6 +2,28 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.13.x to 0.14.0
+
+The close-out is its own skill, `/sdd-close`, which also cleans up after the merge. `sdd-check` changed
+only its version number, so re-vendoring it with `/sdd-scaffold --upgrade` is optional.
+
+1. **Close-out.** `/sdd-close <N>` replaces `/sdd-deliver <N> --close-out`; for this release the old flag
+   only points to the new skill. It does what the close-out did, and never merges or closes a pull
+   request.
+2. **Leftovers.** The close-out asks once whether to carry the suggestions and `outside` defects still open
+   to `docs/backlog.md` in the pull request itself. A carried line shows as carried in its pass comment, so
+   a later harvest leaves it out. `/sdd-triage --backlog` becomes an occasional run that picks up what was
+   not carried and consolidates the backlog. Expect a conflict in `## Unsorted` when two open pull
+   requests both carry lines: keep both sides.
+3. **Clean-up.** After you merge, `/sdd-close <N>` again runs the new `sdd-pr clean`. It removes the
+   branch's worktree, the local branch and its findings file and delivery notes, and refuses while a line
+   would be lost or the branch holds a commit the pull request does not. A permission rule that allows
+   `sdd-pr.py *` (see [install.md](install.md)) lets it run without a prompt; it deletes local branches and
+   worktrees, never the pull request or the remote branch.
+4. **Process documents.** `--upgrade` proposes the changed `docs/ai-workflow.md` (step 6 and the table),
+   `docs/development-process.md` (the close-out's command), `AGENTS.md` (the workflow line) and `docs/ci.md`.
+   Each names `/sdd-close` instead of `/sdd-deliver --close-out`.
+
 ## From 0.12.x to 0.13.0
 
 A review pass starts with one call, `sdd-pr start`, and is one comment on the pull request. Passes by

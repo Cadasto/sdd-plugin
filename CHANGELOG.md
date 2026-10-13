@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Skills: `sdd-close` closes out a delivered change in its pull request (the `REQ` shipped, the acceptance ticks, the changelog line, `generate`, the full gate, the PR body, a draft marked ready), asks once whether to carry the lines that do not block to `docs/backlog.md` there, and after the merge runs `sdd-pr clean`; it never merges or closes a pull request.
+- Tools: `sdd-pr clean [<branch>] [--pr N] [--dry-run]` removes a merged branch's worktree, the local branch (only when it holds no commit the pull request lacks; with `forge: none`, once in the base) and its findings file and delivery notes, from any checkout, a detached one included; it refuses, changing nothing, while the pull request is open, a worktree holds uncommitted work or is locked, or a line would be lost, refuses the base, the default branch and, unnamed, a branch with no findings file or notes, and leaves a worktree it runs in to the maintainer with the commands.
+
+### Changed
+- Skills: `sdd-deliver` ends at the maintainer's review and hands the close-out to `/sdd-close`; `--close-out` points to it for this release. The router, `sdd-trace` and `sdd-triage` route the close-out to `sdd-close`, and `--backlog` becomes an occasional run.
+- Tools: `sdd-pr status` points a ready draft and a merged pull request at `/sdd-close`, and names the lines on a merged pull request that wait for `/sdd-triage --backlog` instead of putting the harvest first.
+- References: `review.md` § The backlog lets the close-out carry its lines in the pull request, which `harvest` then leaves out, and § The tool documents `clean`; methodology §9's close-out is `/sdd-close`.
+- Templates: `ai-workflow.md`, `development-process.md`, `AGENTS.md` and `ci.md` name `/sdd-close`.
+- Hooks: the session-start line and the edit reminder name `/sdd-close`; `rules/sdd-context.mdc` lists it, and its backlog sentence names the carry at close-out.
+- Docs: `README.md`, `quick-start.md`, `examples.md`, `testing.md`, `install.md` and `upgrading.md` describe `/sdd-close` and `sdd-pr clean`.
+
 ## [0.13.0] - 2026-10-13
 
 A review pass starts with one call, `sdd-pr start`, which writes each reviewer's hunks and one shared

@@ -21,11 +21,12 @@ knowledge base in which only the constitution binds).
 2. Look up ground truth before editing — the source named in .sdd.yaml (ground_truth); never guess.
    For a requirement already in the map, `sdd-check context <REQ>` prints its bundle.
 3. Deliver: /sdd-deliver — preconditions (formal) or a clear task (informative), workers per task, the
-   per-task gate, the first review pass into the findings file, the PR, close-out.
+   per-task gate, the first review pass into the findings file, the PR.
 4. Don't decide open questions in code — surface a STRAND or record an ADR (/sdd-specify), or ask.
 5. Review: /sdd-review writes the findings file and mirrors to the PR; /sdd-triage works the open lines;
    `sdd-pr status` says what is open, whether it is mergeable and what to run next.
-6. Close out in the same PR: /sdd-deliver --close-out; after merges, /sdd-triage --backlog.
+6. Close out in the same PR: /sdd-close; after the merge, /sdd-close again cleans up. Now and then,
+   /sdd-triage --backlog.
 ```
 
 ## Orchestration (standing)
@@ -109,9 +110,9 @@ restate the PR body.
 | Deliver a change: workers, gates, the first review pass, the PR | `/sdd-deliver` |
 | Implement one bounded task | `sdd-implementer` agent (dispatched by the driver) |
 | Review pass into the findings file; panel prompts | `/sdd-review` (`--panel`) |
-| Work the open findings; after the maintainer's review, one scoped re-review; after merges, the backlog harvest | `/sdd-triage` (`--backlog`) |
+| Work the open findings; after the maintainer's review, one scoped re-review; now and then, the backlog harvest | `/sdd-triage` (`--backlog`) |
 | What is open, mergeable, next | `sdd-pr status` |
 | A REQ's context bundle; drift in session | `/sdd-trace` |
 | Regenerate the derived indexes and status lines | `sdd-check generate` |
 | Drift, links, prose lints | `<build_entrypoint> <spec_check_target>` (`sdd-check`) |
-| Close out the requirement and write the PR body | `/sdd-deliver --close-out` |
+| Close out the requirement and write the PR body; after the merge, clean up | `/sdd-close` |

@@ -1,6 +1,6 @@
 ---
 name: sdd-triage
-description: This skill should be used when the user asks to "triage the review", "work through the findings", "fix what the reviewers found", "address the review comments", "resolve the open findings", or "harvest the merged suggestions into the backlog" (`--backlog`). Works a branch's open findings to the end — verify, fix, flip the lines, mirror, and, after the maintainer's review, one scoped re-review when anything changed. Not for producing a review (sdd-review) or the close-out (sdd-deliver --close-out).
+description: This skill should be used when the user asks to "triage the review", "work through the findings", "fix what the reviewers found", "address the review comments", "resolve the open findings", or "harvest the merged suggestions into the backlog" (`--backlog`). Works a branch's open findings to the end — verify, fix, flip the lines, mirror, and, after the maintainer's review, one scoped re-review when anything changed. Not for producing a review (sdd-review) or the close-out (sdd-close).
 argument-hint: "[--pr N] [--backlog [--since <date|#PR>]]"
 allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 ---
