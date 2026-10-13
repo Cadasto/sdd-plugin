@@ -19,6 +19,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -912,7 +913,7 @@ def worker_branches(root: str, branch: str) -> Tuple[List[Tuple[str, str]], List
 def cleanup_line(findings: str, notes: str) -> str:
     """What a merged branch leaves behind: its findings file, its delivery notes, the branch and worktree."""
     also = " and the delivery notes %s" % notes if os.path.exists(notes) else ""
-    return "delete %s%s, then the branch and its worktree" % (findings, also)
+    return "%s%s, then the branch and its worktree" % (findings, also)
 
 
 # ---------------------------------------------------------------- the forge interface
@@ -938,6 +939,7 @@ def _json_pages(text: str) -> list:
 
 
 class Forge:
+    HEAD_REF = ""
     """What the commands need from a forge. Local git supplies the diff on every forge."""
 
     name = "none"
@@ -990,6 +992,8 @@ FAILED_CHECKS = ("FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED"
 
 
 class GitHubForge(Forge):
+    #: The ref that keeps a pull request's head after its branch is deleted on merge.
+    HEAD_REF = "pull/%d/head"
     """GitHub through `gh`: reviews, review threads, and resolveReviewThread."""
 
     name = "github"
@@ -1293,6 +1297,10 @@ def detect_forge(root: str) -> Forge:
 
 
 # ---------------------------------------------------------------- commands
+#: A detached checkout's stand-in for the branch, which clean resolves itself.
+DETACHED = "HEAD"
+
+
 class Session:
     """What every command resolves first: root, branch, head, base, the file and the forge."""
 
@@ -1308,6 +1316,8 @@ class Session:
                                     % (args.branch, checked or "detached HEAD", self.head[:7],
                                        elsewhere(self.root, args.branch)))
         self.branch = args.branch or checked
+        if not self.branch and getattr(args, "command", "") == "clean":
+            self.branch = DETACHED  # clean names its branch, or reads it from --pr
         if not self.branch:
             raise CliError("detached HEAD; pass --branch")
         self.forge = detect_forge(self.root)
@@ -1335,18 +1345,20 @@ class Session:
             fcntl.flock(self._lock, fcntl.LOCK_EX)
         self._adopt_legacy()
         self.fs = load_findings(self.path, self.branch, "")
-        if self._pr_number is not None and self.forge.name != "none":
+        # clean names a merged branch, which this checkout need not hold: it reads the pull request itself.
+        if self._pr_number is not None and self.forge.name != "none" and getattr(args, "command", "") != "clean":
             try:
                 self.pr()  # a checkout under another name that holds the pull request's head works on its file
             except BaseException:
                 self.close()  # a refusal here must not keep the clone's lock for the next command
                 raise
 
-    def _rekey(self, branch: str) -> None:
+    def _rekey(self, branch: str, quiet: bool = False) -> None:
         """Work on ``branch``'s findings file and notes: the pull request's, though this checkout's local
         branch has another name (a review worktree), so every reviewer of one pull request shares one file."""
-        print("sdd-pr: the findings of %s (pull request %s), which this checkout (%s) holds"
-              % (branch, self._pr_number, self.branch), file=sys.stderr)
+        if not quiet:
+            print("sdd-pr: the findings of %s (pull request %s), which this checkout (%s) holds"
+                  % (branch, self._pr_number, self.branch), file=sys.stderr)
         self.branch = branch
         store = store_dir(self.root)
         self.path = os.path.join(store, slug(branch) + ".md")
@@ -1793,9 +1805,11 @@ def cmd_status(session: Session, args) -> int:
             print("still in the file: %d open line%s, %d line%s not on the pull request; carry or drop them "
                   "before deleting it" % (len(fs.blocking), "" if len(fs.blocking) == 1 else "s", len(unposted),
                                           "" if len(unposted) == 1 else "s"))
-        nxt = cleanup_line(session.path, session.notes)
-        if len(unposted) < len(fs.suggestions + fs.outside) and not harvested(session, pr):
-            nxt = "/sdd-triage --backlog, then " + nxt
+        waiting = len(fs.suggestions + fs.outside) - len(unposted)
+        if waiting and not harvested(session, pr):
+            print("%d line%s on the pull request wait%s for the next /sdd-triage --backlog"
+                  % (waiting, "" if waiting == 1 else "s", "s" if waiting == 1 else ""))
+        nxt = "/sdd-close, whose sdd-pr clean deletes " + cleanup_line(session.path, session.notes)
         print("Mergeable: merged")
         print("Next: " + nxt)
         return 0
@@ -1821,7 +1835,7 @@ def cmd_status(session: Session, args) -> int:
                 nxt = nxt or "wait for the checks"
             if pr["draft"]:
                 reasons.append("the pull request is a draft")
-                nxt = nxt or (leftovers(fs, pr) or "/sdd-deliver --close-out, which marks it ready")
+                nxt = nxt or (leftovers(fs, pr) or "/sdd-close, which marks it ready")
         except CliError as exc:
             print("forge: %s · not reachable (%s)" % (session.forge.name, str(exc).splitlines()[0]))
             reasons.append("the forge was not reachable")
@@ -1839,7 +1853,7 @@ def leftovers(fs: Findings, pr: Optional[dict]) -> str:
     """Suggestions not on the pull request yet go there; with no pull request, the close-out carries or drops them."""
     if pr is None:
         n = len(fs.suggestions + fs.outside)
-        return "carry or drop %d non-blocking line%s (/sdd-deliver --close-out)" % (n, "" if n == 1 else "s") if n else ""
+        return "carry or drop %d non-blocking line%s (/sdd-close)" % (n, "" if n == 1 else "s") if n else ""
     n = len([f for f in fs.suggestions + fs.outside if not f.fields.get("comment")])
     return "sdd-pr post --pr %d (%d line%s not on it)" % (pr["number"], n, "" if n == 1 else "s") if n else ""
 
@@ -2620,9 +2634,200 @@ def cmd_rename(session: Session, args) -> int:
     return 0
 
 
+def is_ancestor(root: str, older: str, newer: str) -> bool:
+    try:
+        git(root, "merge-base", "--is-ancestor", older, newer)
+        return True
+    except CliError:
+        return False
+
+
+def worktrees(root: str) -> List[Dict[str, str]]:
+    """Every worktree of the clone, the main one first: its path, HEAD, branch ("" when detached), and the
+    reason git gives when it is locked or prunable ("" when not)."""
+    found: List[Dict[str, str]] = []
+    for block in git(root, "worktree", "list", "--porcelain").strip().split("\n\n"):
+        fields: Dict[str, str] = {}
+        for line in block.splitlines():
+            if line.strip():
+                key, _, value = line.partition(" ")
+                fields[key] = value.strip()
+        if "worktree" in fields:
+            ref = fields.get("branch", "")
+            found.append({"path": fields["worktree"], "head": fields.get("HEAD", ""),
+                          "branch": ref[len("refs/heads/"):] if ref.startswith("refs/heads/") else "",
+                          "locked": (fields["locked"] or "locked") if "locked" in fields else "",
+                          "prunable": (fields["prunable"] or "prunable") if "prunable" in fields else ""})
+    return found
+
+
+def _real(path: str) -> str:
+    return os.path.normcase(os.path.realpath(path))
+
+
+def _within(path: str, tree: str) -> bool:
+    path, tree = _real(path), _real(tree)
+    return path == tree or path.startswith(tree.rstrip(os.sep) + os.sep)
+
+
+def default_branch(root: str) -> str:
+    """The remote's default branch, or "" when the clone does not know it."""
+    try:
+        name = git(root, "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD").strip()
+    except CliError:
+        return ""
+    return name[len("origin/"):] if name.startswith("origin/") else name
+
+
+def cmd_clean(session: Session, args) -> int:
+    """After the merge, what the branch leaves in the clone: its worktree, the branch, its findings file and
+    delivery notes. Nothing changes until every check passes: the pull request is merged, the branch holds no
+    commit the pull request does not, no worktree of it holds uncommitted work, and no line in the file
+    would be lost. The pull request and the remote branch are the maintainer's, on the forge."""
+    forge, root = session.forge.name != "none", session.root
+    own = "" if session.branch == DETACHED else session.branch
+    pr = None
+    if forge and args.pr is not None:
+        pr = session.forge.pr(args.pr)
+        if args.target and pr.get("branch") and pr["branch"] != args.target:
+            raise CliError("clean: pull request %d is %s, not %s" % (pr["number"], pr["branch"], args.target))
+    elif forge and (args.target or own):
+        pr = session.forge.pr_for_branch(args.target or own)
+    branch = (pr or {}).get("branch") or args.target or own
+    if not branch:
+        raise CliError("clean: this checkout is detached; name the merged branch, or pass --pr")
+    if branch != session.branch:
+        session._rekey(branch, quiet=True)
+    base = ((pr or {}).get("base") or "") or session.fs.base or session.base()
+    if branch in (base, default_branch(root)):
+        raise CliError("clean: %s is %s; name the merged branch, or pass --pr"
+                       % (branch, "the base" if branch == base else "the default branch"))
+    if not (args.target or args.pr is not None) and not (os.path.exists(session.path) or os.path.exists(session.notes)):
+        raise CliError("clean: %s has no findings file or delivery notes, so nothing says it was delivered; "
+                       "name it, or pass --pr" % branch)
+    tip = resolve_sha(root, "refs/heads/" + branch)
+    if forge:
+        if pr is None:
+            raise CliError("clean: %s has no pull request" % branch)
+        if pr["state"] != "merged":
+            raise CliError("clean: pull request %d is %s; the maintainer merges it on the forge first"
+                           % (pr["number"], pr["state"]))
+        head, where = pr["head"], "pull request %d" % pr["number"]
+        known = bool(resolve_sha(root, head)) if head else False
+        if tip and tip != head and not (known and is_ancestor(root, tip, head)):
+            fetch = (" (this clone lacks it: git fetch origin %s)" % (session.forge.HEAD_REF % pr["number"])
+                     if not known and session.forge.HEAD_REF else "" if known else " (this clone lacks it: fetch it)")
+            raise CliError("clean: %s at %s holds commits %s's head %s does not%s; push them in a new pull request, "
+                           "or ask the maintainer" % (branch, tip[:7], where, head[:7], fetch))
+    else:
+        head, where = "", ""
+        if tip and not is_ancestor(root, tip, base_ref(root, base)):
+            raise CliError("clean: %s at %s is not in %s; merge it first, or ask the maintainer" % (branch, tip[:7], base))
+    fs = session.fs
+    lost = fs.blocking + [f for f in fs.suggestions + fs.outside if not (forge and f.fields.get("comment"))]
+    if lost:
+        raise CliError("clean: %d line%s in the findings file would be lost; carry or drop them first "
+                       "(sdd-pr flip --suggestions --carry, or flip <#key> --deferred <where>)"
+                       % (len(lost), "" if len(lost) == 1 else "s"))
+    trees = worktrees(root)
+    mine = [tree for tree in trees if tree["branch"] == branch]
+    if len(mine) > 1:
+        raise CliError("clean: %s is checked out in %d worktrees (%s); remove all but one by hand"
+                       % (branch, len(mine), ", ".join(tree["path"] for tree in mine)))
+    plan: List[Tuple[str, List[str], str]] = []  # (what is done, the git command, the folder it runs in)
+    left: List[str] = []
+    if mine:
+        path = mine[0]["path"]
+        if mine[0]["locked"]:
+            raise CliError("clean: the worktree %s is locked (%s); `git worktree unlock` it first"
+                           % (path, mine[0]["locked"]))
+        if mine[0]["prunable"] or not os.path.isdir(path):
+            plan.append(("pruned the worktrees whose folder is gone, %s among them" % path, ["worktree", "prune"], root))
+        else:
+            if git(path, "status", "--porcelain").strip():
+                raise CliError("clean: %s holds uncommitted work; commit it, or ask the maintainer" % path)
+            ignored = [line[3:] for line in git(path, "status", "--porcelain", "--ignored").splitlines()
+                       if line.startswith("!! ") and not line[3:].startswith(".sdd/")]
+            also = (", with its ignored %s" % ", ".join(ignored[:5] + (["+%d more" % (len(ignored) - 5)] if len(ignored) > 5 else []))
+                    if ignored else "")
+            if _real(path) == _real(trees[0]["path"]):
+                # The main checkout cannot be removed: it steps onto the base, so the branch can go.
+                holder = next((tree["path"] for tree in trees if tree["branch"] == base), "")
+                if holder:
+                    plan.append(("detached %s at %s, which %s holds" % (path, base, holder),
+                                 ["checkout", "--quiet", "--detach", base, "--"], path))
+                elif resolve_sha(root, "refs/heads/" + base):
+                    plan.append(("switched %s to %s" % (path, base), ["checkout", "--quiet", base, "--"], path))
+                elif resolve_sha(root, "refs/remotes/origin/" + base):
+                    plan.append(("switched %s to %s, from origin" % (path, base),
+                                 ["checkout", "--quiet", "--track", "origin/" + base, "--"], path))
+                else:
+                    raise CliError("clean: %s holds %s, and its base %s is neither a branch here nor on origin; "
+                                   "check out another branch there first" % (path, branch, base))
+            elif any(_within(here, path) for here in (root, os.getcwd())):
+                left += ["git worktree remove %s" % shlex.quote(path)] + (["git branch -D %s" % shlex.quote(branch)] if tip else [])
+            else:
+                plan.append(("removed the worktree %s%s" % (path, also), ["worktree", "remove", path], root))
+    if tip and not left:
+        plan.append(("deleted the branch %s (was %s)" % (branch, tip[:7]), ["branch", "-D", branch], root))
+    files = [os.path.abspath(path) for path in (session.path, session.notes, pass_note(session)) if os.path.exists(path)]
+    scratch = scratch_dir(session)
+    others = ["%s (%s)" % (tree["path"], tree["branch"] or "detached") for tree in trees
+              if head and tree["head"] == head and tree["branch"] != branch and _real(tree["path"]) != _real(scratch)]
+    try:
+        workers = git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/%s--*" % branch).split()
+    except CliError:
+        workers = []
+    held = "%s at %s" % (branch, tip[:7]) if tip else "no local %s" % branch
+    print("clean: %s merged; %s" % (where, held) if forge else "clean: %s, in %s" % (held, base))
+    failed: List[str] = []
+    if args.dry_run:
+        for done, command, _ in plan:
+            print("would run: git %s  (%s)" % (" ".join(shlex.quote(word) for word in command), done))
+        for path in files:
+            print("would delete: %s" % path)
+    else:
+        session.guard()
+        ran = False
+        for done, command, folder in plan:
+            if command[0] == "branch" and resolve_sha(root, "refs/heads/" + branch) != tip:
+                raise CliError("clean: %s moved since it was checked; run clean again" % branch)
+            try:
+                git(folder, *command)
+            except CliError as exc:
+                raise CliError("clean: git %s failed%s: %s" % (" ".join(command), ", after the steps above" if ran else "",
+                                                              str(exc).splitlines()[0] if str(exc) else exc))
+            ran = True
+            print("clean: " + done)
+        try:
+            remove_scratch(session, prune=True)
+            if os.path.exists(scratch + ".lock"):
+                os.remove(scratch + ".lock")
+        except (CliError, OSError):
+            pass  # a guard's scratch folder holds nothing that matters
+        removed = []
+        for path in files:
+            try:
+                os.remove(path)
+                removed.append(path)
+            except OSError as exc:
+                failed.append("%s (%s)" % (path, exc.strerror))
+        if removed:
+            print("clean: deleted " + ", ".join(removed))
+        if failed:
+            print("sdd-pr: clean: could not delete " + ", ".join(failed), file=sys.stderr)
+    if left:
+        print("left for you, from another checkout (this one runs in it): " + " && ".join(left))
+    if others:
+        print("also on the pull request's head, remove when done: " + ", ".join(others))
+    if workers:
+        print("worker branches left: " + ", ".join(workers))
+    return 2 if failed else 0
+
+
 COMMANDS = {"status": cmd_status, "start": cmd_start, "scope": cmd_scope, "pull": cmd_pull, "post": cmd_post, "resolve": cmd_resolve,
             "harvest": cmd_harvest, "guard": cmd_guard, "add": cmd_add, "flip": cmd_flip, "record": cmd_record,
-            "rename": cmd_rename}
+            "rename": cmd_rename, "clean": cmd_clean}
 
 
 PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2638,6 +2843,13 @@ a document the branch did not change ends · outside, and add drops it from a li
     "start": """prints the dispatch plan: one line per reviewer with its patch; dispatch each with
 "Read <brief>; your hunks: <patch>". Files go under .sdd/review/<head>/. Another agent's pass on the
 branch is reported, never a stop. The gate is never run here.""",
+    "clean": """after the merge, run from any checkout of the clone, a detached one included: removes the
+branch's worktree (one this command runs in is left to you, with the commands; the main checkout steps onto
+the base), deletes the local branch only when it holds no commit the pull request lacks, then its findings
+file and delivery notes. Refuses, changing nothing, while the pull request is open, the branch has commits
+the pull request lacks, a worktree holds uncommitted work or is locked, or a line in the findings file would
+be lost; refuses the base and the default branch, and, unnamed, a branch with no findings file or notes.
+Never touches the pull request or the remote branch.""",
 }
 
 
@@ -2671,7 +2883,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", parser_class=_Parser)
     for name in COMMANDS:
         cmd = sub.add_parser(name, epilog=EPILOGS.get(name), formatter_class=argparse.RawDescriptionHelpFormatter)
-        cmd.add_argument("--pr", type=int, default=None, help="the pull request (default: the branch's open one)")
+        cmd.add_argument("--pr", type=int, default=None, help="the merged pull request (default: the branch's latest)"
+                         if name == "clean" else "the pull request (default: the branch's open one)")
         if name == "start":
             cmd.add_argument("--agent", required=True, help="who runs the pass: host and model, e.g. claude-opus-5-5")
             cmd.add_argument("--since-last", action="store_true",
@@ -2695,8 +2908,11 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--timeout", type=int, default=600, metavar="SECONDS",
                              help="a run longer than this is killed and counts as a failure (default 600)")
             cmd.set_defaults(test_cmd=[])  # what follows `--`, split off before parsing (main)
-        if name in ("post", "harvest"):
+        if name in ("post", "harvest", "clean"):
             cmd.add_argument("--dry-run", action="store_true")
+        if name == "clean":
+            cmd.add_argument("target", nargs="?", metavar="BRANCH", help="the merged branch (default: the pull "
+                             "request's with --pr, else this checkout's)")
         if name == "harvest":
             cmd.add_argument("--since", metavar="DATE|#PR",
                              help="the first harvest: from this date, date-time or merged pull request, inclusive")
