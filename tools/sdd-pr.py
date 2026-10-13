@@ -1927,14 +1927,18 @@ def cmd_post(session: Session, args) -> int:
     if passes and pr["head"] and pr["head"] != session.head:
         raise CliError("local HEAD %s is not the pull request's head %s; push or pull first"
                        % (session.head[:7], pr["head"][:7]))
-    code = _post(session, args, pr)
+    published = _post(session, args, pr)
     posted, edited = sync_suggestions(session, pr, args.dry_run, passes)
     note = sync_report(posted, edited, pr["number"], len(passes))
-    print("post: " + note if note else "post: nothing to post")
-    return code
+    if note:
+        print("post: " + note)
+    elif not published:
+        print("post: nothing to post")
+    return 0
 
 
 def _post(session: Session, args, pr: dict) -> int:
+    """Post the review for the blocking lines not yet on the forge; return how many lines it carries."""
     fs = session.fs
     candidates = [f for f in fs.blocking if not f.fields.get("forge")]
     adopted = 0
@@ -1967,9 +1971,8 @@ def _post(session: Session, args, pr: dict) -> int:
     comments = [{"path": f.path, "line": int(f.line), "body": comment_body(f)} for f in anchored]
     if args.dry_run:
         print(json.dumps({"commit_id": session.head, "event": "COMMENT", "body": body, "comments": comments}, indent=2))
-        return 0
+        return len(comments) + len(unanchored)
     if not comments and not body:
-        print("post: nothing new to post")
         return 0
     ids = session.forge.post(pr["number"], session.head, body, comments, quiet=not unanchored)
     for finding, thread_id in zip(anchored, ids):
@@ -1990,7 +1993,7 @@ def _post(session: Session, args, pr: dict) -> int:
     print("post: %d thread%s on PR %d, %d not anchored%s"
           % (len(anchored), "" if len(anchored) == 1 else "s", pr["number"], len(unanchored),
              "; %d without an id read back" % len(missing) if missing else ""))
-    return 0
+    return len(anchored) + len(unanchored)
 
 
 def adopt(session: Session, pr: dict, findings: List[Finding]) -> List[Finding]:

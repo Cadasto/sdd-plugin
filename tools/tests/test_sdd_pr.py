@@ -801,6 +801,16 @@ class TestPost(GitHubCase):
         self.assertIn("- a.go:2 · a suggestion is never inline · by: claude · comment: 901", text)
         # The body is the author's: post never writes it.
         self.assertEqual([], self.edits)
+        # A blocking line filed after the pass's comment posts its thread, and says so alone.
+        path = self.store()
+        path.write_text(path.read_text().replace(
+            "## Resolved", "- [ ] important · a.go:6 · filed after the post · by: claude\n\n## Resolved", 1))
+        sent.clear()
+        self.use(self.routes(diff=DIFF, extra=extra))
+        code, out, err = self.run_main("post")
+        self.assertEqual(0, code, err)
+        self.assertEqual([("a.go", 6)], [(c["path"], c["line"]) for c in sent["payload"]["comments"]])
+        self.assertEqual("post: 1 thread on PR 7, 0 not anchored\n", out)
 
     def test_post_never_publishes_a_finding_twice(self):
         # The first post reads no id back: the line keeps no forge id.
