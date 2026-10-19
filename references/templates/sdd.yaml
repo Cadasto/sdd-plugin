@@ -87,7 +87,3 @@ sdd:
     reviewers: []                   # this repo's own language reviewers, by agent name: a list, or a block map of path patterns to names; /sdd-scaffold suggests from the build manifests
     skip: []                        # path patterns no reviewer reads (a vendored corpus, fixture data), e.g. ["testdata/**"]
     task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
-    review_panel:                   # who reviews the PR, per lane; a host that loads the plugin gets `/sdd-review --pr N`
-      full: [claude, cursor]
-      maintenance: [claude]
-      external: []                  # names that never load the plugin; --panel prints them the request block

@@ -46,7 +46,7 @@ knowledge base in which only the constitution binds).
   done because a dispatch ended.
 - **Findings state is read from the file, never remembered.**
 - **The maintainer merges;** agents open PRs, a draft only when asked.
-- Worker model, parallelism, worktrees, the task-review gate and the review panel are declared in
+- Worker model, parallelism, worktrees and the task-review gate are declared in
   [`.sdd.yaml`](.sdd.yaml) under `agents:`. The model is passed **per dispatch**.
 
 ## Review
@@ -63,10 +63,9 @@ finding carries evidence. A claim of wrong code behaviour is settled by running 
 then graded by its harm; a missing specification sentence never lowers it. Nothing else about findings is
 posted, the pull request's body included.
 
-**The canonical review request.** A panel host that loads the SDD plugin runs `/sdd-review --pr <N>`,
-which `/sdd-review --panel` prints as one line. Reviewers named in `agents.review_panel.external` never
-load it, so what is pasted to them must not drift from what the repo defines: `--panel` prints this
-block, filled in, for them only.
+**The canonical review request.** A reviewer that loads the SDD plugin runs `/sdd-review --pr <N>`. One
+that does not gets this block, filled in (`sdd-pr scope` prints the range), so what it is given does not
+drift from what the repo defines.
 
 ```text
 ── review request · <branch> · range <a>..<b> · profile <formal|informative> ──
@@ -109,7 +108,7 @@ restate the PR body.
 | Capture a capability, write a spec, record a decision | `/sdd-specify` |
 | Deliver a change: workers, gates, the first review pass, the PR | `/sdd-deliver` |
 | Implement one bounded task | `sdd-implementer` agent (dispatched by the driver) |
-| Review pass into the findings file; panel prompts | `/sdd-review` (`--panel`) |
+| Review pass into the findings file | `/sdd-review` |
 | Work the open findings; after the maintainer's review, one scoped re-review; now and then, the backlog harvest | `/sdd-triage` (`--backlog`) |
 | What is open, mergeable, next | `sdd-pr status` |
 | A REQ's context bundle; drift in session | `/sdd-trace` |

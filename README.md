@@ -57,7 +57,6 @@ See [docs/install.md](docs/install.md) for marketplace, local-development, updat
 /sdd-scaffold                          # lay down the docs/ tree + .sdd.yaml in this repo
 /sdd-specify add a capability for <X>  # capture the REQ, write the normative SPEC, record any ADR
 /sdd-deliver REQ-...                   # preconditions → workers → review pass → PR
-/sdd-review --panel                    # print `/sdd-review --pr N` per panel host; a request block for an external reviewer
 /sdd-triage                            # work the open findings: verify, fix, flip, mirror
 /sdd-close <PR>                        # set the REQ shipped, write the PR body; offer to carry leftovers to the backlog
 /sdd-close <PR>                        # after you merge: remove the branch, its worktree and its findings file
@@ -79,7 +78,7 @@ Seven `/sdd-*` skills, each also usable as a slash command, plus an always-on ro
 | `/sdd-specify` | The definition layer: capture a capability (`REQ`), write RFC-2119 normative behaviour into the canonical spec (`SPEC §`), and record decisions (`ADR`); assigns identifiers and wires traceability |
 | `/sdd-deliver` | The delivery driver: the dispatch gate, `sdd-implementer` workers in sequence on the branch (in parallel only for large tasks with disjoint files, still on the one branch), the per-task gate, the first review pass, the pull request (a draft only when you ask) |
 | `/sdd-close` | The close-out in the pull request: sets the `REQ` to `shipped` (a `SPEC §` is promoted only when you confirm), ticks its acceptance criteria, adds the changelog line, writes the PR body and marks it ready, and asks once whether to carry the lines that do not block to `docs/backlog.md` there; after you merge, `sdd-pr clean` removes the branch, its worktree and its findings file. It never merges or closes a pull request |
-| `/sdd-review` | One review pass over the whole branch, or with `--since-last` over the commits since the last pass: dispatch the reviewers the profile, lane and changed files call for, write their findings into the branch's findings file, and mirror them to the pull request, one comment per pass; `--panel` prints a line per panel host |
+| `/sdd-review` | One review pass over the whole branch, or with `--since-last` over the commits since the last pass: dispatch the reviewers the profile, lane and changed files call for, write their findings into the branch's findings file, and mirror them to the pull request, one comment per pass |
 | `/sdd-triage` | Work the open findings: verify each, fix in this branch, flip the lines, mirror to the pull request, and after your review run one scoped re-review when a fix changed code or wrote a MUST; `--backlog` carries the suggestions and `outside` defects of pull requests merged since the last harvest to `docs/backlog.md` and consolidates it |
 | `/sdd-trace` | The traceability gate: assemble the one-shot context bundle for a `REQ`, and report drift and orphans (the `spec-check` analogue); `--audit` dispatches the isolated whole-tree audit. Report-only |
 
@@ -182,10 +181,6 @@ sdd:
     reviewers: []                   # this repo's own language reviewers, by agent name; or a map of path patterns to names
     skip: []                        # path patterns no reviewer reads (a vendored corpus, fixture data), e.g. ["testdata/**"]
     task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
-    review_panel:                   # who reviews the PR, per lane; a host that loads the plugin gets `/sdd-review --pr N`
-      full: [claude, cursor]
-      maintenance: [claude]
-      external: []                  # names that never load the plugin; --panel prints them the request block
 ```
 
 ## Development

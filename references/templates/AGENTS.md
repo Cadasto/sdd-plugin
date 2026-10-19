@@ -44,7 +44,7 @@ spec updated in the same PR).
 - **A brief is self-contained**, and a worker never spawns another worker.
 - **One branch, one checkout:** two sessions on one branch take turns; the delivery notes and
   `sdd-pr status` say where it stands.
-- Worker model, parallelism, the task-review gate, and the review panel live in
+- Worker model, parallelism and the task-review gate live in
   [`docs/.sdd.yaml`](docs/.sdd.yaml) under `agents:`. Full text: [docs/ai-workflow.md](docs/ai-workflow.md)
   § Orchestration.
 

@@ -1968,7 +1968,7 @@ def pull_threads(session: Session, pr: dict) -> int:
         if not author_of(thread["body"]) and not (thread["author"] or "").endswith("[bot]"):
             people.append(_clean(thread["author"] or "forge").replace(":", "-"))
         text = first_sentence(thread["body"])
-        outside = text.endswith(" - outside")  # the panel prompt's marker, its separator turned into a dash
+        outside = text.endswith(" - outside")  # the review request's marker, its separator turned into a dash
         fs.items.append(Finding("open", severity_of(thread["body"]), thread["path"], str(thread["line"] or ""),
                                 text[:-len(" - outside")] if outside else text, fields, ["outside"] if outside else []))
         known.add(thread["id"])
