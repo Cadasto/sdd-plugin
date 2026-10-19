@@ -160,7 +160,7 @@ request. A plugin older than the repository's `check.version` refuses every writ
   preparation in one call: the pull request's threads pulled (its head must be in this checkout), the
   pass noted, the lane (the flag, the PR body's `Lane:` line, else `decide` with the normative-line
   count), and under `.sdd/review/<head>/` each reviewer's hunks, the drift gate's new lines, the settled
-  lines and one shared brief, listing the binding sentences the range wrote; then the dispatch plan. It never runs the gate: the brief names
+  lines and one shared brief, listing the MUSTs the range wrote; then the dispatch plan. It never runs the gate: the brief names
   `.sdd/gate-<head>.log` when it exists.
 - `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>] [--start <agent>]` — the range a
   pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it; `normative lines changed: n`, a hint for the lane;
@@ -168,7 +168,7 @@ request. A plugin older than the repository's `check.version` refuses every writ
   one reviewer, the plugin's own reviewers included.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …] [--outside]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important
-  finding without evidence, drops `outside` from a line the branch changed, and folds a line with the same anchor and sentence into the first (the higher severity, `outside` only when both say so), and a suggestion into a blocking line on its anchor, a posted one kept as `- [~]`.
+  finding without evidence, drops `outside` from a line the branch changed, and folds a line with the same anchor and sentence into the first (the higher severity, `outside` only when both say so), and another reviewer's suggestion into a blocking line on its anchor, kept as `- [~]`.
 - `flip <#key | path:line> --fixed <sha> | --declined <reason> | --deferred <where> | --carry | --dropped`
   — resolves one line; `--fixed` needs the fix on `origin/<branch>` when that exists;  `--suggestions` in
   place of the line applies to every one left and, with `--carry`, to the open `outside` lines.

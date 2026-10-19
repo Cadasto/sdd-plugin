@@ -2,8 +2,8 @@
 name: sdd-doc-reviewer
 description: >
   Use this agent when a change touched SDD documents (not code) and their changed hunks need checking
-  against the document-kind contract: two homes for one rule, sentences that disagree, a binding
-  sentence without its keyword, an ADR that decides twice. Read-only; returns findings-file lines.
+  against the document-kind contract: two homes for one rule, sentences that disagree, an ADR
+  that decides twice. Read-only; returns findings-file lines.
   Typical triggers include a specification section written for a change, requirement creep, and a
   pre-merge ADR check. Not for code, conformance, or a whole-tree scan. The sdd-review skill
   dispatches it once per pass when a document changed: form on the formal full lane, consistency on the
@@ -47,9 +47,7 @@ source of truth.
 specification with a different force (two homes, two rules); an identifier reused or renamed while cited
 elsewhere. Important, only what would make a reader build or test the wrong thing: two
 sentences that disagree, one in the range, both quoted; a sentence that contradicts the code the brief
-names, both quoted; an open question settled silently. A suggestion, the form, only on a section the branch added or rewrote and only where it changes how a sentence binds or reads: a sentence binding the
-code's own behaviour with no RFC-2119 keyword that a cheap test could pin (a sentence about the shell,
-the operating system or a library is no finding); an acceptance criterion that is not observable or
+names, both quoted; an open question settled silently. A suggestion, the form, only on a section the branch added or rewrote and only where it changes how a sentence binds or reads: an acceptance criterion that is not observable or
 restates a spec rule; an ADR with two decisions, a Context naming the chosen option, or only upsides; a
 durable document citing a plan or a session.
 

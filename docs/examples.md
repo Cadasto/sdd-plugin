@@ -98,9 +98,9 @@ That is useful in CI, or in any script that needs a requirement's context withou
 /sdd-review --lane full
 ```
 
-On the formal profile's full lane, the pass sends changed code that implements a cited `SPEC §` to the `sdd-spec-conformance-reviewer` agent, with the gate's log and the changed hunks. It judges the code clause by clause, and proves each MUST and MUST NOT the change touches with `sdd-pr guard`: the guard is removed in a scratch worktree, and a test that stays green is a critical finding with both runs as evidence. It judges conformance, not code quality; the repository's own language reviewer does that.
+On the formal profile's full lane, the pass sends changed code that implements a cited `SPEC §` to the `sdd-spec-conformance-reviewer` agent, with the gate's log and the changed hunks. It judges the code clause by clause, and proves each MUST the change wrote or reworded with `sdd-pr guard`: the guard is removed in a scratch worktree, and a test that stays green is a critical finding with both runs as evidence. It judges conformance, not code quality; the repository's own language reviewer does that.
 
-When a document changed, the same pass sends its hunks to the `sdd-doc-reviewer` agent. Two sentences that disagree, or a sentence that contradicts the code, are important; a normative sentence that repeats one elsewhere with a different force is critical. A document's form, such as a missing RFC-2119 keyword or an acceptance criterion that cannot be observed, is a suggestion.
+When a document changed, the same pass sends its hunks to the `sdd-doc-reviewer` agent. Two sentences that disagree, or a sentence that contradicts the code, are important; a normative sentence that repeats one elsewhere with a different force is critical. A document's form, such as an acceptance criterion that cannot be observed, is a suggestion; a keyword missing from a sentence the code already meets is not raised.
 
 ## Get a second opinion
 

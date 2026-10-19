@@ -320,7 +320,7 @@ lane field. The informative profile has one lane.
 
 ## 13. Review discipline
 
-**The merge gate.** The code is correct; every binding sentence the change touches has a named test that
+**The merge gate.** The code is correct; every MUST the change wrote or reworded has a named test that
 fails when its guard is removed; the code conforms to the sentences it cites (all specifications on the
 formal profile, the constitution on the informative one); the drift gate is green; no critical or
 important finding about the change is open. Everything else blocks nothing ([review.md](review.md) § Severity).

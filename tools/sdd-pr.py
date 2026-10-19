@@ -55,7 +55,7 @@ UNSORTED = "## Unsorted"
 KIND_ORDER = ("code", "tests", "other", "documents")
 WATERMARK = "harvested_through"
 DROPPED = "dropped by the maintainer"
-#: A posted suggestion a blocking line on its anchor took over: it stays, so its comment shows where it went.
+#: A suggestion a blocking line on its anchor took over: it stays, resolved, its words kept.
 MERGED = "merged into the blocking line on its anchor"
 DEFAULT_TEST_GLOBS = ("*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs")
 CODE_SUFFIXES = (
@@ -816,21 +816,32 @@ def _few(paths: List[str], limit: int = 10) -> str:
 ABSOLUTE = re.compile(r"\b(MUST|SHALL|REQUIRED)\b")
 
 
-def binding_lines(root: str, start: str, documents: List[str]) -> List[str]:
-    """`path:line` of each line the range added to its documents that states an absolute requirement: the
-    sentences the branch wrote or reworded, each owed a test that fails without its guard."""
-    if not start or not documents:
+def binding_homes(data: dict) -> List[str]:
+    """Where binding sentences live: the specifications folder, or the constitution on the informative
+    profile (methodology §1a)."""
+    if profile_of(data) == "informative":
+        return [str(_setting(data, "paths", "constitution") or gate().DEFAULT_CONSTITUTION)]
+    return [str(_setting(data, "paths", "specifications") or gate().DEFAULT_PATHS["specifications"]).rstrip("/")]
+
+
+def binding_lines(root: str, start: str, documents: List[str], homes: List[str]) -> List[str]:
+    """`path:line` of each line the range added to a reviewed document in ``homes`` that states an absolute
+    requirement: the MUSTs the branch wrote or reworded, each owed a test that fails without its guard. The
+    homes are diffed whole, so a file renamed inside them is paired with its old self, not read as new."""
+    wanted = {d for d in documents if any(d == h or d.startswith(h + "/") for h in homes)}
+    if not start or not wanted:
         return []
-    found, path, number = [], "", 0
-    for line in git(root, "diff", "--no-ext-diff", "-U0", start, "HEAD", "--", *documents).splitlines():
-        if line.startswith("+++ "):
+    found, path, number, header = [], "", 0, False
+    for line in git(root, "diff", "--no-ext-diff", "-U0", "-M", start, "HEAD", "--", *homes).splitlines():
+        if line.startswith("diff --git "):
+            header, path = True, ""
+        elif header and line.startswith("+++ "):
             target = line[4:].strip()
-            path = "" if target == "/dev/null" else (target[2:] if target.startswith("b/") else target)
-            continue
-        match = HUNK.match(line)
-        if match:
-            number = int(match.group(1))
-        elif line.startswith("+") and path:
+            path = target[2:] if target.startswith("b/") else target
+            path = path if path in wanted else ""
+        elif HUNK.match(line):
+            header, number = False, int(HUNK.match(line).group(1))
+        elif not header and line.startswith("+") and path:
             if ABSOLUTE.search(line):
                 found.append("%s:%d" % (path, number))
             number += 1
@@ -1651,7 +1662,7 @@ BRIEF = """# Review brief: {branch} at `{head}`
 - **Drift gate,** what the range added: {drift}
 - **Already settled on this branch:** {resolved}. Do not raise one again unless the change makes its
   reason untrue.
-- **Binding sentences this range wrote or reworded:** {binding}.
+- **MUST sentences this range wrote or reworded:** {binding}.
 - **sdd-pr** is `python3 {sdd_pr}`; a reviewer runs only
   `guard <path:line> --expect <text> --replace <text> -- <test command>`, which breaks one guard in a
   scratch copy and prints `pinned` (a test failed) or `untested`.
@@ -1698,7 +1709,7 @@ def cmd_start(session: Session, args) -> int:
     others = start_pass(session, args.agent)
     profile = profile_of(session.data)
     lane = lane_of(args, pr, normative_lines(session.root, start, files["documents"]), profile)
-    binding = binding_lines(session.root, start, files["documents"])
+    binding = binding_lines(session.root, start, files["documents"], binding_homes(session.data))
     head, root = session.head[:7], os.path.abspath(session.root)  # paths a subagent reads from anywhere
     out = os.path.join(root, ".sdd", "review", head)
     os.makedirs(out, exist_ok=True)
@@ -1711,6 +1722,10 @@ def cmd_start(session: Session, args) -> int:
         plan.append(("sdd-spec-conformance-reviewer", code,
                      "formal full lane, when the code implements a cited SPEC §" if profile == "formal"
                      else "only when the range touches what a constitution sentence binds"))
+    elif binding and profile == "formal":
+        # A MUST written with no code: the reviewer reads the code the sentence describes.
+        written = sorted({b.rsplit(":", 1)[0] for b in binding})
+        plan.append(("sdd-spec-conformance-reviewer", written, "a MUST changed with no code"))
     if files["documents"]:
         plan.append(("sdd-doc-reviewer", files["documents"],
                      "consistency" if profile == "informative" or lane.startswith("maintenance") else
@@ -2110,11 +2125,16 @@ def _same(a: Finding, b: Finding) -> bool:
         and a.text.casefold().rstrip(" .") == b.text.casefold().rstrip(" .")
 
 
+def _names(finding: Finding) -> set:
+    return {n.strip() for n in finding.fields.get("by", "").split(",") if n.strip()}
+
+
 def _covers(blocking: Finding, minor: Finding) -> bool:
-    """A suggestion on the line a blocking finding names, in any words: two reviewers on one defect, the
-    lower grade folded into the higher (references/review.md § Severity)."""
+    """Another reviewer's suggestion on the line a blocking finding names, in any words: one defect graded
+    twice, the lower grade folded into the higher (references/review.md § Severity). One reviewer's own
+    suggestion there is a second point and stays."""
     return blocking.status == "open" and minor.status == "suggestion" and bool(blocking.line) \
-        and blocking.anchor == minor.anchor
+        and blocking.anchor == minor.anchor and not (_names(blocking) & _names(minor))
 
 
 def _merge_by(into: Finding, other: Finding) -> None:
@@ -2164,19 +2184,20 @@ def cmd_add(session: Session, args) -> int:
                 print("add: the branch changed %s, so the finding blocks; `outside` dropped" % finding.anchor,
                       file=sys.stderr)
     added = merged = 0
+    batch = []  # the lines this call added, so one folded away later is not counted twice
     for finding in new:
         twin = next((f for f in session.fs.items if _same(f, finding) or _covers(f, finding)), None)
         if twin is None:
             for minor in [f for f in session.fs.items if _covers(finding, f)]:
-                # A blocking line takes the place of a suggestion on its anchor; a posted one stays,
-                # resolved, so its comment shows where it went.
+                # A blocking line takes over a suggestion on its anchor. The suggestion stays, resolved, so
+                # its words are kept and a posted one's comment shows where it went.
                 _merge_by(finding, minor)
-                if minor.fields.get("comment"):
-                    minor.status, minor.fields["deferred"] = "deferred", MERGED
-                else:
-                    session.fs.items.remove(minor)
+                minor.status, minor.fields["deferred"] = "deferred", MERGED
+                if any(minor is f for f in batch):
+                    added -= 1
                 merged += 1
             session.fs.items.append(finding)
+            batch.append(finding)
             added += 1
             continue
         # One defect graded twice: the higher severity, and blocking unless both put it outside the change.

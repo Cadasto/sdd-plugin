@@ -7,14 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- Tools: `sdd-pr start` lists in the brief the binding sentences (MUST, SHALL, REQUIRED) the range added or reworded, and the `guard` command's form.
+- Tools: `sdd-pr start` lists in the brief the MUST, SHALL and REQUIRED lines the range added or reworded in the specifications (the constitution on the informative profile) and the `guard` command's form; such a line with no code changed still plans the conformance reviewer.
 - Tools: `agents.skip`, path patterns whose changes no reviewer reads; `start` names them, at most ten, under `not reviewed:`.
 
 ### Changed
 - Agents: `sdd-spec-conformance-reviewer` proves a guard for each binding sentence the brief lists, and for at most three older ones whose guard or test the range changed.
-- Tools: `sdd-pr add` folds a suggestion into a blocking line on its anchor, whatever its words; a posted one stays as `- [~]`.
+- Tools: `sdd-pr add` folds another reviewer's suggestion into a blocking line on its anchor, whatever its words, and keeps it as `- [~]`.
 - Tools: the review brief carries the severity floors: a defect a caller can trigger is at least important; a document line is important only when a reader would build or test the wrong thing.
 - References: `review.md` § Severity gives behaviour a caller can trigger an important floor and makes a keyword missing from a sentence the code meets no lead; § Scope names `agents.skip`.
+- References: methodology §13's merge gate asks a can-fail test for each MUST the change wrote or reworded.
+- Agents: `sdd-doc-reviewer` no longer raises a missing RFC-2119 keyword.
 - Skills: `sdd-scaffold` suggests `reviewers` for `go.mod` as a block map of `"**/*.go"` and `"**/go.mod"`, so the Go reviewer reads no data or fixtures.
 
 ### Fixed
