@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Tools: `sdd-pr start` lists in the brief the MUST, SHALL and REQUIRED lines the range added or reworded in the specifications (the constitution on the informative profile) and the `guard` command's form; such a line with no code changed still plans the conformance reviewer.
+- Tools: `agents.skip`, path patterns whose changes no reviewer reads; `start` names them, at most ten, under `not reviewed:`.
+
+### Changed
+- Agents: `sdd-spec-conformance-reviewer` proves a guard for each binding sentence the brief lists, and for at most three older ones whose guard or test the range changed.
+- Tools: `sdd-pr add` folds another reviewer's suggestion into a blocking line on its anchor, whatever its words, and keeps it as `- [~]`.
+- Tools: the review brief carries the severity floors: a defect a caller can trigger is at least important; a document line is important only when a reader would build or test the wrong thing.
+- References: `review.md` § Severity gives behaviour a caller can trigger an important floor and makes a keyword missing from a sentence the code meets no lead; § Scope names `agents.skip`.
+- References: methodology §13's merge gate asks a can-fail test for each MUST the change wrote or reworded.
+- Agents: `sdd-doc-reviewer` no longer raises a missing RFC-2119 keyword.
+- Skills: `sdd-scaffold` suggests `reviewers` for `go.mod` as a block map of `"**/*.go"` and `"**/go.mod"`, so the Go reviewer reads no data or fixtures.
+
+### Fixed
+- Tools: a refusal that names another worktree prints the command to run there, `sdd-pr --root <path> <command>`, since `--root` goes before the command.
+- Skills: `sdd-review --panel` names the flags `sdd-pr scope` takes, which has no `--agent` without `--since-last` and no `--lane`.
+
 ## [0.14.0] - 2026-10-13
 
 The close-out is its own skill, `/sdd-close`: it ships the requirement in the pull request, asks once whether to carry leftovers into that pull request, and after the merge runs `sdd-pr clean`. `/sdd-deliver` ends at the maintainer's review. `sdd-check` changed only its version number. Moving a repository from 0.13.x is described in `docs/upgrading.md`.

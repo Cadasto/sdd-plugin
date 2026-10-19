@@ -180,6 +180,7 @@ sdd:
     worktree_per_worker: false      # true: each parallel worker on its own branch and worktree, merged; false: one shared branch
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
     reviewers: []                   # this repo's own language reviewers, by agent name; or a map of path patterns to names
+    skip: []                        # path patterns no reviewer reads (a vendored corpus, fixture data), e.g. ["testdata/**"]
     task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
     review_panel:                   # who reviews the PR, per lane; a host that loads the plugin gets `/sdd-review --pr N`
       full: [claude, cursor]

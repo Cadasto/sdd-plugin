@@ -1004,7 +1004,8 @@ class TestCheckout(GitHubCase):
             self.assertEqual(2, code, (command, out))
             self.assertIn("pull request 7 is feat/y", err)
             self.assertIn("this checkout is feat/x", err)
-            self.assertIn("--root /wt/pr-7", err)
+            # --root goes before the command, so the hint is the command to run.
+            self.assertIn("sdd-pr --root /wt/pr-7 %s" % command, err)
         self.assertTrue(self.nothing_written())
 
     def test_a_checkout_that_holds_the_pull_requests_head_is_accepted_under_another_name(self):
@@ -1642,6 +1643,52 @@ class TestAdd(RepoCase):
         self.assertEqual(1, len(fs.open))
         self.assertEqual("claude, cursor", fs.open[0].fields["by"])
         self.assertIn("1 merged", out)
+
+    def test_a_suggestion_on_a_blocking_lines_anchor_folds_into_it(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OPEN_IMPORTANT)
+        self.use(git_routes())
+        code, out, err = self.run_main("add", "suggestion", "a.go:5", "the retry could honour a deadline", "--by", "cursor")
+        self.assertEqual(0, code, err)
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual(([], "claude, cursor"), (fs.suggestions, fs.open[0].fields["by"]))
+        self.assertIn("1 merged", out)
+        # One reviewer's own suggestion on its blocking line is a second point, not a second grade.
+        self.run_main("add", "suggestion", "a.go:5", "cache the regexp", "--by", "claude")
+        self.assertEqual(["cache the regexp"], [f.text for f in sdd_pr.parse(self.read_findings()).suggestions])
+        # Two blocking lines on one anchor may be two defects: both stay.
+        self.run_main("add", "critical", "a.go:5", "the retry leaks its timer", "--evidence", "ran it", "--by", "cursor")
+        self.assertEqual(2, len(sdd_pr.parse(self.read_findings()).open))
+
+    def test_a_batch_counts_each_line_once(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        lines = ("- b.go:4 · the handle could be pooled · by: cursor\n"
+                 "- [ ] important · b.go:4 · the handle leaks · evidence: ran it · by: go-reviewer\n")
+        with mock.patch("sys.stdin", io.StringIO(lines)):
+            code, out, err = self.run_main("add", "-")
+        self.assertEqual(0, code, err)
+        self.assertIn("add: 1 added, 1 merged", out)
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual(([], "go-reviewer, cursor"), (fs.suggestions, fs.open[0].fields["by"]))
+
+    def test_a_blocking_line_takes_the_place_of_a_suggestion_on_its_anchor(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN.replace("- a.go:9 · rename `n` to `count` · by: claude\n",
+                                         "- a.go:9 · rename `n` to `count` · by: claude\n- a.go:12 · log it · by: claude · comment: 77\n"))
+        self.use(git_routes())
+        for anchor in ("a.go:9", "a.go:12"):
+            code, _, err = self.run_main("add", "important", anchor, "n shadows the loop counter",
+                                         "--evidence", "TestLoop fails", "--by", "cursor")
+            self.assertEqual(0, code, err)
+        fs = sdd_pr.parse(self.read_findings())
+        self.assertEqual([("a.go:9", "cursor, claude"), ("a.go:12", "cursor, claude")],
+                         [(f.anchor, f.fields["by"]) for f in fs.open])
+        # Each suggestion stays, resolved, its words kept; a posted one's comment shows where it went.
+        self.assertEqual([], fs.suggestions)
+        merged = [f for f in fs.resolved if f.severity == "suggestion"]
+        self.assertEqual([("a.go:9", sdd_pr.MERGED), ("a.go:12", sdd_pr.MERGED)],
+                         [(f.anchor, f.fields["deferred"]) for f in merged])
 
     def test_add_refuses_lines_that_would_not_read_back(self):
         self.descriptor(forge="none")
@@ -3272,6 +3319,70 @@ class TestStart(GitHubCase):
         code, out, _ = self.run_main("start", "--agent", "claude", "--since-last")
         self.assertEqual(0, code)
         self.assertIn("range: empty", out)
+
+    def test_the_brief_lists_only_the_musts_the_range_wrote(self):
+        # A conformance reviewer proves a guard for each MUST the branch added or reworded in a
+        # specification, not for every older one: a SHOULD, a removed MUST, a hunk header, a renamed file
+        # with no change, a README and a content line that reads like a file header are no such sentence.
+        self.descriptor(forge="none")
+        hunks = ("diff --git a/docs/specifications/old.md b/docs/specifications/new.md\nsimilarity index 100%\n"
+                 "rename from docs/specifications/old.md\nrename to docs/specifications/new.md\n"
+                 "diff --git a/docs/specifications/s.md b/docs/specifications/s.md\n"
+                 "--- a/docs/specifications/s.md\n+++ b/docs/specifications/s.md\n@@ -3,2 +3,4 @@ ## A client MUST wait\n"
+                 "-The client MUST retry twice.\n-Old text.\n+The client SHOULD log.\n+++ not a header\n"
+                 "+See below.\n+The server MUST NOT retry.\n"
+                 "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n+A token MUST expire.\n"
+                 "diff --git a/docs/specifications/t.md b/docs/specifications/t.md\nnew file mode 100644\n"
+                 "--- /dev/null\n+++ b/docs/specifications/t.md\n@@ -0,0 +10 @@\n+A token SHALL expire.\n")
+        seen = []
+
+        def diff(argv, stdin):
+            seen.append(argv)
+            return hunks
+
+        names = "a.go\ndocs/specifications/new.md\ndocs/specifications/s.md\ndocs/specifications/t.md\nREADME.md\n"
+        self.use([(git("diff", "--no-ext-diff", "-U0"), diff)] + git_routes(names=names, diff="DIFF"))
+        code, _, err = self.run_main("start", "--agent", "claude", "--lane", "full")
+        self.assertEqual(0, code, err)
+        brief = (self.root / ".sdd" / "review" / HEAD[:7] / "brief.md").read_text(encoding="utf-8")
+        self.assertIn("**MUST sentences this range wrote or reworded:** `docs/specifications/s.md:6`, "
+                      "`docs/specifications/t.md:10`.", brief)
+        self.assertIn("guard <path:line> --expect <text> --replace <text> -- <test command>", brief)
+        # The specifications folder is diffed whole, so git pairs a rename inside it.
+        self.assertIn(["-M", MB, "HEAD", "--", "docs/specifications"], [a[a.index("-M"):] for a in seen if "-M" in a])
+        # Only code changed: nothing to list.
+        self.use(git_routes(names="a.go\n", diff="DIFF"))
+        self.run_main("start", "--agent", "claude", "--lane", "full")
+        brief = (self.root / ".sdd" / "review" / HEAD[:7] / "brief.md").read_text(encoding="utf-8")
+        self.assertIn("**MUST sentences this range wrote or reworded:** none.", brief)
+
+    def test_a_must_written_with_no_code_still_gets_the_conformance_reviewer(self):
+        self.descriptor(forge="none")
+        hunks = ("diff --git a/docs/specifications/s.md b/docs/specifications/s.md\n--- a/docs/specifications/s.md\n"
+                 "+++ b/docs/specifications/s.md\n@@ -4 +4 @@\n+A token MUST expire.\n")
+        self.use([(git("diff", "--no-ext-diff", "-U0"), hunks)]
+                 + git_routes(names="docs/specifications/s.md\n", diff="DIFF"))
+        code, out, err = self.run_main("start", "--agent", "claude", "--lane", "full")
+        self.assertEqual(0, code, err)
+        self.assertIn("- sdd-spec-conformance-reviewer: %s (1 file); a MUST changed with no code"
+                      % (self.root / ".sdd" / "review" / HEAD[:7] / "diff-sdd-spec-conformance-reviewer.patch"), out)
+        # can-fail control: a document change that wrote no MUST plans no conformance reviewer.
+        self.use(git_routes(names="docs/specifications/s.md\n", diff="DIFF"))
+        self.assertNotIn("sdd-spec-conformance-reviewer", self.run_main("start", "--agent", "claude", "--lane", "full")[1])
+
+    def test_paths_agents_skip_names_go_to_no_reviewer(self):
+        self.descriptor(forge="none", extra="  agents:\n    reviewers: [go-reviewer]\n    skip: [\"testdata/**\"]\n")
+        corpus = ["testdata/case%02d.robot" % n for n in range(12)]
+        self.use(git_routes(names="\n".join(["a.go", "a_test.go"] + corpus) + "\n", diff="DIFF"))
+        code, out, err = self.run_main("start", "--agent", "claude", "--lane", "full")
+        self.assertEqual(0, code, err)
+        self.assertIn("- go-reviewer: %s (2 files)" % (self.root / ".sdd" / "review" / HEAD[:7] / "diff-go-reviewer.patch"),
+                      out)
+        self.assertIn("not reviewed: %s and 2 more\n" % " ".join(corpus[:10]), out)
+        self.use(git_routes(names="\n".join(corpus) + "\n"))
+        _, out, _ = self.run_main("scope")
+        self.assertNotIn("reviewer go-reviewer", out)
+        self.assertIn("skipped: testdata/case00.robot", out)
 
     def test_start_wants_a_descriptor_and_names_a_missing_agents_block(self):
         self.use(git_routes(names="a.go\n", diff="DIFF"))

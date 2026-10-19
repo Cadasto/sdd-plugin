@@ -24,7 +24,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 from urllib.parse import unquote
 
 try:
@@ -55,6 +55,8 @@ UNSORTED = "## Unsorted"
 KIND_ORDER = ("code", "tests", "other", "documents")
 WATERMARK = "harvested_through"
 DROPPED = "dropped by the maintainer"
+#: A suggestion a blocking line on its anchor took over: it stays, resolved, its words kept.
+MERGED = "merged into the blocking line on its anchor"
 DEFAULT_TEST_GLOBS = ("*_test.go", "test_*.py", "*_test.py", "*Test.php", "*.test.ts", "*.spec.ts", "*_test.rs")
 CODE_SUFFIXES = (
     ".go", ".py", ".php", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".rs", ".java", ".kt", ".kts",
@@ -708,10 +710,12 @@ def worktree_of(root: str, branch: str) -> str:
     return ""
 
 
-def elsewhere(root: str, branch: str) -> str:
-    """How to reach ``branch``: its worktree's --root, or a checkout of it."""
+def elsewhere(root: str, branch: str, command: str = "") -> str:
+    """How to reach ``branch``: the command again from its worktree (--root goes before the command), or a
+    checkout of it."""
     path = worktree_of(root, branch)
-    return "pass --root %s" % path if path else "check out %s, or pass --root with its worktree" % branch
+    return ("run it there: sdd-pr --root %s %s …" % (path, command or "<command>") if path
+            else "check out %s, or run sdd-pr --root <its worktree> %s …" % (branch, command or "<command>"))
 
 
 def resolve_sha(root: str, sha: str) -> str:
@@ -798,8 +802,50 @@ def diff_start(root: str, base: str, rng: Optional[str]) -> Tuple[str, str]:
                    "2.38): the base's changes are in the range" % (start[:12], base))
 
 
-KINDS = ("code", "tests", "documents", "other", "vendored", "plans")
+KINDS = ("code", "tests", "documents", "other", "vendored", "plans", "skipped")
 RFC2119 = re.compile(r"\b(MUST|SHALL|SHOULD|MAY|REQUIRED|RECOMMENDED|OPTIONAL)\b")
+
+
+def _few(paths: List[str], limit: int = 10) -> str:
+    """Paths no reviewer reads, named only so far: a skipped corpus can run to thousands."""
+    more = len(paths) - limit
+    return " ".join(paths[:limit]) + (" and %d more" % more if more > 0 else "")
+
+
+#: An absolute requirement (RFC 2119 §1, §2): a sentence a test must pin, so a guard run proves it.
+ABSOLUTE = re.compile(r"\b(MUST|SHALL|REQUIRED)\b")
+
+
+def binding_homes(data: dict) -> List[str]:
+    """Where binding sentences live: the specifications folder, or the constitution on the informative
+    profile (methodology §1a)."""
+    if profile_of(data) == "informative":
+        return [str(_setting(data, "paths", "constitution") or gate().DEFAULT_CONSTITUTION)]
+    return [str(_setting(data, "paths", "specifications") or gate().DEFAULT_PATHS["specifications"]).rstrip("/")]
+
+
+def binding_lines(root: str, start: str, documents: List[str], homes: List[str]) -> List[str]:
+    """`path:line` of each line the range added to a reviewed document in ``homes`` that states an absolute
+    requirement: the MUSTs the branch wrote or reworded, each owed a test that fails without its guard. The
+    homes are diffed whole, so a file renamed inside them is paired with its old self, not read as new."""
+    wanted = {d for d in documents if any(d == h or d.startswith(h + "/") for h in homes)}
+    if not start or not wanted:
+        return []
+    found, path, number, header = [], "", 0, False
+    for line in git(root, "diff", "--no-ext-diff", "-U0", "-M", start, "HEAD", "--", *homes).splitlines():
+        if line.startswith("diff --git "):
+            header, path = True, ""
+        elif header and line.startswith("+++ "):
+            target = line[4:].strip()
+            path = target[2:] if target.startswith("b/") else target
+            path = path if path in wanted else ""
+        elif HUNK.match(line):
+            header, number = False, int(HUNK.match(line).group(1))
+        elif not header and line.startswith("+") and path:
+            if ABSOLUTE.search(line):
+                found.append("%s:%d" % (path, number))
+            number += 1
+    return found
 
 
 def normative_lines(root: str, start: str, documents: List[str]) -> int:
@@ -832,9 +878,10 @@ def _is_plan(root: str, path: str, start: str = "") -> bool:
 
 
 def changed_files(root: str, rng: Optional[str], globs: List[str], vendored: str = "",
-                  start: str = "") -> Dict[str, List[str]]:
+                  start: str = "", skip: Sequence[str] = ()) -> Dict[str, List[str]]:
     """The range's paths by kind, diffed from ``start`` (diff_start) when given. The vendored gate is
-    upstream code and a plan a working file: both are kept apart, so no reviewer reads them."""
+    upstream code, a plan a working file, and a path `agents.skip` names one the repository keeps out of
+    review: all three are kept apart, so no reviewer reads them."""
     files: Dict[str, List[str]] = {kind: [] for kind in KINDS}
     if not rng:
         return files
@@ -844,7 +891,8 @@ def changed_files(root: str, rng: Optional[str], globs: List[str], vendored: str
         if not path:
             continue
         vendored_here = os.path.normpath(path) == vendored and not _patched(root, path)
-        kind = "vendored" if vendored_here else kind_of(path, globs)
+        kind = ("vendored" if vendored_here else "skipped" if any(_matches(path, g) for g in skip)
+                else kind_of(path, globs))
         if kind == "documents" and _is_plan(root, path, rng.split("..")[0]):
             kind = "plans"
         files[kind].append(path)
@@ -1314,7 +1362,7 @@ class Session:
             if checked or tip != self.head:
                 raise CheckoutError("--branch %s is not this checkout (%s at %s); %s"
                                     % (args.branch, checked or "detached HEAD", self.head[:7],
-                                       elsewhere(self.root, args.branch)))
+                                       elsewhere(self.root, args.branch, getattr(args, "command", ""))))
         self.branch = args.branch or checked
         if not self.branch and getattr(args, "command", "") == "clean":
             self.branch = DETACHED  # clean names its branch, or reads it from --pr
@@ -1325,6 +1373,9 @@ class Session:
         self.data = descriptor_data(self.descriptor)
         self.globs = test_globs(self.descriptor)
         self.vendored = str(_setting(self.data, "check", "script") or "scripts/sdd-check.py")
+        skip = _setting(self.data, "agents", "skip")
+        self.skip = [str(g) for g in (skip if isinstance(skip, list) else [skip] if skip else [])]
+        self.command = getattr(args, "command", "") or ""
         pinned = str(_setting(self.data, "check", "version") or "")
         #: Set when this plugin is older than the one that last upgraded the repository.
         self.stale = ("sdd-pr %s is older than this repository (%s): update the plugin; it would write an "
@@ -1373,7 +1424,7 @@ class Session:
                     if not self.holds(pr["head"]):
                         raise CheckoutError("pull request %d is %s at %s; this checkout is %s at %s; %s"
                                             % (pr["number"], pr["branch"], pr["head"][:7], self.branch,
-                                               self.head[:7], elsewhere(self.root, pr["branch"])))
+                                               self.head[:7], elsewhere(self.root, pr["branch"], self.command)))
                     self._rekey(pr["branch"])
                 self._pr = pr
             else:
@@ -1485,7 +1536,7 @@ def cmd_scope(session: Session, args) -> int:
     rng = review_range(session.root, session.fs, session.base(), session.head,
                        since_last=args.since_last, agent=args.agent or "")
     start, widened = diff_start(session.root, session.base(), rng)
-    files = changed_files(session.root, rng, session.globs, session.vendored, start)
+    files = changed_files(session.root, rng, session.globs, session.vendored, start, session.skip)
     reviewers, unassigned = reviewers_for(session.data, files)
     notes = [widened] if widened else []
     agent = _clean(args.agent or "").replace(":", "-")
@@ -1524,7 +1575,7 @@ def cmd_scope(session: Session, args) -> int:
         print("normative lines changed: %d" % normative)
     for kind in KINDS:
         if files[kind]:
-            print("%s: %s" % (kind, " ".join(files[kind])))
+            print("%s: %s" % (kind, _few(files[kind]) if kind == "skipped" else " ".join(files[kind])))
     for name, paths in reviewers.items():
         print("reviewer %s: %s" % (name, " ".join(paths)))
     if unassigned:
@@ -1611,9 +1662,15 @@ BRIEF = """# Review brief: {branch} at `{head}`
 - **Drift gate,** what the range added: {drift}
 - **Already settled on this branch:** {resolved}. Do not raise one again unless the change makes its
   reason untrue.
-- **sdd-pr** is `python3 {sdd_pr}`; for a reviewer it only proves a guard (`guard`).
-- **Severity and scope** are `{review_md}` § Severity and § Scope: by harm wherever the line is; a defect
-  in code or a document the branch did not change keeps its severity and ends ` · outside`.
+- **MUST sentences this range wrote or reworded:** {binding}.
+- **sdd-pr** is `python3 {sdd_pr}`; a reviewer runs only
+  `guard <path:line> --expect <text> --replace <text> -- <test command>`, which breaks one guard in a
+  scratch copy and prints `pinned` (a test failed) or `untested`.
+- **Severity and scope** are `{review_md}` § Severity and § Scope: by harm wherever the line is; wrong
+  behaviour a caller can trigger is at least important; a document line is important only when a reader
+  would build or test the wrong thing from it. A defect in code or a document the branch did not change
+  keeps its severity and ends ` · outside`. No lead: a keyword missing from a sentence the code meets, a
+  comment's wording.
 - **Return** one verdict line (`CLEAN`, or `<n> critical, <m> important, <s> suggestions`), then one fenced
   block of finding lines, then one **Coverage** line (what you read and ran, and what you could not check):
 
@@ -1647,11 +1704,12 @@ def cmd_start(session: Session, args) -> int:
         print("range: empty; nothing to review since the last pass (sdd-pr status)")
         return 0
     start, widened = diff_start(session.root, session.base(), rng)
-    files = changed_files(session.root, rng, session.globs, session.vendored, start)
+    files = changed_files(session.root, rng, session.globs, session.vendored, start, session.skip)
     reviewers, unassigned = reviewers_for(session.data, files)
     others = start_pass(session, args.agent)
     profile = profile_of(session.data)
     lane = lane_of(args, pr, normative_lines(session.root, start, files["documents"]), profile)
+    binding = binding_lines(session.root, start, files["documents"], binding_homes(session.data))
     head, root = session.head[:7], os.path.abspath(session.root)  # paths a subagent reads from anywhere
     out = os.path.join(root, ".sdd", "review", head)
     os.makedirs(out, exist_ok=True)
@@ -1664,6 +1722,10 @@ def cmd_start(session: Session, args) -> int:
         plan.append(("sdd-spec-conformance-reviewer", code,
                      "formal full lane, when the code implements a cited SPEC §" if profile == "formal"
                      else "only when the range touches what a constitution sentence binds"))
+    elif binding and profile == "formal":
+        # A MUST written with no code: the reviewer reads the code the sentence describes.
+        written = sorted({b.rsplit(":", 1)[0] for b in binding})
+        plan.append(("sdd-spec-conformance-reviewer", written, "a MUST changed with no code"))
     if files["documents"]:
         plan.append(("sdd-doc-reviewer", files["documents"],
                      "consistency" if profile == "informative" or lane.startswith("maintenance") else
@@ -1702,6 +1764,7 @@ def cmd_start(session: Session, args) -> int:
         handle.write(BRIEF.format(branch=session.branch, head=head, range="%s..HEAD" % rng.split("..")[0][:12],
                                   start=start[:12], profile=profile,
                                   lane=lane.split(" (")[0], gate=gate, drift=drift_line, resolved=resolved,
+                                  binding=", ".join("`%s`" % b for b in binding) or "none",
                                   sdd_pr=os.path.join(here, "sdd-pr.py"),
                                   review_md=os.path.join(os.path.dirname(here), "references", "review.md")))
 
@@ -1722,9 +1785,9 @@ def cmd_start(session: Session, args) -> int:
     print("dispatch, in parallel, each with \"Read <brief>; your hunks: <patch>\":")
     print("\n".join(rows) if rows else "- nobody: no code, tests, other files or documents changed")
     if unassigned:
-        print("no reviewer: %s" % " ".join(unassigned))
-    if files["vendored"] or files["plans"]:
-        print("not reviewed: %s" % " ".join(files["vendored"] + files["plans"]))
+        print("no reviewer: %s" % _few(unassigned))
+    if files["vendored"] or files["plans"] or files["skipped"]:
+        print("not reviewed: %s" % _few(files["vendored"] + files["plans"] + files["skipped"]))
     return 0
 
 
@@ -1741,7 +1804,7 @@ def cmd_status(session: Session, args) -> int:
     last = fs.last_reviewed_sha()
     rng = review_range(session.root, fs, session.base(), session.head, since_last=True)
     start, widened = diff_start(session.root, session.base(), rng)
-    files = changed_files(session.root, rng, session.globs, session.vendored, start)
+    files = changed_files(session.root, rng, session.globs, session.vendored, start, session.skip)
     code_changed = bool(files["code"] or files["tests"] or files["other"])
     changed = code_changed or bool(files["documents"])
     since = "code changed" if code_changed else "documents changed" if changed else "no change"
@@ -2062,6 +2125,25 @@ def _same(a: Finding, b: Finding) -> bool:
         and a.text.casefold().rstrip(" .") == b.text.casefold().rstrip(" .")
 
 
+def _names(finding: Finding) -> set:
+    return {n.strip() for n in finding.fields.get("by", "").split(",") if n.strip()}
+
+
+def _covers(blocking: Finding, minor: Finding) -> bool:
+    """Another reviewer's suggestion on the line a blocking finding names, in any words: one defect graded
+    twice, the lower grade folded into the higher (references/review.md § Severity). One reviewer's own
+    suggestion there is a second point and stays."""
+    return blocking.status == "open" and minor.status == "suggestion" and bool(blocking.line) \
+        and blocking.anchor == minor.anchor and not (_names(blocking) & _names(minor))
+
+
+def _merge_by(into: Finding, other: Finding) -> None:
+    names = [n.strip() for n in into.fields.get("by", "").split(",") if n.strip()]
+    names += [n for n in (x.strip() for x in other.fields.get("by", "").split(",")) if n and n not in names]
+    if names:
+        into.fields["by"] = ", ".join(names)
+
+
 def cmd_add(session: Session, args) -> int:
     if args.finding == ["-"]:
         # A reviewer's fence is piped as it is: its ``` lines are not findings.
@@ -2102,20 +2184,27 @@ def cmd_add(session: Session, args) -> int:
                 print("add: the branch changed %s, so the finding blocks; `outside` dropped" % finding.anchor,
                       file=sys.stderr)
     added = merged = 0
+    batch = []  # the lines this call added, so one folded away later is not counted twice
     for finding in new:
-        twin = next((f for f in session.fs.items if _same(f, finding)), None)
+        twin = next((f for f in session.fs.items if _same(f, finding) or _covers(f, finding)), None)
         if twin is None:
+            for minor in [f for f in session.fs.items if _covers(finding, f)]:
+                # A blocking line takes over a suggestion on its anchor. The suggestion stays, resolved, so
+                # its words are kept and a posted one's comment shows where it went.
+                _merge_by(finding, minor)
+                minor.status, minor.fields["deferred"] = "deferred", MERGED
+                if any(minor is f for f in batch):
+                    added -= 1
+                merged += 1
             session.fs.items.append(finding)
+            batch.append(finding)
             added += 1
             continue
         # One defect graded twice: the higher severity, and blocking unless both put it outside the change.
         twin.severity = min(twin.severity, finding.severity, key=SEVERITIES.index)
-        if "outside" not in finding.flags:
+        if "outside" not in finding.flags and finding.status == "open":
             twin.flags = [flag for flag in twin.flags if flag != "outside"]
-        names = [n.strip() for n in twin.fields.get("by", "").split(",") if n.strip()]
-        names += [n for n in (x.strip() for x in finding.fields.get("by", "").split(",")) if n and n not in names]
-        if names:
-            twin.fields["by"] = ", ".join(names)
+        _merge_by(twin, finding)
         for key in ("evidence", "fix"):
             if finding.fields.get(key) and not twin.fields.get(key):
                 twin.fields[key] = finding.fields[key]
