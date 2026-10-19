@@ -1675,8 +1675,8 @@ BRIEF = """# Review brief: {branch} at `{head}`
   block of finding lines, then one **Coverage** line (what you read and ran, and what you could not check):
 
   ```
-  - [ ] <critical|important> · <path>:<line> · <one sentence> · evidence: <what you ran or quoted> · fix: <one line> · by: <your name>
-  - <path>:<line> · <one sentence> · by: <your name>
+  - [ ] <critical|important> · <path>:<line> · <one sentence, at most 30 words> · evidence: <what you ran or quoted> · fix: <one line> · by: <your name>
+  - <path>:<line> · <one sentence, at most 30 words> · by: <your name>
   ```
 """
 
@@ -1808,6 +1808,9 @@ def cmd_status(session: Session, args) -> int:
     code_changed = bool(files["code"] or files["tests"] or files["other"])
     changed = code_changed or bool(files["documents"])
     since = "code changed" if code_changed else "documents changed" if changed else "no change"
+    # A fix that wrote a binding sentence is reviewed like code (review.md § Passes); any other document
+    # change, the close-out's own commit among them, steers nothing.
+    review_due = code_changed or bool(binding_lines(session.root, start, files["documents"]))
     print("branch %s · base %s · head %s · last reviewed %s (%s since)"
           % (session.branch, session.base(), session.head[:7], (last or "none")[:7], since))
     print("findings: %s" % session.path)
@@ -1838,10 +1841,9 @@ def cmd_status(session: Session, args) -> int:
     # The budget (review.md § Passes): the pass before the maintainer's review, which is a `maintainer`
     # pass (pull writes one for their threads), and one pass over the fixes after it.
     reviewed = [i for i, p in enumerate(fs.passes) if p[2] == "maintainer"]
-    if code_changed and reviewed and fs.passes[reviewed[-1] + 1:]:
+    if review_due and reviewed and fs.passes[reviewed[-1] + 1:]:
         print("passes: the budget is spent; only a new critical finding reopens review")
-    elif code_changed and reviewed:
-        # Steers Next only. A change to documents alone does not steer: the close-out's own commit is one.
+    elif review_due and reviewed:
         nxt = nxt or "/sdd-review --since-last"
     elif not last and changed:
         reasons.append("not reviewed yet")

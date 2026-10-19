@@ -130,7 +130,7 @@ is as of its `from:`, and nobody refreshes it. An item is a lead, not a finding:
 ## Passes
 
 One pass before the maintainer's review (its `maintainer` line), and after each such review at most one
-`--since-last` pass over the fixes, a document-only fix included, dispatching only the reviewers whose file kinds changed.
+`--since-last` pass over the fixes that changed code or wrote a binding sentence, dispatching only the reviewers whose file kinds changed.
 After that only a new critical finding reopens review; otherwise the orchestrator stops and shows the open
 list. A second opinion the maintainer asks for is outside this budget.
 
@@ -149,7 +149,7 @@ the pull request's head works on that pull request's file. `add --help` prints t
 request. A plugin older than the repository's `check.version` refuses every write, and `status` says so.
 
 - `status [--pr N]` — the file's path, the open counts, and each open line and suggestion
-  with a `#key` that no other line's flip moves;
+  with a `#key`;
   on a forge, the threads the file does not know and the checks;
   then `Mergeable: yes` or `Mergeable: no — <reasons>` (no pull request, a closed one or an unreachable
   forge is a reason), and `Next: <command>`: `post` while a line is not on the pull request, `/sdd-triage` while one blocks,
