@@ -87,7 +87,7 @@ The skill runs as the orchestrator and stops at each gate:
 5. **First review pass.** After the full gate, `/sdd-review` reads the branch and writes its findings into the branch's findings file; `sdd-pr status` prints where it is. `/sdd-triage` fixes the critical and important ones in the change before any pull request exists; one in code the branch did not change is marked `outside` and fixed only if you say so.
 6. **Pull request.** Opened ready for review (ask for a draft if you want one), with `Lane: full` under *Spec and traceability*. Anything still blocking is mirrored to its inline threads; the rest goes in one comment.
 
-It prints one line per entry in `agents.review_panel.full`, such as `cursor: /sdd-review --pr 7`; run each in that host for a second opinion. Then it stops and waits for you.
+Then it stops and waits for your review.
 
 Check: `python3 <plugin root>/tools/sdd-pr.py status` prints the open counts, `Mergeable:` and `Next:`.
 

@@ -243,7 +243,8 @@ class TestYamlSubset(unittest.TestCase):
         self.assertEqual("error", descriptor["check"]["families"]["descriptor"])
         self.assertEqual("off", descriptor["check"]["families"]["draft-reason"])
         self.assertEqual([], descriptor["agents"]["worker_skills"])
-        self.assertEqual(["claude", "cursor"], descriptor["agents"]["review_panel"]["full"])
+        self.assertEqual([], descriptor["agents"]["skip"])
+        self.assertNotIn("review_panel", descriptor["agents"])
         record = sdd_check.load_yaml(blocks[1])["requirements"][0]
         self.assertEqual("REQ-040", record["id"])
         self.assertEqual(["PROBE-031", "PROBE-073"], record["probes"])

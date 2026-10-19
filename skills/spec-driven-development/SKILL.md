@@ -28,7 +28,7 @@ The **specification — not the code, not the prompt — is the source of truth.
 | Capture a capability, make behaviour normative, record a decision, amend a spec § | `sdd-specify` |
 | Deliver a change: the dispatch gate, workers, gates, the first review pass, the pull request | `sdd-deliver` |
 | Close out in the pull request (shipped, the PR body, ready); after the merge, remove the branch, its worktree and its findings | `sdd-close` |
-| A review pass (code, conformance, documents) into the findings file; panel prompts (`--panel`) | `sdd-review` |
+| A review pass (code, conformance, documents) into the findings file | `sdd-review` |
 | Work the open findings; now and then, carry merged pull requests' leftovers to the backlog and consolidate it (`--backlog`) | `sdd-triage` |
 | What is open, is it mergeable, what next | `sdd-pr status` (`tools/sdd-pr.py`) |
 | Traceability, drift, the drift gate, lint, a REQ's context (report-only); `--audit` for the isolated whole-tree audit | `sdd-trace` |

@@ -1,6 +1,6 @@
 # Review — the findings file, severities, evidence and the forge mirror
 
-The rules for every review of a change, by an agent, a panel host or the maintainer.
+The rules for every review of a change, whoever reviews it.
 
 ## The findings file
 
