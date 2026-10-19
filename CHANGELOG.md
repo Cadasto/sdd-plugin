@@ -23,6 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - References: `review.md` § Passes spends the pass over the fixes only on code or a written MUST, and says what counts as one; `artefact-prose.md` caps a finding at about 30 words and a PR body at about 300.
 - Skills: `sdd-close` writes the PR body in about 300 words besides the checklist; the review brief caps a finding's sentence at 30 words.
 - Templates: the PR body asks for a Summary of at most three sentences and at most three notes for review; `AGENTS.md` adds a write-short rule.
+- Agents: the `sdd-spec-conformance-reviewer`, `sdd-doc-reviewer` and `sdd-implementer` descriptions drop what their bodies and `sdd-review` already say.
+- Skills: `sdd-review` dispatches the conformance reviewer with no code changed only for a changed MUST, as `sdd-pr start` plans it.
 
 ### Fixed
 - Tools: a refusal that names another worktree prints the command to run there, `sdd-pr --root <path> <command>`, since `--root` goes before the command.

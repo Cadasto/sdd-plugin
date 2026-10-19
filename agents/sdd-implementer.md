@@ -1,10 +1,8 @@
 ---
 name: sdd-implementer
 description: >
-  Use this agent when one bounded task from a delivery brief needs implementing: it reads the
-  clauses the brief quotes, writes each test first and proves it can fail, cites REQ and PROBE ids in
-  test names and its commit message, verifies with the named command, commits the brief's files, and
-  returns En-route findings for anything wrong outside its scope. Typical triggers include one task
+  Use this agent when one bounded task from a delivery brief needs implementing: test first with a
+  can-fail proof, committed by path, with En-route findings for anything wrong outside its scope. Typical triggers include one task
   dispatched by the delivery driver, a parallel task beside other workers on one branch, and a fix
   decided during triage. Not for deciding what to build, an ad-hoc request with no brief (route to /sdd-deliver), or
   reviewing; it never dispatches other agents. See "When to invoke" in the agent body for worked scenarios.
