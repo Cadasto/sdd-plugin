@@ -1,6 +1,6 @@
 # Artefact prose economy — one home per fact
 
-The single-canonical-home rule ([sdd-methodology.md](sdd-methodology.md) §5) applied to the **process prose** around a change — the commit, the PR body, the changelog, and review threads and replies. Agent-to-agent workflows retell the same story three or four times (commit body ≈ PR body ≈ changelog ≈ review comment), and every retelling is a second source of truth: drift waiting to happen and noise for the next agent.
+The single-canonical-home rule ([sdd-methodology.md](sdd-methodology.md) §5) applied to the **process prose** around a change — the commit, the PR body, the changelog, and review threads and replies. Agent workflows retell one story in the commit body, the PR body, the changelog and the review comment, and every retelling is a second source of truth that drifts.
 
 > **Principle.** Each fact has exactly one home. Every other artefact **cites the identifier** — `REQ` / `SPEC §` / `ADR` / `PROBE` / commit SHA — instead of restating the prose. Prefer a citation over a paragraph.
 
@@ -31,6 +31,10 @@ Most of this text is written by one agent and read by another, so the test is wh
 **unambiguous and complete enough to act on**, not whether it is polished.
 
 - **Plain words. One idea per sentence.** No preamble, no summary of a summary.
+- **Length is a cost.** A word is paid for when written and again by every reader.
+  Lead with the result: a finding is one sentence of at most about 30 words, its evidence and
+  fix a clause each; a PR body is at most about 300 words besides its checklist; a report puts one item
+  on a line and quotes only the output that proves it.
 - **A citation beats a retelling.** "Implements `REQ-AUTH-003` / `SPEC-WIRE §4`; rationale in `ADR-0007`." — not a paragraph re-deriving the decision.
 - **Keep the essential once.** The *why* in the commit, the *review lens* in the PR, the *user-facing line* in the changelog, the *finding* in its thread. Everything that echoes a cited artefact is cut.
 - **Explain a term the first time it is used, or drop it.** A term that is neither explained nor droppable
