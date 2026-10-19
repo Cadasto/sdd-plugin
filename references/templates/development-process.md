@@ -107,7 +107,7 @@ writes it to `.github/PULL_REQUEST_TEMPLATE.md`:
 
 ```markdown
 ## Summary
-<What changed and why, in prose. Name the decisions taken and the alternatives not taken. Link the
+<What changed and why, in at most three sentences, with the decisions taken. Link the
 REQ / SPEC § anchors (formal) or the architecture sections (informative) the change implements or amends.>
 
 ## Spec and traceability            <!-- informative profile: "## Docs" -->
@@ -123,7 +123,7 @@ Lane: <full | maintenance — no normative change>     <!-- formal profile only 
 - per-task review: <tasks reviewed; findings fixed in-task, by severity>
 
 ## Notes for review                  <!-- omit when there is nothing to say -->
-- <where to look hardest; what is out of scope; a known gap left on purpose>
+- <at most three bullets: where to look hardest, what is out of scope, a known gap left on purpose>
 
 ## Checklist
 - [ ] Scoped to one logical change

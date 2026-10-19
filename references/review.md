@@ -130,7 +130,7 @@ is as of its `from:`, and nobody refreshes it. An item is a lead, not a finding:
 ## Passes
 
 One pass before the maintainer's review (its `maintainer` line), and after each such review at most one
-`--since-last` pass over the fixes, a document-only fix included, dispatching only the reviewers whose file kinds changed.
+`--since-last` pass over the fixes that changed code or wrote a MUST (a MUST, SHALL or REQUIRED line added to a specification, or to the constitution on the informative profile), dispatching only the reviewers whose file kinds changed.
 After that only a new critical finding reopens review; otherwise the orchestrator stops and shows the open
 list. A second opinion the maintainer asks for is outside this budget.
 
@@ -149,11 +149,11 @@ the pull request's head works on that pull request's file. `add --help` prints t
 request. A plugin older than the repository's `check.version` refuses every write, and `status` says so.
 
 - `status [--pr N]` — the file's path, the open counts, and each open line and suggestion
-  with a `#key` that no other line's flip moves;
+  with a `#key`;
   on a forge, the threads the file does not know and the checks;
   then `Mergeable: yes` or `Mergeable: no — <reasons>` (no pull request, a closed one or an unreachable
   forge is a reason), and `Next: <command>`: `post` while a line is not on the pull request, `/sdd-triage` while one blocks,
-  `/sdd-review --since-last` after a code change once the maintainer has reviewed, until the pass budget is spent (§ Passes), and `/sdd-close` on a draft with nothing else open. A merged pull
+  `/sdd-review --since-last` after a code change or a written MUST once the maintainer has reviewed, until the pass budget is spent (§ Passes), and `/sdd-close` on a draft with nothing else open. A merged pull
   request at HEAD prints `Mergeable: merged`, what is left to carry, the lines that wait for
   `/sdd-triage --backlog` while its watermark is older than the merge, and `/sdd-close`.
 - `start --agent <name> [--pr N] [--since-last] [--lane full|maintenance] [--base <ref>]` — a review pass's
@@ -175,13 +175,12 @@ request. A plugin older than the repository's `check.version` refuses every writ
 - `harvest [--since <date | #PR>] [--dry-run]` — § The backlog.
 - `record --agent <name> --reviewers <a, b> --reported <n>/<m>` — the `Reviewed` line at HEAD; refuses
   (exit 2) a pass on which no reviewer reported, which still ends it; clears `scope --start`'s note and removes the scratch worktree.
-- `guard <path:line> --expect <text> (--delete | --replace <text>) [--timeout <s>] -- <test command>` — removes one guard in the pass's scratch worktree at HEAD, runs the command there, which must first pass unchanged, restores the line, and prints `pinned` or `untested`; a run past the timeout (600 s) is a failure. It refuses when `PYTHONPATH` or `NODE_PATH` reaches the file in the checkout. The worktree holds only what HEAD tracks, so a test that needs untracked inputs (installed dependencies, generated files) fails unchanged there, and guard refuses. `--cleanup` removes the
+- `guard <path:line> --expect <text> (--delete | --replace <text>) [--timeout <s>] -- <test command>` — removes one guard in the pass's scratch worktree at HEAD, runs the command there, which must first pass unchanged, restores the line, and prints `pinned` or `untested`; a run past the timeout (600 s) is a failure. The worktree holds only what HEAD tracks, so a test that needs untracked inputs (installed dependencies, generated files) fails unchanged there, and guard refuses. `--cleanup` removes the
   worktree. It never touches the checkout or the findings file.
 - `rename --from <branch>` — moves a file to the checked-out branch without its `Reviewed` lines, thread
   and comment ids, which belonged to the old branch.
 - `clean [<branch>] [--pr N] [--dry-run]` — after the merge, from any checkout: removes the branch's
-  worktree, the branch (only when it holds no commit the merged pull request lacks; with `forge: none`,
-  once in the base), its findings file and delivery notes; refuses, changing nothing, while a line would be
+  worktree, the branch (only when it holds no commit the merged pull request lacks), its findings file and delivery notes; refuses, changing nothing, while a line would be
   lost or a worktree holds uncommitted work, and refuses the base, the default branch and, unnamed, a
   branch with no findings file or notes. A worktree it runs in is left, with the commands; the pull request
   and the remote branch are never touched.
