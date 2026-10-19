@@ -6,12 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-19
+
+A review pass reads less and blocks on less. The conformance reviewer guards only the MUSTs the range wrote, `agents.skip` keeps data and vendored corpora from every reviewer, a fix that only rewords text gets no re-review, and findings and PR bodies get a length limit. The review panel is gone: which host reviews is the orchestrator's choice. `sdd-check` changed only its version number. Moving a repository from 0.14.x is described in `docs/upgrading.md`.
+
 ### Added
 - Tools: `sdd-pr start` lists in the brief the MUST, SHALL and REQUIRED lines the range added or reworded in the specifications (the constitution on the informative profile) and the `guard` command's form; such a line with no code changed still plans the conformance reviewer.
 - Tools: `agents.skip`, path patterns whose changes no reviewer reads; `start` names them, at most ten, under `not reviewed:`.
 
 ### Changed
-- Agents: `sdd-spec-conformance-reviewer` proves a guard for each binding sentence the brief lists, and for at most three older ones whose guard or test the range changed.
+- Agents: `sdd-spec-conformance-reviewer` proves a guard for each MUST the brief lists, and for at most three older ones whose guard or test the range changed.
 - Tools: `sdd-pr add` folds another reviewer's suggestion into a blocking line on its anchor, whatever its words, and keeps it as `- [~]`.
 - Tools: the review brief carries the severity floors: a defect a caller can trigger is at least important; a document line is important only when a reader would build or test the wrong thing.
 - References: `review.md` § Severity gives behaviour a caller can trigger an important floor and makes a keyword missing from a sentence the code meets no lead; § Scope names `agents.skip`.
@@ -27,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Templates: `ai-workflow.md` § Review gives the review request to any reviewer that does not load the plugin, with the range from `sdd-pr scope`.
 - Skills: `sdd-review` dispatches the conformance reviewer with no code changed only for a changed MUST, as `sdd-pr start` plans it.
 
+- Docs: `upgrading.md` covers 0.14.x to 0.15.0; `README.md`, `examples.md`, `quick-start.md` and `testing.md` drop the review panel.
 ### Removed
 - Skills: `sdd-review --panel`, and the panel lines `sdd-deliver` printed before the maintainer's review; which host reviews is the orchestrator's choice.
 - Templates: `agents.review_panel` in `sdd.yaml` and `traceability-schema.md`; a descriptor that still has it keeps an unread key.

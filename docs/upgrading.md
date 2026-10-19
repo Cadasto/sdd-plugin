@@ -2,6 +2,34 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.14.x to 0.15.0
+
+A review pass reads less and blocks on less, and the review panel is gone. `sdd-check` changed only its
+version number, so re-vendoring it with `/sdd-scaffold --upgrade` is optional.
+
+1. **Review panel.** `/sdd-review --panel`, and the panel lines at the end of `/sdd-deliver`, are removed.
+   Run `/sdd-review --pr N` in whichever host you choose; a second pass lands in the same findings file.
+   Delete `review_panel:` from `docs/.sdd.yaml`; nothing reads it now. A reviewer that does not load the
+   plugin gets the review request in `docs/ai-workflow.md` § Review, filled with the range
+   `sdd-pr scope` prints.
+2. **Go reviewer on Go only.** A list such as `reviewers: [go-coding:go-reviewer]` sends that reviewer
+   every changed file that is not a document, fixtures and data included. Change it to a block map:
+   ```yaml
+   reviewers:
+     "**/*.go": go-coding:go-reviewer
+     "**/go.mod": go-coding:go-reviewer
+   ```
+   The go-reviewer in go-coding 0.7.0 also reads only Go hunks itself.
+3. **`agents.skip`.** An optional list of path patterns no reviewer reads, such as a vendored test corpus
+   or fixture data (`skip: ["testdata/**"]`). `--upgrade` does not add it; without it, nothing is skipped.
+4. **Fewer guard runs and passes.** The conformance reviewer guards the MUSTs the range wrote or reworded,
+   which the brief lists, and at most three older ones. After your review, a fix that only rewords text
+   gets no re-review, and triage proves each MUST it writes with one `sdd-pr guard` run.
+5. **Shorter text.** A finding is about 30 words and a PR body about 300 besides its checklist.
+   `--upgrade` proposes the changed `docs/development-process.md` § The PR body, `docs/ai-workflow.md`
+   § Review and `AGENTS.md`; copy the new PR-body block to `.github/PULL_REQUEST_TEMPLATE.md` if the
+   scaffold wrote one.
+
 ## From 0.13.x to 0.14.0
 
 The close-out is its own skill, `/sdd-close`, which also cleans up after the merge. `sdd-check` changed
