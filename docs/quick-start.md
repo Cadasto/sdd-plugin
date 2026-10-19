@@ -99,7 +99,7 @@ Review the pull request as you would any other, with inline comments on the line
 /sdd-triage
 ```
 
-Triage pulls your unresolved threads into the findings file, and records them as your review. A comment counts as important unless it opens with **critical**; end its first line with `· outside` for a defect in code the branch did not change, which then blocks nothing. It checks each finding against the code and the cited spec section before fixing anything. Fixes land in this branch, each line in the file is flipped to fixed or declined with a reason (or deferred, when you say so), and your threads are answered and resolved. When the fixes changed anything, documents included, triage runs one more review pass over them.
+Triage pulls your unresolved threads into the findings file, and records them as your review. A comment counts as important unless it opens with **critical**; end its first line with `· outside` for a defect in code the branch did not change, which then blocks nothing. It checks each finding against the code and the cited spec section before fixing anything. Fixes land in this branch, each line in the file is flipped to fixed or declined with a reason (or deferred, when you say so), and your threads are answered and resolved. When a fix changed code or wrote a MUST, triage runs one more review pass over the fixes; a fix that only rewords other text gets none.
 
 When `sdd-pr status` shows nothing blocking, close out. On a ready pull request `status` reads `Mergeable: yes` and `Next: merge`: close out first, or merge and run the close-out afterwards, which then commits on the default branch.
 

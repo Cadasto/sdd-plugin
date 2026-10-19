@@ -18,9 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - References: methodology §13's merge gate asks a can-fail test for each MUST the change wrote or reworded.
 - Agents: `sdd-doc-reviewer` no longer raises a missing RFC-2119 keyword.
 - Skills: `sdd-scaffold` suggests `reviewers` for `go.mod` as a block map of `"**/*.go"` and `"**/go.mod"`, so the Go reviewer reads no data or fixtures.
-- Skills: `sdd-triage` re-reviews after the maintainer's review only when a fix changed code or wrote a binding sentence, and proves each binding sentence a fix wrote with one `sdd-pr guard` run before the flip.
-- Tools: `sdd-pr status` steers to the pass over the fixes for a change to code or a written binding sentence, not for other document changes.
-- References: `review.md` § Passes spends the pass over the fixes only on code or a written binding sentence; `artefact-prose.md` caps a finding at about 30 words and a PR body at about 300.
+- Skills: `sdd-triage` re-reviews after the maintainer's review only when a fix changed code or wrote a MUST, and proves each MUST a fix wrote with one `sdd-pr guard` run before the flip.
+- Tools: `sdd-pr status` steers to the pass over the fixes for a change to code or a MUST written in a specification, not for other document changes.
+- References: `review.md` § Passes spends the pass over the fixes only on code or a written MUST, and says what counts as one; `artefact-prose.md` caps a finding at about 30 words and a PR body at about 300.
 - Skills: `sdd-close` writes the PR body in about 300 words besides the checklist; the review brief caps a finding's sentence at 30 words.
 - Templates: the PR body asks for a Summary of at most three sentences and at most three notes for review; `AGENTS.md` adds a write-short rule.
 

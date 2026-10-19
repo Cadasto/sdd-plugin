@@ -1808,9 +1808,9 @@ def cmd_status(session: Session, args) -> int:
     code_changed = bool(files["code"] or files["tests"] or files["other"])
     changed = code_changed or bool(files["documents"])
     since = "code changed" if code_changed else "documents changed" if changed else "no change"
-    # A fix that wrote a binding sentence is reviewed like code (review.md § Passes); any other document
-    # change, the close-out's own commit among them, steers nothing.
-    review_due = code_changed or bool(binding_lines(session.root, start, files["documents"]))
+    # A fix that wrote a MUST is reviewed like code (review.md § Passes); any other document change, the
+    # close-out's own commit among them, steers nothing.
+    review_due = code_changed or bool(binding_lines(session.root, start, files["documents"], binding_homes(session.data)))
     print("branch %s · base %s · head %s · last reviewed %s (%s since)"
           % (session.branch, session.base(), session.head[:7], (last or "none")[:7], since))
     print("findings: %s" % session.path)
