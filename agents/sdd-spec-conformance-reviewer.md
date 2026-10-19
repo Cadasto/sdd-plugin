@@ -6,10 +6,8 @@ description: >
   Report-only; returns findings-file lines; never edits the branch. Typical triggers include a
   pre-merge conformance check, an implementation-aligned change whose spec § may lag, and "does this
   code do what the spec says?". Not for style or bug review, test-passing, map drift, or reviewing the
-  document itself. The sdd-review skill dispatches it on the formal profile's full lane when code that
-  implements a cited SPEC § changed or a MUST or SHOULD sentence changed without code, and on the
-  informative profile only against the constitution. See
-  "When to invoke" in the agent body for worked scenarios.
+  document itself; the sdd-review skill decides when it runs. See "When to invoke" in the agent body for
+  worked scenarios.
 model: inherit
 color: blue
 tools:

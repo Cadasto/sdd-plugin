@@ -44,7 +44,7 @@ spec updated in the same PR).
 - **A brief is self-contained**, and a worker never spawns another worker.
 - **One branch, one checkout:** two sessions on one branch take turns; the delivery notes and
   `sdd-pr status` say where it stands.
-- Worker model, parallelism, the task-review gate, and the review panel live in
+- Worker model, parallelism and the task-review gate live in
   [`docs/.sdd.yaml`](docs/.sdd.yaml) under `agents:`. Full text: [docs/ai-workflow.md](docs/ai-workflow.md)
   § Orchestration.
 
@@ -52,6 +52,7 @@ spec updated in the same PR).
 
 - One canonical home per requirement — the index links, the spec owns the prose. Never duplicate normative text.
 - One home per fact in process prose too — cite identifiers rather than restating the same story across the commit body, PR body, changelog, and review comments. See [docs/development-process.md](docs/development-process.md) (*Artefact prose*).
+- Write short: lead with the result; a finding is one sentence of about 30 words, a PR body about 300 words besides its checklist; quote only the output that proves a claim.
 - Identifiers are immutable once published. Never renumber or reuse.
 - Every document under docs/ declares its kind; derived indexes are generated — run `sdd-check generate`, never hand-edit a generated block.
 - Don't mix document kinds (no tasks in a spec, no file paths in a requirement, one decision per ADR).

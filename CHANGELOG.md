@@ -18,10 +18,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - References: methodology §13's merge gate asks a can-fail test for each MUST the change wrote or reworded.
 - Agents: `sdd-doc-reviewer` no longer raises a missing RFC-2119 keyword.
 - Skills: `sdd-scaffold` suggests `reviewers` for `go.mod` as a block map of `"**/*.go"` and `"**/go.mod"`, so the Go reviewer reads no data or fixtures.
+- Skills: `sdd-triage` re-reviews after the maintainer's review only when a fix changed code or wrote a MUST, and proves each MUST a fix wrote with one `sdd-pr guard` run before the flip.
+- Tools: `sdd-pr status` steers to the pass over the fixes for a change to code or a MUST written in a specification, not for other document changes.
+- References: `review.md` § Passes spends the pass over the fixes only on code or a written MUST, and says what counts as one; `artefact-prose.md` caps a finding at about 30 words and a PR body at about 300.
+- Skills: `sdd-close` writes the PR body in about 300 words besides the checklist; the review brief caps a finding's sentence at 30 words.
+- Templates: the PR body asks for a Summary of at most three sentences and at most three notes for review; `AGENTS.md` adds a write-short rule.
+- Agents: the `sdd-spec-conformance-reviewer`, `sdd-doc-reviewer` and `sdd-implementer` descriptions drop what their bodies and `sdd-review` already say.
+- Templates: `ai-workflow.md` § Review gives the review request to any reviewer that does not load the plugin, with the range from `sdd-pr scope`.
+- Skills: `sdd-review` dispatches the conformance reviewer with no code changed only for a changed MUST, as `sdd-pr start` plans it.
+
+### Removed
+- Skills: `sdd-review --panel`, and the panel lines `sdd-deliver` printed before the maintainer's review; which host reviews is the orchestrator's choice.
+- Templates: `agents.review_panel` in `sdd.yaml` and `traceability-schema.md`; a descriptor that still has it keeps an unread key.
 
 ### Fixed
 - Tools: a refusal that names another worktree prints the command to run there, `sdd-pr --root <path> <command>`, since `--root` goes before the command.
-- Skills: `sdd-review --panel` names the flags `sdd-pr scope` takes, which has no `--agent` without `--since-last` and no `--lane`.
 
 ## [0.14.0] - 2026-10-13
 

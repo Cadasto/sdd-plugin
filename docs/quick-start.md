@@ -87,7 +87,7 @@ The skill runs as the orchestrator and stops at each gate:
 5. **First review pass.** After the full gate, `/sdd-review` reads the branch and writes its findings into the branch's findings file; `sdd-pr status` prints where it is. `/sdd-triage` fixes the critical and important ones in the change before any pull request exists; one in code the branch did not change is marked `outside` and fixed only if you say so.
 6. **Pull request.** Opened ready for review (ask for a draft if you want one), with `Lane: full` under *Spec and traceability*. Anything still blocking is mirrored to its inline threads; the rest goes in one comment.
 
-It prints one line per entry in `agents.review_panel.full`, such as `cursor: /sdd-review --pr 7`; run each in that host for a second opinion. Then it stops and waits for you.
+Then it stops and waits for your review.
 
 Check: `python3 <plugin root>/tools/sdd-pr.py status` prints the open counts, `Mergeable:` and `Next:`.
 
@@ -99,7 +99,7 @@ Review the pull request as you would any other, with inline comments on the line
 /sdd-triage
 ```
 
-Triage pulls your unresolved threads into the findings file, and records them as your review. A comment counts as important unless it opens with **critical**; end its first line with `· outside` for a defect in code the branch did not change, which then blocks nothing. It checks each finding against the code and the cited spec section before fixing anything. Fixes land in this branch, each line in the file is flipped to fixed or declined with a reason (or deferred, when you say so), and your threads are answered and resolved. When the fixes changed anything, documents included, triage runs one more review pass over them.
+Triage pulls your unresolved threads into the findings file, and records them as your review. A comment counts as important unless it opens with **critical**; end its first line with `· outside` for a defect in code the branch did not change, which then blocks nothing. It checks each finding against the code and the cited spec section before fixing anything. Fixes land in this branch, each line in the file is flipped to fixed or declined with a reason (or deferred, when you say so), and your threads are answered and resolved. When a fix changed code or wrote a MUST, triage runs one more review pass over the fixes; a fix that only rewords other text gets none.
 
 When `sdd-pr status` shows nothing blocking, close out. On a ready pull request `status` reads `Mergeable: yes` and `Next: merge`: close out first, or merge and run the close-out afterwards, which then commits on the default branch.
 

@@ -5,9 +5,8 @@ description: >
   against the document-kind contract: two homes for one rule, sentences that disagree, an ADR
   that decides twice. Read-only; returns findings-file lines.
   Typical triggers include a specification section written for a change, requirement creep, and a
-  pre-merge ADR check. Not for code, conformance, or a whole-tree scan. The sdd-review skill
-  dispatches it once per pass when a document changed: form on the formal full lane, consistency on the
-  maintenance lane and the informative profile. See "When to invoke" in the agent body for worked scenarios.
+  pre-merge ADR check. Not for code, conformance, or a whole-tree scan; the sdd-review skill decides its
+  mode, form or consistency. See "When to invoke" in the agent body for worked scenarios.
 model: inherit
 color: cyan
 tools:

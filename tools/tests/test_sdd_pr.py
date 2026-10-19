@@ -465,6 +465,14 @@ class TestStatus(RepoCase):
         self.findings(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)\n", maintainer))
         self.use(moved + self._gh_routes())
         self.assertIn("Next: /sdd-review --since-last", self.run_main("status")[1])
+        # A fix to documents alone gets that pass only when it wrote a MUST.
+        docs = [(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="docs/specifications/s.md\n")
+        self.use(docs + self._gh_routes())
+        self.assertNotIn("Next: /sdd-review", self.run_main("status")[1])
+        wrote = (git("diff", "--no-ext-diff", "-U0"), "diff --git a/docs/specifications/s.md b/docs/specifications/s.md\n"
+                 "+++ b/docs/specifications/s.md\n@@ -4 +4 @@\n+A token MUST expire.\n")
+        self.use([wrote] + docs + self._gh_routes())
+        self.assertIn("Next: /sdd-review --since-last", self.run_main("status")[1])
         # Once that pass is in, the budget is spent: a fix after it does not steer to review.
         self.findings(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)\n",
                                          maintainer + "Reviewed eeeeeee · 2026-10-02 · claude: go-reviewer (1 of 1)\n"))

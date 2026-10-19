@@ -1,6 +1,6 @@
 ## Summary
 
-<!-- What changed and why, in prose. Name the decisions taken and the alternatives not taken. -->
+<!-- What changed and why, in at most three sentences, with the decisions taken. The body stays under about 300 words besides the checklist. -->
 
 ## Docs
 
@@ -15,7 +15,7 @@
 
 ## Notes for review
 
-<!-- Where to look hardest; what is out of scope; a known gap left on purpose. Omit when there is nothing to say. -->
+<!-- At most three bullets: where to look hardest, what is out of scope, a known gap left on purpose. Omit when there is nothing to say. -->
 
 ## Checklist
 
