@@ -1,7 +1,6 @@
 # Review — the findings file, severities, evidence and the forge mirror
 
-The rules for every review of a change, whoever reviews: the in-repo agents, the repository's own
-reviewers, an outside reviewer given the `/sdd-review --panel` prompt, the maintainer.
+The rules for every review of a change, by an agent, a panel host or the maintainer.
 
 ## The findings file
 
@@ -48,8 +47,9 @@ until one reads it, or the maintainer's own review is recorded: `pull` records i
 
 Severity is the harm, wherever the line is; § Scope says where it is fixed. Critical and important findings in the change are resolved before merge (§ Resolution). Suggestions, an implementer's out-of-scope
 leads among them, never block and are never worked unless the maintainer names one. Write one down only when it is a lead: still true without this change's diff, and
-improving a behaviour, a test, a contract or a document. Taste (naming, wording, formatting, what a
-linter could enforce) is no lead; worth doing, it is done here. Weigh impact, not effort; unsure, write
+improving a behaviour, a test, a contract or a document. Taste (naming, a comment's wording, formatting,
+what a linter could enforce), or a keyword missing from a sentence the code meets, is no lead; worth
+doing, it is done here. Weigh impact, not effort; unsure, write
 it down. A gap in a specification or requirement goes to *Known gaps* or `implementation:
 deferred` instead. What the close-out writes (`implementation:` values, acceptance ticks, the changelog
 line, the PR body) is no finding before the close-out.
@@ -57,13 +57,14 @@ line, the PR body) is no finding before the close-out.
 **Code first.** A claim of wrong code behaviour (a wrong result, a crash or hang, a leak, a lost or
 corrupted write, an exposure, a refusal the wrong way round) is settled by a run, or by reasoning the
 line through with a named input, then graded by its harm; disproven, it is dropped. Neither a missing
-run nor a missing specification sentence lowers it. A document finding is important only when a reader would build or test the wrong thing from it (sentences, or a sentence and the code, that disagree; an open question settled silently) or a binding change skipped its lane or ADR; otherwise, or unsure, suggestion.
+run nor a missing specification sentence lowers it, and one a caller can trigger (a write outside its
+folder, a crash on bad input) is at least important. A document finding is important only when a reader would build or test the wrong thing from it (sentences, or a sentence and the code, that disagree; an open question settled silently) or a binding change skipped its lane or ADR; otherwise, or unsure, suggestion.
 Two reviewers' grades for one defect: the higher one with evidence.
 
 ## Scope
 
 A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`; `--since-last` reads only the commits since the last `Reviewed` line (`--agent`: one
-agent's own, when it has one) and leaves out what a merge of the base brought in. Plans, and the vendored gate unless patched here, go to no reviewer. A stacked branch names its parent once
+agent's own, when it has one) and leaves out what a merge of the base brought in. Plans, the vendored gate unless patched here, and the paths `agents.skip` names go to no reviewer. A stacked branch names its parent once
 with `--base`. A critical or
 important finding about code, or a document, the branch did not change keeps its
 severity and carries `outside`: it blocks nothing and is carried after merge unless the maintainer has it fixed here. Read the changed hunks and what surrounds them, not whole files.
@@ -73,7 +74,7 @@ severity and carries `outside`: it blocks nothing and is carried after merge unl
 No evidence, no critical or important finding. Code: the input and the observed result (a command run, a
 failing test, a guard removed with the test still green), or the line and the rule it breaks.
 Conformance: the sentence quoted, the code line, what was run. Documents: the two sentences that
-disagree, or the sentence and the code, quoted. Run the code when you can. One finding names one defect;
+disagree, or the sentence and the code, quoted. One finding names one defect;
 other instances inside the range go on the same line.
 
 ## The forge mirror
@@ -93,8 +94,7 @@ in step with the file; nothing else about findings is posted. It never writes th
   `deferred: <where>`) and closes it.
 - `post` and `resolve` put the lines that do not block, posted between passes, in a comment of their own
   (comments are closed threads on Azure DevOps, so no merge policy waits on them), and edit a comment
-  whose lines changed, keeping a pass's header; one deleted on the forge is posted again. Comments and
-  threads show text as written, HTML and mentions defused outside code spans, and read back exactly.
+  whose lines changed, keeping a pass's header; one deleted on the forge is posted again.
 
 The backend is GitHub or Azure DevOps, from `forge:` in the descriptor, else the remote URL, else `none`;
 with `none` the file is the whole record and every skill still works.
@@ -116,8 +116,7 @@ code, tests, other, documents. A line the maintainer wants tracked elsewhere bec
 
 `harvest` carries the open lines of the non-blocking comments, an `outside` defect with its severity,
 whose path still exists, of every pull request merged after the front matter's `harvested_through:`, and
-moves that watermark to the last merge read; the first harvest takes `--since`. With `forge: none` it carries nothing, the close-out having carried the lines, and only names the lines to re-check. Its lines are short: the
-comment `from:` names keeps the evidence. `flip --carry` adds a deferred finding, and the close-out's
+moves that watermark to the last merge read; the first harvest takes `--since`. With `forge: none` it carries nothing, the close-out having carried the lines, and only names the lines to re-check. `flip --carry` adds a deferred finding, and the close-out's
 non-blocking lines when the maintainer carries them in the pull request; its comment then shows them
 carried, and `harvest` leaves them out. Both add each line once, under `## Unsorted`, defects first.
 
@@ -161,7 +160,7 @@ request. A plugin older than the repository's `check.version` refuses every writ
   preparation in one call: the pull request's threads pulled (its head must be in this checkout), the
   pass noted, the lane (the flag, the PR body's `Lane:` line, else `decide` with the normative-line
   count), and under `.sdd/review/<head>/` each reviewer's hunks, the drift gate's new lines, the settled
-  lines and one shared brief; then the dispatch plan. It never runs the gate: the brief names
+  lines and one shared brief, listing the binding sentences the range wrote; then the dispatch plan. It never runs the gate: the brief names
   `.sdd/gate-<head>.log` when it exists.
 - `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>] [--start <agent>]` — the range a
   pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it; `normative lines changed: n`, a hint for the lane;
@@ -169,14 +168,14 @@ request. A plugin older than the repository's `check.version` refuses every writ
   one reviewer, the plugin's own reviewers included.
 - `add <critical|important|suggestion> <path[:line]> <sentence> [--evidence …] [--fix …] [--by …] [--outside]`, or
   `add -` with a reviewer's fence on standard input — checks the grammar, refuses a critical or important
-  finding without evidence, drops `outside` from a line the branch changed, and folds a line with the same anchor and sentence into the first: the higher severity, `outside` only when both say so.
+  finding without evidence, drops `outside` from a line the branch changed, and folds a line with the same anchor and sentence into the first (the higher severity, `outside` only when both say so), and a suggestion into a blocking line on its anchor, a posted one kept as `- [~]`.
 - `flip <#key | path:line> --fixed <sha> | --declined <reason> | --deferred <where> | --carry | --dropped`
   — resolves one line; `--fixed` needs the fix on `origin/<branch>` when that exists;  `--suggestions` in
   place of the line applies to every one left and, with `--carry`, to the open `outside` lines.
 - `harvest [--since <date | #PR>] [--dry-run]` — § The backlog.
 - `record --agent <name> --reviewers <a, b> --reported <n>/<m>` — the `Reviewed` line at HEAD; refuses
   (exit 2) a pass on which no reviewer reported, which still ends it; clears `scope --start`'s note and removes the scratch worktree.
-- `guard <path:line> --expect <text> (--delete | --replace <text>) [--timeout <s>] -- <test command>` — removes one guard in the pass's scratch worktree at HEAD (a path inside the repository; `--expect` found once on the line), runs the command there, which must first pass unchanged, restores the line, and prints `pinned` or `untested`; a run past the timeout (600 s) is a failure. It refuses when `PYTHONPATH` or `NODE_PATH` reaches the file in the checkout. The worktree holds only what HEAD tracks, so a test that needs untracked inputs (installed dependencies, generated files) fails unchanged there, and guard refuses. `--cleanup` removes the
+- `guard <path:line> --expect <text> (--delete | --replace <text>) [--timeout <s>] -- <test command>` — removes one guard in the pass's scratch worktree at HEAD, runs the command there, which must first pass unchanged, restores the line, and prints `pinned` or `untested`; a run past the timeout (600 s) is a failure. It refuses when `PYTHONPATH` or `NODE_PATH` reaches the file in the checkout. The worktree holds only what HEAD tracks, so a test that needs untracked inputs (installed dependencies, generated files) fails unchanged there, and guard refuses. `--cleanup` removes the
   worktree. It never touches the checkout or the findings file.
 - `rename --from <branch>` — moves a file to the checked-out branch without its `Reviewed` lines, thread
   and comment ids, which belonged to the old branch.
@@ -186,6 +185,6 @@ request. A plugin older than the repository's `check.version` refuses every writ
   lost or a worktree holds uncommitted work, and refuses the base, the default branch and, unnamed, a
   branch with no findings file or notes. A worktree it runs in is left, with the commands; the pull request
   and the remote branch are never touched.
-- `pull`, `post [--dry-run]`, `resolve` — § The forge mirror. `--version` prints the version.
+- `pull`, `post [--dry-run]`, `resolve` — § The forge mirror.
 
 Exit `0` when the command ran, whether or not the branch is mergeable; `2`, with the reason on standard error, when it refused or failed.
