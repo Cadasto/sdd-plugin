@@ -6,7 +6,7 @@
 [![Cursor](https://img.shields.io/badge/Cursor-plugin-000?logo=cursor&logoColor=white)](https://cursor.com)
 [![Keep a Changelog](https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-E05735)](CHANGELOG.md)
 
-Spec-Driven Development (SDD) for AI coding assistants, for teams that want the specification, not the code and not the prompt, to be the source of truth in any repository and any language. It adds skills, agents, hooks, a Cursor rule, and a vendored drift gate for **[Claude Code](https://docs.claude.com/en/docs/claude-code/plugins)** and **[Cursor](https://cursor.com/docs/plugins)**, so requirements, RFC-2119 specifications, and ADRs carry stable identifiers, a machine-checked traceability map ties them to code and tests, and CI fails on drift.
+Spec-Driven Development (SDD) for AI coding assistants, for teams that want the specification, not the code, to be the source of truth in any repository and any language. It adds skills, agents, hooks, a Cursor rule, and a vendored drift gate for **[Claude Code](https://docs.claude.com/en/docs/claude-code/plugins)** and **[Cursor](https://cursor.com/docs/plugins)**, so requirements, RFC-2119 specifications, and ADRs carry stable identifiers, a machine-checked traceability map ties them to code and tests, and CI fails on drift.
 
 The plugin owns the spec, document, and traceability layer and the delivery pipeline that runs on it: worker fan-out, review, triage, and close-out. It operates on documentation (`docs/*.md`, a requirements index, a traceability map, `AGENTS.md`), so it is language-agnostic, and each repository declares its conventions in a small `docs/.sdd.yaml` descriptor. It does not own exploration before a requirement exists; a [general engineering plugin](#optional-a-general-engineering-plugin) can cover that end. Language-specific code review comes from the reviewers each repository declares, such as the go-coding plugin's `go-reviewer` ([example](docs/examples.md#configure-a-go-repository)).
 
@@ -29,12 +29,12 @@ The plugin owns the spec, document, and traceability layer and the delivery pipe
 
 - **Requirements, specs, and decisions:** `/sdd-specify` writes the `REQ`, the RFC-2119 `SPEC §`, and the `ADR`, assigns stable identifiers, and wires the traceability map.
 - **Drift gate:** `sdd-check`, one vendored Python file, checks the chain `REQ → SPEC § → ADR → code → test` in both directions and fails the build on drift.
-- **Delivery pipeline:** `/sdd-deliver` takes one change from the dispatch gate through `sdd-implementer` workers and a first review pass to a pull request; `/sdd-close` closes it out in that pull request and, after you merge it, removes the branch, its worktree and its findings file.
-- **A findings file per branch:** `/sdd-review` writes findings, each critical and important one with its evidence, into one file per branch in the clone's git directory, which every worktree, Claude, Cursor and you can all read; `sdd-pr` makes every change to it, so nobody edits it by hand. `sdd-pr` mirrors the critical and important ones to the pull request's inline threads on GitHub or Azure DevOps (a defect in code the change did not touch keeps its severity but blocks nothing: it goes in the pass's comment, above the suggestions, and is carried to the backlog after merge unless fixed here), and tells you what is open, whether the branch is mergeable, and what to run next. Each pass is one comment on the pull request, even when it found nothing: who reviewed, the counts, and its lines that do not block, never inline; a review carries only the inline threads, and the pull request's body stays a description of the branch. After merge `/sdd-triage --backlog` carries the open lines to a committed `docs/backlog.md` and sorts them into themes, each what one delivery would take on; the next delivery that touches their files reads them.
+- **Delivery pipeline:** `/sdd-deliver` takes one change from the dispatch gate through `sdd-implementer` workers and a first review pass to a pull request; your instruction outranks a spec sentence and the lane you name is final, so an agent names the sentence once, does the work and amends it in the same branch. `/sdd-close` closes the change out in that pull request and, after you merge it, removes the branch, its worktree and its findings file.
+- **A findings file per branch:** `/sdd-review` writes findings, each critical and important one with its evidence, into one file per branch in the clone's git directory, which every worktree, Claude, Cursor and you can all read; `sdd-pr` makes every change to it, so nobody edits it by hand. `sdd-pr` mirrors the critical and important ones to the pull request's inline threads on GitHub or Azure DevOps (a defect in code the change did not touch keeps its severity but blocks nothing: it goes in the pass's comment, above the suggestions, and is carried to the backlog after merge unless fixed here), and tells you what is open, whether the branch is mergeable, and what to run next. Each pass is one comment on the pull request, even when it found nothing: who reviewed, the counts, and its lines that do not block, never inline; a review carries only the inline threads, and the pull request's body stays a description of the branch. A defect in a file the change touched is fixed there whatever its severity, and a reviewer files at most three suggestions. After merge `/sdd-triage --backlog` carries the open lines to a committed `docs/backlog.md`, sorts them into themes, each what one delivery would take on, and keeps the file at about 40 lines; the next delivery that touches their files reads them.
 - **Two profiles:** formal (requirements, RFC-2119 specifications, the traceability map and the drift gate) and informative (a knowledge base plus one binding architecture document, for repositories where code leads).
-- **Two lanes:** on the formal profile, a change that alters a normative statement takes the full lane; a refactor or other maintenance change skips the conformance reviewer, a changed document is still read for consistency, and the drift gate runs in both.
+- **Two lanes:** on the formal profile, a change that adds an obligation or widens a contract takes the full lane; a refactor, a fix, or a sentence corrected to match the fixed behaviour is maintenance, skips the conformance reviewer, and the drift gate runs in both. RFC-2119 force goes only to what a caller relies on: every MUST costs a test, a guard proof and an amendment when the code moves.
 - **Config-driven:** the `docs/.sdd.yaml` descriptor sets identifier style, paths, build targets, and delivery parameters, so the same skills serve a flat-numeric library or an area-prefixed service unchanged.
-- **Session hooks:** an orientation line at session start, a traceability reminder after a spec edit, and a one-shot nudge when a session ends with uncommitted work.
+- **Session hooks:** an orientation line at session start with the backlog's size, a traceability reminder after a spec edit that counts the keywords the edit added, and a one-shot nudge when a session ends with uncommitted work.
 
 ## Installation
 
@@ -58,7 +58,7 @@ See [docs/install.md](docs/install.md) for marketplace, local-development, updat
 /sdd-specify add a capability for <X>  # capture the REQ, write the normative SPEC, record any ADR
 /sdd-deliver REQ-...                   # preconditions → workers → review pass → PR
 /sdd-triage                            # work the open findings: verify, fix, flip, mirror
-/sdd-close <PR>                        # set the REQ shipped, write the PR body; offer to carry leftovers to the backlog
+/sdd-close <PR>                        # set the REQ shipped, write the PR body; fix or carry the leftover defects
 /sdd-close <PR>                        # after you merge: remove the branch, its worktree and its findings file
 /sdd-triage --backlog                  # now and then: carry merged PRs' leftovers to docs/backlog.md
 ```
@@ -73,13 +73,13 @@ Seven `/sdd-*` skills, each also usable as a slash command, plus an always-on ro
 
 | Skill | Use it to… |
 |---|---|
-| `spec-driven-development` | Auto-invoked awareness and router: explains the methodology, routes intent, states where an optional general engineering plugin still fits, and blocks jumping to code when no requirement or spec exists yet |
+| `spec-driven-development` | Auto-invoked awareness and router: explains the methodology, routes intent, states where an optional general engineering plugin still fits, keeps a new capability spec-first, and sends your instruction on shipped code to delivery, code first |
 | `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor, suggesting `agents.reviewers` from the build manifests (idempotent: fills gaps, never clobbers) |
 | `/sdd-specify` | The definition layer: capture a capability (`REQ`), write RFC-2119 normative behaviour into the canonical spec (`SPEC §`), and record decisions (`ADR`); assigns identifiers and wires traceability |
-| `/sdd-deliver` | The delivery driver: the dispatch gate, `sdd-implementer` workers in sequence on the branch (in parallel only for large tasks with disjoint files, still on the one branch), the per-task gate, the first review pass, the pull request (a draft only when you ask) |
-| `/sdd-close` | The close-out in the pull request: sets the `REQ` to `shipped` (a `SPEC §` is promoted only when you confirm), ticks its acceptance criteria, adds the changelog line, writes the PR body and marks it ready, and asks once whether to carry the lines that do not block to `docs/backlog.md` there; after you merge, `sdd-pr clean` removes the branch, its worktree and its findings file. It never merges or closes a pull request |
+| `/sdd-deliver` | The delivery driver: the dispatch gate, `sdd-implementer` workers in sequence on the branch (in parallel only for large tasks with disjoint files, still on the one branch), the per-task gate when `task_review` is on, the first review pass, the pull request (a draft only when you ask) |
+| `/sdd-close` | The close-out in the pull request: sets the `REQ` to `shipped` (a `SPEC §` is promoted only when you confirm), ticks its acceptance criteria, adds the changelog line, writes the PR body and marks it ready, fixes the small `outside` defects, and asks once, by line, whether to carry the rest to `docs/backlog.md` there; after you merge, `sdd-pr clean` removes the branch, its worktree and its findings file. It never merges or closes a pull request |
 | `/sdd-review` | One review pass over the whole branch, or with `--since-last` over the commits since the last pass: dispatch the reviewers the profile, lane and changed files call for, write their findings into the branch's findings file, and mirror them to the pull request, one comment per pass |
-| `/sdd-triage` | Work the open findings: verify each, fix in this branch, flip the lines, mirror to the pull request, and after your review run one scoped re-review when a fix changed code or wrote a MUST; `--backlog` carries the suggestions and `outside` defects of pull requests merged since the last harvest to `docs/backlog.md` and consolidates it |
+| `/sdd-triage` | Work the open findings: verify each, fix in this branch, flip the lines, mirror to the pull request, and after your review run one scoped re-review when a fix changed code or added a MUST; `--backlog` carries the suggestions and `outside` defects of pull requests merged since the last harvest to `docs/backlog.md` and consolidates it to about 40 lines |
 | `/sdd-trace` | The traceability gate: assemble the one-shot context bundle for a `REQ`, and report drift and orphans (the `spec-check` analogue); `--audit` dispatches the isolated whole-tree audit. Report-only |
 
 ### Agents
@@ -91,9 +91,9 @@ Claude Code enforces these grants. Cursor's subagent frontmatter carries no tool
 | Agent | Purpose |
 |---|---|
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans, dispatched by `/sdd-trace --audit` |
-| `sdd-doc-reviewer` | Reviews the changed hunks of the documents a change touched (**not** code): two homes for one rule, sentences that disagree, missing RFC-2119 force; consistency on the informative profile and the maintenance lane |
-| `sdd-spec-conformance-reviewer` | Judges whether changed code satisfies the binding sentences it cites, clause by clause, running the tests and removing each touched guard as evidence |
-| `sdd-implementer` | Implements one bounded task from a brief: reads the quoted clauses, writes each test first and proves it can fail, cites `REQ`/`PROBE` ids in test names and its commit message, and returns `En-route findings` |
+| `sdd-doc-reviewer` | Reviews the changed document hunks (**not** code) when a normative line, a requirement or an ADR changed: two homes for one rule, a contradiction with a merged document or the code; slips in the branch's own documents come back as a fix list; consistency on the informative profile and the maintenance lane; runs on a cheaper model |
+| `sdd-spec-conformance-reviewer` | Judges whether changed code satisfies the binding sentences it cites, clause by clause, running the tests and removing the guard of each new obligation as evidence |
+| `sdd-implementer` | Implements one bounded task from a brief: reads the quoted clauses and the maintainer's `Decided` line, writes each test first and proves it can fail for a new obligation, fixes a small defect in its own files, cites `REQ`/`PROBE` ids in test names and its commit message, and returns `En-route findings` |
 
 ### The gate
 
@@ -180,7 +180,7 @@ sdd:
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
     reviewers: []                   # this repo's own language reviewers, by agent name; or a map of path patterns to names
     skip: []                        # path patterns no reviewer reads (a vendored corpus, fixture data), e.g. ["testdata/**"]
-    task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
+    task_review: off                # off | on | lane  (off: the first review pass is the gate; lane = on for full, off for maintenance)
 ```
 
 ## Development

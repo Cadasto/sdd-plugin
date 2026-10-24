@@ -2,6 +2,38 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.15.x to 0.16.0
+
+Code may lead. The maintainer's instruction outranks a specification sentence, the lane the maintainer
+names is final, keywords go only to what a caller relies on, defects are fixed where they are found, and
+review runs where it pays. `sdd-check` changed only its version number, so re-vendoring it with
+`/sdd-scaffold --upgrade` is optional.
+
+1. **Your word beats the sentence.** When you say a behaviour is wrong, the agent names the sentence
+   once, does the work and corrects the sentence in the same branch; it no longer returns a task or
+   raises the lane for it. A correction that adds no obligation rides the maintenance lane. Nothing to
+   configure; expect fewer questions and no argument from a sentence written the day before.
+2. **Fewer MUSTs.** Methodology §4 now says when a sentence takes a keyword: what a caller observes and a
+   test can pin. A guard proof is owed only for a MUST a change adds; a reworded one owes none. Existing
+   specifications keep their keywords; demote internal-mechanics MUSTs to prose file by file, in their
+   own pull requests, starting with the sections amended most often.
+3. **`task_review` defaults to `off`.** New scaffolds get it; an existing descriptor keeps its value, so
+   set `task_review: off` yourself unless the per-task gate earns its cost in your repository.
+4. **The document reviewer runs less, and fixes instead of filing.** On the formal profile it reads a
+   range only when a normative line, a requirement or an ADR changed, on a cheaper model, and slips in the
+   branch's own documents come back as a fix list the orchestrator applies. Expect fewer document threads
+   on your pull requests.
+5. **Shorter suggestions, shorter backlog.** Wrong behaviour is never a suggestion; a reviewer files at
+   most three; a defect in a file the branch changed is fixed there. The close-out carries defects by
+   default and a lead only by name; the consolidation keeps `docs/backlog.md` at about 40 lines. A long
+   backlog shrinks at the next `/sdd-triage --backlog`; the dropped lines are listed in its commit message.
+6. **The PR body.** About 450 words: Summary with the `Lane:` line, Changes, Verification, Notes for
+   review, no checklist. `--upgrade` proposes the changed `docs/development-process.md` § The PR body,
+   `docs/ai-workflow.md` and `AGENTS.md`; copy the new block to `.github/PULL_REQUEST_TEMPLATE.md` if the
+   scaffold wrote one.
+7. **One change per session.** `/sdd-close` ends by asking for a fresh session; the findings file and the
+   delivery notes hold the state, so nothing is lost.
+
 ## From 0.14.x to 0.15.0
 
 A review pass reads less and blocks on less, and the review panel is gone. `sdd-check` changed only its

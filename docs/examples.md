@@ -60,7 +60,7 @@ Maintenance lane: no requirement and no spec edit.
 /sdd-review --lane maintenance
 ```
 
-On the maintenance lane the reviewers named in `agents.reviewers` read the code, and `sdd-doc-reviewer` reads any changed document to check that it still agrees with the code and the other documents. The conformance reviewer is skipped, because no binding sentence may change on this lane. If nothing in the range calls for a reviewer (say `agents.reviewers` is empty and only code changed), the pass writes no `Reviewed` line and the range stays open. Your own review of the pull request is then the pass: record it with `sdd-pr record --agent maintainer --reviewers <your name> --reported 1/1`. The pull request body's *Spec and traceability* section carries `Lane: maintenance — no normative change`.
+On the maintenance lane the reviewers named in `agents.reviewers` read the code, and `sdd-doc-reviewer` reads the changed documents only when a normative line, a requirement or an ADR changed, to check that it still agrees with the code and the other documents. The conformance reviewer is skipped, because no obligation is added on this lane; a sentence corrected to the behaviour a fix gives it stays on the lane. If nothing in the range calls for a reviewer (say `agents.reviewers` is empty and only code changed), the pass writes no `Reviewed` line and the range stays open. Your own review of the pull request is then the pass: record it with `sdd-pr record --agent maintainer --reviewers <your name> --reported 1/1`. The pull request body's Summary carries `Lane: maintenance — no normative change`.
 
 The lane is guarded by a ratchet, not a diff check: a reviewer that finds a new rule living only in code flags it, and the change becomes full lane. `make spec-check` runs in both lanes.
 
@@ -98,9 +98,9 @@ That is useful in CI, or in any script that needs a requirement's context withou
 /sdd-review --lane full
 ```
 
-On the formal profile's full lane, the pass sends changed code that implements a cited `SPEC §` to the `sdd-spec-conformance-reviewer` agent, with the gate's log and the changed hunks. It judges the code clause by clause, and proves each MUST the change wrote or reworded with `sdd-pr guard`: the guard is removed in a scratch worktree, and a test that stays green is a critical finding with both runs as evidence. It judges conformance, not code quality; the repository's own language reviewer does that.
+On the formal profile's full lane, the pass sends changed code that implements a cited `SPEC §` to the `sdd-spec-conformance-reviewer` agent, with the gate's log and the changed hunks. It judges the code clause by clause, and proves each MUST the change added with `sdd-pr guard`: the guard is removed in a scratch worktree, and a test that stays green is a critical finding with both runs as evidence; a sentence only reworded, and the older MUSTs, get no guard run. It judges conformance, not code quality; the repository's own language reviewer does that.
 
-When a document changed, the same pass sends its hunks to the `sdd-doc-reviewer` agent. Two sentences that disagree, or a sentence that contradicts the code, are important; a normative sentence that repeats one elsewhere with a different force is critical. A document's form, such as an acceptance criterion that cannot be observed, is a suggestion; a keyword missing from a sentence the code already meets is not raised.
+When a normative line, a requirement or an ADR changed, the same pass sends the document hunks to the `sdd-doc-reviewer` agent, on a cheaper model. A sentence that disagrees with a merged one elsewhere, or contradicts the code on a contract, is important; a normative sentence that repeats one elsewhere with a different force is critical. A slip inside the branch's own documents, such as an acceptance criterion that cannot be observed or two of its sentences that disagree, comes back as a fix list the orchestrator applies in the pass, never as a finding; a keyword missing from a sentence the code already meets is not raised.
 
 ## Get a second opinion
 
@@ -165,7 +165,7 @@ The format and its rules live in [review.md](../references/review.md).
 /sdd-close <N>
 ```
 
-Run it when `sdd-pr status` shows nothing blocking. It sets the requirement to `shipped`, ticks the acceptance criteria the change delivered, adds the changelog line, writes the pull request body and marks a draft ready. It asks once whether to carry the suggestions and `outside` defects still open to `docs/backlog.md` in this pull request; say no and they wait on the pull request for `/sdd-triage --backlog`.
+Run it when `sdd-pr status` shows nothing blocking. It sets the requirement to `shipped`, ticks the acceptance criteria the change delivered, adds the changelog line, writes the pull request body and marks a draft ready. It fixes an `outside` defect with a small fix in the branch, then asks once, by line, whether to carry the remaining defects to `docs/backlog.md` in this pull request, and a suggestion only by name; the rest wait on the pull request for `/sdd-triage --backlog`. It ends by telling you to start the next change in a new session.
 
 You merge on the forge. Then run `/sdd-close <N>` again, from any checkout: `sdd-pr clean` removes the branch's worktree, the local branch and its findings file. It keeps the branch when it holds a commit the pull request does not, and refuses while a line in the findings file would be lost. Run from inside the worktree it would remove, it prints the commands for you instead. The pull request and the remote branch are yours.
 
@@ -178,7 +178,7 @@ You merge on the forge. Then run `/sdd-close <N>` again, from any checkout: `sdd
 Run it on the default branch now and then, after merges. It reads the non-blocking comment of every pull request merged since `harvested_through:` in `docs/backlog.md`. It carries the open lines under `## Unsorted`, defects outside their change first, each line tagged `from: #<n>`. It leaves out lines fixed, carried or dropped in their pull request, and lines whose file is gone. Then it consolidates:
 - it re-checks the older lines whose file changed since the last harvest;
 - it sorts the new lines into themes, each what one delivery would take on;
-- it folds duplicates, and drops what is settled or only taste.
+- it folds duplicates, drops what is settled or only taste, and keeps the file at about 40 lines, the oldest leads going first and listed in the commit message.
 
 It commits `docs/backlog.md`; read that commit. With `forge: none` it carries nothing and only re-checks. The first harvest asks where to start: a date, or a pull request number.
 
@@ -208,11 +208,12 @@ The plugin dispatches only the reviewers the descriptor names and briefs workers
 sdd:
   agents:
     worker_skills: [go-coding:go-coding, go-coding:go-testing]
-    reviewers: [go-coding:go-reviewer]
-    task_review: lane
+    reviewers:
+      "**/*.go": go-coding:go-reviewer
+      "**/go.mod": go-coding:go-reviewer
 ```
 
-Workers load those skills from their brief; the reviewer sits on the per-task gate and in every review pass that changed code. If the repository has a code-index tool, name it in `docs/ai-workflow.md` § Orchestration: workers query it before grepping, and the orchestrator uses it to anchor reviewer briefs. The same shape holds for any language; the values are the repository's.
+Workers load those skills from their brief; the reviewer sits in every review pass that changed code, and on the per-task gate only when `task_review` is `on` or `lane` (the default is `off`). If the repository has a code-index tool, name it in `docs/ai-workflow.md` § Orchestration: workers query it before grepping, and the orchestrator uses it to anchor reviewer briefs. The same shape holds for any language; the values are the repository's.
 
 ## Upgrade a repository scaffolded by an earlier version
 

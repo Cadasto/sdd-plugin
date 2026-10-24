@@ -41,11 +41,11 @@ The **spec, document and traceability layer** and the **delivery pipeline on it*
 ### Skills (8)
 | Skill | Purpose |
 |-------|---------|
-| `spec-driven-development` | The always-on router: explains the methodology, routes intent, names where a general engineering plugin fits, blocks code-first work when no `REQ` or spec exists |
+| `spec-driven-development` | The always-on router: explains the methodology, routes intent, names where a general engineering plugin fits, keeps a new capability spec-first and a maintainer's instruction on shipped code code-first |
 | `sdd-scaffold` | Initialises the `docs/` tree, templates, `AGENTS.md`, process docs and descriptor; vendors the gate and wires `spec-check`; suggests `agents.reviewers` from the build manifests; idempotent, `--upgrade` tops up an older scaffold |
 | `sdd-specify` | Authors the `REQ` (capability and acceptance), the RFC-2119 `SPEC §` and the `ADR`; assigns identifiers; wires traceability |
-| `sdd-deliver` | Drives delivery: the dispatch gate by profile and lane, `sdd-implementer` workers (in sequence; a parallel wave only for large tasks with disjoint files, on the one branch), the per-task gate, the first review pass, the pull request (a draft only on request) |
-| `sdd-close` | The close-out in the pull request (`REQ` shipped, the acceptance ticks, the changelog line, `generate`, the PR body, ready) and one question: carry the lines that do not block to the backlog there; after the merge, `sdd-pr clean`. Never merges or closes a pull request |
+| `sdd-deliver` | Drives delivery: the dispatch gate by profile and lane (the maintainer's lane is final), `sdd-implementer` workers (in sequence; a parallel wave only for large tasks with disjoint files, on the one branch), the per-task gate when `task_review` is on, the first review pass, the pull request (a draft only on request) |
+| `sdd-close` | The close-out in the pull request (`REQ` shipped, the acceptance ticks, the changelog line, `generate`, the PR body, ready), the small `outside` defects fixed, and one question: carry the leftover defects, and a lead by name, to the backlog there; after the merge, `sdd-pr clean`. Never merges or closes a pull request |
 | `sdd-review` | One review pass over the whole branch (`--since-last`: only the commits since the last pass) with the reviewers the profile, lane and changed files call for, prepared by `sdd-pr start`, into the findings file; mirrors them, one comment per pass |
 | `sdd-triage` | Works the open critical and important findings: verify, fix in this branch, flip, mirror, and one re-review after the maintainer's review when a fix changed code or wrote a MUST; `--backlog` carries the suggestions and `outside` defects of pull requests merged since the backlog's watermark to `docs/backlog.md` and consolidates it |
 | `sdd-trace` | A `REQ`'s context bundle and the whole-tree drift report; `--audit` dispatches the auditor. Report-only |
@@ -54,9 +54,9 @@ The **spec, document and traceability layer** and the **delivery pipeline on it*
 | Agent | Purpose |
 |-------|---------|
 | `sdd-traceability-auditor` | Full-tree scan for traceability drift and orphans in isolated context; dispatched only by `/sdd-trace --audit` |
-| `sdd-doc-reviewer` | Reviews the changed hunks of SDD documents (**not** code) for boundary violations; consistency mode on the informative profile |
-| `sdd-spec-conformance-reviewer` | Judges changed code against the binding sentences it cites, clause by clause, with the tests and the guard-removal check as evidence |
-| `sdd-implementer` | The one mutating agent: one bounded task from a brief, test first with a can-fail proof, ids in test names and the commit, `En-route findings` back; cannot spawn agents |
+| `sdd-doc-reviewer` | Reviews the changed hunks of SDD documents (**not** code) when a normative line, a requirement or an ADR changed: contradictions block, slips in the branch's own documents come back as a fix list; consistency mode on the informative profile; `model: sonnet` |
+| `sdd-spec-conformance-reviewer` | Judges changed code against the binding sentences it cites, clause by clause, with the tests as evidence and a guard-removal check for each new obligation |
+| `sdd-implementer` | The one mutating agent: one bounded task from a brief, test first with a can-fail proof for a new obligation, the maintainer's `Decided` line outranking a quoted sentence, small defects in its own files fixed, ids in test names and the commit, `En-route findings` back; cannot spawn agents |
 
 ### Tools (2)
 | Tool | Purpose |
@@ -65,8 +65,8 @@ The **spec, document and traceability layer** and the **delivery pipeline on it*
 | `sdd-pr` | The findings file in the clone's git directory and its GitHub or Azure DevOps mirror: `add`, `flip`, `record`, `rename` (and `pull`, `post`, `resolve`) make every write; `status` prints `Mergeable` and `Next`; `start` a review pass's preparation in one call; `scope` the range a pass reads; `post` one comment per pass (who reviewed, the counts, its new lines that do not block) and a review only for the inline threads; `harvest` merged pull requests' leftovers and `flip --carry` this branch's to `docs/backlog.md`; `guard` one guard-removal proof in a scratch worktree; `clean` the merged branch, its worktree and its findings file; never the PR body |
 
 ### Hooks
-- **SessionStart** (`session-start.sh`): in an SDD repository, the profile, the `/sdd-*` surface and an orientation (plugin version and any mismatch with the vendored gate, branch, open findings, the gate's verdict); elsewhere, a scaffold pointer when `docs/` exists.
-- **PostToolUse** (Claude Code, `spec-edit-reminder.sh`): after an edit to a requirement, spec, ADR, the descriptor or the map, a reminder to keep the chain in sync; on the informative profile only for a constitution edit. Registered on Cursor's `afterFileEdit` too, which has no output channel.
+- **SessionStart** (`session-start.sh`): in an SDD repository, the profile, the `/sdd-*` surface and an orientation (plugin version and any mismatch with the vendored gate, branch, open findings, the backlog's size, the gate's verdict); elsewhere, a scaffold pointer when `docs/` exists.
+- **PostToolUse** (Claude Code, `spec-edit-reminder.sh`): after an edit to a requirement, spec, ADR, the descriptor or the map, a reminder to keep the chain in sync, and, when the edit added RFC-2119 keywords, their count with methodology §4's scope rule; on the informative profile only for a constitution edit. Registered on Cursor's `afterFileEdit` too, which has no output channel.
 - **Stop** (`session-stop.sh`): one nudge when the session made no commit and leaves uncommitted changes; opt out with `hooks.stop_nudge: false`. Per host: [docs/install.md](docs/install.md#hooks).
 
 ## Development
@@ -115,7 +115,7 @@ Feature branches and pull requests. CI runs on every pull request and on push to
 - **A plugin cannot approve a command.** Claude Code ignores `permissionMode`, `hooks` and `mcpServers` in plugin agents, keeps only `agent` and `subagentStatusLine` from plugin settings, and runs a subagent under the session's permission rules. Users add allow rules themselves: [docs/install.md](docs/install.md).
 - **`author` in `plugin.json` is an object** (`{name, url}`); `claude plugin validate` rejects a bare string.
 - **`${CLAUDE_PLUGIN_ROOT}` is Claude-Code-only.** Cursor hook commands stay workspace-relative (`bash hooks/session-start.sh`); don't "fix" them, and keep both hook configs in step. Every skill names the plugin root as the folder that holds its `skills/` folder, which works on both hosts.
-- **Plugin agent files are read-only at runtime** (they live in the install cache). `sdd-implementer` ships `model: inherit`; `/sdd-deliver` passes `agents.worker_model`, and the skills pick other models, per dispatch.
+- **Plugin agent files are read-only at runtime** (they live in the install cache). `sdd-implementer` ships `model: inherit`; `/sdd-deliver` passes `agents.worker_model`, and the skills pick other models, per dispatch. `sdd-doc-reviewer` ships `model: sonnet`: its findings are quotations, not judgement calls that need the top model.
 - **An agent's `skills:` frontmatter may not name another plugin's skill** (unconfirmed); `worker_skills` goes through the dispatch brief instead.
 - **`spec-driven-development` is not named `sdd`,** which would collide as `sdd:sdd`. The command prefix is `sdd-`.
 - **Don't grow a second delivery loop.** The plugin owns plan → workers → review → triage → close-out → clean-up; a general engineering plugin complements it at the exploration end only.

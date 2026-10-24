@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+Code may lead. The maintainer's instruction outranks a specification sentence and the lane the maintainer names is final, so an agent names the sentence once, does the work and amends it in the same branch instead of arguing from it. RFC-2119 force goes only to what a caller relies on, and a guard proof is owed only for a new obligation. Wrong behaviour is never a suggestion, a defect in a file the branch changed is fixed there, slips in the branch's own documents come back as a fix list, and the backlog is kept short. The per-task gate is off by default, the document reviewer runs only when something normative changed, and the PR body loses its checklist. `sdd-check` changed only its version number. Moving a repository from 0.15.x is described in `docs/upgrading.md`.
+
+### Added
+- Templates: the brief's `Decided` line, the maintainer's instruction that outranks a quoted sentence; the brief aims at about 4k characters and quotes only the clauses the task satisfies or changes.
+- References: `review.md` § Document fixes, the document reviewer's fix list for the branch's own documents, saved under `.sdd/review/<head>/doc-fixes.md` and applied in-session.
+- Hooks: `spec-edit-reminder.sh` counts the RFC-2119 keywords an edit added and states methodology §4's scope rule; `session-start.sh` prints the backlog's size and flags one over about 40 lines.
+- Tools: `sdd-pr start` prints the changed documents it sends to no reviewer, with the reason.
+
+### Changed
+- References: the methodology's guiding principle makes the maintainer's instruction outrank a sentence; §4 says when a sentence takes a keyword; §6 binds a `draft` once it merges and makes a § written on the branch its working text; §7 makes implementation-aligned the default for anything but a new capability; §12 makes the maintainer's lane final and lets a corrected sentence ride the maintenance lane; §13's merge gate asks a can-fail test for each new obligation.
+- References: `review.md` § Severity makes wrong behaviour never a suggestion, caps suggestions at three per reviewer per pass and drops "unsure, write it down"; § Scope fixes a defect in a file the branch changed whatever its severity and a small `outside` one in the branch; § The backlog carries defects by default, a lead by name, and keeps the file at about 40 lines; § Passes counts only a new obligation as a written MUST; § Keywords added during review adds none.
+- Skills: `spec-driven-development` keeps a new capability spec-first and routes a maintainer's instruction on shipped code to delivery, code first.
+- Skills: `sdd-deliver` recommends one change per session, never raises a lane the maintainer named, carries the `Decided` line, sends a task's document edits to the worker, runs the per-task gate only when `task_review` is on and opens no dispatch for a suggestion-only verdict, and settles a sentence-versus-code disagreement by whichever side is wrong.
+- Skills: `sdd-triage` decides which side is wrong, works a suggestion in a file the branch changed when its fix is a few lines, fixes a small `outside` defect, applies the pass's document fixes, adds no keyword, and consolidates the backlog to about 40 lines.
+- Skills: `sdd-close` fixes the small `outside` defects before the carry, carries defects by default and a lead only by name, writes the PR body in about 450 words, and ends with the fresh-session line.
+- Skills: `sdd-review` treats a named lane as final, dispatches `sdd-doc-reviewer` only when the plan lists it and on a cheaper model, drops suggestions past the cap, and saves the document fix list.
+- Skills: `sdd-specify` gives a keyword only where methodology §4 does, makes a sentence correction maintenance work, scopes the negative space to what a caller observes, and names a § dense with internal `MUST`s in the hand-back.
+- Agents: `sdd-implementer` implements under a `Decided` line and reports the sentence to amend instead of returning the task, proves the guard only for a MUST it adds or disputes, never escalates a lane, and fixes a small, testable defect inside its own files.
+- Agents: `sdd-doc-reviewer` ships `model: sonnet`, blocks only on a contradiction with a merged document or the code on a contract, two homes, or a widened contract on the maintenance lane, and returns the rest as a fix list; it raises and proposes no keyword.
+- Agents: `sdd-spec-conformance-reviewer` guards only the new obligations the brief lists, none older and none reworded, reads only the files the cited sentences map to, files no behaviour claim as a suggestion, and names behaviour with no sentence under Coverage instead of as a finding.
+- Tools: `sdd-pr start` plans `sdd-doc-reviewer` on the formal profile only when the range changed a normative line, a requirement or an ADR, with the reason; the brief lists the MUSTs the range added as new obligations, a reworded one pairing with the line it replaced in its hunk; the brief carries the suggestion cap and the behaviour floor.
+- Templates: `sdd.yaml` and `traceability-schema.md` default `task_review` to `off`; `task-review.md` says a suggestion-only verdict opens no worker.
+- Templates: the PR body is Summary with the `Lane:` line, Changes, Verification and Notes for review, about 450 words, no checklist; `AGENTS.md`, `ai-workflow.md` and `artefact-prose.md` follow.
+- Hooks: `session-start.sh`'s orientation line states the maintainer-outranks rule.
+- Docs: `README.md`, `quick-start.md`, `examples.md` and `upgrading.md` follow; `examples.md` shows `reviewers` as a block map.
+
+### Removed
+- Skills and agents: the rule "a sentence the code does not meet is a defect in the code; narrowing the sentence is the maintainer's call", the implementer's lane escalation and its "Do not fix them", the review guidance "unsure, write it down", and the conformance reviewer's guard runs on up to three older MUSTs.
+
 ## [0.15.0] - 2026-10-19
 
 A review pass reads less and blocks on less. The conformance reviewer guards only the MUSTs the range wrote, `agents.skip` keeps data and vendored corpora from every reviewer, a fix that only rewords text gets no re-review, and findings and PR bodies get a length limit. The review panel is gone: which host reviews is the orchestrator's choice. `sdd-check` changed only its version number. Moving a repository from 0.14.x is described in `docs/upgrading.md`.
