@@ -1,6 +1,6 @@
 ---
 name: spec-driven-development
-description: This skill should be used when the user asks "what is SDD", "explain spec-driven development", "how does the spec workflow work here", "which /sdd command do I use", or asks to implement, build, or add behaviour in a repository with docs/.sdd.yaml before a REQ or spec exists. Explains the methodology, routes intent to the right sdd-* skill, and blocks code-first work. Not for performing an artefact action (the sdd-* skills do that).
+description: This skill should be used when the user asks "what is SDD", "explain spec-driven development", "how does the spec workflow work here", "which /sdd command do I use", or asks to implement, build, or add behaviour in a repository with docs/.sdd.yaml before a REQ or spec exists. Explains the methodology, routes intent to the right sdd-* skill, and keeps a new capability spec-first. Not for performing an artefact action (the sdd-* skills do that).
 allowed-tools: Read, Grep, Glob
 ---
 
@@ -12,7 +12,7 @@ Explain and route; do no artefact work. Ground every answer in `references/sdd-m
 
 ## Core idea (state this when explaining SDD)
 
-The **specification — not the code, not the prompt — is the source of truth.** Code is measured against it; when they disagree the spec wins, unless a section is explicitly *implementation-aligned*. The plugin targets the **spec-anchored** rung: stable identifiers, a machine-checked traceability map, CI that fails on drift.
+The **specification records the contract code is measured against; the maintainer's instruction outranks it.** When a request contradicts a sentence, name the sentence once, do the work, amend the sentence in the same change. Without the maintainer, a disagreement between code and spec is a finding, and the spec wins unless a section is *implementation-aligned* (methodology §7). The plugin targets the **spec-anchored** rung: stable identifiers, a machine-checked traceability map, CI that fails on drift.
 
 **Two profiles** (methodology §1a): `formal`, the above; `informative`, a knowledge base where code leads and only the constitution binds.
 
@@ -40,8 +40,8 @@ A general engineering plugin such as superpowers is **optional**: its brainstorm
 ## Guardrails this layer enforces
 
 - **Read `docs/.sdd.yaml` first** for `profile`; none: the repo isn't scaffolded, route to `sdd-scaffold`.
-- **No code-first (formal profile).** When asked to implement behaviour that no `REQ` and no spec covers, do not jump to code: explore if the idea is new, record it with `sdd-specify`, deliver with `sdd-deliver`. The exception is *implementation-aligned* work on shipped code, whose spec is updated in the **same** change. On the informative profile, route it to `sdd-deliver`.
-- **One source of truth.** The specs under `paths.specifications`, never a plan or a second design tree.
+- **Spec-first for a new capability (formal profile).** When asked to add a capability that no `REQ` and no spec covers, do not jump to code: explore if the idea is new, record it with `sdd-specify`, deliver with `sdd-deliver`. Everything else on shipped code — a fix, hardening, a maintainer's instruction that a behaviour is wrong — is *implementation-aligned*: route it to `sdd-deliver`, code first, the sentence reconciled in the **same** change (methodology §7); never route it to `sdd-specify` first, and never argue from the sentence. On the informative profile, route everything to `sdd-deliver`.
+- **One source of truth.** The specs under `paths.specifications`, never a plan or a second design tree. A keyword only for what a caller relies on (methodology §4).
 - **One home per fact, in process prose too:** commit and PR bodies, the changelog and review threads cite identifiers instead of restating (`references/artefact-prose.md`).
 - **Never settle an open question silently** — an ADR (`sdd-specify`), a `STRAND`, or back to brainstorming.
 - **Never hand-edit a generated block**; `sdd-check generate` writes it (`references/sdd-check.md`).
