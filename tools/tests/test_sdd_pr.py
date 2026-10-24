@@ -3284,11 +3284,15 @@ class TestStart(GitHubCase):
         self.assertIn("lane full (--lane)", out)
         self.assertIn("gate log: %s" % (self.root / ".sdd" / ("gate-%s.log" % HEAD[:7])), out)
         self.assertIn("drift gate: sdd-check: OK — 0 new errors, 1 new warning", out)
-        for name in ("go-coding--go-reviewer", "sdd-spec-conformance-reviewer", "sdd-doc-reviewer"):
+        for name in ("go-coding--go-reviewer", "sdd-spec-conformance-reviewer"):
             patch = review / ("diff-%s.patch" % name)
             self.assertEqual("DIFF", patch.read_text(encoding="utf-8"))
             self.assertIn(str(patch), out)
-        self.assertIn("sdd-doc-reviewer: %s (1 file); form" % (review / "diff-sdd-doc-reviewer.patch"), out)
+        # A document with no normative line changed, outside the requirements and ADR folders, goes to
+        # no reviewer on the formal profile: the drift gate and the maintainer read it.
+        self.assertNotIn("sdd-doc-reviewer:", out)
+        self.assertFalse((review / "diff-sdd-doc-reviewer.patch").exists())
+        self.assertIn("documents, no normative line, requirement or ADR changed; no reviewer: docs/s.md", out)
         brief = (review / "brief.md").read_text(encoding="utf-8")
         self.assertIn("the full gate at HEAD. Do not rebuild or rerun the suite", brief)
         self.assertIn("ask for every file you need in one turn", brief)
@@ -3316,6 +3320,29 @@ class TestStart(GitHubCase):
         brief = (self.root / ".sdd" / "review" / HEAD[:7] / "brief.md").read_text(encoding="utf-8")
         self.assertIn("none at HEAD. Run only the tests your findings need.", brief)
 
+    def test_the_doc_reviewer_is_planned_only_for_a_normative_line_a_requirement_or_an_adr(self):
+        # A changed MUST line plans the document reviewer, with the reason; so does a requirement or an
+        # ADR file; a guide alone does not. The informative profile sends every changed document.
+        self.descriptor(forge="none")
+        review = self.root / ".sdd" / "review" / HEAD[:7]
+        hunks = "--- a/docs/s.md\n+++ b/docs/s.md\n@@ -1 +1 @@\n+The client MUST retry.\n"
+        self.use([(git("diff", "--no-ext-diff", "-U0"), hunks)] + git_routes(names="docs/s.md\n", diff="DIFF"))
+        out = self.run_main("start", "--agent", "claude", "--lane", "full")[1]
+        self.assertIn("sdd-doc-reviewer: %s (1 file); form; 1 normative line changed"
+                      % (review / "diff-sdd-doc-reviewer.patch"), out)
+        self.use(git_routes(names="docs/requirements/REQ-001.md\ndocs/adr/0001-x.md\ndocs/guide.md\n", diff="DIFF"))
+        out = self.run_main("start", "--agent", "claude", "--lane", "maintenance")[1]
+        self.assertIn("sdd-doc-reviewer: %s (3 files); consistency; a requirement changed, an ADR changed"
+                      % (review / "diff-sdd-doc-reviewer.patch"), out)
+        self.use(git_routes(names="docs/guide.md\n", diff="DIFF"))
+        out = self.run_main("start", "--agent", "claude", "--lane", "full")[1]
+        self.assertNotIn("sdd-doc-reviewer:", out)
+        self.assertIn("no reviewer: docs/guide.md", out)
+        (self.root / "docs" / ".sdd.yaml").write_text("sdd:\n  profile: informative\n  forge: none\n", encoding="utf-8")
+        self.use(git_routes(names="docs/guide.md\n", diff="DIFF"))
+        out = self.run_main("start", "--agent", "claude")[1]
+        self.assertIn("sdd-doc-reviewer: %s (1 file); consistency; consistency" % (review / "diff-sdd-doc-reviewer.patch"), out)
+
     def test_start_without_a_lane_hints_at_the_normative_lines_and_stops_on_an_empty_range(self):
         self.descriptor(forge="none")
         hunks = "--- a/docs/s.md\n+++ b/docs/s.md\n@@ -1 +1 @@\n+The client MUST retry.\n"
@@ -3329,9 +3356,10 @@ class TestStart(GitHubCase):
         self.assertIn("range: empty", out)
 
     def test_the_brief_lists_only_the_musts_the_range_wrote(self):
-        # A conformance reviewer proves a guard for each MUST the branch added or reworded in a
-        # specification, not for every older one: a SHOULD, a removed MUST, a hunk header, a renamed file
-        # with no change, a README and a content line that reads like a file header are no such sentence.
+        # A conformance reviewer proves a guard for each MUST the branch added to a specification as a new
+        # obligation, not for a reworded one (the added MUST NOT in s.md pairs with the removed MUST in its
+        # hunk) and not for every older one: a SHOULD, a hunk header, a renamed file with no change, a README
+        # and a content line that reads like a file header are no such sentence.
         self.descriptor(forge="none")
         hunks = ("diff --git a/docs/specifications/old.md b/docs/specifications/new.md\nsimilarity index 100%\n"
                  "rename from docs/specifications/old.md\nrename to docs/specifications/new.md\n"
@@ -3353,7 +3381,7 @@ class TestStart(GitHubCase):
         code, _, err = self.run_main("start", "--agent", "claude", "--lane", "full")
         self.assertEqual(0, code, err)
         brief = (self.root / ".sdd" / "review" / HEAD[:7] / "brief.md").read_text(encoding="utf-8")
-        self.assertIn("**MUST sentences this range wrote or reworded:** `docs/specifications/s.md:6`, "
+        self.assertIn("new obligations** (a reworded one pairs with the line it replaced and owes no guard run): "
                       "`docs/specifications/t.md:10`.", brief)
         self.assertIn("guard <path:line> --expect <text> --replace <text> -- <test command>", brief)
         # The specifications folder is diffed whole, so git pairs a rename inside it.
@@ -3362,7 +3390,7 @@ class TestStart(GitHubCase):
         self.use(git_routes(names="a.go\n", diff="DIFF"))
         self.run_main("start", "--agent", "claude", "--lane", "full")
         brief = (self.root / ".sdd" / "review" / HEAD[:7] / "brief.md").read_text(encoding="utf-8")
-        self.assertIn("**MUST sentences this range wrote or reworded:** none.", brief)
+        self.assertIn("owes no guard run): none.", brief)
 
     def test_a_must_written_with_no_code_still_gets_the_conformance_reviewer(self):
         self.descriptor(forge="none")

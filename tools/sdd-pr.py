@@ -825,13 +825,15 @@ def binding_homes(data: dict) -> List[str]:
 
 
 def binding_lines(root: str, start: str, documents: List[str], homes: List[str]) -> List[str]:
-    """`path:line` of each line the range added to a reviewed document in ``homes`` that states an absolute
-    requirement: the MUSTs the branch wrote or reworded, each owed a test that fails without its guard. The
-    homes are diffed whole, so a file renamed inside them is paired with its old self, not read as new."""
+    """`path:line` of each line the range added to a reviewed document in ``homes`` that states a new absolute
+    requirement, each owed a test that fails without its guard. A reworded sentence is no new obligation
+    (methodology §6): inside one hunk, an added MUST line pairs with a removed one, and only the added lines
+    past the removed count are new. The homes are diffed whole, so a file renamed inside them is paired with
+    its old self, not read as new."""
     wanted = {d for d in documents if any(d == h or d.startswith(h + "/") for h in homes)}
     if not start or not wanted:
         return []
-    found, path, number, header = [], "", 0, False
+    found, path, number, header, replaced = [], "", 0, False, 0
     for line in git(root, "diff", "--no-ext-diff", "-U0", "-M", start, "HEAD", "--", *homes).splitlines():
         if line.startswith("diff --git "):
             header, path = True, ""
@@ -840,10 +842,16 @@ def binding_lines(root: str, start: str, documents: List[str], homes: List[str])
             path = target[2:] if target.startswith("b/") else target
             path = path if path in wanted else ""
         elif HUNK.match(line):
-            header, number = False, int(HUNK.match(line).group(1))
+            header, number, replaced = False, int(HUNK.match(line).group(1)), 0
+        elif not header and path and line.startswith("-") and not line.startswith("---"):
+            if ABSOLUTE.search(line):
+                replaced += 1
         elif not header and line.startswith("+") and path:
             if ABSOLUTE.search(line):
-                found.append("%s:%d" % (path, number))
+                if replaced:
+                    replaced -= 1
+                else:
+                    found.append("%s:%d" % (path, number))
             number += 1
     return found
 
@@ -1662,15 +1670,17 @@ BRIEF = """# Review brief: {branch} at `{head}`
 - **Drift gate,** what the range added: {drift}
 - **Already settled on this branch:** {resolved}. Do not raise one again unless the change makes its
   reason untrue.
-- **MUST sentences this range wrote or reworded:** {binding}.
+- **MUST sentences this range added, new obligations** (a reworded one pairs with the line it replaced and owes no guard run): {binding}.
 - **sdd-pr** is `python3 {sdd_pr}`; a reviewer runs only
   `guard <path:line> --expect <text> --replace <text> -- <test command>`, which breaks one guard in a
   scratch copy and prints `pinned` (a test failed) or `untested`.
 - **Severity and scope** are `{review_md}` § Severity and § Scope: by harm wherever the line is; wrong
-  behaviour a caller can trigger is at least important; a document line is important only when a reader
-  would build or test the wrong thing from it. A defect in code or a document the branch did not change
-  keeps its severity and ends ` · outside`. No lead: a keyword missing from a sentence the code meets, a
-  comment's wording.
+  behaviour a caller can trigger is at least important, and wrong behaviour is never a suggestion; a
+  document line is important only when a reader would build or test the wrong thing from it, and a slip
+  in a document this branch wrote is a fix, not a finding. A defect in code or a document the branch did
+  not change keeps its severity and ends ` · outside`. A suggestion names an input and a weaker result,
+  at most three per reviewer; unsure, run it or drop it. No lead: a keyword missing from a sentence the
+  code meets, "add a MUST", a comment's wording.
 - **Return** one verdict line (`CLEAN`, or `<n> critical, <m> important, <s> suggestions`), then one fenced
   block of finding lines, then one **Coverage** line (what you read and ran, and what you could not check):
 
@@ -1714,7 +1724,7 @@ def cmd_start(session: Session, args) -> int:
     out = os.path.join(root, ".sdd", "review", head)
     os.makedirs(out, exist_ok=True)
 
-    plan = []
+    plan, unread_docs = [], []
     for name, paths in reviewers.items():
         plan.append((name, paths, ""))
     code = files["code"] + files["tests"]
@@ -1726,10 +1736,31 @@ def cmd_start(session: Session, args) -> int:
         # A MUST written with no code: the reviewer reads the code the sentence describes.
         written = sorted({b.rsplit(":", 1)[0] for b in binding})
         plan.append(("sdd-spec-conformance-reviewer", written, "a MUST changed with no code"))
+    # The document reviewer reads a formal range only when it changed what binds: a normative line, a
+    # requirement or an ADR (references/review.md § The tool). Other document changes are the drift
+    # gate's and the maintainer's to read. An informative range sends every changed document, for
+    # consistency against the code and the constitution.
+    doc_reasons = []
     if files["documents"]:
-        plan.append(("sdd-doc-reviewer", files["documents"],
-                     "consistency" if profile == "informative" or lane.startswith("maintenance") else
-                     "form" if lane.startswith("full") else "form on the full lane, consistency on maintenance"))
+        if profile == "informative":
+            doc_reasons.append("consistency")
+        else:
+            normative = normative_lines(session.root, start, files["documents"])
+            defaults = globals()["gate"]().DEFAULT_PATHS  # the local `gate` below is the log line
+            homes = {"requirement": str(_setting(session.data, "paths", "requirements") or defaults["requirements"]),
+                     "adr": str(_setting(session.data, "paths", "adr") or defaults["adr"])}
+            kinds = [k for k, home in homes.items()
+                     if any(d == home.rstrip("/") or d.startswith(home.rstrip("/") + "/") for d in files["documents"])]
+            if normative:
+                doc_reasons.append("%d normative line%s changed" % (normative, "" if normative == 1 else "s"))
+            doc_reasons.extend("a%s %s changed" % ("n" if k == "adr" else "", k.upper() if k == "adr" else k)
+                               for k in kinds)
+    if doc_reasons:
+        when = "consistency" if profile == "informative" or lane.startswith("maintenance") else \
+            "form" if lane.startswith("full") else "form on the full lane, consistency on maintenance"
+        plan.append(("sdd-doc-reviewer", files["documents"], "%s; %s" % (when, ", ".join(doc_reasons))))
+    elif files["documents"]:
+        unread_docs = files["documents"]
     rows = []
     for name, paths, when in plan:
         patch = os.path.join(out, "diff-%s.patch" % _safe_name(name))
@@ -1788,6 +1819,8 @@ def cmd_start(session: Session, args) -> int:
         print("no reviewer: %s" % _few(unassigned))
     if files["vendored"] or files["plans"] or files["skipped"]:
         print("not reviewed: %s" % _few(files["vendored"] + files["plans"] + files["skipped"]))
+    if unread_docs:
+        print("documents, no normative line, requirement or ADR changed; no reviewer: %s" % _few(unread_docs))
     return 0
 
 
