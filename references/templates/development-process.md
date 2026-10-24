@@ -109,33 +109,25 @@ writes it to `.github/PULL_REQUEST_TEMPLATE.md`:
 ## Summary
 <What changed and why, in at most three sentences, with the decisions taken. Link the
 REQ / SPEC § anchors (formal) or the architecture sections (informative) the change implements or amends.>
-
-## Spec and traceability            <!-- informative profile: "## Docs" -->
 Lane: <full | maintenance — no normative change>     <!-- formal profile only -->
-- <REQ-…> — <planned → shipped> in the traceability map and the index
-- <SPEC-… §N> — <amended | promoted to stable | unchanged>
-- <PROBE-…, ADR-…, or the docs/ pages reconciled>
+
+## Changes
+- <REQ-…> — <planned → shipped>; <SPEC-… §N> — <amended | corrected | promoted to stable>   <!-- formal -->
+- <the docs/ pages, README or comments reconciled>
+- <a sentence changed on the maintainer's instruction, named once>
 
 ## Verification
 - `<build_entrypoint> <ci_target>` — <what the output said>
-- red before green: <the tests that failed before the change>
-- can-fail proof: <the guards removed and the tests that then failed>
-- per-task review: <tasks reviewed; findings fixed in-task, by severity>
+- red before green: <the tests that failed before the change>; can-fail proof: <the guards removed for each new MUST and the tests that then failed>
 
 ## Notes for review                  <!-- omit when there is nothing to say -->
 - <at most three bullets: where to look hardest, what is out of scope, a known gap left on purpose>
-
-## Checklist
-- [ ] Scoped to one logical change
-- [ ] The full gate passes locally and its output was read
-- [ ] CHANGELOG updated as this repository's policy says (per pull request, or at release)
-- [ ] Traceability and documents updated for what landed
-- [ ] Conventional Commits, citing the identifiers the change touches
 ```
 
-The body describes the branch, never its review: no session claim, no commit list, no task ticks, no
-finding ids, counts or passes; those are in the findings file and the review threads (`ai-workflow.md`
-§ Review). Update it when a later commit changes what the branch does.
+About 450 words. The body describes the branch, never its review: no session claim, no commit list, no
+task ticks, no checklist (the gate and `sdd-pr status` enforce what one would tick), no finding ids,
+counts or passes; those are in the findings file and the review threads (`ai-workflow.md` § Review).
+Update it when a later commit changes what the branch does.
 
 ## Artefact prose — one home per fact
 

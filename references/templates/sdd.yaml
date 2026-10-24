@@ -86,4 +86,4 @@ sdd:
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
     reviewers: []                   # this repo's own language reviewers, by agent name: a list, or a block map of path patterns to names; /sdd-scaffold suggests from the build manifests
     skip: []                        # path patterns no reviewer reads (a vendored corpus, fixture data), e.g. ["testdata/**"]
-    task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
+    task_review: off                # off | on | lane  (off: the first review pass is the gate; lane = on for full, off for maintenance)
