@@ -107,7 +107,7 @@ writes it to `.github/PULL_REQUEST_TEMPLATE.md`:
 
 ```markdown
 ## Summary
-<What changed and why, in at most three sentences, with the decisions taken. Link the
+<What changed and why, with the decisions taken. Link the
 REQ / SPEC § anchors (formal) or the architecture sections (informative) the change implements or amends.>
 Lane: <full | maintenance — no normative change>     <!-- formal profile only -->
 

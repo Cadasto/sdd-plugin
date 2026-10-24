@@ -28,7 +28,7 @@ Code may lead. The maintainer's instruction outranks a specification sentence an
 - Agents: `sdd-spec-conformance-reviewer` guards only the new obligations the brief lists, none older and none reworded, reads only the files the cited sentences map to, files no behaviour claim as a suggestion, and names behaviour with no sentence under Coverage instead of as a finding.
 - Tools: `sdd-pr start` plans `sdd-doc-reviewer` on the formal profile only when the range changed a normative line, a requirement or an ADR, with the reason; the brief lists the MUSTs the range added as new obligations, a reworded one pairing with the line it replaced in its hunk; the brief carries the suggestion cap and the behaviour floor.
 - Templates: `sdd.yaml` and `traceability-schema.md` default `task_review` to `off`; `task-review.md` says a suggestion-only verdict opens no worker.
-- Templates: the PR body is Summary with the `Lane:` line, Changes, Verification and Notes for review, about 450 words, no checklist; `AGENTS.md`, `ai-workflow.md` and `artefact-prose.md` follow.
+- Templates: the PR body is Summary with the `Lane:` line and no sentence limit, Changes, Verification and Notes for review, about 450 words, no checklist; `AGENTS.md`, `ai-workflow.md` and `artefact-prose.md` follow.
 - Hooks: `session-start.sh`'s orientation line states the maintainer-outranks rule.
 - Docs: `README.md`, `quick-start.md`, `examples.md` and `upgrading.md` follow; `examples.md` shows `reviewers` as a block map.
 
