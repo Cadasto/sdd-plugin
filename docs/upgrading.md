@@ -20,7 +20,7 @@ review runs where it pays. `sdd-check` changed only its version number, so re-ve
 3. **`task_review` defaults to `off`.** New scaffolds get it; an existing descriptor keeps its value, so
    set `task_review: off` yourself unless the per-task gate earns its cost in your repository.
 4. **The document reviewer runs less, and fixes instead of filing.** On the formal profile it reads a
-   range only when a normative line, a requirement or an ADR changed, on a cheaper model, and slips in the
+   range only when a normative line, a requirement or an ADR changed, on a cheaper model where the host offers one, and slips in the
    branch's own documents come back as a fix list the orchestrator applies. Expect fewer document threads
    on your pull requests.
 5. **Shorter suggestions, shorter backlog.** Wrong behaviour is never a suggestion; a reviewer files at

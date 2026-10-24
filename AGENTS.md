@@ -54,7 +54,7 @@ The **spec, document and traceability layer** and the **delivery pipeline on it*
 | Agent | Purpose |
 |-------|---------|
 | `sdd-traceability-auditor` | Full-tree scan for traceability drift and orphans in isolated context; dispatched only by `/sdd-trace --audit` |
-| `sdd-doc-reviewer` | Reviews the changed hunks of SDD documents (**not** code) when a normative line, a requirement or an ADR changed: contradictions block, slips in the branch's own documents come back as a fix list; consistency mode on the informative profile; `model: sonnet` |
+| `sdd-doc-reviewer` | Reviews the changed hunks of SDD documents (**not** code) when a normative line, a requirement or an ADR changed: contradictions block, slips in the branch's own documents come back as a fix list; consistency mode on the informative profile |
 | `sdd-spec-conformance-reviewer` | Judges changed code against the binding sentences it cites, clause by clause, with the tests as evidence and a guard-removal check for each new obligation |
 | `sdd-implementer` | The one mutating agent: one bounded task from a brief, test first with a can-fail proof for a new obligation, the maintainer's `Decided` line outranking a quoted sentence, small defects in its own files fixed, ids in test names and the commit, `En-route findings` back; cannot spawn agents |
 
@@ -115,7 +115,7 @@ Feature branches and pull requests. CI runs on every pull request and on push to
 - **A plugin cannot approve a command.** Claude Code ignores `permissionMode`, `hooks` and `mcpServers` in plugin agents, keeps only `agent` and `subagentStatusLine` from plugin settings, and runs a subagent under the session's permission rules. Users add allow rules themselves: [docs/install.md](docs/install.md).
 - **`author` in `plugin.json` is an object** (`{name, url}`); `claude plugin validate` rejects a bare string.
 - **`${CLAUDE_PLUGIN_ROOT}` is Claude-Code-only.** Cursor hook commands stay workspace-relative (`bash hooks/session-start.sh`); don't "fix" them, and keep both hook configs in step. Every skill names the plugin root as the folder that holds its `skills/` folder, which works on both hosts.
-- **Plugin agent files are read-only at runtime** (they live in the install cache). `sdd-implementer` ships `model: inherit`; `/sdd-deliver` passes `agents.worker_model`, and the skills pick other models, per dispatch. `sdd-doc-reviewer` ships `model: sonnet`: its findings are quotations, not judgement calls that need the top model.
+- **Plugin agent files are read-only at runtime** (they live in the install cache). `sdd-implementer` ships `model: inherit`; `/sdd-deliver` passes `agents.worker_model`, and the skills pick other models, per dispatch. Every agent ships `model: inherit`: the host and model are the maintainer's choice, and a model name in an agent file would not travel across hosts.
 - **An agent's `skills:` frontmatter may not name another plugin's skill** (unconfirmed); `worker_skills` goes through the dispatch brief instead.
 - **`spec-driven-development` is not named `sdd`,** which would collide as `sdd:sdd`. The command prefix is `sdd-`.
 - **Don't grow a second delivery loop.** The plugin owns plan → workers → review → triage → close-out → clean-up; a general engineering plugin complements it at the exploration end only.

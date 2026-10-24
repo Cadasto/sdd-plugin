@@ -8,7 +8,7 @@ description: >
   Typical triggers include a specification section written for a change, requirement creep, and a
   pre-merge ADR check. Not for code, conformance, or a whole-tree scan; the sdd-review skill decides its
   mode, form or consistency. See "When to invoke" in the agent body for worked scenarios.
-model: sonnet
+model: inherit
 color: cyan
 tools:
   - Read

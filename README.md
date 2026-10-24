@@ -91,7 +91,7 @@ Claude Code enforces these grants. Cursor's subagent frontmatter carries no tool
 | Agent | Purpose |
 |---|---|
 | `sdd-traceability-auditor` | Context-isolated full-tree scan for traceability drift and orphans, dispatched by `/sdd-trace --audit` |
-| `sdd-doc-reviewer` | Reviews the changed document hunks (**not** code) when a normative line, a requirement or an ADR changed: two homes for one rule, a contradiction with a merged document or the code; slips in the branch's own documents come back as a fix list; consistency on the informative profile and the maintenance lane; runs on a cheaper model |
+| `sdd-doc-reviewer` | Reviews the changed document hunks (**not** code) when a normative line, a requirement or an ADR changed: two homes for one rule, a contradiction with a merged document or the code; slips in the branch's own documents come back as a fix list; consistency on the informative profile and the maintenance lane; a cheaper model where the host lets a dispatch pick one |
 | `sdd-spec-conformance-reviewer` | Judges whether changed code satisfies the binding sentences it cites, clause by clause, running the tests and removing the guard of each new obligation as evidence |
 | `sdd-implementer` | Implements one bounded task from a brief: reads the quoted clauses and the maintainer's `Decided` line, writes each test first and proves it can fail for a new obligation, fixes a small defect in its own files, cites `REQ`/`PROBE` ids in test names and its commit message, and returns `En-route findings` |
 
