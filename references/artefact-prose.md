@@ -10,7 +10,7 @@ The single-canonical-home rule ([sdd-methodology.md](sdd-methodology.md) §5) ap
 |---|---|---|---|
 | **Spec §** | Normative *what / how it must behave* (RFC-2119) | Task lists, file paths, PR-style narrative | `REQ` |
 | **Commit body** | The *why* of **this** change — rationale, tradeoff — one tight paragraph | A re-listing of the diff; restated spec prose; a finding | `REQ` / `SPEC §` / `ADR` |
-| **PR body** | For a person and an agent: Summary, Spec and traceability (or Docs), Verification, Notes for review, Checklist ([development-process.md](templates/development-process.md) § The PR body) | A re-explanation of the spec; a second changelog; a commit list | `REQ` / `SPEC §` |
+| **PR body** | For a person and an agent: Summary with the lane, Changes, Verification, Notes for review ([development-process.md](templates/development-process.md) § The PR body) | A re-explanation of the spec; a second changelog; a commit list; a checklist | `REQ` / `SPEC §` |
 | **Changelog** | The *user-facing delta* — one subsystem-led line per bullet | Rationale, design narrative (those are in the commit/ADR) | optional `REQ` |
 | **Review thread** | One finding on the line it concerns: severity, one sentence, evidence, fix ([review.md](review.md)) | Essays; instances outside the range | `SPEC §` |
 | **Thread reply** | `fixed in <sha>` or `declined: <reason>`, one line | A re-description of the fix (it's in the diff) | the commit SHA |
@@ -33,7 +33,7 @@ Most of this text is written by one agent and read by another, so the test is wh
 - **Plain words. One idea per sentence.** No preamble, no summary of a summary.
 - **Length is a cost.** A word is paid for when written and again by every reader.
   Lead with the result: a finding is one sentence of at most about 30 words, its evidence and
-  fix a clause each; a PR body is at most about 300 words besides its checklist; a report puts one item
+  fix a clause each; a PR body is at most about 450 words; a report puts one item
   on a line and quotes only the output that proves it.
 - **A citation beats a retelling.** "Implements `REQ-AUTH-003` / `SPEC-WIRE §4`; rationale in `ADR-0007`." — not a paragraph re-deriving the decision.
 - **Keep the essential once.** The *why* in the commit, the *review lens* in the PR, the *user-facing line* in the changelog, the *finding* in its thread. Everything that echoes a cited artefact is cut.

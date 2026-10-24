@@ -2,7 +2,7 @@
 
 The single source of truth for the rules this plugin's skills enforce. Skills cite this file rather than restating it, so it can evolve in one place. It is **language-agnostic**: a documentation-and-process architecture, not a code pattern.
 
-> **Guiding principle.** The **specification — not the code and not the prompt — is the source of truth.** Code is derived from it and continuously measured against it. When they disagree, the spec wins, *unless* a section is explicitly marked implementation-aligned (see §7) or the repository runs the informative profile, where code leads and only the constitution binds (§1a).
+> **Guiding principle.** The **specification records the contract code is measured against.** Code is derived from it and continuously checked against it. **The maintainer's instruction outranks it:** when a request contradicts a sentence, name the sentence in one line, do the work, and amend the sentence in the same change. Without the maintainer, a disagreement between code and spec is a finding, not a stop, and the spec wins *unless* a section is marked implementation-aligned (§7) or the repository runs the informative profile, where code leads and only the constitution binds (§1a).
 
 ## 1. The rigour ladder — and where this plugin sits
 
@@ -104,6 +104,15 @@ Specs mark normative force with [RFC-2119](https://www.rfc-editor.org/rfc/rfc211
 
 Statements without a keyword are **informative**. The rule: *don't implement informative text as a requirement; don't relax normative text into a suggestion.* Negative-space clauses — `MUST NOT`, refusals, fail-closed behaviour — carry the same force as their positive counterparts.
 
+**When a sentence takes a keyword.** RFC-2119 force goes only to behaviour a caller can observe and would
+break on: the public API, wire and file formats, the error contract, the refusals a caller can see,
+security invariants. A default or a recommended path is `SHOULD`, with its reason. How the code does it —
+algorithms, visit and precedence orders, internal structure, dependency choices, examples — is prose with
+no keyword, and the code may change it without an amendment. Every `MUST` costs a test that fails without
+its guard, a conformance check and an amendment whenever the behaviour moves, so a section dense with
+`MUST`s about internals is a smell, named in the hand-back; a `MUST` a test cannot pin is a sentence to
+demote.
+
 ## 5. Identifier scheme
 
 Stable, citable identifiers thread the whole repo — they appear in commit messages, PR titles, test names, and PR bodies. **They must never be renumbered or reused once published** (renumbering is a major doc-version event that breaks every external citation).
@@ -162,7 +171,10 @@ Each kind carries its own vocabulary:
 | **Upstream** | `state` | `proposed` · `submitted` · `landed-upstream` · `landed` · `rejected` |
 | Guide, analysis, operations, reference | — | no status |
 
-> **A `draft` specification is binding.**
+> **A `draft` specification is binding once it merges.** A § written or reworded on a branch is that
+> branch's working text until the merge: it may be corrected in the branch without ceremony, and rewording it
+> is no "written `MUST`" for the review budget ([review.md](review.md) § Passes). From the merge on, it binds
+> like a `stable` one, and only the wording may still move.
 
 The upstream kind deliberately spells its key `state`, not `status`: the lifecycle it tracks belongs to
 another repository, not to this one (§10).
@@ -186,9 +198,13 @@ A purist "spec always precedes code" rule breaks down for bug-fixes and perf wor
 | Mode | When | Order |
 |---|---|---|
 | **Spec-first** | New capability, API surface, schema shape, invariant | `REQ → SPEC (Draft) → ADR if fork → Plan → Code → REQ shipped` |
-| **Implementation-aligned** | Hardening, perf, DB quirks, bug-fix on shipped code | `Code + migrations → update SPEC § + guide in the same PR → note in spec frontmatter` |
+| **Implementation-aligned** | Everything else on shipped code: hardening, perf, DB quirks, a bug-fix, a maintainer's instruction that a behaviour is wrong | `Code + migrations → update SPEC § + guide in the same PR → note in spec frontmatter` |
 
-The discipline that keeps mode 2 honest: **"code wins until the spec is updated — in the same PR."** The spec is never allowed to silently lag. This is the encoding of the industry's *reconcile loop*.
+Implementation-aligned is the default for work that is not a new capability. A direct instruction from
+the maintainer on shipped code is this mode: code first, the sentence reconciled in the same branch,
+never routed to `/sdd-specify` first and never argued from the sentence. The discipline that keeps mode 2
+honest: **"code wins until the spec is updated — in the same PR."** The spec is never allowed to silently
+lag. This is the encoding of the industry's *reconcile loop*.
 
 ## 8. The traceability chain
 
@@ -293,7 +309,7 @@ acceptance criteria, a `SPEC §` behaviour, a public API shape, or an error cont
 
 | Obligation | **Full lane** | **Maintenance lane** |
 |---|---|---|
-| `REQ` / index / `SPEC §` edits | required | forbidden by definition — needing one makes the change full lane |
+| `REQ` / index / `SPEC §` edits | required | only a correction: a sentence reworded to match the behaviour the change fixes, adding no obligation and widening no contract |
 | `traceability.yaml` | updated for landed packages/tests/probes | only when file paths moved, and the drift gate names exactly which rows |
 | `ADR` | when an irreversible fork was taken | never — a maintenance change taking an irreversible fork is full lane |
 | SDD reviewer agents | dispatched | `sdd-doc-reviewer` alone, for consistency, when a document changed |
@@ -304,10 +320,15 @@ acceptance criteria, a `SPEC §` behaviour, a public API shape, or an error cont
 A full-lane PR body carries `Lane: full`.
 
 **Membership.** Maintenance lane: refactors, package moves and splits, performance work, dependency
-bumps, tooling, comment and documentation polish, and a bug-fix whose fix makes the code match an
-**existing** spec statement. Full lane: new capability, any change to API shape, behaviour, or error
-contract, any spec amendment — including a bug-fix that reveals the **spec itself** was wrong, where the
-spec amendment rides with the fix as implementation-aligned work (§7).
+bumps, tooling, comment and documentation polish, a bug-fix whose fix makes the code match an
+**existing** spec statement, and a bug-fix that reveals the sentence was wrong, where the corrected
+sentence rides with the fix (§7) and adds no new obligation. Full lane: new capability, a new `MUST` a
+caller must rely on, any change to the public API shape or the error contract, a `SPEC §` promoted to
+`stable`, an ADR.
+
+**The maintainer's lane is final.** An agent never raises a lane the maintainer named; it may note a
+concern in one line and stays in that lane. Without a named lane, the agent decides by the test above and
+says so in the PR body.
 
 **The guard against lane abuse is a ratchet, not a diff check.** Any newly added or materially changed
 requirement owes observable acceptance criteria and its own canonical `SPEC §`, whatever lane the change
@@ -320,8 +341,8 @@ lane field. The informative profile has one lane.
 
 ## 13. Review discipline
 
-**The merge gate.** The code is correct; every MUST the change wrote or reworded has a named test that
-fails when its guard is removed; the code conforms to the sentences it cites (all specifications on the
+**The merge gate.** The code is correct; every MUST the change added, a new obligation, has a named test
+that fails when its guard is removed; the code conforms to the sentences it cites (all specifications on the
 formal profile, the constitution on the informative one); the drift gate is green; no critical or
 important finding about the change is open. Everything else blocks nothing ([review.md](review.md) § Severity).
 
@@ -377,11 +398,12 @@ dispatched and how many reported; a pass that dispatched none writes none, so it
 The mechanisms below earned their cost and are untouched by the lanes, the profiles, and the review
 severities:
 
-- normative topic specs with RFC-2119 force, and "when code and specs disagree, the specs win";
+- normative topic specs with RFC-2119 force, and "when code and specs disagree, the specs win" until the
+  maintainer says which side is wrong;
 - spec-first for new capability, including the pre-code spec review;
 - stated closure properties and invariants as the review anchor, and axis sweeps from them;
 - ground-truth pinning — look it up, never guess;
-- the mutation-detectability bar: removing the guard MUST fail a named test;
+- the mutation-detectability bar: removing a new obligation's guard MUST fail a named test;
 - identifier stability — a published id is never renumbered or reused;
 - ADRs for irreversible forks; STRANDs for genuinely open questions;
 - the traceability map for packages, tests and probes, and the drift gate that validates it — in **both**
@@ -397,4 +419,6 @@ The methodology corroborates and tightens the 2026 industry consensus:
 - Birgitta Böckeler / Thoughtworks (martinfowler.com, Oct 2025) — the spec-first / spec-anchored / spec-as-source ladder.
 - Sean Grove, *The New Code*, AI Engineer World's Fair 2025.
 - TrueFoundry, *Spec-Driven Development for AI Agents: Governing Specs* (2026) — the "governing specs at scale" problem.
+- OpenSpec — change-scoped delta specs that merge into the living specification on archive; the
+  "branch working text" rule of §6 is that idea.
 - RFC-2119 — keyword force for normative statements.
