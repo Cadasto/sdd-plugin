@@ -117,13 +117,30 @@ else
   regen="regenerate them with /sdd-specify (or /sdd-close)"
 fi
 
+# How many RFC-2119 keywords the edit added (methodology §4: a keyword only for what a caller relies on).
+# Claude Code's payload carries the text written: `tool_input.new_string` for Edit, `tool_input.content`
+# for Write. Counted on the text alone, without the old text (an Edit's `old_string` may hold keywords
+# too, and the net is read from it), so a Write of a whole file counts every keyword it holds. Parsed
+# without jq: JSON escapes keep keywords intact, and a miscount only changes a number in an advisory line.
+kw_added() {
+  _new="$(printf '%s' "$payload" | grep -oE '"(new_string|content)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"')"
+  _old="$(printf '%s' "$payload" | grep -oE '"old_string"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' | head -n1)"
+  _n="$(printf '%s' "$_new" | grep -oE '\b(MUST|SHALL|REQUIRED|SHOULD|RECOMMENDED|MAY|OPTIONAL)\b' | wc -l | tr -d '[:space:]')"
+  _o="$(printf '%s' "$_old" | grep -oE '\b(MUST|SHALL|REQUIRED|SHOULD|RECOMMENDED|MAY|OPTIONAL)\b' | wc -l | tr -d '[:space:]')"
+  [ "${_n:-0}" -gt "${_o:-0}" ] && printf '%s' "$((_n - _o))"
+}
+
 case "$f" in
   *"$trace_file"|*docs/.sdd.yaml)
     echo "› Edited the SDD descriptor / traceability map — run /sdd-trace to confirm the map still matches the tree (the spec-check gate); for the indexes and status lines to follow the map, $regen." ;;
   *"$req_dir"/*|*"$req_dir")
     echo "› Edited a requirement — keep it to capability + acceptance + out-of-scope (no file paths or how-to); link to its single canonical spec section; update traceability.yaml; for the index and the status lines to follow the map, $regen." ;;
   *"$spec_dir"/*|*"$spec_dir")
-    echo "› Edited a spec — one canonical home (no duplicated normative prose), explicit RFC-2119 force (MUST/SHOULD/MAY), stable § anchors; update traceability.yaml. Then /sdd-trace." ;;
+    echo "› Edited a spec — one canonical home (no duplicated normative prose), stable § anchors; update traceability.yaml. Then /sdd-trace."
+    added="$(kw_added)"
+    if [ -n "$added" ]; then
+      echo "› $added RFC-2119 keyword(s) added — a keyword only for what a caller can observe and a test can pin; a default is SHOULD with its reason; how the code does it is prose (methodology §4). Each MUST costs a test, a guard proof and an amendment when the code moves."
+    fi ;;
   *"$adr_dir"/*|*"$adr_dir")
     echo "› Edited an ADR — one decision per record; cite the STRAND it resolves and the REQs it amends; it must be Accepted before code depends on it." ;;
   *) : ;;
