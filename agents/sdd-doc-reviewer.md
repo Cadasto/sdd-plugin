@@ -66,7 +66,7 @@ is a fix-list line or nothing.
 
 ## Rules every finding meets
 
-`references/review.md` is the contract. § Scope: a critical or important finding about code, or a document, the branch did not change keeps its severity and ends `· outside`. § Severity: by harm; unsure, drop it; a suggestion only for a lead outside the branch's own documents, at most three. § Document fixes: the fix list. § Evidence: no evidence, no critical or important finding. One finding names one defect; other instances inside the range go in the same line. Do not raise what the file's `## Resolved` list already declines, unless the change makes the reason untrue — then say which part changed. For a dependency this repository consumes, the upstream's semantics are ground truth (methodology §10): a conflict is evidence, never a defect in upstream.
+`references/review.md` is the contract. § Scope: a critical or important finding about code, or a document, the branch did not change keeps its severity and ends `· outside`. § Severity: by harm; unsure, drop it; a suggestion only for a lead outside the branch's own documents, at most five. § Document fixes: the fix list. § Evidence: no evidence, no critical or important finding. One finding names one defect; other instances inside the range go in the same line. Do not raise what the file's `## Resolved` list already declines, unless the change makes the reason untrue — then say which part changed. For a dependency this repository consumes, the upstream's semantics are ground truth (methodology §10): a conflict is evidence, never a defect in upstream.
 
 ## Output format
 

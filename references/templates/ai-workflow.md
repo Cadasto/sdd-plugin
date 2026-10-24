@@ -57,7 +57,7 @@ writes it) and,
 on a pull request, in its inline threads, one summary per pass and the suggestion comments, which
 `sdd-pr` keeps in step. Three severities, by harm: critical and important about the change are resolved before
 merge and get inline threads; one about code or a document the change did not touch keeps its severity, marked
-`outside`, blocks nothing, is fixed here when the fix is small and carried after merge otherwise; suggestions never block, at most three per reviewer per pass, and after merge `/sdd-triage --backlog` carries them to
+`outside`, blocks nothing, is fixed here when the fix is small and carried after merge otherwise; suggestions never block, at most five per reviewer per pass, and after merge `/sdd-triage --backlog` carries them to
 `docs/backlog.md`, kept at about 40 lines. A suggestion names an input and a weaker result and outlives the change; taste (naming,
 wording, style) never does, and wrong behaviour is never a suggestion. A slip in a document the branch wrote is fixed in the pass, not filed. Every critical or important
 finding carries evidence. A claim of wrong code behaviour is settled by running it, or by a named input,
@@ -73,7 +73,7 @@ drift from what the repo defines.
 Review commits <a>..<b> of <repository>, and only those. Read docs/ai-workflow.md § Review.
 Report critical and important findings only, each with evidence (what you ran, or the two
 sentences that disagree) and a one-line fix, ending a defect in what the range did not change with
-` · outside`; a lead with no behaviour claim is a suggestion, at most three.
+` · outside`; a lead with no behaviour claim is a suggestion, at most five.
 If you work on this machine, pipe your lines in that grammar to: <plugin root>/tools/sdd-pr.py add -
 If you work on the pull request, post one review: one inline comment per finding about the change,
 its first word **critical** or **important** and its last line `By: <your name>`, and a defect in

@@ -46,7 +46,7 @@ until one reads it, or the maintainer's own review is recorded: `pull` records i
 - **suggestion** — a lead with no behaviour claim: a test that could be stronger, a cheap refactor, parity the gate does not flag.
 
 Severity is the harm, wherever the line is; § Scope says where it is fixed. Critical and important findings in the change are resolved before merge (§ Resolution). Suggestions never block. A suggestion is written only when it names a path, an input and the weaker or
-missing result, is still true without this change's diff, and improves a behaviour, a test or a contract: at most three per reviewer per pass, the rest named in the hand-back. Taste (naming, a comment's wording, formatting,
+missing result, is still true without this change's diff, and improves a behaviour, a test or a contract: at most five per reviewer per pass, the rest named in the hand-back. Taste (naming, a comment's wording, formatting,
 what a linter could enforce), a keyword missing from a sentence the code meets, a document's form, or "add a `MUST`", is no lead; worth
 doing, it is done here. **Unsure means run it or drop it, never write it down.** A gap in a specification or requirement goes to *Known gaps* or `implementation:
 deferred` instead. What the close-out writes (`implementation:` values, acceptance ticks, the changelog

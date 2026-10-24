@@ -1679,7 +1679,7 @@ BRIEF = """# Review brief: {branch} at `{head}`
   document line is important only when a reader would build or test the wrong thing from it, and a slip
   in a document this branch wrote is a fix, not a finding. A defect in code or a document the branch did
   not change keeps its severity and ends ` · outside`. A suggestion names an input and a weaker result,
-  at most three per reviewer; unsure, run it or drop it. No lead: a keyword missing from a sentence the
+  at most five per reviewer; unsure, run it or drop it. No lead: a keyword missing from a sentence the
   code meets, "add a MUST", a comment's wording.
 - **Return** one verdict line (`CLEAN`, or `<n> critical, <m> important, <s> suggestions`), then one fenced
   block of finding lines, then one **Coverage** line (what you read and ran, and what you could not check):

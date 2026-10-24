@@ -24,7 +24,7 @@ review runs where it pays. `sdd-check` changed only its version number, so re-ve
    branch's own documents come back as a fix list the orchestrator applies. Expect fewer document threads
    on your pull requests.
 5. **Shorter suggestions, shorter backlog.** Wrong behaviour is never a suggestion; a reviewer files at
-   most three; a defect in a file the branch changed is fixed there. The close-out carries defects by
+   most five; a defect in a file the branch changed is fixed there. The close-out carries defects by
    default and a lead only by name; the consolidation keeps `docs/backlog.md` at about 40 lines. A long
    backlog shrinks at the next `/sdd-triage --backlog`; the dropped lines are listed in its commit message.
 6. **The PR body.** About 450 words: Summary with the `Lane:` line, Changes, Verification, Notes for
