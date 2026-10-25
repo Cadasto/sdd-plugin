@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-25
+
 Code may lead. The maintainer's instruction outranks a specification sentence and the lane the maintainer names is final, so an agent names the sentence once, does the work and amends it in the same branch instead of arguing from it. RFC-2119 force goes only to what a caller relies on, and a guard proof is owed only for a new obligation. Wrong behaviour is never a suggestion, a defect in a file the branch changed is fixed there, slips in the branch's own documents come back as a fix list, and the backlog is kept short. The per-task gate is off by default, the document reviewer runs only when something normative changed, and the PR body loses its checklist. `sdd-check` changed only its version number. Moving a repository from 0.15.x is described in `docs/upgrading.md`.
 
 ### Added
@@ -31,10 +33,8 @@ Code may lead. The maintainer's instruction outranks a specification sentence an
 - Templates: the PR body is Summary with the `Lane:` line and no sentence limit, Changes, Verification and Notes for review, about 450 words, no checklist; `AGENTS.md`, `ai-workflow.md` and `artefact-prose.md` follow.
 - Templates: the scaffold's `AGENTS.md`, `development-process.md` and `ai-workflow.md` open with the maintainer-outranks rule instead of "the spec wins"; `specification.md`, `requirement.md` and `requirements-README.md` say a `draft` binds once merged; `scaffold-upgrade.md` compares the opening paragraph too.
 - Scripts: `validate.py` pins `task_review: off` in the descriptor template, the schema and the README.
-- Hooks: `spec-edit-reminder.sh` counts keywords with a portable word split and reads the first text field of the payload only.
 - Hooks: `session-start.sh`'s orientation line states the maintainer-outranks rule.
-- Docs: `README.md`'s pitch records the contract instead of "the source of truth"; `quick-start.md`, the descriptor template, the schema and `sdd-deliver` agree that `task_review: lane` is on for the full lane and the informative profile.
-- Docs: `README.md`, `quick-start.md`, `examples.md` and `upgrading.md` follow; `examples.md` shows `reviewers` as a block map.
+- Docs: `README.md`'s pitch records the contract instead of "the source of truth"; `README.md`, `quick-start.md`, `examples.md` and `upgrading.md` follow the new rules, and agree with the descriptor template, the schema and `sdd-deliver` that `task_review: lane` is on for the full lane and the informative profile; `examples.md` shows `reviewers` as a block map.
 
 ### Removed
 - Skills and agents: the rule "a sentence the code does not meet is a defect in the code; narrowing the sentence is the maintainer's call", the implementer's lane escalation and its "Do not fix them", the review guidance "unsure, write it down", and the conformance reviewer's guard runs on up to three older MUSTs.
