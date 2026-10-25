@@ -13,6 +13,9 @@ review runs where it pays. `sdd-check` changed only its version number, so re-ve
    once, does the work and corrects the sentence in the same branch; it no longer returns a task or
    raises the lane for it. A correction that adds no obligation rides the maintenance lane. Nothing to
    configure; expect fewer questions and no argument from a sentence written the day before.
+   `/sdd-scaffold --upgrade` proposes the new opening paragraph of `docs/development-process.md` and
+   `docs/ai-workflow.md`; rewrite `AGENTS.md` § Source of truth yourself from the template, or the
+   agents that read it first will still hear that the spec wins.
 2. **Fewer MUSTs.** Methodology §4 now says when a sentence takes a keyword: what a caller observes and a
    test can pin. A guard proof is owed only for a MUST a change adds; a reworded one owes none. Existing
    specifications keep their keywords; demote internal-mechanics MUSTs to prose file by file, in their
@@ -21,16 +24,16 @@ review runs where it pays. `sdd-check` changed only its version number, so re-ve
    set `task_review: off` yourself unless the per-task gate earns its cost in your repository.
 4. **The document reviewer runs less, and fixes instead of filing.** On the formal profile it reads a
    range only when a normative line, a requirement or an ADR changed, on a cheaper model where the host offers one, and slips in the
-   branch's own documents come back as a fix list the orchestrator applies. Expect fewer document threads
+   branch's own documents come back as a fix list `/sdd-triage` applies. Expect fewer document threads
    on your pull requests.
 5. **Shorter suggestions, shorter backlog.** Wrong behaviour is never a suggestion; a reviewer files at
    most five; a defect in a file the branch changed is fixed there. The close-out carries defects by
    default and a lead only by name; the consolidation keeps `docs/backlog.md` at about 40 lines. A long
    backlog shrinks at the next `/sdd-triage --backlog`; the dropped lines are listed in its commit message.
 6. **The PR body.** About 450 words: Summary with the `Lane:` line, Changes, Verification, Notes for
-   review, no checklist. `--upgrade` proposes the changed `docs/development-process.md` § The PR body,
-   `docs/ai-workflow.md` and `AGENTS.md`; copy the new block to `.github/PULL_REQUEST_TEMPLATE.md` if the
-   scaffold wrote one.
+   review, no checklist. `--upgrade` proposes the changed `docs/development-process.md` § The PR body
+   and `docs/ai-workflow.md`; update the `Write short` line of `AGENTS.md` yourself, and copy the new
+   block to `.github/PULL_REQUEST_TEMPLATE.md` if the scaffold wrote one.
 7. **One change per session.** `/sdd-close` ends by asking for a fresh session; the findings file and the
    delivery notes hold the state, so nothing is lost.
 

@@ -7,7 +7,8 @@ kind: guide
 What an AI agent does when working a change in this repo. Read [AGENTS.md](../AGENTS.md) and
 [development-process.md](development-process.md) first.
 
-This repo uses **Spec-Driven Development**: the specification is the source of truth, and the delivery
+This repo uses **Spec-Driven Development**: the specification records the contract, the maintainer's
+instruction outranks a sentence, and the delivery
 pipeline — workers, review, triage, close-out — is run by the `/sdd-*` skills. `docs/.sdd.yaml` names the
 profile: `formal` (requirements, RFC-2119 specifications, the traceability map) or `informative` (a
 knowledge base in which only the constitution binds).

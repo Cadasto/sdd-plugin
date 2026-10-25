@@ -12,7 +12,7 @@ out-of-scope — **no file paths, no implementation detail.**
 
 ## Status axes
 
-- **Spec stability** — `Draft` (binding now; wording may still change) → `Stable` (frozen) → `Deprecated`.
+- **Spec stability** — `Draft` (binds once merged; wording may still change) → `Stable` (frozen) → `Deprecated`.
 - **Implementation** — `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` ·
   `deferred` · `retired`. The full list, and the vocabulary each other kind uses, is in development-process.md under
   *Document kinds*.

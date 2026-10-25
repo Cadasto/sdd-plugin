@@ -10,9 +10,12 @@ Instructions for AI coding assistants and the humans reviewing their work in thi
 
 ## Source of truth
 
-The **specification is the source of truth.** Code is derived from it and measured against it; when they
-disagree, the spec wins — except a section explicitly marked *implementation-aligned*. This repo sits on the
-**spec-anchored** rung: specs are living, versioned, governing contracts.
+The **specification records the contract the code is measured against; the maintainer's instruction
+outranks it.** When a request contradicts a sentence, name the sentence once, do the work and amend it in
+the same change. Without the maintainer, a disagreement between code and spec is a finding, and the spec
+wins — except a section marked *implementation-aligned*, where code leads and the spec is reconciled in
+the same PR. A `draft` section binds once it merges. This repo sits on the **spec-anchored** rung: specs
+are living, versioned, governing contracts.
 
 ## Reading order
 
@@ -32,8 +35,8 @@ The linked docs are **canonical** — defer to them rather than duplicating thei
 cite ids) → update traceability → update `REQ` status and write the PR body (`/sdd-close`) —
 all in the same PR that implements it. Review findings live in the branch's findings file, which `sdd-pr` keeps in the clone's git directory;
 `sdd-pr status` says what is open. A `SPEC §` is promoted only when the maintainer
-confirms. New behaviour is *spec-first*; hardening shipped code is *implementation-aligned* (code may lead,
-spec updated in the same PR).
+confirms. A new capability is *spec-first*; everything else on shipped code is *implementation-aligned* (code
+first, the sentence reconciled in the same PR).
 
 ## Orchestration
 

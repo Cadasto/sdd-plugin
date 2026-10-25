@@ -4,9 +4,11 @@ kind: guide
 
 # Development process — the SDD constitution
 
-How work flows in this repository. The **specification is the source of truth**; when code and spec
-disagree the spec wins — except a section marked *implementation-aligned*, or on the informative profile,
-where code leads and only the constitution binds.
+How work flows in this repository. The **specification records the contract the code is measured
+against, and the maintainer's instruction outranks it**: a request that contradicts a sentence names it
+once, does the work and amends it in the same change. Without the maintainer, the spec wins when code and
+spec disagree — except a section marked *implementation-aligned*, or on the informative profile, where
+code leads and only the constitution binds.
 
 ## Document kinds
 
