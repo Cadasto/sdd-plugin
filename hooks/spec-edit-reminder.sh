@@ -118,15 +118,22 @@ else
 fi
 
 # How many RFC-2119 keywords the edit added (methodology §4: a keyword only for what a caller relies on).
-# Claude Code's payload carries the text written: `tool_input.new_string` for Edit, `tool_input.content`
-# for Write. Counted on the text alone, without the old text (an Edit's `old_string` may hold keywords
-# too, and the net is read from it), so a Write of a whole file counts every keyword it holds. Parsed
-# without jq: JSON escapes keep keywords intact, and a miscount only changes a number in an advisory line.
+# Claude Code's payload carries the text written: `tool_input.content` for Write, `tool_input.new_string`
+# for Edit and for Cursor's edits; the field the tool name picks, first match only, so a response that
+# echoes the text counts once. Counted on the text alone, net of the keywords in an Edit's `old_string`,
+# so a Write of a whole file counts every keyword it holds. Parsed without jq: JSON escapes keep keywords
+# intact, and a miscount only changes a number in an advisory line. The words are split with a plain
+# class, not `\b`, which not every grep knows.
+kw_count() { grep -oE '[A-Za-z]+' | grep -cxE 'MUST|SHALL|REQUIRED|SHOULD|RECOMMENDED|MAY|OPTIONAL'; }
 kw_added() {
-  _new="$(printf '%s' "$payload" | grep -oE '"(new_string|content)"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"')"
+  case "$(printf '%s' "$payload" | grep -oE '"tool_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -n1)" in
+    *Write*) _field=content ;;
+    *) _field=new_string ;;
+  esac
+  _new="$(printf '%s' "$payload" | grep -oE "\"$_field\"[[:space:]]*:[[:space:]]*\"([^\"\\\\]|\\\\.)*\"" | head -n1)"
   _old="$(printf '%s' "$payload" | grep -oE '"old_string"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"' | head -n1)"
-  _n="$(printf '%s' "$_new" | grep -oE '\b(MUST|SHALL|REQUIRED|SHOULD|RECOMMENDED|MAY|OPTIONAL)\b' | wc -l | tr -d '[:space:]')"
-  _o="$(printf '%s' "$_old" | grep -oE '\b(MUST|SHALL|REQUIRED|SHOULD|RECOMMENDED|MAY|OPTIONAL)\b' | wc -l | tr -d '[:space:]')"
+  _n="$(printf '%s' "$_new" | kw_count | tr -d '[:space:]')"
+  _o="$(printf '%s' "$_old" | kw_count | tr -d '[:space:]')"
   [ "${_n:-0}" -gt "${_o:-0}" ] && printf '%s' "$((_n - _o))"
 }
 

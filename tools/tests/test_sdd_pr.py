@@ -3341,7 +3341,27 @@ class TestStart(GitHubCase):
         (self.root / "docs" / ".sdd.yaml").write_text("sdd:\n  profile: informative\n  forge: none\n", encoding="utf-8")
         self.use(git_routes(names="docs/guide.md\n", diff="DIFF"))
         out = self.run_main("start", "--agent", "claude")[1]
-        self.assertIn("sdd-doc-reviewer: %s (1 file); consistency; consistency" % (review / "diff-sdd-doc-reviewer.patch"), out)
+        self.assertIn("sdd-doc-reviewer: %s (1 file); consistency; every changed document" % (review / "diff-sdd-doc-reviewer.patch"), out)
+
+    def test_a_requirement_alone_plans_the_doc_reviewer_also_under_a_custom_path(self):
+        # A requirement file with no normative line and no ADR beside it is reason enough, under the default
+        # folder and under a `paths.requirements` of the maintainer's own; the plan line says which.
+        self.descriptor(forge="none")
+        review = self.root / ".sdd" / "review" / HEAD[:7]
+        self.use(git_routes(names="docs/requirements/REQ-001.md\n", diff="DIFF"))
+        out = self.run_main("start", "--agent", "claude", "--lane", "full")[1]
+        self.assertIn("sdd-doc-reviewer: %s (1 file); form; a requirement changed"
+                      % (review / "diff-sdd-doc-reviewer.patch"), out)
+        self.descriptor(forge="none", extra="  paths:\n    requirements: docs/reqs\n")
+        self.use(git_routes(names="docs/reqs/REQ-001.md\n", diff="DIFF"))
+        out = self.run_main("start", "--agent", "claude", "--lane", "full")[1]
+        self.assertIn("sdd-doc-reviewer: %s (1 file); form; a requirement changed"
+                      % (review / "diff-sdd-doc-reviewer.patch"), out)
+        self.use(git_routes(names="docs/requirements/REQ-001.md\n", diff="DIFF"))
+        out = self.run_main("start", "--agent", "claude", "--lane", "full")[1]
+        self.assertNotIn("sdd-doc-reviewer:", out)
+        self.assertIn("- nobody: the changed files need no reviewer (below)", out)
+        self.assertIn("no reviewer: docs/requirements/REQ-001.md", out)
 
     def test_start_without_a_lane_hints_at_the_normative_lines_and_stops_on_an_empty_range(self):
         self.descriptor(forge="none")
@@ -3357,16 +3377,16 @@ class TestStart(GitHubCase):
 
     def test_the_brief_lists_only_the_musts_the_range_wrote(self):
         # A conformance reviewer proves a guard for each MUST the branch added to a specification as a new
-        # obligation, not for a reworded one (the added MUST NOT in s.md pairs with the removed MUST in its
-        # hunk) and not for every older one: a SHOULD, a hunk header, a renamed file with no change, a README
-        # and a content line that reads like a file header are no such sentence.
+        # obligation, not for a reworded one (the client's retry count in s.md pairs with the line it
+        # replaced) and not for every older one: a SHOULD, a hunk header, a renamed file with no change, a
+        # README and a content line that reads like a file header are no such sentence.
         self.descriptor(forge="none")
         hunks = ("diff --git a/docs/specifications/old.md b/docs/specifications/new.md\nsimilarity index 100%\n"
                  "rename from docs/specifications/old.md\nrename to docs/specifications/new.md\n"
                  "diff --git a/docs/specifications/s.md b/docs/specifications/s.md\n"
                  "--- a/docs/specifications/s.md\n+++ b/docs/specifications/s.md\n@@ -3,2 +3,4 @@ ## A client MUST wait\n"
                  "-The client MUST retry twice.\n-Old text.\n+The client SHOULD log.\n+++ not a header\n"
-                 "+See below.\n+The server MUST NOT retry.\n"
+                 "+See below.\n+The client MUST retry five times.\n"
                  "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n+A token MUST expire.\n"
                  "diff --git a/docs/specifications/t.md b/docs/specifications/t.md\nnew file mode 100644\n"
                  "--- /dev/null\n+++ b/docs/specifications/t.md\n@@ -0,0 +10 @@\n+A token SHALL expire.\n")
@@ -3392,6 +3412,28 @@ class TestStart(GitHubCase):
         brief = (self.root / ".sdd" / "review" / HEAD[:7] / "brief.md").read_text(encoding="utf-8")
         self.assertIn("owes no guard run): none.", brief)
 
+    def test_a_reword_pairs_by_content_not_by_count(self):
+        # Inside one hunk an added MUST is a reword only of a removed line with the same subject and
+        # polarity and a predicate word in common. So a new sentence above a reword is listed (the count
+        # rule swallowed it), a sentence that replaces an unrelated one is listed, a flipped polarity is
+        # listed, a removed line pairs once, and a pure removal lists nothing.
+        self.descriptor(forge="none")
+        hunks = ("diff --git a/docs/specifications/s.md b/docs/specifications/s.md\n"
+                 "--- a/docs/specifications/s.md\n+++ b/docs/specifications/s.md\n"
+                 "@@ -3 +3,2 @@\n-The client MUST retry twice.\n"
+                 "+The server MUST NOT log the token.\n+The client MUST retry five times.\n"
+                 "@@ -10 +11 @@\n-The gate MUST print every family.\n+The gate MUST exit 2 on a malformed descriptor.\n"
+                 "@@ -20 +21 @@\n-The client MUST log.\n+The client MUST NOT log.\n"
+                 "@@ -30 +31,2 @@\n-A token MUST expire.\n+A token MUST expire after an hour.\n+A token MUST expire on logout.\n"
+                 "@@ -40 +42,0 @@\n-The cache MUST be bounded.\n")
+        self.use([(git("diff", "--no-ext-diff", "-U0"), hunks)]
+                 + git_routes(names="docs/specifications/s.md\n", diff="DIFF"))
+        code, _, err = self.run_main("start", "--agent", "claude", "--lane", "full")
+        self.assertEqual(0, code, err)
+        brief = (self.root / ".sdd" / "review" / HEAD[:7] / "brief.md").read_text(encoding="utf-8")
+        self.assertIn("owes no guard run): `docs/specifications/s.md:3`, `docs/specifications/s.md:11`, "
+                      "`docs/specifications/s.md:21`, `docs/specifications/s.md:32`.", brief)
+
     def test_a_must_written_with_no_code_still_gets_the_conformance_reviewer(self):
         self.descriptor(forge="none")
         hunks = ("diff --git a/docs/specifications/s.md b/docs/specifications/s.md\n--- a/docs/specifications/s.md\n"
@@ -3400,7 +3442,7 @@ class TestStart(GitHubCase):
                  + git_routes(names="docs/specifications/s.md\n", diff="DIFF"))
         code, out, err = self.run_main("start", "--agent", "claude", "--lane", "full")
         self.assertEqual(0, code, err)
-        self.assertIn("- sdd-spec-conformance-reviewer: %s (1 file); a MUST changed with no code"
+        self.assertIn("- sdd-spec-conformance-reviewer: %s (1 file); a new obligation written with no code"
                       % (self.root / ".sdd" / "review" / HEAD[:7] / "diff-sdd-spec-conformance-reviewer.patch"), out)
         # can-fail control: a document change that wrote no MUST plans no conformance reviewer.
         self.use(git_routes(names="docs/specifications/s.md\n", diff="DIFF"))

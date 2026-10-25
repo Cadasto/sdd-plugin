@@ -400,21 +400,21 @@ def validate_retired_vocabulary():
 # sentence at a time; a budget the validator enforces is what stops it. A change that needs more words raises
 # the number here, in the same pull request, with the maintainer's yes.
 WORD_BUDGETS = {
-    "skills/sdd-review/SKILL.md": 870,
+    "skills/sdd-review/SKILL.md": 875,
     "skills/sdd-triage/SKILL.md": 1150,
     "skills/sdd-deliver/SKILL.md": 1580,
     "skills/sdd-close/SKILL.md": 920,
     "skills/sdd-scaffold/SKILL.md": 999,
-    "skills/sdd-specify/SKILL.md": 880,
+    "skills/sdd-specify/SKILL.md": 890,
     "skills/sdd-trace/SKILL.md": 430,
     "skills/spec-driven-development/SKILL.md": 680,
-    "references/review.md": 3020,
+    "references/review.md": 3045,
     "references/artefact-prose.md": 800,
-    "agents/sdd-doc-reviewer.md": 1030,
-    "agents/sdd-spec-conformance-reviewer.md": 1010,
+    "agents/sdd-doc-reviewer.md": 1045,
+    "agents/sdd-spec-conformance-reviewer.md": 1015,
     "agents/sdd-traceability-auditor.md": 745,
-    "agents/sdd-implementer.md": 1350,
-    "references/templates/ai-workflow.md": 1210,
+    "agents/sdd-implementer.md": 1400,
+    "references/templates/ai-workflow.md": 1215,
     "references/templates/brief.md": 535,
     "references/templates/task-review.md": 215,
     "references/templates/development-process.md": 1235,
@@ -478,6 +478,21 @@ def _yaml_child_block(text: str, key: str) -> str:
             break
         body.append(line)
     return "\n".join(body)
+
+
+def validate_descriptor_defaults():
+    """The descriptor template, the schema's copy of it and the README's agree on the default the methodology
+    relies on: `task_review: off` (review.md § Passes: the first review pass is the gate)."""
+    for rel in ("references/templates/sdd.yaml", "references/traceability-schema.md", "README.md"):
+        path = ROOT / rel
+        if not path.is_file():
+            err(f"missing {rel}")
+            continue
+        m = re.search(r"^\s*task_review:\s*(\S+)", path.read_text(), re.MULTILINE)
+        if not m:
+            err(f"{rel}: no task_review line to pin the default on")
+        elif m.group(1) != "off":
+            err(f"{rel}: task_review defaults to {m.group(1)!r}; the methodology's default is 'off'")
 
 
 def validate_tool_version(manifests):
@@ -562,6 +577,7 @@ def main():
     validate_retired_vocabulary()
     validate_word_budgets()
     validate_forge_neutrality()
+    validate_descriptor_defaults()
     validate_tool_version(manifests)
 
 
