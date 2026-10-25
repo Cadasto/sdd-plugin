@@ -84,9 +84,10 @@ A document the branch wrote or changed is corrected, not filed. The document rev
 its findings, a fix list: one line per slip in the range's own documents — two of the branch's sentences
 that disagree, a sentence that no longer matches the branch's code, form that changes how a sentence
 binds or reads — as `<path>:<line> · <what to change>`. The review skill saves it under
-`.sdd/review/<head>/doc-fixes.md` and names the count; the orchestrator applies it in-session before the
-pass's hand-back, a binding sentence in `/sdd-specify`'s form, and commits by path. No findings-file
-line, no thread, no re-review: a document fix is neither code nor a new obligation (§ Passes).
+`.sdd/review/<head>/doc-fixes.md` and names its path and count in the hand-back; `/sdd-triage` alone
+applies it, with the pass's other fixes, a binding sentence in `/sdd-specify`'s form, and commits by
+path. No findings-file line, no thread, no re-review: a document fix is neither code nor a new
+obligation (§ Passes).
 
 ## The forge mirror
 
@@ -132,8 +133,9 @@ lines when the maintainer carries them in the pull request; its comment then sho
 carried, and `harvest` leaves them out. Both add each line once, under `## Unsorted`, defects first.
 
 The backlog is short, or it is noise. A defect reaches it only when it was not fixed in the branch that
-found it (§ Scope); a lead only when the maintainer named it at the close-out. The close-out carries the
-`outside` defects by default and asks about leads by name.
+found it (§ Scope): the close-out carries the open `outside` defects without asking. A lead reaches it
+through the close-out's carry when the maintainer names it, else through `harvest` after the merge; the
+consolidation below is what keeps it short.
 
 `/sdd-triage --backlog` then consolidates. It re-checks the lines `harvest` names because their path
 changed since the last harvest, deleting one that is fixed or stale. It moves each Unsorted line into its
@@ -178,7 +180,8 @@ request. A plugin older than the repository's `check.version` refuses every writ
   preparation in one call: the pull request's threads pulled (its head must be in this checkout), the
   pass noted, the lane (the flag, the PR body's `Lane:` line, else `decide` with the normative-line
   count), and under `.sdd/review/<head>/` each reviewer's hunks, the drift gate's new lines, the settled
-  lines and one shared brief, listing the MUSTs the range wrote; then the dispatch plan, which on the
+  lines and one shared brief, listing the MUSTs the range added as new obligations (a reworded sentence,
+  same subject and polarity, pairs with the line it replaced); then the dispatch plan, which on the
   formal profile holds the document reviewer only when the range changed a normative line, a requirement
   or an ADR. It never runs the gate: the brief names
   `.sdd/gate-<head>.log` when it exists.

@@ -46,8 +46,9 @@ source of truth.
 **Formal profile.** Critical: a normative sentence in the range that duplicates one in another
 specification with a different force (two homes, two rules); an identifier reused or renamed while cited
 elsewhere. Important, only what would make a reader build or test the wrong thing: a sentence in the
-range that disagrees with a merged sentence outside it, both quoted; a sentence that contradicts the
-code the brief names on a contract a caller relies on, both quoted; an open question settled silently;
+range that disagrees with a merged sentence outside it, both quoted; a sentence merged before this branch
+that contradicts the code the brief names on a contract a caller relies on, both quoted; an open
+question settled silently;
 a new obligation or a widened contract on the maintenance lane. **A slip inside the branch's own
 documents is a fix, not a finding:** two of the branch's sentences that disagree, a sentence that no
 longer matches the branch's code, an acceptance criterion that is not observable or restates a spec
@@ -56,7 +57,8 @@ citing a plan or a session, a keyword on an internal mechanic (methodology §4).
 list, one line, what to change.
 
 **Consistency mode — the informative profile and the formal maintenance lane.** A changed sentence that
-contradicts the code the brief names, another document, or the constitution (important, quote both).
+contradicts another merged document or the constitution (important, quote both); one that contradicts
+the code the brief names is a fix-list line.
 Informative: a constitution sentence changed without an ADR or a stated reason (important). Maintenance
 lane: a changed sentence that adds an obligation or widens a contract (important: the change is full
 lane, methodology §12); a sentence corrected to the behaviour the change fixes is none. Everything else

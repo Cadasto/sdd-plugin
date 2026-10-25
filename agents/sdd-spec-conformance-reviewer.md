@@ -25,7 +25,7 @@ You answer one question: **does this code satisfy the binding sentences it claim
 
 - **Pre-merge check.** A diff claims `REQ-…`/`SPEC-… §N`: every MUST met, a new obligation pinned by a test that fails without its guard, every SHOULD met or excepted, every acceptance criterion observable.
 - **Implementation-aligned lag.** A fix on shipped code: the spec § changed in the same range and agrees (methodology §7).
-- **A binding sentence reworded.** A MUST or SHOULD changed and no code did: run the tests of the code it describes, judge that code against the new wording, and anchor each finding on the changed sentence; a reworded sentence owes no guard proof.
+- **A new obligation written with no code.** A MUST added to a specification and no code changed: run the tests of the code it describes, judge that code against the sentence, and prove its guard. A sentence only reworded sends nobody here; the document reviewer reads it (methodology §6).
 - **Constitution check (informative).** Hold the code to the quoted constitution sentences only.
 
 ## Operating rules (read first)

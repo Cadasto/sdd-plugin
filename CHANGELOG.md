@@ -10,7 +10,7 @@ Code may lead. The maintainer's instruction outranks a specification sentence an
 
 ### Added
 - Templates: the brief's `Decided` line, the maintainer's instruction that outranks a quoted sentence; the brief aims at about 4k characters and quotes only the clauses the task satisfies or changes.
-- References: `review.md` § Document fixes, the document reviewer's fix list for the branch's own documents, saved under `.sdd/review/<head>/doc-fixes.md` and applied in-session.
+- References: `review.md` § Document fixes, the document reviewer's fix list for the branch's own documents, saved under `.sdd/review/<head>/doc-fixes.md` and applied by `/sdd-triage`.
 - Hooks: `spec-edit-reminder.sh` counts the RFC-2119 keywords an edit added and states methodology §4's scope rule; `session-start.sh` prints the backlog's size and flags one over about 40 lines.
 - Tools: `sdd-pr start` prints the changed documents it sends to no reviewer, with the reason.
 
@@ -26,10 +26,14 @@ Code may lead. The maintainer's instruction outranks a specification sentence an
 - Agents: `sdd-implementer` implements under a `Decided` line and reports the sentence to amend instead of returning the task, proves the guard only for a MUST it adds or disputes, never escalates a lane, and fixes a small, testable defect inside its own files.
 - Agents: `sdd-doc-reviewer` blocks only on a contradiction with a merged document or the code on a contract, two homes, or a widened contract on the maintenance lane, and returns the rest as a fix list; it raises and proposes no keyword.
 - Agents: `sdd-spec-conformance-reviewer` guards only the new obligations the brief lists, none older and none reworded, reads only the files the cited sentences map to, files no behaviour claim as a suggestion, and names behaviour with no sentence under Coverage instead of as a finding.
-- Tools: `sdd-pr start` plans `sdd-doc-reviewer` on the formal profile only when the range changed a normative line, a requirement or an ADR, with the reason; the brief lists the MUSTs the range added as new obligations, a reworded one pairing with the line it replaced in its hunk; the brief carries the suggestion cap and the behaviour floor.
+- Tools: `sdd-pr start` plans `sdd-doc-reviewer` on the formal profile only when the range changed a normative line, a requirement or an ADR, with the reason; the brief lists the MUSTs the range added as new obligations, a reworded one pairing by content (same subject and polarity, a predicate word in common) with the line it replaced in its hunk; the brief carries the suggestion cap and the behaviour floor; `start` names the plan line for a document range with nothing normative.
 - Templates: `sdd.yaml` and `traceability-schema.md` default `task_review` to `off`; `task-review.md` says a suggestion-only verdict opens no worker.
 - Templates: the PR body is Summary with the `Lane:` line and no sentence limit, Changes, Verification and Notes for review, about 450 words, no checklist; `AGENTS.md`, `ai-workflow.md` and `artefact-prose.md` follow.
+- Templates: the scaffold's `AGENTS.md`, `development-process.md` and `ai-workflow.md` open with the maintainer-outranks rule instead of "the spec wins"; `specification.md`, `requirement.md` and `requirements-README.md` say a `draft` binds once merged; `scaffold-upgrade.md` compares the opening paragraph too.
+- Scripts: `validate.py` pins `task_review: off` in the descriptor template, the schema and the README.
+- Hooks: `spec-edit-reminder.sh` counts keywords with a portable word split and reads the first text field of the payload only.
 - Hooks: `session-start.sh`'s orientation line states the maintainer-outranks rule.
+- Docs: `README.md`'s pitch records the contract instead of "the source of truth"; `quick-start.md`, the descriptor template, the schema and `sdd-deliver` agree that `task_review: lane` is on for the full lane and the informative profile.
 - Docs: `README.md`, `quick-start.md`, `examples.md` and `upgrading.md` follow; `examples.md` shows `reviewers` as a block map.
 
 ### Removed

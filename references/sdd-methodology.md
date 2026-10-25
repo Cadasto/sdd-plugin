@@ -312,8 +312,8 @@ acceptance criteria, a `SPEC §` behaviour, a public API shape, or an error cont
 | `REQ` / index / `SPEC §` edits | required | only a correction: a sentence reworded to match the behaviour the change fixes, adding no obligation and widening no contract |
 | `traceability.yaml` | updated for landed packages/tests/probes | only when file paths moved, and the drift gate names exactly which rows |
 | `ADR` | when an irreversible fork was taken | never — a maintenance change taking an irreversible fork is full lane |
-| SDD reviewer agents | dispatched | `sdd-doc-reviewer` alone, for consistency, when a document changed |
-| Review scope | code + conformance + traceability | code review, and document consistency when a document changed |
+| SDD reviewer agents | dispatched | `sdd-doc-reviewer` alone, for consistency, when a normative line, a requirement or an ADR changed |
+| Review scope | code + conformance + traceability | code review, and document consistency for a changed normative line, requirement or ADR |
 | PR body | review lens + identifiers touched | one line: `Lane: maintenance — no normative change` |
 | The drift gate (`spec-check`) | runs | **runs** — the map may never rot, in either lane |
 

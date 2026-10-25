@@ -6,7 +6,7 @@
 [![Cursor](https://img.shields.io/badge/Cursor-plugin-000?logo=cursor&logoColor=white)](https://cursor.com)
 [![Keep a Changelog](https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-E05735)](CHANGELOG.md)
 
-Spec-Driven Development (SDD) for AI coding assistants, for teams that want the specification, not the code, to be the source of truth in any repository and any language. It adds skills, agents, hooks, a Cursor rule, and a vendored drift gate for **[Claude Code](https://docs.claude.com/en/docs/claude-code/plugins)** and **[Cursor](https://cursor.com/docs/plugins)**, so requirements, RFC-2119 specifications, and ADRs carry stable identifiers, a machine-checked traceability map ties them to code and tests, and CI fails on drift.
+Spec-Driven Development (SDD) for AI coding assistants, for teams that want a versioned specification to record the contract their code is measured against, in any repository and any language. It adds skills, agents, hooks, a Cursor rule, and a vendored drift gate for **[Claude Code](https://docs.claude.com/en/docs/claude-code/plugins)** and **[Cursor](https://cursor.com/docs/plugins)**, so requirements, RFC-2119 specifications, and ADRs carry stable identifiers, a machine-checked traceability map ties them to code and tests, and CI fails on drift.
 
 The plugin owns the spec, document, and traceability layer and the delivery pipeline that runs on it: worker fan-out, review, triage, and close-out. It operates on documentation (`docs/*.md`, a requirements index, a traceability map, `AGENTS.md`), so it is language-agnostic, and each repository declares its conventions in a small `docs/.sdd.yaml` descriptor. It does not own exploration before a requirement exists; a [general engineering plugin](#optional-a-general-engineering-plugin) can cover that end. Language-specific code review comes from the reviewers each repository declares, such as the go-coding plugin's `go-reviewer` ([example](docs/examples.md#configure-a-go-repository)).
 
@@ -77,7 +77,7 @@ Seven `/sdd-*` skills, each also usable as a slash command, plus an always-on ro
 | `/sdd-scaffold` | Initialise the SDD `docs/` tree, templates, `AGENTS.md`, process docs, and the `.sdd.yaml` descriptor, suggesting `agents.reviewers` from the build manifests (idempotent: fills gaps, never clobbers) |
 | `/sdd-specify` | The definition layer: capture a capability (`REQ`), write RFC-2119 normative behaviour into the canonical spec (`SPEC §`), and record decisions (`ADR`); assigns identifiers and wires traceability |
 | `/sdd-deliver` | The delivery driver: the dispatch gate, `sdd-implementer` workers in sequence on the branch (in parallel only for large tasks with disjoint files, still on the one branch), the per-task gate when `task_review` is on, the first review pass, the pull request (a draft only when you ask) |
-| `/sdd-close` | The close-out in the pull request: sets the `REQ` to `shipped` (a `SPEC §` is promoted only when you confirm), ticks its acceptance criteria, adds the changelog line, writes the PR body and marks it ready, fixes the small `outside` defects, and asks once, by line, whether to carry the rest to `docs/backlog.md` there; after you merge, `sdd-pr clean` removes the branch, its worktree and its findings file. It never merges or closes a pull request |
+| `/sdd-close` | The close-out in the pull request: sets the `REQ` to `shipped` (a `SPEC §` is promoted only when you confirm), ticks its acceptance criteria, adds the changelog line, writes the PR body and marks it ready, fixes the small `outside` defects, carries the rest to `docs/backlog.md` there and asks once which suggestions go with them; after you merge, `sdd-pr clean` removes the branch, its worktree and its findings file. It never merges or closes a pull request |
 | `/sdd-review` | One review pass over the whole branch, or with `--since-last` over the commits since the last pass: dispatch the reviewers the profile, lane and changed files call for, write their findings into the branch's findings file, and mirror them to the pull request, one comment per pass |
 | `/sdd-triage` | Work the open findings: verify each, fix in this branch, flip the lines, mirror to the pull request, and after your review run one scoped re-review when a fix changed code or added a MUST; `--backlog` carries the suggestions and `outside` defects of pull requests merged since the last harvest to `docs/backlog.md` and consolidates it to about 40 lines |
 | `/sdd-trace` | The traceability gate: assemble the one-shot context bundle for a `REQ`, and report drift and orphans (the `spec-check` analogue); `--audit` dispatches the isolated whole-tree audit. Report-only |
@@ -132,7 +132,7 @@ What each hook does on each host: [docs/install.md](docs/install.md#hooks).
 Constitution → Specify → (Clarify) → Plan → Tasks → Implement → Verify → Close out
 ```
 
-SDD treats a structured, versioned specification as the authoritative description of a system. This plugin encodes the *spec-anchored* rung, where specs are living, version-controlled contracts, and adds the governance machinery that mainstream toolkits such as GitHub Spec Kit, AWS Kiro, and Tessl leave to the team: stable identifiers, a machine-checked traceability map, and CI that fails on drift. Its job is to keep the specification the source of truth and the chain `REQ → SPEC § → ADR → code → test` intact from the first requirement to the merged PR.
+SDD treats a structured, versioned specification as the authoritative description of a system. This plugin encodes the *spec-anchored* rung, where specs are living, version-controlled contracts, and adds the governance machinery that mainstream toolkits such as GitHub Spec Kit, AWS Kiro, and Tessl leave to the team: stable identifiers, a machine-checked traceability map, and CI that fails on drift. Its job is to keep the specification the contract the code is measured against and the chain `REQ → SPEC § → ADR → code → test` intact from the first requirement to the merged PR.
 
 The rules behind each step, the rigour ladder, and the sources are in the [methodology](references/sdd-methodology.md#2-the-canonical-loop).
 
@@ -180,7 +180,7 @@ sdd:
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
     reviewers: []                   # this repo's own language reviewers, by agent name; or a map of path patterns to names
     skip: []                        # path patterns no reviewer reads (a vendored corpus, fixture data), e.g. ["testdata/**"]
-    task_review: off                # off | on | lane  (off: the first review pass is the gate; lane = on for full, off for maintenance)
+    task_review: off                # off | on | lane  (off: the first review pass is the gate; lane = on for full and informative, off for maintenance)
 ```
 
 ## Development
