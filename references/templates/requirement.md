@@ -4,7 +4,7 @@
 kind: requirement
 id: <REQ-AREA-NNN>
 title: <short capability name>
-status: draft # spec stability: draft | stable | deprecated (draft is binding now)
+status: draft # spec stability: draft | stable | deprecated (draft binds once merged)
 implementation: proposed # build status: proposed | planned | in_progress | partial | landed | shipped | deferred | retired
 ---
 

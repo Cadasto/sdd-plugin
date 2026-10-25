@@ -92,7 +92,7 @@ sdd:
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
     reviewers: []                   # this repo's own language reviewers, by agent name; /sdd-scaffold suggests from the build manifests
     skip: []                        # path patterns no reviewer reads (a vendored corpus, fixture data), e.g. ["testdata/**"]
-    task_review: lane               # on | off | lane  (lane = on for full, off for maintenance)
+    task_review: off                # off | on | lane  (off: the first review pass is the gate; lane = on for full and informative, off for maintenance)
 ```
 
 ### Fields
@@ -151,7 +151,7 @@ requirements, specifications, ADR paths and the traceability map are optional, a
 | `worker_skills` | Skills a worker should apply. **Named in the brief**, not preloaded in frontmatter. |
 | `reviewers` | The repository's own language reviewers, by agent name. Used for the per-task gate and the review pass. A list gives every reviewer every changed path that is not a document, data and fixtures included; a block map of path patterns to a name or a list of names (`"**/*.go": go-coding:go-reviewer`) gives each reviewer only its paths (`*` matches across `/`), and `sdd-pr scope` names the paths no pattern, and no name in an empty list, covers. `/sdd-scaffold` suggests a value from the build manifests in the tree; the maintainer confirms it. |
 | `skip` | Path patterns (`*` matches across `/`) whose changes no reviewer reads: a vendored test corpus, fixture data. `sdd-pr start` names them under `not reviewed:`. Default: none. |
-| `task_review` | `on` · `off` · `lane`. `lane` means on for the full lane and off for the maintenance lane. |
+| `task_review` | `off` (default: the first review pass is the gate) · `on` · `lane`, on for the full lane and the informative profile, off for the maintenance lane. |
 
 > **`worker_model` is applied per dispatch, never written into an agent file.** Plugin agent definitions
 > live in the host's read-only install cache, so no skill can rewrite their frontmatter. `sdd-implementer`

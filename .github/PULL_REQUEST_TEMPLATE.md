@@ -1,6 +1,6 @@
 ## Summary
 
-<!-- What changed and why, in at most three sentences, with the decisions taken. The body stays under about 300 words besides the checklist. -->
+<!-- What changed and why, with the decisions taken. The body stays under about 450 words besides the checklist. -->
 
 ## Docs
 

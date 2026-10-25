@@ -169,7 +169,7 @@ if is_sdd_repo; then
   profile="$(desc_get sdd profile)"
   [ -n "$profile" ] || profile="$(desc_get "" profile)"
   case "$profile" in ''|full|lightweight) profile=formal ;; esac
-  add "› Spec-Driven Development repo detected (profile $profile) — the specification is the source of truth (read docs/.sdd.yaml + AGENTS.md before editing). SDD skills: /sdd-specify (REQ/SPEC/ADR, or a knowledge-base page) · /sdd-deliver (workers → review → PR) · /sdd-close (close-out; clean-up after the merge) · /sdd-review (review pass into the findings file) · /sdd-triage (work the open findings; --backlog after merges) · /sdd-trace (traceability, --audit) · /sdd-scaffold. Run /sdd-trace + the build's spec-check before claiming done."
+  add "› Spec-Driven Development repo detected (profile $profile) — the specification records the contract; the maintainer's instruction outranks a sentence (name it, do the work, amend it in the same change). Read docs/.sdd.yaml + AGENTS.md before editing. SDD skills: /sdd-specify (REQ/SPEC/ADR, or a knowledge-base page) · /sdd-deliver (workers → review → PR) · /sdd-close (close-out; clean-up after the merge) · /sdd-review (review pass into the findings file) · /sdd-triage (work the open findings; --backlog after merges) · /sdd-trace (traceability, --audit) · /sdd-scaffold. Run /sdd-trace + the build's spec-check before claiming done."
   # The skills redirect the gate's log and the reviewers' diffs into .sdd/; a redirect into a missing
   # folder fails, so make it here, but only where the scaffold's ignore line keeps its files out of git.
   if grep -qxE '/?\.sdd/?' .gitignore 2>/dev/null; then
@@ -248,6 +248,18 @@ if is_sdd_repo; then
       out=""
       [ "${o:-0}" -gt 0 ] && out=", $o outside the change"
       add "› findings: ${c:-0} critical, ${i:-0} important open$out, ${s:-0} suggestions ($ff)"
+    fi
+  fi
+
+  # 2b. The backlog's size (references/review.md § The backlog): past about 40 lines it is noise, and the
+  # next /sdd-triage --backlog consolidates it.
+  if [ -f docs/backlog.md ]; then
+    bl="$(grep -c '^- ' docs/backlog.md 2>/dev/null | tr -d '[:space:]')"
+    case "$bl" in ''|*[!0-9]*) bl=0 ;; esac
+    if [ "$bl" -gt 40 ]; then
+      add "› backlog: $bl lines in docs/backlog.md — over the 40 it should hold; /sdd-triage --backlog consolidates"
+    elif [ "$bl" -gt 0 ]; then
+      add "› backlog: $bl lines in docs/backlog.md"
     fi
   fi
 

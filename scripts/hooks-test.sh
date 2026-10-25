@@ -187,6 +187,21 @@ MD
     && ok "session-start counts a defect outside the change apart from the open ones" || bad "outside findings line was '$f_line'"
 fi
 
+# --- session-start: the backlog's size ------------------------------------------------
+r="$(setup_repo)"; state="$(newdir state)"
+b_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep '^› backlog')"
+[ -z "$b_line" ] && ok "session-start says nothing about a backlog that does not exist" || bad "backlog line without a backlog: '$b_line'"
+{ printf -- '---\nkind: plan\n---\n# Backlog\n\n## Theme\n'; for i in $(seq 1 3); do printf -- '- a.go:%s · lead %s · from: #1\n' "$i" "$i"; done; } > "$r/docs/backlog.md"
+b_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep '^› backlog')"
+[ "$b_line" = "› backlog: 3 lines in docs/backlog.md" ] \
+  && ok "session-start counts the backlog's lines" || bad "backlog line was '$b_line'"
+for i in $(seq 4 41); do printf -- '- a.go:%s · lead %s · from: #1\n' "$i" "$i" >> "$r/docs/backlog.md"; done
+b_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep '^› backlog')"
+case "$b_line" in
+  "› backlog: 41 lines in docs/backlog.md — over the 40 it should hold; /sdd-triage --backlog consolidates") ok "session-start flags a backlog over 40 lines" ;;
+  *) bad "long backlog line was '$b_line'" ;;
+esac
+
 # --- session-start: a vendored gate with no verdict is reported, not silenced ---------
 r="$(setup_repo)"; state="$(newdir state)"
 mkdir -p "$r/scripts"
@@ -345,6 +360,25 @@ if [ -z "$plan_out" ]; then ok "reminder is silent for a working plan"; else bad
 case "$(rem "$r/docs/map.yaml")" in
   *"Edited the SDD descriptor"*) ok "reminder fires for a custom traceability file" ;;
   *) bad "reminder missed the custom traceability file" ;;
+esac
+# The keywords an edit added, net of the ones it removed, from the Claude Code payload; a Write counts
+# its whole content; no keyword added, no second line.
+kw_payload() { printf '{"hook_event_name":"PostToolUse","tool_name":"%s","tool_input":{"file_path":"%s","old_string":"%s","new_string":"%s","content":"%s"}}' "$1" "$2" "$3" "$4" "$5"; }
+kw_out="$(cd "$r" && kw_payload Edit "$r/docs/specifications/s.md" "The client MAY retry." "The client MUST retry twice and MUST NOT log the token. It SHOULD back off." "" | hook spec-edit-reminder "$state")"
+case "$kw_out" in
+  *"› 2 RFC-2119 keyword(s) added — a keyword only for what a caller can observe"*) ok "reminder counts the keywords an edit added, net of the ones it removed" ;;
+  *) bad "reminder did not count the keywords: $kw_out" ;;
+esac
+kw_out="$(cd "$r" && kw_payload Write "$r/docs/specifications/s.md" "" "" "A token MUST expire." | hook spec-edit-reminder "$state")"
+case "$kw_out" in
+  *"› 1 RFC-2119 keyword(s) added"*) ok "reminder counts the keywords a Write holds" ;;
+  *) bad "reminder did not count a Write's keywords: $kw_out" ;;
+esac
+kw_out="$(cd "$r" && kw_payload Edit "$r/docs/specifications/s.md" "The client MUST retry." "The client retries." "" | hook spec-edit-reminder "$state")"
+case "$kw_out" in
+  *"RFC-2119 keyword(s) added"*) bad "reminder counted keywords on an edit that removed one: $kw_out" ;;
+  *"Edited a spec"*) ok "reminder stays one line when an edit adds no keyword" ;;
+  *) bad "reminder missed the spec edit: $kw_out" ;;
 esac
 
 # Regeneration is named as the vendored gate's command with the resolved path, never /sdd-trace

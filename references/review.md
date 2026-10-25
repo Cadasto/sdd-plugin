@@ -43,31 +43,32 @@ until one reads it, or the maintainer's own review is recorded: `pull` records i
   gate error.
 - **important** — a behaviour or contract a caller relies on is missing or wrong; a sentence and the code
   disagree; a SHOULD is unmet with no stated reason.
-- **suggestion** — any other lead (below): a test that could be stronger, a cheap refactor, parity the gate does not flag, a document's form.
+- **suggestion** — a lead with no behaviour claim: a test that could be stronger, a cheap refactor, parity the gate does not flag.
 
-Severity is the harm, wherever the line is; § Scope says where it is fixed. Critical and important findings in the change are resolved before merge (§ Resolution). Suggestions, an implementer's out-of-scope
-leads among them, never block and are never worked unless the maintainer names one. Write one down only when it is a lead: still true without this change's diff, and
-improving a behaviour, a test, a contract or a document. Taste (naming, a comment's wording, formatting,
-what a linter could enforce), or a keyword missing from a sentence the code meets, is no lead; worth
-doing, it is done here. Weigh impact, not effort; unsure, write
-it down. A gap in a specification or requirement goes to *Known gaps* or `implementation:
+Severity is the harm, wherever the line is; § Scope says where it is fixed. Critical and important findings in the change are resolved before merge (§ Resolution). Suggestions never block. A suggestion is written only when it names a path, an input and the weaker or
+missing result, is still true without this change's diff, and improves a behaviour, a test or a contract: at most five per reviewer per pass, the rest named in the hand-back. Taste (naming, a comment's wording, formatting,
+what a linter could enforce), a keyword missing from a sentence the code meets, a document's form, or "add a `MUST`", is no lead; worth
+doing, it is done here. **Unsure means run it or drop it, never write it down.** A gap in a specification or requirement goes to *Known gaps* or `implementation:
 deferred` instead. What the close-out writes (`implementation:` values, acceptance ticks, the changelog
 line, the PR body) is no finding before the close-out.
 
-**Code first.** A claim of wrong code behaviour (a wrong result, a crash or hang, a leak, a lost or
+**Wrong behaviour is never a suggestion.** A claim of wrong code behaviour (a wrong result, a crash or hang, a leak, a lost or
 corrupted write, an exposure, a refusal the wrong way round) is settled by a run, or by reasoning the
 line through with a named input, then graded by its harm; disproven, it is dropped. Neither a missing
 run nor a missing specification sentence lowers it, and one a caller can trigger (a write outside its
-folder, a crash on bad input) is at least important. A document finding is important only when a reader would build or test the wrong thing from it (sentences, or a sentence and the code, that disagree; an open question settled silently) or a binding change skipped its lane or ADR; otherwise, or unsure, suggestion.
+folder, a crash on bad input) is at least important. A sentence and the code that disagree is a defect
+in whichever side is wrong: the maintainer's instruction decides, else the branch's own sentence is
+corrected ([sdd-methodology.md](sdd-methodology.md) §6, §7). A document finding is important only when a reader would build or test the wrong thing from it (two merged documents that disagree; a sentence that contradicts the code on a contract; an open question settled silently) or a binding change skipped its lane or ADR; a slip in a document this branch wrote is a fix, applied in the pass, not a finding (§ Document fixes).
 Two reviewers' grades for one defect: the higher one with evidence.
 
 ## Scope
 
 A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`; `--since-last` reads only the commits since the last `Reviewed` line (`--agent`: one
 agent's own, when it has one) and leaves out what a merge of the base brought in. Plans, the vendored gate unless patched here, and the paths `agents.skip` names go to no reviewer. A stacked branch names its parent once
-with `--base`. A critical or
+with `--base`. **A defect in a file the branch changed is in scope, whatever severity it was filed at:**
+fixed in the branch or declined with a reason; the pass budget limits reviewing, never fixing. A critical or
 important finding about code, or a document, the branch did not change keeps its
-severity and carries `outside`: it blocks nothing and is carried after merge unless the maintainer has it fixed here. Read the changed hunks and what surrounds them, not whole files.
+severity and carries `outside`: it blocks nothing; with a small fix it is fixed here, otherwise it is carried after merge. Read the changed hunks and what surrounds them, not whole files.
 
 ## Evidence
 
@@ -76,6 +77,17 @@ failing test, a guard removed with the test still green), or the line and the ru
 Conformance: the sentence quoted, the code line, what was run. Documents: the two sentences that
 disagree, or the sentence and the code, quoted. One finding names one defect;
 other instances inside the range go on the same line.
+
+## Document fixes
+
+A document the branch wrote or changed is corrected, not filed. The document reviewer returns, apart from
+its findings, a fix list: one line per slip in the range's own documents — two of the branch's sentences
+that disagree, a sentence that no longer matches the branch's code, form that changes how a sentence
+binds or reads — as `<path>:<line> · <what to change>`. The review skill saves it under
+`.sdd/review/<head>/doc-fixes.md` and names its path and count in the hand-back; `/sdd-triage` alone
+applies it, with the pass's other fixes, a binding sentence in `/sdd-specify`'s form, and commits by
+path. No findings-file line, no thread, no re-review: a document fix is neither code nor a new
+obligation (§ Passes).
 
 ## The forge mirror
 
@@ -117,27 +129,35 @@ code, tests, other, documents. A line the maintainer wants tracked elsewhere bec
 `harvest` carries the open lines of the non-blocking comments, an `outside` defect with its severity,
 whose path still exists, of every pull request merged after the front matter's `harvested_through:`, and
 moves that watermark to the last merge read; the first harvest takes `--since`. With `forge: none` it carries nothing, the close-out having carried the lines, and only names the lines to re-check. `flip --carry` adds a deferred finding, and the close-out's
-non-blocking lines when the maintainer carries them in the pull request; its comment then shows them
+lines when the maintainer carries them in the pull request; its comment then shows them
 carried, and `harvest` leaves them out. Both add each line once, under `## Unsorted`, defects first.
+
+The backlog is short, or it is noise. A defect reaches it only when it was not fixed in the branch that
+found it (§ Scope): the close-out carries the open `outside` defects without asking. A lead reaches it
+through the close-out's carry when the maintainer names it, else through `harvest` after the merge; the
+consolidation below is what keeps it short.
 
 `/sdd-triage --backlog` then consolidates. It re-checks the lines `harvest` names because their path
 changed since the last harvest, deleting one that is fixed or stale. It moves each Unsorted line into its
 theme, or starts one, and folds a line about the same defect into the line already there, keeping the
-higher severity and both `from:`. It deletes what falls below the lead bar (§ Severity). A line number
+higher severity and both `from:`. It deletes what falls below the lead bar (§ Severity), and keeps the
+file at about 40 lines: past that, the oldest leads go, defects stay, and the commit message lists what
+was dropped so a line the maintainer wants back is nameable. A line number
 is as of its `from:`, and nobody refreshes it. An item is a lead, not a finding: the delivery whose
 `Files` touch its path verifies it, and fixes it or finds it stale.
 
 ## Passes
 
 One pass before the maintainer's review (its `maintainer` line), and after each such review at most one
-`--since-last` pass over the fixes that changed code or wrote a MUST (a MUST, SHALL or REQUIRED line added to a specification, or to the constitution on the informative profile), dispatching only the reviewers whose file kinds changed.
+`--since-last` pass over the fixes that changed code or wrote a MUST (a MUST, SHALL or REQUIRED line added to a specification, or to the constitution on the informative profile, as a new obligation; a sentence corrected or reworded is none), dispatching only the reviewers whose file kinds changed.
 After that only a new critical finding reopens review; otherwise the orchestrator stops and shows the open
 list. A second opinion the maintainer asks for is outside this budget.
 
 ## Keywords added during review
 
-Behaviour of the shell, a library or the operating system stays informative; a binding sentence is added
-only when the code itself guarantees the behaviour and a cheap test can pin it.
+A review adds no keyword. Behaviour of the shell, a library or the operating system stays informative; a
+binding sentence is added only through `/sdd-specify`, when the code itself guarantees a behaviour a
+caller relies on and a cheap test can pin it ([sdd-methodology.md](sdd-methodology.md) §4).
 
 ## The tool
 
@@ -160,7 +180,10 @@ request. A plugin older than the repository's `check.version` refuses every writ
   preparation in one call: the pull request's threads pulled (its head must be in this checkout), the
   pass noted, the lane (the flag, the PR body's `Lane:` line, else `decide` with the normative-line
   count), and under `.sdd/review/<head>/` each reviewer's hunks, the drift gate's new lines, the settled
-  lines and one shared brief, listing the MUSTs the range wrote; then the dispatch plan. It never runs the gate: the brief names
+  lines and one shared brief, listing the MUSTs the range added as new obligations (a reworded sentence,
+  same subject and polarity, pairs with the line it replaced); then the dispatch plan, which on the
+  formal profile holds the document reviewer only when the range changed a normative line, a requirement
+  or an ADR. It never runs the gate: the brief names
   `.sdd/gate-<head>.log` when it exists.
 - `scope [--json] [--since-last [--agent <name>]] [--base <ref>] [--diff <kind|reviewer>] [--start <agent>]` — the range a
   pass reads (§ Scope), its paths by kind and the reviewers' paths; `range: empty` when nothing is in it; `normative lines changed: n`, a hint for the lane;

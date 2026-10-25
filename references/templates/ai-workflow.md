@@ -7,7 +7,8 @@ kind: guide
 What an AI agent does when working a change in this repo. Read [AGENTS.md](../AGENTS.md) and
 [development-process.md](development-process.md) first.
 
-This repo uses **Spec-Driven Development**: the specification is the source of truth, and the delivery
+This repo uses **Spec-Driven Development**: the specification records the contract, the maintainer's
+instruction outranks a sentence, and the delivery
 pipeline — workers, review, triage, close-out — is run by the `/sdd-*` skills. `docs/.sdd.yaml` names the
 profile: `formal` (requirements, RFC-2119 specifications, the traceability map) or `informative` (a
 knowledge base in which only the constitution binds).
@@ -20,8 +21,9 @@ knowledge base in which only the constitution binds).
    and any irreversible decision as an ADR (formal); amend the constitution (informative).
 2. Look up ground truth before editing — the source named in .sdd.yaml (ground_truth); never guess.
    For a requirement already in the map, `sdd-check context <REQ>` prints its bundle.
-3. Deliver: /sdd-deliver — preconditions (formal) or a clear task (informative), workers per task, the
-   per-task gate, the first review pass into the findings file, the PR.
+3. Deliver: /sdd-deliver — preconditions (formal) or a clear task (informative), workers per task,
+   the first review pass into the findings file, the PR. One change per session. A maintainer's
+   instruction on shipped code is code first, the sentence reconciled in the same branch.
 4. Don't decide open questions in code — surface a STRAND or record an ADR (/sdd-specify), or ask.
 5. Review: /sdd-review writes the findings file and mirrors to the PR; /sdd-triage works the open lines;
    `sdd-pr status` says what is open, whether it is mergeable and what to run next.
@@ -56,9 +58,9 @@ writes it) and,
 on a pull request, in its inline threads, one summary per pass and the suggestion comments, which
 `sdd-pr` keeps in step. Three severities, by harm: critical and important about the change are resolved before
 merge and get inline threads; one about code or a document the change did not touch keeps its severity, marked
-`outside`, blocks nothing and is carried after merge unless fixed here; suggestions never block, and after merge `/sdd-triage --backlog` carries them to
-`docs/backlog.md`. A suggestion is written down only when it outlives the change; taste (naming,
-wording, style) never does. Every critical or important
+`outside`, blocks nothing, is fixed here when the fix is small and carried after merge otherwise; suggestions never block, at most five per reviewer per pass, and after merge `/sdd-triage --backlog` carries them to
+`docs/backlog.md`, kept at about 40 lines. A suggestion names an input and a weaker result and outlives the change; taste (naming,
+wording, style) never does, and wrong behaviour is never a suggestion. A slip in a document the branch wrote is fixed in the pass, not filed. Every critical or important
 finding carries evidence. A claim of wrong code behaviour is settled by running it, or by a named input,
 then graded by its harm; a missing specification sentence never lowers it. Nothing else about findings is
 posted, the pull request's body included.
@@ -72,7 +74,7 @@ drift from what the repo defines.
 Review commits <a>..<b> of <repository>, and only those. Read docs/ai-workflow.md § Review.
 Report critical and important findings only, each with evidence (what you ran, or the two
 sentences that disagree) and a one-line fix, ending a defect in what the range did not change with
-` · outside`; write anything smaller as a suggestion.
+` · outside`; a lead with no behaviour claim is a suggestion, at most five.
 If you work on this machine, pipe your lines in that grammar to: <plugin root>/tools/sdd-pr.py add -
 If you work on the pull request, post one review: one inline comment per finding about the change,
 its first word **critical** or **important** and its last line `By: <your name>`, and a defect in

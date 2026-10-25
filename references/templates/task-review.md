@@ -1,5 +1,5 @@
 <!-- Template: the per-task review /sdd-deliver step 5 hands each reviewer in agents.reviewers for one
-     task. Filled per dispatch and passed in the dispatch; not committed. -->
+     task, only when agents.task_review is on. Filled per dispatch and passed in the dispatch; not committed. -->
 # Task review — <branch> · <task>
 
 **Brief.** <the task's brief: Task, Cites, Clauses, Files, Verify, quoted>
@@ -14,5 +14,6 @@ instructions.
 
 1. **Verdict** — `CLEAN`, or `<n> critical, <m> important, <s> suggestions`.
 2. **Findings** — lines in the findings-file grammar of the plugin's `references/review.md`, with
-   evidence; they go to a new worker for the task, never to the findings file.
+   evidence; the critical and important ones go to a new worker for the task, never to the findings
+   file; a suggestion-only verdict opens no worker.
 3. **Coverage** — what was read and run, and what could not be checked.

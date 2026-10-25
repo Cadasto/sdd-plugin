@@ -4,7 +4,7 @@
 ---
 kind: specification
 spec: <SPEC-NAME>
-status: draft            # draft | stable | deprecated   (draft is binding now)
+status: draft            # draft | stable | deprecated   (draft binds once merged)
 mode: spec-first         # spec-first | implementation-aligned
 ---
 
