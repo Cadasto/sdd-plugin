@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 - Tools: `sdd-check`'s `rfc2119` family warned on a section whose heading names only retired requirements.
+- Docs: `quick-start.md` said `/sdd-scaffold` suggests a reviewer for `composer.json` and `package.json`, and that an empty list makes the default per-task gate report itself unconfigured.
 
 ## [0.16.0] - 2026-10-25
 

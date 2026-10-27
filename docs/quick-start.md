@@ -33,7 +33,7 @@ AGENTS.md
 
 It also adds `/.sdd/` to `.gitignore`, a scratch folder for working files. Each branch's findings file lives in the clone's git directory instead, so it needs no ignore line and every worktree sees it.
 
-It fills the `agents:` block of `docs/.sdd.yaml` with example values, and the code-index line in `docs/ai-workflow.md` § Orchestration. When it finds `go.mod`, `composer.json`, or `package.json`, it suggests a value for `agents.reviewers`. Review both before going on. Name the reviewer agent your repository uses, or leave the list empty and expect the per-task gate to report itself unconfigured in step 3.
+It fills the `agents:` block of `docs/.sdd.yaml` with example values, and the code-index line in `docs/ai-workflow.md` § Orchestration. When it finds `go.mod`, it suggests the go-coding plugin's reviewer for `agents.reviewers` and its skill for `agents.worker_skills`, and writes them once you confirm that plugin is installed; for any other build manifest, it asks for your repository's own reviewer. Review both before going on. Name the reviewer agent your repository uses, or leave the list empty: then no language reviewer reads your code, and a per-task gate you turn on (step 3) reports itself unconfigured.
 
 It vendors the drift gate too. `tools/sdd-check.py` is copied from the plugin to `check.script` (`scripts/sdd-check.py` by default), and the copy's version is pinned in `check.version`. The real `spec-check` target is wired into your `Makefile`: `python3 scripts/sdd-check.py selftest && python3 scripts/sdd-check.py check`, not a stub.
 
