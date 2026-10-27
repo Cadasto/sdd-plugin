@@ -405,7 +405,7 @@ WORD_BUDGETS = {
     "skills/sdd-deliver/SKILL.md": 1580,
     "skills/sdd-close/SKILL.md": 920,
     "skills/sdd-scaffold/SKILL.md": 999,
-    "skills/sdd-specify/SKILL.md": 890,
+    "skills/sdd-specify/SKILL.md": 925,
     "skills/sdd-trace/SKILL.md": 430,
     "skills/spec-driven-development/SKILL.md": 680,
     "references/review.md": 3045,

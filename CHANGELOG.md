@@ -7,10 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
+- Skills: `sdd-specify` retires a requirement, and `spec-driven-development` routes that request to it; the `sdd-specify` word budget rises from 890 to 925.
 - Tools: the `sdd-check` selftest proves a retired requirement's section stays quiet.
 
 ### Changed
-- References: `sdd-check.md` § rfc2119 states the exemption.
+- References: methodology §6 keeps a retired requirement's heading in place, with a one-line pointer and no keyword; `sdd-check.md` § rfc2119 states the exemption.
 
 ### Fixed
 - Tools: `sdd-check`'s `rfc2119` family warned on a section whose heading names only retired requirements.

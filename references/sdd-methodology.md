@@ -191,6 +191,12 @@ instead of `shipped` only where a repository's map already uses it for delivered
 is allowed only when `status` is `deprecated`, and it owes no evidence. The reverse does not hold: during a
 deprecation cycle the code can still be `shipped`, so `deprecated` never forces `retired`.
 
+A retired requirement stays where it was, and this is the default: its heading, with the id it names or its
+`**Implements:**` line, keeps `canonical` and every inbound link resolving, and one line under it, with no
+keyword, says what replaced it or why it was withdrawn. The gate reads that section as binding nothing
+([sdd-check.md](sdd-check.md) § rfc2119). Moving retired entries to a `reference` page also works, at the
+cost of a page and a `canonical` edit for each.
+
 ## 7. Two source-of-truth modes
 
 A purist "spec always precedes code" rule breaks down for bug-fixes and perf work on shipped code. Define both modes explicitly:
