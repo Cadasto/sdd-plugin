@@ -25,7 +25,7 @@ The **specification records the contract code is measured against; the maintaine
 | Intent | Route to |
 |---|---|
 | Set up or upgrade the SDD docs structure (`--upgrade`) | `sdd-scaffold` |
-| Capture a capability, make behaviour normative, record a decision, amend a spec § | `sdd-specify` |
+| Capture a capability, make behaviour normative, record a decision, amend a spec §, retire a requirement | `sdd-specify` |
 | Deliver a change: the dispatch gate, workers, gates, the first review pass, the pull request | `sdd-deliver` |
 | Close out in the pull request (shipped, the PR body, ready); after the merge, remove the branch, its worktree and its findings | `sdd-close` |
 | A review pass (code, conformance, documents) into the findings file | `sdd-review` |

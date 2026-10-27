@@ -13,7 +13,8 @@ mode: spec-first         # spec-first | implementation-aligned
 > **Normative.** Uses RFC-2119 keywords: **MUST/SHALL** (absolute), **SHOULD** (strong, exceptions need a reason),
 > **MAY** (optional). Statements without a keyword are *informative*. Don't implement informative text as a
 > requirement; don't relax normative text into a suggestion. Every numbered section carries at least one
-> keyword, or it is not normative and does not belong here.
+> keyword, or it is not normative and does not belong here. A retired requirement's section keeps its heading
+> and `**Implements:**` line, with one line saying what replaced it and no keyword.
 
 ## §1 — <section title>
 

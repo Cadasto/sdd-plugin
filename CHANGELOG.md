@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Skills: `sdd-specify` retires a requirement, and `spec-driven-development` routes that request to it; the `sdd-specify` word budget rises from 890 to 925.
+- Tools: the `sdd-check` selftest proves a retired requirement's section stays quiet.
+
+### Changed
+- References: methodology §6 keeps a retired requirement's heading in place, with a one-line pointer and no keyword; `sdd-check.md` § rfc2119 states the exemption.
+- Templates: the specification banner exempts a retired requirement's section from carrying a keyword.
+
+### Fixed
+- Tools: `sdd-check`'s `rfc2119` family warned on a section whose heading or `**Implements:**` lines name only retired requirements.
+- Docs: `quick-start.md` said `/sdd-scaffold` suggests a reviewer for `composer.json` and `package.json`, and that an empty list makes the default per-task gate report itself unconfigured.
+
 ## [0.16.0] - 2026-10-25
 
 Code may lead. The maintainer's instruction outranks a specification sentence and the lane the maintainer names is final, so an agent names the sentence once, does the work and amends it in the same branch instead of arguing from it. RFC-2119 force goes only to what a caller relies on, and a guard proof is owed only for a new obligation. Wrong behaviour is never a suggestion, a defect in a file the branch changed is fixed there, slips in the branch's own documents come back as a fix list, and the backlog is kept short. The per-task gate is off by default, the document reviewer runs only when something normative changed, and the PR body loses its checklist. `sdd-check` changed only its version number. Moving a repository from 0.15.x is described in `docs/upgrading.md`.

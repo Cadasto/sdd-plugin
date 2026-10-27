@@ -1358,6 +1358,91 @@ class TestRfc2119Family(BaselineCase):
         self.assertEqual(1, len(warned), report.render(self.tmp))
         self.assertIn("Reload (REQ-FOUND-001)", warned[0])
 
+    # A retired requirement keeps its heading, so its anchor still resolves, and binds nothing
+    def retire(self, implementation="retired"):
+        self.edit(MAP_REL, "    status: draft\n    implementation: shipped",
+                  "    status: deprecated\n    implementation: %s" % implementation)
+
+    def add_live_record(self, canonical):
+        self.write(MAP_REL, (self.tmp / MAP_REL).read_text(encoding="utf-8")
+                   + "  - id: REQ-FOUND-002\n    title: Reload\n"
+                   "    canonical: docs/specifications/env.md#%s\n"
+                   "    status: draft\n    implementation: proposed\n" % canonical)
+
+    def keyword_warnings(self, report):
+        return [f.message for f in report.findings if "carries no RFC-2119 keyword" in f.message]
+
+    def assert_quiet_section(self, report):
+        self.assertFalse(self.keyword_warnings(report), report.render(self.tmp))
+        # The rule found the section; it is retired, not missing.
+        self.assertNotIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+
+    def test_a_retired_requirement_heading_is_not_warned(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001)")
+        self.drop_keywords()
+        self.retire()
+        self.assert_quiet_section(self.run_only("rfc2119"))
+
+    def test_a_retired_requirement_heading_is_not_warned_under_every_convention(self):
+        # The baseline heading carries both § and the id, so every convention reads it as a section.
+        for convention in sdd_check.RFC2119_SECTIONS:
+            with self.subTest(convention=convention):
+                sdd_check.write_baseline(self.tmp)
+                self.set_sections(convention)
+                self.drop_keywords()
+                self.retire()
+                self.assert_quiet_section(self.run_only("rfc2119"))
+
+    def test_a_retired_section_named_only_on_its_implements_line_is_not_warned(self):
+        # The template's shape: the id sits on **Implements:**, not on the heading.
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## §1 — Boundary")
+        self.drop_keywords()
+        self.retire()
+        self.assert_quiet_section(self.run_only("rfc2119"))
+
+    def test_an_implements_line_naming_a_live_requirement_still_warns(self):
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## §1 — Boundary")
+        self.drop_keywords()
+        self.assert_finding(self.run_only("rfc2119"), "is normative and carries no RFC-2119 keyword",
+                            level="WARN")
+
+    def test_a_live_section_after_a_retired_one_still_warns(self):
+        self.drop_keywords()
+        self.retire()
+        self.write(SPEC_REL, (self.tmp / SPEC_REL).read_text(encoding="utf-8")
+                   + "\n## §2 — Reload\n\n**Implements:** REQ-FOUND-002\n\n"
+                   "The service reads the variables once.\n")
+        self.add_live_record("2--reload")
+        warned = self.keyword_warnings(self.run_only("rfc2119"))
+        self.assertEqual(1, len(warned), warned)
+        self.assertIn("§2 — Reload", warned[0])
+
+    def test_an_id_the_map_lacks_beside_a_retired_one_still_warns(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001, REQ-FOUND-099)")
+        self.drop_keywords()
+        self.retire()
+        self.assert_finding(self.run_only("rfc2119"), "is normative and carries no RFC-2119 keyword",
+                            level="WARN")
+
+    def test_a_deprecated_requirement_still_shipped_still_warns(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001)")
+        self.drop_keywords()
+        self.retire(implementation="shipped")
+        self.assert_finding(self.run_only("rfc2119"), "is normative and carries no RFC-2119 keyword",
+                            level="WARN")
+
+    def test_a_heading_naming_a_live_id_beside_a_retired_one_still_warns(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001, REQ-FOUND-002)")
+        self.drop_keywords()
+        self.retire()
+        self.add_live_record("boundary-req-found-001-req-found-002")
+        self.assert_finding(self.run_only("rfc2119"), "is normative and carries no RFC-2119 keyword",
+                            level="WARN")
+
 
 # ---------------------------------------------------------------------------
 # A document with no declared kind takes its kind from its location
