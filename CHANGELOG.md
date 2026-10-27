@@ -12,9 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 - References: methodology §6 keeps a retired requirement's heading in place, with a one-line pointer and no keyword; `sdd-check.md` § rfc2119 states the exemption.
+- Templates: the specification banner exempts a retired requirement's section from carrying a keyword.
 
 ### Fixed
-- Tools: `sdd-check`'s `rfc2119` family warned on a section whose heading names only retired requirements.
+- Tools: `sdd-check`'s `rfc2119` family warned on a section whose heading or `**Implements:**` lines name only retired requirements.
 - Docs: `quick-start.md` said `/sdd-scaffold` suggests a reviewer for `composer.json` and `package.json`, and that an empty list makes the default per-task gate report itself unconfigured.
 
 ## [0.16.0] - 2026-10-25

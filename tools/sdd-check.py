@@ -2266,14 +2266,15 @@ def _section_heading(desc: "Descriptor") -> Callable[[str], bool]:
     return lambda heading: "§" in heading
 
 
-def _retired_heading(ctx: Context) -> Callable[[str], bool]:
-    """The predicate for a heading every REQ token of which names a retired record. A
-    retired requirement keeps its heading, so its anchor and inbound links still resolve,
+def _retired_section(ctx: Context) -> Callable[[str], bool]:
+    """The predicate for a section every REQ token of which names a retired record, given
+    the text that names its requirements: the heading and its ``**Implements:**`` lines. A
+    retired requirement keeps its section, so its anchor and inbound links still resolve,
     and binds nothing (methodology §6). An id the map lacks is not retired."""
     requirement = _requirement_token(ctx.desc)
 
-    def retired(heading: str) -> bool:
-        records = [ctx.records_by_id.get(token) for token in requirement.findall(heading)]
+    def retired(naming: str) -> bool:
+        records = [ctx.records_by_id.get(token) for token in requirement.findall(naming)]
         return bool(records) and all(
             record is not None and record.implementation == "retired" for record in records
         )
@@ -2300,10 +2301,15 @@ def _spec_sections(
         return False
     total = len(text.split("\n"))
     content = strip_noncontent(text)
+    # Read like map-to-tree's back-edge: inline code kept, so `REQ-…` still names an id.
+    implements = [
+        (lineno, line) for lineno, line in _content_lines(text, False) if "**Implements:**" in line
+    ]
     for index in marked:
-        if is_retired(found[index][2]):
-            continue
         start, end = _heading_span(found, index, total)
+        naming = [found[index][2]] + [line for lineno, line in implements if start <= lineno < end]
+        if is_retired(" ".join(naming)):
+            continue
         carries = any(
             KEYWORD_RE.search(line) for lineno, line in content if start < lineno < end
         )
@@ -2360,7 +2366,7 @@ def check_rfc2119(ctx: Context, report: "Report") -> None:
     sectionless: List[str] = []
     examined = 0
     is_section = _section_heading(ctx.desc)
-    is_retired = _retired_heading(ctx)
+    is_retired = _retired_section(ctx)
     for path in paths:
         if _waived(ctx, report, "rfc2119", path):
             continue
