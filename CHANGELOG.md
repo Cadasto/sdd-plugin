@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-27
+
+Retiring a requirement. A retired requirement keeps its section where it was, so its anchor and inbound links still resolve: the heading and its `**Implements:**` line stay, and one line without a keyword says what replaced it. The `rfc2119` family no longer warns on such a section, `/sdd-specify` retires a requirement on request, and the specification template says a retired section carries no keyword. `sdd-check` changed, so re-vendor it. Moving a repository from 0.16.x is described in `docs/upgrading.md`.
+
 ### Added
 - Skills: `sdd-specify` retires a requirement, and `spec-driven-development` routes that request to it; the `sdd-specify` word budget rises from 890 to 925.
 - Tools: the `sdd-check` selftest proves a retired requirement's section stays quiet.

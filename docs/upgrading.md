@@ -2,6 +2,26 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.16.x to 0.17.0
+
+Retiring a requirement. A retired requirement keeps its section in place and the gate stops warning on
+it. `sdd-check` changed, so re-vendor it.
+
+1. **Re-vendor the gate.** Run `/sdd-scaffold --upgrade`: it copies the 0.17.0 gate over `check.script`
+   and sets `check.version`. Until then the session banner says the vendored gate is older than the
+   plugin, and the old gate keeps warning on retired sections.
+2. **Retired sections stop warning.** A section whose heading and `**Implements:**` lines name only
+   requirements with `implementation: retired` no longer draws the `rfc2119` warning "carries no
+   RFC-2119 keyword", whichever `check.rfc2119.sections` convention you use. A
+   `<!-- sdd-check: allow rfc2119 -->` waiver added only for retired headings can go, which brings back
+   the keyword checks for the rest of that file. Retired entries already moved to a `reference` page may
+   stay there.
+3. **Where a retired requirement lives.** Methodology §6 makes the section in place the default: keep the
+   heading and its `**Implements:**` line, and replace the prose with one line, without a keyword, saying
+   what replaced the requirement or why it was withdrawn. `/sdd-specify` does this when asked to retire a
+   requirement. `--upgrade` does not rewrite `docs/specifications/_template.md`; copy the new last
+   sentence of the template's banner by hand if you keep the stub in step.
+
 ## From 0.15.x to 0.16.0
 
 Code may lead. The maintainer's instruction outranks a specification sentence, the lane the maintainer
