@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Tools: the `sdd-check` selftest proves a retired requirement's section stays quiet.
+
+### Changed
+- References: `sdd-check.md` § rfc2119 states the exemption.
+
+### Fixed
+- Tools: `sdd-check`'s `rfc2119` family warned on a section whose heading names only retired requirements.
+
 ## [0.16.0] - 2026-10-25
 
 Code may lead. The maintainer's instruction outranks a specification sentence and the lane the maintainer names is final, so an agent names the sentence once, does the work and amends it in the same branch instead of arguing from it. RFC-2119 force goes only to what a caller relies on, and a guard proof is owed only for a new obligation. Wrong behaviour is never a suggestion, a defect in a file the branch changed is fixed there, slips in the branch's own documents come back as a fix list, and the backlog is kept short. The per-task gate is off by default, the document reviewer runs only when something normative changed, and the PR body loses its checklist. `sdd-check` changed only its version number. Moving a repository from 0.15.x is described in `docs/upgrading.md`.

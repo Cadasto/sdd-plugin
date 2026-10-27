@@ -1358,6 +1358,50 @@ class TestRfc2119Family(BaselineCase):
         self.assertEqual(1, len(warned), report.render(self.tmp))
         self.assertIn("Reload (REQ-FOUND-001)", warned[0])
 
+    # A retired requirement keeps its heading, so its anchor still resolves, and binds nothing
+    def retire(self, implementation="retired"):
+        self.edit(MAP_REL, "    status: draft\n    implementation: shipped",
+                  "    status: deprecated\n    implementation: %s" % implementation)
+
+    def keyword_warnings(self, report):
+        return [f.message for f in report.findings if "carries no RFC-2119 keyword" in f.message]
+
+    def test_a_retired_requirement_heading_is_not_warned(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001)")
+        self.drop_keywords()
+        self.retire()
+        report = self.run_only("rfc2119")
+        self.assertFalse(self.keyword_warnings(report), report.render(self.tmp))
+        # The rule found the section; it is retired, not missing.
+        self.assertNotIn(SPEC_REL, self.sectionless(report), report.render(self.tmp))
+
+    def test_a_retired_requirement_heading_is_not_warned_under_the_section_sign(self):
+        self.drop_keywords()
+        self.retire()
+        report = self.run_only("rfc2119")
+        self.assertFalse(self.keyword_warnings(report), report.render(self.tmp))
+
+    def test_a_deprecated_requirement_still_shipped_still_warns(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001)")
+        self.drop_keywords()
+        self.retire(implementation="shipped")
+        self.assert_finding(self.run_only("rfc2119"), "is normative and carries no RFC-2119 keyword",
+                            level="WARN")
+
+    def test_a_heading_naming_a_live_id_beside_a_retired_one_still_warns(self):
+        self.set_sections("requirement-id")
+        self.edit(SPEC_REL, "## §1 — Boundary (REQ-FOUND-001)", "## Boundary (REQ-FOUND-001, REQ-FOUND-002)")
+        self.drop_keywords()
+        self.retire()
+        self.write(MAP_REL, (self.tmp / MAP_REL).read_text(encoding="utf-8")
+                   + "  - id: REQ-FOUND-002\n    title: Reload\n"
+                   "    canonical: docs/specifications/env.md#boundary-req-found-001-req-found-002\n"
+                   "    status: draft\n    implementation: proposed\n")
+        self.assert_finding(self.run_only("rfc2119"), "is normative and carries no RFC-2119 keyword",
+                            level="WARN")
+
 
 # ---------------------------------------------------------------------------
 # A document with no declared kind takes its kind from its location

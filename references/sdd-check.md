@@ -152,11 +152,11 @@ Default severity `warn`. Enforces §3 (the kinds and their zones) and §6 (the p
 
 ### rfc2119
 
-- `rfc2119` — a keyword is one of `MUST`, `MUST NOT`, `SHALL`, `SHALL NOT`, `SHOULD`, `SHOULD NOT`, `REQUIRED`, `RECOMMENDED`, `MAY`, `OPTIONAL` as a whole upper-case word, outside fenced code, inline code, HTML comments and frontmatter. In a `specification` kind: a normative section with no keyword → warn, where a heading opens a normative section by the convention `check.rfc2119.sections` names: `section-sign` (default; the heading contains `§`), `requirement-id` (the heading names a token matching the repository's `REQ` pattern, on identifier boundaries) or `either`; a specification with no such heading is listed as a partial skip for this rule; a lower-case modal (`must`, `shall`, `should`, `may not`) in a sentence with no keyword → warn; malformed forms `MUST to`, `are MUST`, `is MUST`, `MUST MUST`, `NOT NOT`, `SHOULD MUST` → error. Outside a specification: a keyword in a `requirement | adr | reference` kind → error; in `guide | analysis | operations | upstream` → the family's severity; files with the waiver are skipped and counted.
+- `rfc2119` — a keyword is one of `MUST`, `MUST NOT`, `SHALL`, `SHALL NOT`, `SHOULD`, `SHOULD NOT`, `REQUIRED`, `RECOMMENDED`, `MAY`, `OPTIONAL` as a whole upper-case word, outside fenced code, inline code, HTML comments and frontmatter. In a `specification` kind: a normative section with no keyword → warn, where a heading opens a normative section by the convention `check.rfc2119.sections` names: `section-sign` (default; the heading contains `§`), `requirement-id` (the heading names a token matching the repository's `REQ` pattern, on identifier boundaries) or `either`; a section whose heading names only requirements the map marks `implementation: retired` is not warned, under any convention, and still counts as a section; a specification with no such heading is listed as a partial skip for this rule; a lower-case modal (`must`, `shall`, `should`, `may not`) in a sentence with no keyword → warn; malformed forms `MUST to`, `are MUST`, `is MUST`, `MUST MUST`, `NOT NOT`, `SHOULD MUST` → error. Outside a specification: a keyword in a `requirement | adr | reference` kind → error; in `guide | analysis | operations | upstream` → the family's severity; files with the waiver are skipped and counted.
 
 Default severity `warn` — but the per-kind rules above still error for `requirement`, `adr` and
 `reference`, because a binding word in a document that binds nothing is a second source of truth.
-Enforces §4 (keyword discipline) and §3 (the zones).
+Enforces §4 (keyword discipline), §3 (the zones) and §6 (a retired requirement binds nothing).
 
 ### one-home
 
