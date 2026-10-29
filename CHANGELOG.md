@@ -6,10 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- Tools: `sdd-pr brief` prints the worker brief with the branch, worktree, worker skills and code index filled, and names the dispatch model.
+- Templates: `sdd.yaml` gains `agents.mechanical_worker_model`, the model `/sdd-deliver` passes for a mechanical task; default `inherit`.
+- Templates: `brief.md` gains an optional `Code map` field.
+
 ### Changed
 - Tools: `sdd-check` accepts up to two sub-areas after the area in an area-prefixed id (`REQ-NFR-SCAL-001`); only the first segment is checked against `req_areas` and `excluded_areas`.
 - References: methodology §5, `traceability-schema.md` and `sdd-check.md` § map-schema state the sub-area form.
 - Skills: `sdd-specify` may assign an id with sub-areas.
+- Skills: `sdd-deliver` starts each brief with `sdd-pr brief`, fills its code map, and may dispatch a mechanical task on a cheaper model.
+- Skills: `sdd-triage` briefs a fix worker with `sdd-pr brief`.
+- Agents: `sdd-implementer` starts from the brief's code map, batches independent reads into one command, and loads only the narrower skills a router names for the change.
+- Tools: the `sdd-check` links family parses each target document's headings once per run, about half the gate's run time.
+- Tools: `sdd-pr` reads a pull request's checks with the pull request and its owner and repository from its URL, one or two fewer GitHub calls per command.
+- References: `traceability-schema.md` describes `agents.mechanical_worker_model`.
+- Scripts: the `sdd-deliver` word budget rises from 1580 to 1600 and the `references/review.md` one from 3045 to 3070.
+
+### Fixed
+- Hooks: `session-start.sh` keeps the banner, the plugin version, the version-mismatch warning and the branch line on a branch with a findings file.
 
 ## [0.17.0] - 2026-10-27
 
