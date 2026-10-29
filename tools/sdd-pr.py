@@ -1085,9 +1085,24 @@ class GitHubForge(Forge):
     """GitHub through `gh`: reviews, review threads, and resolveReviewThread."""
 
     name = "github"
+    #: What one read of a pull request asks for; the checks come with it, so they need no read of their own.
+    PR_FIELDS = "number,headRefOid,headRefName,baseRefName,isDraft,url,statusCheckRollup,state,mergeCommit,mergedAt,body"
+    #: A pull request's web address names its owner and repository, which then need no `gh repo view`.
+    PR_URL_RE = re.compile(r"^https?://[^/]+/([^/]+)/([^/]+)/pull/\d+/?$")
 
     def __init__(self):
         self._repo: Optional[Tuple[str, str]] = None
+        #: Each pull request read in this run, by number. Every `gh` call is a round trip, and GitHub
+        #: throttles a client that sends many, so a value already read is never asked for again.
+        self._read: Dict[int, dict] = {}
+
+    def _seen(self, shaped: dict) -> dict:
+        """Keep a pull request just read, and its owner and repository when its URL names them."""
+        self._read[shaped["number"]] = shaped
+        match = self.PR_URL_RE.match(shaped["url"])
+        if self._repo is None and match:
+            self._repo = (match.group(1), match.group(2))
+        return shaped
 
     def _owner_name(self) -> Tuple[str, str]:
         if self._repo is None:
@@ -1103,18 +1118,18 @@ class GitHubForge(Forge):
                 "merged_at": data.get("mergedAt") or "", "body": data.get("body") or "", "raw": data}
 
     def pr_for_branch(self, branch):
-        data = _json(run_cli(["gh", "pr", "list", "--head", branch, "--state", "all",
-                              "--json", "number,headRefOid,headRefName,baseRefName,isDraft,url,state,mergeCommit,mergedAt,body"])) or []
+        data = _json(run_cli(["gh", "pr", "list", "--head", branch, "--state", "all", "--json", self.PR_FIELDS])) or []
         # The open one, else the latest: a merged or closed pull request is a state worth saying.
         data = sorted(data, key=lambda d: (d.get("state") or "OPEN").upper() != "OPEN")
-        return self._shape(data[0]) if data else None
+        return self._seen(self._shape(data[0])) if data else None
 
     def pr(self, number):
-        return self._shape(_json(run_cli(["gh", "pr", "view", str(number), "--json",
-                                          "number,headRefOid,headRefName,baseRefName,isDraft,url,statusCheckRollup,state,mergeCommit,mergedAt,body"])))
+        return self._seen(self._shape(_json(run_cli(["gh", "pr", "view", str(number), "--json", self.PR_FIELDS]))))
 
     def checks(self, number):
-        rollup = self.pr(number)["raw"].get("statusCheckRollup") or []
+        # The read that found the pull request carried its checks.
+        pr = self._read.get(number) or self.pr(number)
+        rollup = pr["raw"].get("statusCheckRollup") or []
         if not rollup:
             return "none"
         state = "pass"

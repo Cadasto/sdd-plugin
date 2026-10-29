@@ -506,6 +506,23 @@ class TestStatus(RepoCase):
         _, out, _ = self.run_main("status")
         self.assertIn("Mergeable: no — checks failing", out)
 
+    def test_status_reads_the_pull_request_once_and_its_repository_from_the_url(self):
+        # Each forge call is a round trip, and a forge throttles a client that sends many: the checks
+        # come with the one read of the pull request, and the owner and name with its URL.
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT)
+        failing = [{"status": "COMPLETED", "conclusion": "FAILURE"}]
+        fake = self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes()
+                        + self._gh_routes(checks=failing))
+        _, out, _ = self.run_main("status")
+        self.assertIn("checks: fail", out)
+        reads = fake.called("gh", "pr")
+        self.assertEqual(1, len(reads), reads)
+        self.assertIn("statusCheckRollup", reads[0][reads[0].index("--json") + 1])
+        self.assertEqual([], fake.called("gh", "repo", "view"))
+        self.assertIn("owner=o", fake.called("gh", "api", "graphql")[0])
+        self.assertIn("name=r", fake.called("gh", "api", "graphql")[0])
+
     def test_status_measures_change_from_the_last_pass_not_the_branch(self):
         # scope reads the whole branch by default; status still says what came after the last pass.
         self.descriptor(forge="none")
