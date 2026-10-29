@@ -408,7 +408,7 @@ WORD_BUDGETS = {
     "skills/sdd-specify/SKILL.md": 925,
     "skills/sdd-trace/SKILL.md": 430,
     "skills/spec-driven-development/SKILL.md": 680,
-    "references/review.md": 3045,
+    "references/review.md": 3070,
     "references/artefact-prose.md": 800,
     "agents/sdd-doc-reviewer.md": 1045,
     "agents/sdd-spec-conformance-reviewer.md": 1015,

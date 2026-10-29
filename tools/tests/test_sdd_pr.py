@@ -1555,6 +1555,45 @@ class TestDelivery(RepoCase):
         self.assertIn("notes: %s" % notes, out)
 
 
+class TestBrief(RepoCase):
+    """`brief`: the worker brief, with what the repository already decides filled in."""
+
+    WORKFLOW = ("# AI workflow\n\n## Orchestration (standing)\n\n"
+                "- **A brief is self-contained.**\n"
+                "- **Code index:** `gopls` from the shell, in the worktree. Workers query it first\n"
+                "  and fall back to `grep` for literals.\n"
+                "- **Workers do not spawn workers.**\n\n"
+                "## Review\n\n- **Code index:** not this section's.\n")
+
+    def test_the_brief_fills_the_branch_worktree_skills_and_code_index(self):
+        self.descriptor(forge="none", extra="  agents:\n    worker_model: opus\n    mechanical_worker_model: sonnet\n"
+                                             "    worker_skills: [lang:router, lang:testing]\n")
+        (self.root / "docs" / "ai-workflow.md").write_text(self.WORKFLOW, encoding="utf-8")
+        self.use(git_routes())
+        code, out, err = self.run_main("brief", "--task", "pin the parser")
+        self.assertEqual(0, code, err)
+        self.assertTrue(out.startswith("# Brief — feat/x · pin the parser\n"), out)
+        self.assertIn("\n**Skills.** lang:router, lang:testing\n", out)
+        self.assertIn("\n**Code index.** `gopls` from the shell, in the worktree. Workers query it first and fall "
+                      "back to `grep` for literals.\n", out)
+        self.assertIn("\n**Worktree.** %s: every command runs there" % os.path.abspath(str(self.root)), out)
+        self.assertIn("\n**Branch.** feat/x\n", out)
+        # What only the orchestrator knows stays a placeholder, and the template's note to it is dropped.
+        self.assertIn("\n**Clauses.** <", out)
+        self.assertNotIn("Template:", out)
+        self.assertIn("worker model opus · a mechanical task: sonnet", err)
+        self.assertTrue(self.nothing_written())
+
+    def test_an_unset_value_reads_as_none_or_stays_to_fill(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        code, out, err = self.run_main("brief")
+        self.assertEqual(0, code, err)
+        self.assertTrue(out.startswith("# Brief — feat/x · <task>\n"), out)
+        self.assertIn("\n**Skills.** none\n", out)
+        self.assertIn("\n**Code index.** <", out)
+        self.assertIn("worker model inherit · a mechanical task: inherit", err)
+
 
 class TestStore(RepoCase):
     """One findings file per branch, in the clone's shared git directory."""

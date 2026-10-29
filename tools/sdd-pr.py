@@ -2999,9 +2999,80 @@ def cmd_clean(session: Session, args) -> int:
     return 2 if failed else 0
 
 
+#: The worker brief /sdd-deliver fills per task, in the plugin beside this tool.
+BRIEF_TEMPLATE = os.path.join("references", "templates", "brief.md")
+#: The repository's standing orchestration notes, where its code index is named.
+AI_WORKFLOW = os.path.join("docs", "ai-workflow.md")
+
+
+def code_index(root: str) -> str:
+    """The `Code index:` bullet of docs/ai-workflow.md § Orchestration, on one line; "" when there is none."""
+    try:
+        with open(os.path.join(root, AI_WORKFLOW), encoding="utf-8") as handle:
+            lines = handle.read().splitlines()
+    except OSError:
+        return ""
+    in_section, found = False, []
+    for line in lines:
+        if line.startswith("## "):
+            if found:
+                break
+            in_section = line[3:].strip().lower().startswith("orchestration")
+        elif in_section and found:
+            if not line.strip() or not line[:1].isspace():
+                break  # the bullet ends at a blank line or the next bullet
+            found.append(line.strip())
+        elif in_section:
+            match = re.match(r"^[-*] +\*\*Code index:?\*\*:? *(.*)$", line)
+            if match:
+                found.append(match.group(1).strip())
+    return " ".join(part for part in found if part)
+
+
+def fill_field(text: str, label: str, value: str) -> str:
+    """``text`` with ``value`` in place of the ``<…>`` placeholder after ``**<label>.**``, a nested ``<…>``
+    inside the placeholder included; unchanged when the field or the value is missing."""
+    head = "\n**%s.** <" % label
+    start = text.find(head)
+    if start < 0 or not value:
+        return text
+    opening, depth = start + len(head) - 1, 0
+    for i in range(opening, len(text)):
+        if text[i] == "\n":
+            break
+        depth += {"<": 1, ">": -1}.get(text[i], 0)
+        if depth == 0:
+            return text[:opening] + value + text[i + 1:]
+    return text
+
+
+def cmd_brief(session: Session, args) -> int:
+    """The worker brief for one task, with what the repository decides filled in; the orchestrator fills the
+    rest. Writes nothing: redirect it to the brief's file."""
+    try:
+        with open(os.path.join(PLUGIN_ROOT, BRIEF_TEMPLATE), encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError as exc:
+        raise CliError("brief: cannot read %s: %s" % (BRIEF_TEMPLATE, exc.strerror or exc))
+    text = re.sub(r"\A<!--.*?-->\n", "", text, flags=re.S)  # the template's note to whoever fills it
+    text = text.replace("# Brief — <branch> · <task>", "# Brief — %s · %s" % (session.branch, args.task or "<task>"), 1)
+    skills = _setting(session.data, "agents", "worker_skills")
+    skills = skills if isinstance(skills, list) else [skills] if skills else []
+    text = fill_field(text, "Skills", ", ".join(str(s) for s in skills) or "none")
+    text = fill_field(text, "Code index", code_index(session.root))
+    text = fill_field(text, "Worktree", os.path.abspath(session.root))
+    text = fill_field(text, "Branch", session.branch)
+    sys.stdout.write(text)
+    worker = str(_setting(session.data, "agents", "worker_model") or "inherit")
+    mechanical = str(_setting(session.data, "agents", "mechanical_worker_model") or "inherit")
+    print("sdd-pr: worker model %s · a mechanical task: %s; fill every field still in <…>"
+          % (worker, worker if mechanical == "inherit" else mechanical), file=sys.stderr)
+    return 0
+
+
 COMMANDS = {"status": cmd_status, "start": cmd_start, "scope": cmd_scope, "pull": cmd_pull, "post": cmd_post, "resolve": cmd_resolve,
             "harvest": cmd_harvest, "guard": cmd_guard, "add": cmd_add, "flip": cmd_flip, "record": cmd_record,
-            "rename": cmd_rename, "clean": cmd_clean}
+            "rename": cmd_rename, "clean": cmd_clean, "brief": cmd_brief}
 
 
 PLUGIN_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -3014,6 +3085,9 @@ EPILOGS = {
   - <path>:<line> · <one sentence> · by: <reviewer>                       (a suggestion)
 a reviewer's ``` fence lines are skipped; a critical or important line needs evidence:; a line about code or
 a document the branch did not change ends · outside, and add drops it from a line the branch changed""",
+    "brief": """prints references/templates/brief.md with the title, Skills (agents.worker_skills), Code index
+(docs/ai-workflow.md § Orchestration), Worktree and Branch filled, and names the dispatch model on stderr;
+redirect it to the brief's file, then fill every field still in <…>. Writes nothing.""",
     "start": """prints the dispatch plan: one line per reviewer with its patch; dispatch each with
 "Read <brief>; your hunks: <patch>". Files go under .sdd/review/<head>/. Another agent's pass on the
 branch is reported, never a stop. The gate is never run here.""",
@@ -3110,6 +3184,8 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--reported", required=True, metavar="N/M")
         if name == "rename":
             cmd.add_argument("--from", dest="from_branch", required=True, metavar="BRANCH")
+        if name == "brief":
+            cmd.add_argument("--task", help="the task in a few words, for the brief's title")
     return parser
 
 
