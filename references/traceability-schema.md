@@ -100,8 +100,8 @@ sdd:
 | Field | Meaning |
 |---|---|
 | `profile` | `formal` (alias `full`, one release) or `informative` — see methodology §1a and **Profiles** below. `lightweight` is read as `formal` with a file-form requirements index and reported as a note. |
-| `req_style` | `area-prefixed` (`REQ-AUTH-001`) or `flat-numeric` (`REQ-050`). Drives how `/sdd-specify` assigns the next ID. |
-| `req_areas` | The allowed area tokens (area-prefixed only). New areas are a deliberate, reviewed addition. |
+| `req_style` | `area-prefixed` (`REQ-AUTH-001`, or with up to two sub-areas after the area, `REQ-NFR-SCAL-001`) or `flat-numeric` (`REQ-050`). Drives how `/sdd-specify` assigns the next ID. |
+| `req_areas` | The allowed area tokens (area-prefixed only), checked against an identifier's first segment; sub-areas are not declared. New areas are a deliberate, reviewed addition. |
 | `req_gap` | Spacing for flat-numeric IDs so new requirements slot in without renumbering. |
 | `excluded_areas` | Area tokens this repository has deliberately excluded (area-prefixed only). An identifier that uses one is rejected (methodology §5). |
 | `doc_kinds` | The document-kind vocabulary a document's `kind:` frontmatter is checked against (methodology §3). |

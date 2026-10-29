@@ -128,7 +128,7 @@ Stable, citable identifiers thread the whole repo — they appear in commit mess
 Pick **one** REQ style and stay consistent (declared in `.sdd.yaml`):
 
 - **flat-numeric** with decadal gaps (`REQ-050`, room to insert) — leaner for a library.
-- **area-prefixed** (`REQ-AUTH-001`) — reads as a capability map; friendlier for a product.
+- **area-prefixed** (`REQ-AUTH-001`) — reads as a capability map; friendlier for a product. Up to two sub-areas may follow the area (`REQ-NFR-SCAL-001`); only the first segment is the area.
 
 ### Excluded areas
 
