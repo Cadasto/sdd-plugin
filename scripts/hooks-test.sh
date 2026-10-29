@@ -185,6 +185,12 @@ MD
   f_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep '^› findings')"
   [ "$f_line" = "› findings: 1 critical, 1 important open, 1 outside the change, 2 suggestions (.sdd/findings/feat--x.md)" ] \
     && ok "session-start counts a defect outside the change apart from the open ones" || bad "outside findings line was '$f_line'"
+  # The findings line is added to the orientation, never in place of it: the lines before it stay.
+  w_out="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state")"
+  case "$w_out" in
+    *"Spec-Driven Development repo detected"*"› branch feat/x"*"› findings: "*) ok "session-start keeps the banner and the branch line beside a findings file" ;;
+    *) bad "a findings file dropped the lines before it: $w_out" ;;
+  esac
 fi
 
 # --- session-start: the backlog's size ------------------------------------------------

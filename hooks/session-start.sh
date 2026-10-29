@@ -245,9 +245,10 @@ if is_sdd_repo; then
       i="$(grep '^- \[ \] important' "$ff" 2>/dev/null | grep -vc ' · outside\( \|$\)')"
       o="$(grep '^- \[ \] \(critical\|important\) ' "$ff" 2>/dev/null | grep -c ' · outside\( \|$\)')"
       s="$(awk '/^## /{ sec = $0; next } sec == "## Suggestions" && /^- / { n++ } END { print n + 0 }' "$ff" 2>/dev/null)"
-      out=""
-      [ "${o:-0}" -gt 0 ] && out=", $o outside the change"
-      add "› findings: ${c:-0} critical, ${i:-0} important open$out, ${s:-0} suggestions ($ff)"
+      # Its own variable: `out` is the whole orientation built so far.
+      apart=""
+      [ "${o:-0}" -gt 0 ] && apart=", $o outside the change"
+      add "› findings: ${c:-0} critical, ${i:-0} important open$apart, ${s:-0} suggestions ($ff)"
     fi
   fi
 
