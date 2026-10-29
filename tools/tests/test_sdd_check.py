@@ -984,6 +984,10 @@ class TestTreeToMapFamily(BaselineCase):
         self.write("src/env/thing.py", "# implements REQ-FOUND-077\n")
         self.assert_finding(self.run_only("tree-to-map"), "unknown identifier cited", level="WARN")
 
+    def test_unknown_sub_area_identifier_cited(self):
+        self.write("src/env/thing.py", "# implements REQ-FOUND-SCAL-077\n")
+        self.assert_finding(self.run_only("tree-to-map"), "REQ-FOUND-SCAL-077", level="WARN")
+
     def test_test_file_citing_a_record_with_no_tests(self):
         self.edit(MAP_REL, "    tests:\n      - tests/env_test.py\n", "")
         self.write("tests/other_test.py", "def test_boundary():\n    # REQ-FOUND-001\n    assert True\n")
@@ -2092,7 +2096,7 @@ class TestCommandLine(BaselineCase):
 class TestInterfaces(BaselineCase):
     def test_descriptor_accessors(self):
         desc = sdd_check.Descriptor.load(self.tmp)
-        self.assertEqual(r"REQ-[A-Z][A-Z0-9]*-\d{3,}", desc.req_pattern().pattern)
+        self.assertEqual(r"REQ-[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*){0,2}-\d{3,}", desc.req_pattern().pattern)
         self.assertEqual(self.tmp / "docs/requirements/README.md", desc.requirements_index_path())
         self.assertEqual(self.tmp / "docs/requirements", desc.requirements_dir())
         self.assertIn(self.tmp / "docs/specifications/env.md", desc.specification_files())
@@ -2180,6 +2184,22 @@ class TestMapSchemaRules(BaselineCase):
     def test_id_style_mismatch(self):
         self.edit(MAP_REL, "id: REQ-FOUND-001", "id: REQ-001")
         self.assert_finding(self.run_only("map-schema"), "style", family="map-schema")
+
+    def test_id_with_sub_areas(self):
+        self.edit(MAP_REL, "id: REQ-FOUND-001", "id: REQ-FOUND-SCAL-001")
+        self.assert_clean(self.run_only("map-schema"))
+        self.edit(MAP_REL, "id: REQ-FOUND-SCAL-001", "id: REQ-FOUND-SCAL-P99-001")
+        self.assert_clean(self.run_only("map-schema"))
+
+    def test_id_with_three_sub_areas(self):
+        self.edit(MAP_REL, "id: REQ-FOUND-001", "id: REQ-FOUND-A-B-C-001")
+        self.assert_finding(self.run_only("map-schema"), "style", family="map-schema")
+
+    def test_sub_areas_leave_the_area_checked(self):
+        self.edit(MAP_REL, "id: REQ-FOUND-001", "id: REQ-OTHER-SCAL-001")
+        self.assert_finding(self.run_only("map-schema"), "not declared in req_areas: 'OTHER'")
+        self.edit(MAP_REL, "id: REQ-OTHER-SCAL-001", "id: REQ-BENCH-SCAL-001")
+        self.assert_finding(self.run_only("map-schema"), "excluded area 'BENCH'")
 
     def test_required_field_missing(self):
         self.edit(MAP_REL, "    title: Environment boundary\n", "")

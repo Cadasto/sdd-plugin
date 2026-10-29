@@ -122,7 +122,7 @@ Default severity `error`. Enforces §5 (the identifier scheme and excluded areas
 
 ### map-schema
 
-- `map-schema` — the map parses and yields at least one record; ids unique; id matches the repository's style and, when area-prefixed, an area in `req_areas` and not in `excluded_areas`; `title`, `canonical`, `status`, `implementation` present; `status` and `implementation` in vocabulary; `implementation: retired` only when `status` is `deprecated`; `canonical` is `path#anchor`; list fields are lists of strings; unknown keys warn.
+- `map-schema` — the map parses and yields at least one record; ids unique; id matches the repository's style (area-prefixed: `REQ-AREA-NNN` with up to two sub-areas after the area) and, when area-prefixed, its first segment is an area in `req_areas` and not in `excluded_areas`; `title`, `canonical`, `status`, `implementation` present; `status` and `implementation` in vocabulary; `implementation: retired` only when `status` is `deprecated`; `canonical` is `path#anchor`; list fields are lists of strings; unknown keys warn.
 
 Default severity `error`. Enforces §6 (the per-kind status vocabularies) and §8 (the traceability chain).
 

@@ -1097,9 +1097,11 @@ class Descriptor:
         return DEFAULT_SEVERITY.get(family, "error")
 
     def req_pattern(self) -> "re.Pattern":
+        """``REQ-NNN`` when flat-numeric; otherwise the area and up to two sub-areas,
+        ``REQ-AREA[-SUB[-SUB]]-NNN``. Only the first segment is the area."""
         if self.req_style == "flat-numeric":
             return re.compile(r"REQ-\d{3,}")
-        return re.compile(r"REQ-[A-Z][A-Z0-9]*-\d{3,}")
+        return re.compile(r"REQ-[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*){0,2}-\d{3,}")
 
     def is_file_form(self, rel: str) -> bool:
         return Path(rel).suffix != "" or self.resolve(rel).is_file()

@@ -18,7 +18,7 @@ No descriptor: route to `/sdd-scaffold` and stop. Behaviour not yet explored: ex
 ## A · Requirement (`REQ-*`) — capture the capability
 
 1. Read `req_style`, `req_areas`, `req_gap`, `paths.requirements`.
-2. **Assign the next identifier** without collision — `REQ-<AREA>-NNN` (only `req_areas`, never `excluded_areas`) or flat-numeric at `req_gap` spacing — once acceptance criteria exist; an idea without them gets a `STRAND` or a design note (methodology §5).
+2. **Assign the next identifier** without collision — `REQ-<AREA>[-<SUB>…]-NNN` (only `req_areas`, never `excluded_areas`) or flat-numeric at `req_gap` spacing — once acceptance criteria exist; an idea without them gets a `STRAND` or a design note (methodology §5).
 3. From `references/templates/requirement.md`: **observable, testable** acceptance criteria covering the **negative space** (what it must refuse or fail closed on), citing the `SPEC §` rather than restating it; **no implementation detail**. `draft` binds once merged (methodology §6). With a file-form `paths.requirements`, write no detail file (`references/traceability-schema.md` § Profiles).
 4. Write a missing `SPEC §` first (§B), so `canonical` names a real anchor. Then add the record (`status: draft`, `implementation: proposed`) to `traceability.yaml` and run `sdd-check generate` (invocation and fallback: `references/sdd-check.md`); the index row and the detail file's status lines come from the record.
 5. **To retire one,** set the record's `status: deprecated` and `implementation: retired`, drop the evidence paths the change deletes, leave its heading in place with a one-line pointer (methodology §6), and run `sdd-check generate`.
