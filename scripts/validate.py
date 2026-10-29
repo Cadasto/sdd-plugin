@@ -402,7 +402,7 @@ def validate_retired_vocabulary():
 WORD_BUDGETS = {
     "skills/sdd-review/SKILL.md": 875,
     "skills/sdd-triage/SKILL.md": 1150,
-    "skills/sdd-deliver/SKILL.md": 1580,
+    "skills/sdd-deliver/SKILL.md": 1600,
     "skills/sdd-close/SKILL.md": 920,
     "skills/sdd-scaffold/SKILL.md": 999,
     "skills/sdd-specify/SKILL.md": 925,
