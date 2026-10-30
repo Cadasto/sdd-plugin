@@ -1581,12 +1581,12 @@ class TestDelivery(RepoCase):
 class TestBrief(RepoCase):
     """`brief`: the worker brief, with what the repository already decides filled in."""
 
-    WORKFLOW = ("# AI workflow\n\n## Orchestration (standing)\n\n"
+    WORKFLOW = ("# AI workflow\n\n## Review\n\n- **Code index:** `not this section's`.\n\n"
+                "## Orchestration (standing)\n\n"
                 "- **A brief is self-contained.**\n"
-                "- **Code index:** `gopls` from the shell, in the worktree. Workers query it first\n"
-                "  and fall back to `grep` for literals.\n"
-                "- **Workers do not spawn workers.**\n\n"
-                "## Review\n\n- **Code index:** not this section's.\n")
+                "- **Code index:** `gopls`. When one is named, workers query it\n"
+                "  first and fall back to `grep` for literals and prose; the brief repeats the name.\n"
+                "- **Workers do not spawn workers.**\n")
 
     def test_the_brief_fills_the_branch_worktree_skills_and_code_index(self):
         self.descriptor(forge="none", extra="  agents:\n    worker_model: opus\n    mechanical_worker_model: sonnet\n"
@@ -1597,8 +1597,7 @@ class TestBrief(RepoCase):
         self.assertEqual(0, code, err)
         self.assertTrue(out.startswith("# Brief — feat/x · pin the parser\n"), out)
         self.assertIn("\n**Skills.** lang:router, lang:testing\n", out)
-        self.assertIn("\n**Code index.** `gopls` from the shell, in the worktree. Workers query it first and fall "
-                      "back to `grep` for literals.\n", out)
+        self.assertIn("\n**Code index.** `gopls`\n", out)
         self.assertIn("\n**Worktree.** %s: every command runs there" % os.path.abspath(str(self.root)), out)
         self.assertIn("\n**Branch.** feat/x\n", out)
         # What only the orchestrator knows stays a placeholder, and the template's note to it is dropped.
@@ -1616,6 +1615,39 @@ class TestBrief(RepoCase):
         self.assertIn("\n**Skills.** none\n", out)
         self.assertIn("\n**Code index.** <", out)
         self.assertIn("worker model inherit · a mechanical task: inherit", err)
+        self.assertNotIn("--root", err)
+
+    def test_the_code_index_is_read_from_the_scaffolded_line(self):
+        # The line /sdd-scaffold writes: its name once filled, nothing while it is still the placeholder,
+        # and nothing from a file that is not UTF-8.
+        shipped = (TOOLS_DIR.parent / "references" / "templates" / "ai-workflow.md").read_text(encoding="utf-8")
+        placeholder = "`<none | the tool that indexes this repository>`"
+        self.assertIn(placeholder, shipped)
+        workflow = self.root / "docs" / "ai-workflow.md"
+        workflow.parent.mkdir(exist_ok=True)
+        workflow.write_text(shipped, encoding="utf-8")
+        self.assertEqual("", sdd_pr.code_index(str(self.root)))
+        workflow.write_text(shipped.replace(placeholder, "`gopls`"), encoding="utf-8")
+        self.assertEqual("`gopls`", sdd_pr.code_index(str(self.root)))
+        workflow.write_bytes(b"## Orchestration\n\n- **Code index:** `caf\xe9`\n")
+        self.assertEqual("", sdd_pr.code_index(str(self.root)))
+
+    def test_a_mechanical_task_inherits_the_worker_model_and_one_skill_reads_as_a_list(self):
+        self.descriptor(forge="none", extra="  agents:\n    worker_model: opus\n    worker_skills: lang:router\n")
+        self.use(git_routes())
+        code, out, err = self.run_main("brief")
+        self.assertEqual(0, code, err)
+        self.assertIn("\n**Skills.** lang:router\n", out)
+        self.assertIn("worker model opus · a mechanical task: opus", err)
+
+    def test_with_a_worktree_per_worker_it_says_how_to_brief_one(self):
+        # The worktree and branch filled are --root's; a parallel worker's are its own.
+        self.descriptor(forge="none", extra="  agents:\n    worktree_per_worker: true\n")
+        self.use(git_routes())
+        code, out, err = self.run_main("brief")
+        self.assertEqual(0, code, err)
+        self.assertIn("\n**Branch.** feat/x\n", out)
+        self.assertIn("sdd-pr --root <its worktree> brief", err)
 
 
 class TestStore(RepoCase):

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """sdd-pr — the branch's findings file, mirrored to the pull request's inline threads and suggestion comments.
 
-Commands: status, scope, pull, post, resolve, harvest, guard, and add, flip, record, rename, which own every
-write to the file. One file, Python 3.9+, standard library only.
+Commands: status, start, scope, pull, post, resolve, harvest, guard, clean, brief, and add, flip, record, rename,
+which own every write to the file. One file, Python 3.9+, standard library only.
 Every external call (git, gh, az) goes through run_cli(), and a test command through run_test(); the tests
 replace both.
 Contract: references/review.md.
@@ -3003,18 +3003,19 @@ def cmd_clean(session: Session, args) -> int:
     return 2 if failed else 0
 
 
-#: The worker brief /sdd-deliver fills per task, in the plugin beside this tool.
+#: The worker brief /sdd-deliver and /sdd-triage fill per task, in the plugin beside this tool.
 BRIEF_TEMPLATE = os.path.join("references", "templates", "brief.md")
 #: The repository's standing orchestration notes, where its code index is named.
 AI_WORKFLOW = os.path.join("docs", "ai-workflow.md")
 
 
 def code_index(root: str) -> str:
-    """The `Code index:` bullet of docs/ai-workflow.md § Orchestration, on one line; "" when there is none."""
+    """What the `Code index:` bullet of docs/ai-workflow.md § Orchestration names: its first `…` span, else the
+    bullet on one line; "" when there is none, the file is unreadable, or the bullet is still the placeholder."""
     try:
         with open(os.path.join(root, AI_WORKFLOW), encoding="utf-8") as handle:
             lines = handle.read().splitlines()
-    except OSError:
+    except (OSError, ValueError):  # missing, unreadable, or not UTF-8
         return ""
     in_section, found = False, []
     for line in lines:
@@ -3024,13 +3025,16 @@ def code_index(root: str) -> str:
             in_section = line[3:].strip().lower().startswith("orchestration")
         elif in_section and found:
             if not line.strip() or not line[:1].isspace():
-                break  # the bullet ends at a blank line or the next bullet
+                break  # the bullet ends at a blank line or an unindented line
             found.append(line.strip())
         elif in_section:
             match = re.match(r"^[-*] +\*\*Code index:?\*\*:? *(.*)$", line)
             if match:
                 found.append(match.group(1).strip())
-    return " ".join(part for part in found if part)
+    value = " ".join(part for part in found if part)
+    name = re.match(r"`[^`]+`", value)
+    value = name.group(0) if name else value  # the name, not the template's guidance after it
+    return "" if value.strip("`").startswith("<") else value
 
 
 def fill_field(text: str, label: str, value: str) -> str:
@@ -3052,7 +3056,7 @@ def fill_field(text: str, label: str, value: str) -> str:
 
 def cmd_brief(session: Session, args) -> int:
     """The worker brief for one task, with what the repository decides filled in; the orchestrator fills the
-    rest. Writes nothing: redirect it to the brief's file."""
+    rest. Writes nothing: redirect it to a file under .sdd/."""
     try:
         with open(os.path.join(PLUGIN_ROOT, BRIEF_TEMPLATE), encoding="utf-8") as handle:
             text = handle.read()
@@ -3071,6 +3075,9 @@ def cmd_brief(session: Session, args) -> int:
     mechanical = str(_setting(session.data, "agents", "mechanical_worker_model") or "inherit")
     print("sdd-pr: worker model %s · a mechanical task: %s; fill every field still in <…>"
           % (worker, worker if mechanical == "inherit" else mechanical), file=sys.stderr)
+    if _setting(session.data, "agents", "worktree_per_worker") is True:
+        print("sdd-pr: agents.worktree_per_worker is on: brief a parallel worker with "
+              "sdd-pr --root <its worktree> brief, which fills its worktree and branch", file=sys.stderr)
     return 0
 
 
@@ -3090,8 +3097,9 @@ EPILOGS = {
 a reviewer's ``` fence lines are skipped; a critical or important line needs evidence:; a line about code or
 a document the branch did not change ends · outside, and add drops it from a line the branch changed""",
     "brief": """prints references/templates/brief.md with the title, Skills (agents.worker_skills), Code index
-(docs/ai-workflow.md § Orchestration), Worktree and Branch filled, and names the dispatch model on stderr;
-redirect it to the brief's file, then fill every field still in <…>. Writes nothing.""",
+(docs/ai-workflow.md § Orchestration), Worktree and Branch (--root's; a parallel worker under
+agents.worktree_per_worker: sdd-pr --root <its worktree> brief) filled, and names the dispatch model on
+stderr; redirect it to a file under .sdd/, then fill every field still in <…>. Writes nothing.""",
     "start": """prints the dispatch plan: one line per reviewer with its patch; dispatch each with
 "Read <brief>; your hunks: <patch>". Files go under .sdd/review/<head>/. Another agent's pass on the
 branch is reported, never a stop. The gate is never run here.""",
