@@ -1041,10 +1041,10 @@ class TestPost(GitHubCase):
 class TestCheckout(GitHubCase):
     """--pr and --branch name what is checked out, or the command stops before it reads or writes."""
 
-    def test_a_pull_request_on_another_branch_stops_every_command(self):
+    def test_a_pull_request_no_worktree_holds_stops_every_command(self):
         self.descriptor(forge="github")
         self.PR = {"headRefName": "feat/y", "headRefOid": "c" * 40}
-        worktrees = "worktree /repo\nHEAD %s\nbranch refs/heads/feat/x\n\nworktree /wt/pr-7\nHEAD %s\nbranch refs/heads/feat/y\n" % (HEAD, "c" * 40)
+        worktrees = "worktree /repo\nHEAD %s\nbranch refs/heads/feat/x\n\nworktree /wt/other\nHEAD %s\nbranch refs/heads/feat/z\n" % (HEAD, "d" * 40)
         not_here = (git("merge-base", "--is-ancestor"), sdd_pr.CliError("not an ancestor"))
         self.use([(git("worktree", "list"), worktrees), not_here] + self.routes())
         for command in ("scope", "pull", "status", "post", "resolve"):
@@ -1053,7 +1053,7 @@ class TestCheckout(GitHubCase):
             self.assertIn("pull request 7 is feat/y", err)
             self.assertIn("this checkout is feat/x", err)
             # --root goes before the command, so the hint is the command to run.
-            self.assertIn("sdd-pr --root /wt/pr-7 %s" % command, err)
+            self.assertIn("check out feat/y, or run sdd-pr --root <its worktree> %s" % command, err)
         self.assertTrue(self.nothing_written())
 
     def test_a_checkout_that_holds_the_pull_requests_head_is_accepted_under_another_name(self):
@@ -3590,6 +3590,50 @@ class TestStart(GitHubCase):
         code, _, err = self.run_main("start", "--agent", "claude")
         self.assertEqual(2, code)
         self.assertIn("is not in this checkout", err)
+
+    def test_start_from_another_checkout_runs_in_the_pull_requests_worktree(self):
+        self.descriptor(forge="github")
+        self.PR = {"headRefName": "feat/y", "headRefOid": "c" * 40}
+        tree = self.root / "wt" / "pr-7"
+        (tree / "docs").mkdir(parents=True)
+        (tree / "docs" / ".sdd.yaml").write_text((self.root / "docs" / ".sdd.yaml").read_text(encoding="utf-8"),
+                                                 encoding="utf-8")
+
+        def there(*words):
+            return lambda argv: git(*words)(argv) and argv[2] == str(tree)
+
+        def routes(branch, head="c" * 40):
+            listing = ("worktree %s\nHEAD %s\nbranch refs/heads/feat/x\n\nworktree %s\nHEAD %s\nbranch refs/heads/%s\n"
+                       % (self.root, HEAD, tree, head, branch))
+            return self.routes(diff="DIFF", extra=[
+                (there("rev-parse", "--git-common-dir"), str(self.root / ".git") + "\n"),
+                (there("rev-parse", "--abbrev-ref", "HEAD"), branch + "\n"),
+                (there("rev-parse", "HEAD"), head + "\n"),
+                (lambda argv: git("merge-base", "--is-ancestor")(argv) and argv[2] == str(self.root),
+                 sdd_pr.CliError("not an ancestor")),
+                (git("worktree", "list"), listing),
+                (git("diff", "--name-only"), "a.go\n")])
+
+        fake = self.use(routes("feat/y"))
+        code, out, err = self.run_main("start", "--agent", "claude", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("pull request 7 (feat/y) is checked out in %s; running there" % tree, err)
+        self.assertIn("review: feat/y at ccccccc", out)
+        self.assertEqual(1, len(fake.called("gh", "pr", "view")))  # read once, not again in the worktree
+        brief = (tree / ".sdd" / "review" / "ccccccc" / "brief.md").read_text(encoding="utf-8")
+        self.assertIn("**Checkout** `%s`" % tree, brief)
+        self.assertIn("sdd-pr.py --root %s`" % tree, brief)
+        self.assertFalse((self.root / ".sdd").exists())
+        # A review worktree under another name at the pull request's head works on the pull request's file.
+        self.use(routes("pr-7-review"))
+        code, out, err = self.run_main("start", "--agent", "claude", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("the findings of feat/y (pull request 7), which this checkout (pr-7-review) holds", err)
+        # can-fail control: a worktree on another branch and head is not the pull request's.
+        self.use(routes("feat/z", head="d" * 40))
+        code, _, err = self.run_main("start", "--agent", "claude", "--pr", "7")
+        self.assertEqual(2, code)
+        self.assertIn("pull request 7 is feat/y", err)
 
 
 class TestPullRequestKeying(GitHubCase):

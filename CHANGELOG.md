@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 - Hooks: `session-start.sh` keeps the banner, the plugin version, the version-mismatch warning and the branch line on a branch with a findings file.
+- Tools: `sdd-pr --pr N` run from a checkout that lacks the pull request, the main one most often, runs in the worktree that holds its branch or head and names it, instead of refusing; the review brief names that checkout and passes `--root` to `guard`.
 
 ## [0.17.0] - 2026-10-27
 

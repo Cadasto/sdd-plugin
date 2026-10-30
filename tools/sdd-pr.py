@@ -83,6 +83,14 @@ class CheckoutError(CliError):
     """The pull request or --branch named is not what this checkout has."""
 
 
+class Moved(CheckoutError):
+    """The pull request named is checked out in another worktree of the clone, where the command runs."""
+
+    def __init__(self, message: str, path: str, pr: dict, forge: "Forge") -> None:
+        super().__init__(message)
+        self.path, self.pr, self.forge = path, pr, forge
+
+
 def run_cli(argv: List[str], stdin: Optional[str] = None) -> str:
     """Run one external command and return its standard output. The one door to the outside."""
     try:
@@ -707,6 +715,19 @@ def worktree_of(root: str, branch: str) -> str:
             path = line[len("worktree "):].strip()
         elif line.strip() == "branch refs/heads/" + branch:
             return path
+    return ""
+
+
+def pr_worktree(root: str, pr: dict) -> str:
+    """Another worktree of the clone that holds pull request ``pr`` on a branch: the one with its branch
+    checked out, else one at its head under another name; "" when none does."""
+    try:
+        trees = [t for t in worktrees(root) if t["branch"] and not t["prunable"] and _real(t["path"]) != _real(root)]
+    except CliError:
+        return ""
+    for tree in sorted(trees, key=lambda t: t["branch"] != pr.get("branch")):
+        if tree["branch"] == pr.get("branch") or tree["head"] == pr.get("head"):
+            return tree["path"]
     return ""
 
 
@@ -1411,7 +1432,7 @@ DETACHED = "HEAD"
 class Session:
     """What every command resolves first: root, branch, head, base, the file and the forge."""
 
-    def __init__(self, args):
+    def __init__(self, args, moved: Optional[Moved] = None):
         self.root = args.root
         self.head = git(self.root, "rev-parse", "HEAD").strip()
         checked = checked_out(self.root)
@@ -1427,7 +1448,7 @@ class Session:
             self.branch = DETACHED  # clean names its branch, or reads it from --pr
         if not self.branch:
             raise CliError("detached HEAD; pass --branch")
-        self.forge = detect_forge(self.root)
+        self.forge = moved.forge if moved else detect_forge(self.root)
         self.descriptor = read_descriptor(self.root)
         self.data = descriptor_data(self.descriptor)
         self.globs = test_globs(self.descriptor)
@@ -1441,6 +1462,7 @@ class Session:
                       "older format" % (__version__, pinned)) if pinned and version_lt(__version__, pinned) else ""
         self._pr_number = args.pr
         self._pr: Optional[dict] = None
+        self._known = moved.pr if moved else None  # read in the checkout this session moved from
         self.dry_run = getattr(args, "dry_run", False)
         store = store_dir(self.root)
         self.path = os.path.join(store, slug(self.branch) + ".md")
@@ -1478,12 +1500,14 @@ class Session:
     def pr(self, required: bool = True) -> Optional[dict]:
         if self._pr is None:
             if self._pr_number is not None:
-                pr = self.forge.pr(self._pr_number)
+                pr, self._known = self._known or self.forge.pr(self._pr_number), None
                 if pr.get("branch") and pr["branch"] != self.branch:
                     if not self.holds(pr["head"]):
-                        raise CheckoutError("pull request %d is %s at %s; this checkout is %s at %s; %s"
-                                            % (pr["number"], pr["branch"], pr["head"][:7], self.branch,
-                                               self.head[:7], elsewhere(self.root, pr["branch"], self.command)))
+                        message = ("pull request %d is %s at %s; this checkout is %s at %s; %s"
+                                   % (pr["number"], pr["branch"], pr["head"][:7], self.branch,
+                                      self.head[:7], elsewhere(self.root, pr["branch"], self.command)))
+                        tree = pr_worktree(self.root, pr)
+                        raise Moved(message, tree, pr, self.forge) if tree else CheckoutError(message)
                     self._rekey(pr["branch"])
                 self._pr = pr
             else:
@@ -1714,6 +1738,7 @@ def lane_of(args, pr: Optional[dict], normative: int, profile: str) -> str:
 
 BRIEF = """# Review brief: {branch} at `{head}`
 
+- **Checkout** `{root}`: read and run everything there; the paths in your hunks are relative to it.
 - **Range** {range} (diff from `{start}`), profile {profile}, lane {lane}. Review only this range.
 - **Your hunks** are in the patch your dispatch names. Read the changed hunks and what surrounds them, not
   whole files, and ask for every file you need in one turn.
@@ -1722,7 +1747,7 @@ BRIEF = """# Review brief: {branch} at `{head}`
 - **Already settled on this branch:** {resolved}. Do not raise one again unless the change makes its
   reason untrue.
 - **MUST sentences this range added, new obligations** (a reworded one pairs with the line it replaced and owes no guard run): {binding}.
-- **sdd-pr** is `python3 {sdd_pr}`; a reviewer runs only
+- **sdd-pr** is `python3 {sdd_pr} --root {root}`; a reviewer runs only
   `guard <path:line> --expect <text> --replace <text> -- <test command>`, which breaks one guard in a
   scratch copy and prints `pinned` (a test failed) or `untested`.
 - **Severity and scope** are `{review_md}` § Severity and § Scope: by harm wherever the line is; wrong
@@ -1844,7 +1869,7 @@ def cmd_start(session: Session, args) -> int:
     here = os.path.dirname(os.path.abspath(__file__))
     brief = os.path.join(out, "brief.md")
     with open(brief, "w", encoding="utf-8") as handle:
-        handle.write(BRIEF.format(branch=session.branch, head=head, range="%s..HEAD" % rng.split("..")[0][:12],
+        handle.write(BRIEF.format(branch=session.branch, head=head, root=root, range="%s..HEAD" % rng.split("..")[0][:12],
                                   start=start[:12], profile=profile,
                                   lane=lane.split(" (")[0], gate=gate_line, drift=drift_line, resolved=resolved,
                                   binding=", ".join("`%s`" % b for b in binding) or "none",
@@ -3218,7 +3243,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             args.test_cmd = test_cmd
         if not args.command:
             raise CliError("usage: sdd-pr [--root DIR] {%s} ..." % ",".join(COMMANDS))
-        session = Session(args)
+        try:
+            session = Session(args)
+        except Moved as moved:
+            # Started in another checkout, the main one most often: the command runs where the pull request is.
+            print("sdd-pr: pull request %d (%s) is checked out in %s; running there"
+                  % (moved.pr["number"], moved.pr["branch"], moved.path), file=sys.stderr)
+            args.root = moved.path
+            session = Session(args, moved)
         try:
             return COMMANDS[args.command](session, args)
         finally:

@@ -161,9 +161,9 @@ caller relies on and a cheap test can pin it ([sdd-methodology.md](sdd-methodolo
 
 ## The tool
 
-`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `pull`, `post`, `resolve`, and `harvest` on a forge, need `gh` (GitHub) or `az` with the `azure-devops` extension (Azure DevOps), signed in; the rest need only git. `--pr`, by default the branch's open pull request, must
-name one whose branch, or head, this checkout holds, and `--branch` the checkout itself;
-otherwise the command stops and names the worktree to run from. A checkout under another name that holds
+`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `pull`, `post`, `resolve`, and `harvest` on a forge, need `gh` (GitHub) or `az` with the `azure-devops` extension (Azure DevOps), signed in; the rest need only git. `--pr`, by default the branch's open pull request,
+runs the command in the worktree that holds its branch, or head, naming it when that is another; with
+none, it stops. `--branch` must name the checkout. A checkout under another name that holds
 the pull request's head works on that pull request's file. `add --help` prints the line grammar;
 `--version` names the plugin root, and a newer `sdd-pr` installed beside this one is named on every run. `Base:` follows a retargeted pull
 request. A plugin older than the repository's `check.version` refuses every write, and `status` says so.
