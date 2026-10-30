@@ -1757,6 +1757,8 @@ def lane_of(args, pr: Optional[dict], normative: int, profile: str) -> str:
     return "decide (methodology §12): normative lines changed: %d" % normative
 
 
+# sdd-doc-reviewer and sdd-spec-conformance-reviewer point here for review.md's path, § Severity and § Scope,
+# the settled lines and the finding-line grammar, instead of restating them: keep these lines.
 BRIEF = """# Review brief: {branch} at `{head}`
 
 - **Checkout** `{root}`: read and run everything there; the paths in your hunks are relative to it.

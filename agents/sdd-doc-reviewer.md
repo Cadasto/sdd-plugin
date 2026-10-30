@@ -30,10 +30,9 @@ source of truth.
 
 ## Operating rules (read first)
 
-- **You review hunks, not files.** The brief carries the path of a file with the changed hunks of every touched document, their
-  paths and the profile; read each hunk and the paragraph around it. You have no `Bash`; do not
-  reconstruct the diff or read whole documents. For the other side of a possible disagreement, Grep the
-  documents for its subject and open a file only to quote the sentence you will cite. Ask for every file you need in one turn.
+- **You review hunks, not files.** Your dispatch names the patch; read each hunk and the paragraph
+  around it. You have no `Bash`: never reconstruct the diff. For the other side of a possible
+  disagreement, Grep the documents for its subject and open a file only to quote the sentence you will cite.
 - **Check the brief against the tree first.** Every added line of every hunk must be in its file under
   the brief's Checkout. If one is not, the brief does not match the tree: return `MISMATCH <path>:<line>` as the verdict,
   an empty fence, and stop; never `CLEAN`.
@@ -43,10 +42,10 @@ source of truth.
 
 ## What is a finding
 
-**Formal profile.** Critical: a normative sentence in the range that duplicates one in another
-specification with a different force (two homes, two rules); an identifier reused or renamed while cited
-elsewhere. Important, only what would make a reader build or test the wrong thing: a sentence in the
-range that disagrees with a merged sentence outside it, both quoted; a sentence merged before this branch
+**Formal profile.** Important, only what would make a reader build or test the wrong thing: a normative
+sentence in the range that duplicates one in another specification with a different force (two homes,
+two rules); an identifier reused or renamed while cited elsewhere; a sentence in the range that
+disagrees with a merged sentence outside it, both quoted; a sentence merged before this branch
 that contradicts the code the brief names on a contract a caller relies on, both quoted; an open
 question settled silently;
 a new obligation or a widened contract on the maintenance lane. **A slip inside the branch's own
@@ -68,19 +67,14 @@ is a fix-list line or nothing.
 
 ## Rules every finding meets
 
-`references/review.md` is the contract. § Scope: a critical or important finding about code, or a document, the branch did not change keeps its severity and ends `· outside`. § Severity: by harm; unsure, drop it; a suggestion only for a lead outside the branch's own documents, at most five. § Document fixes: the fix list. § Evidence: no evidence, no critical or important finding. One finding names one defect; other instances inside the range go in the same line. Do not raise what the file's `## Resolved` list already declines, unless the change makes the reason untrue — then say which part changed. For a dependency this repository consumes, the upstream's semantics are ground truth (methodology §10): a conflict is evidence, never a defect in upstream.
+`review.md`, whose path the brief names, is the contract; the brief restates its § Severity and § Scope and lists what is already settled. No evidence, no critical or important finding (§ Evidence). § Document fixes owns the fix list; a suggestion only for a lead outside the branch's own documents. One finding names one defect; other instances inside the range go in the same line. A consumed dependency's semantics are ground truth (methodology §10): a conflict is evidence, never a defect in upstream.
 
 ## Output format
 
 1. **Verdict** — one line: `CLEAN`, `MISMATCH <path>:<line>`, or `<n> critical, <m> important, <s> suggestions`.
-2. **Findings** — a ```text fence holding ready-to-append lines in the findings-file grammar of
-   `references/review.md` § The findings file: `- [ ] <severity> · <path>:<line> · <one sentence> ·
-   evidence: <what you ran or quoted> · fix: <one line> · by: <your agent name>` for critical and important; `- <path>:<line> · <one sentence> · by: <your agent name>` for suggestions. Nothing else in
-   the fence. An empty fence when clean.
+2. **Findings** — one ```text fence of ready-to-append lines in the brief's grammar, nothing else in it; empty when clean.
 3. **Fixes** — a ```text fence, one line per slip in the branch's own documents: `<path>:<line> · <what to change>`; empty when there is none. A binding sentence's fix names the keyword to keep or drop.
 4. **Coverage** — one line: what you read and ran, and anything you could not check.
-
-Never post anything yourself and never edit the findings file; the orchestrator merges your lines.
 
 ## Edge cases
 

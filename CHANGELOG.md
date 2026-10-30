@@ -34,6 +34,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Templates: `ai-workflow.md` calls triage's re-review a whole-branch one.
 - Tools: `sdd-pr status` points at `/sdd-review`, not `/sdd-review --since-last`, once the maintainer has reviewed.
 - Docs: `README.md` and `docs/quick-start.md` say triage's re-review reads the whole branch.
+- Agents: `sdd-doc-reviewer` and `sdd-spec-conformance-reviewer` point at the review brief for `review.md`'s severity, scope, settled lines and finding grammar instead of restating them.
+- Agents: `sdd-implementer` points at the brief for its fields and its report, and its verification at the brief's `Verify` line.
+- Agents: `sdd-traceability-auditor` reads `references/sdd-check.md` under the plugin root its prompt names; `sdd-trace --audit` passes the root.
+- Scripts: word budgets fall for `sdd-doc-reviewer` (1045 to 905), `sdd-spec-conformance-reviewer` (1015 to 846) and `sdd-implementer` (1400 to 1088).
+- Docs: `authoring.md` says the pass reviewers' rules live in the review brief and the worker's report format in `brief.md`.
 
 ### Fixed
 - Templates: a fresh informative scaffold passes the gate's `links` family: `AGENTS.md` no longer links the requirements index and `specifications-README.md` no longer links the map.
@@ -43,6 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Skills: `sdd-triage` and `rules/sdd-context.mdc` leave an unfixed `outside` defect for the close-out, `sdd-close` drops the unnamed suggestions with `flip --suggestions --dropped`, and `sdd-deliver` drops the `--close-out` pointer.
 - Tools: `sdd-pr start` says "since the last pass" on an empty range only with `--since-last`; `guard --help` shows the test command, `add --outside` covers a document, and `clean --help` no longer says it keeps the branch.
 - Scripts: `validate.py` checks each template's links in the tree the scaffold writes, on both profiles.
+- Agents: `sdd-traceability-auditor` drops what it is unsure of and caps suggestions at five, as `review.md` says; `sdd-doc-reviewer` files two homes for one rule as important, not critical; `sdd-spec-conformance-reviewer` names a sentence the range wrote that disagrees with the code as a document fix, not a finding; `sdd-implementer` no longer searches the disk for the references.
 - Hooks: `session-start.sh` keeps the banner, the plugin version, the version-mismatch warning and the branch line on a branch with a findings file.
 
 ## [0.17.0] - 2026-10-27
