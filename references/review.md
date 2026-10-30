@@ -63,7 +63,7 @@ Two reviewers' grades for one defect: the higher one with evidence.
 
 ## Scope
 
-A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`; `--since-last` reads only the commits since the last `Reviewed` line (`--agent`: one
+A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`, unless the maintainer asks for `--since-last`: only the commits since the last `Reviewed` line (`--agent`: one
 agent's own, when it has one) and leaves out what a merge of the base brought in. Plans, the vendored gate unless patched here, and the paths `agents.skip` names go to no reviewer. A stacked branch names its parent once
 with `--base`. **A defect in a file the branch changed is in scope, whatever severity it was filed at:**
 fixed in the branch or declined with a reason; the pass budget limits reviewing, never fixing. A critical or
@@ -149,7 +149,7 @@ is as of its `from:`, and nobody refreshes it. An item is a lead, not a finding:
 ## Passes
 
 One pass before the maintainer's review (its `maintainer` line), and after each such review at most one
-`--since-last` pass over the fixes that changed code or wrote a MUST (a MUST, SHALL or REQUIRED line added to a specification, or to the constitution on the informative profile, as a new obligation; a sentence corrected or reworded is none), dispatching only the reviewers whose file kinds changed.
+more pass, over the whole branch, once the fixes changed code or wrote a MUST (a MUST, SHALL or REQUIRED line added to a specification, or to the constitution on the informative profile, as a new obligation; a sentence corrected or reworded is none).
 After that only a new critical finding reopens review; otherwise the orchestrator stops and shows the open
 list. A second opinion the maintainer asks for is outside this budget.
 
@@ -173,7 +173,7 @@ request. A plugin older than the repository's `check.version` refuses every writ
   on a forge, the threads the file does not know and the checks;
   then `Mergeable: yes` or `Mergeable: no — <reasons>` (no pull request, a closed one or an unreachable
   forge is a reason), and `Next: <command>`: `post` while a line is not on the pull request, `/sdd-triage` while one blocks,
-  `/sdd-review --since-last` after a code change or a written MUST once the maintainer has reviewed, until the pass budget is spent (§ Passes), and `/sdd-close` on a draft with nothing else open. A merged pull
+  `/sdd-review` after a code change or a written MUST once the maintainer has reviewed, until the pass budget is spent (§ Passes), and `/sdd-close` on a draft with nothing else open. A merged pull
   request at HEAD prints `Mergeable: merged`, what is left to carry, the lines that wait for
   `/sdd-triage --backlog` while its watermark is older than the merge, and `/sdd-close`.
 - `start --agent <name> [--pr N] [--since-last] [--lane full|maintenance] [--base <ref>]` — a review pass's

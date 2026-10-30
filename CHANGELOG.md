@@ -28,6 +28,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - References: `review.md` § The tool states which commands run in the pull request's worktree.
 - Skills: `sdd-review` saves the document fix list beside the brief and pushes the branch from its checkout.
 - Agents: `sdd-spec-conformance-reviewer` and `sdd-doc-reviewer` read in the brief's checkout.
+- Skills: `sdd-review` passes `--since-last` only when the maintainer asks for it and reads the whole branch otherwise; `sdd-triage`'s re-review after the maintainer's review is a whole-branch `/sdd-review`.
+- Skills: `sdd-review` settles a line without opening `references/review.md`, and links the references by a path relative to its own folder.
+- References: `review.md` § Scope and § Passes, and the `ai-workflow.md` template: the pass after the maintainer's review reads the whole branch.
+- Tools: `sdd-pr status` points at `/sdd-review`, not `/sdd-review --since-last`, once the maintainer has reviewed.
 
 ### Fixed
 - Hooks: `session-start.sh` keeps the banner, the plugin version, the version-mismatch warning and the branch line on a branch with a findings file.

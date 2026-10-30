@@ -1973,12 +1973,13 @@ def cmd_status(session: Session, args) -> int:
     unmirrored = [f for f in fs.blocking if not f.fields.get("forge") and "unanchored" not in f.flags]
     nxt = ("sdd-pr post --pr %d" % pr["number"] if live and unmirrored else "/sdd-triage") if reasons else ""
     # The budget (review.md § Passes): the pass before the maintainer's review, which is a `maintainer`
-    # pass (pull writes one for their threads), and one pass over the fixes after it.
+    # pass (pull writes one for their threads), and one more pass after it, over the whole branch: only the
+    # maintainer asks for --since-last.
     reviewed = [i for i, p in enumerate(fs.passes) if p[2] == "maintainer"]
     if review_due and reviewed and fs.passes[reviewed[-1] + 1:]:
         print("passes: the budget is spent; only a new critical finding reopens review")
     elif review_due and reviewed:
-        nxt = nxt or "/sdd-review --since-last"
+        nxt = nxt or "/sdd-review"
     elif not last and changed:
         reasons.append("not reviewed yet")
         nxt = nxt or "/sdd-review"

@@ -476,11 +476,11 @@ class TestStatus(RepoCase):
         self.assertIn("code changed since", out)
         self.assertIn("Mergeable: yes", out)
         self.assertNotIn("Next: /sdd-review", out)
-        # After the maintainer's review, a code change → the one pass over the fixes.
+        # After the maintainer's review, a code change → one more pass, over the whole branch.
         maintainer = "claude: go-reviewer (1 of 1)\nReviewed ddddddd · 2026-10-01 · maintainer: ana (1 of 1)\n"
         self.findings(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)\n", maintainer))
         self.use(moved + self._gh_routes())
-        self.assertIn("Next: /sdd-review --since-last", self.run_main("status")[1])
+        self.assertIn("Next: /sdd-review\n", self.run_main("status")[1])
         # A fix to documents alone gets that pass only when it wrote a MUST.
         docs = [(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="docs/specifications/s.md\n")
         self.use(docs + self._gh_routes())
@@ -488,7 +488,7 @@ class TestStatus(RepoCase):
         wrote = (git("diff", "--no-ext-diff", "-U0"), "diff --git a/docs/specifications/s.md b/docs/specifications/s.md\n"
                  "+++ b/docs/specifications/s.md\n@@ -4 +4 @@\n+A token MUST expire.\n")
         self.use([wrote] + docs + self._gh_routes())
-        self.assertIn("Next: /sdd-review --since-last", self.run_main("status")[1])
+        self.assertIn("Next: /sdd-review\n", self.run_main("status")[1])
         # Once that pass is in, the budget is spent: a fix after it does not steer to review.
         self.findings(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)\n",
                                          maintainer + "Reviewed eeeeeee · 2026-10-02 · claude: go-reviewer (1 of 1)\n"))
@@ -3191,7 +3191,7 @@ class TestPassesAndScope(RepoCase):
         self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="a.go\n"))
         _, out, _ = self.run_main("status")
         self.assertNotIn("budget is spent", out)
-        self.assertIn("Next: /sdd-review --since-last", out)
+        self.assertIn("Next: /sdd-review\n", out)
 
     def test_a_pass_note_older_than_an_hour_or_unreadable_does_not_block(self):
         self.descriptor(forge="none")
