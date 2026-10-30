@@ -1089,11 +1089,13 @@ class GitHubForge(Forge):
     PR_FIELDS = "number,headRefOid,headRefName,baseRefName,isDraft,url,statusCheckRollup,state,mergeCommit,mergedAt,body"
     #: A pull request's web address names its owner and repository, which then need no `gh repo view`.
     PR_URL_RE = re.compile(r"^https?://[^/]+/([^/]+)/([^/]+)/pull/\d+/?$")
+    #: `gh pr list` returns at most this many of a pull request's checks; `gh pr view` reads them all.
+    LISTED_CHECKS = 100
 
     def __init__(self):
         self._repo: Optional[Tuple[str, str]] = None
         #: Each pull request read in this run, by number. Every `gh` call is a round trip, and GitHub
-        #: throttles a client that sends many, so a value already read is never asked for again.
+        #: throttles a client that sends many, so `checks` reuses the read that found the pull request.
         self._read: Dict[int, dict] = {}
 
     def _seen(self, shaped: dict) -> dict:
@@ -1127,8 +1129,10 @@ class GitHubForge(Forge):
         return self._seen(self._shape(_json(run_cli(["gh", "pr", "view", str(number), "--json", self.PR_FIELDS]))))
 
     def checks(self, number):
-        # The read that found the pull request carried its checks.
-        pr = self._read.get(number) or self.pr(number)
+        # The read that found the pull request carried its checks, unless a list read stopped at its limit.
+        pr = self._read.get(number)
+        if pr is None or len(pr["raw"].get("statusCheckRollup") or []) >= self.LISTED_CHECKS:
+            pr = self.pr(number)
         rollup = pr["raw"].get("statusCheckRollup") or []
         if not rollup:
             return "none"

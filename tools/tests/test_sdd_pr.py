@@ -523,6 +523,29 @@ class TestStatus(RepoCase):
         self.assertIn("owner=o", fake.called("gh", "api", "graphql")[0])
         self.assertIn("name=r", fake.called("gh", "api", "graphql")[0])
 
+    def test_status_of_a_named_pull_request_reads_it_once_too(self):
+        # `--pr N` reads through `gh pr view`, which carries the checks and the URL just the same.
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT)
+        fake = self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes() + self._gh_routes())
+        code, _, err = self.run_main("status", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertEqual(1, len(fake.called("gh", "pr")), fake.called("gh", "pr"))
+        self.assertEqual([], fake.called("gh", "repo", "view"))
+
+    def test_status_reads_every_check_when_the_list_stops_at_a_hundred(self):
+        # `gh pr list` returns at most 100 of a pull request's checks; `gh pr view` reads them all.
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT)
+        passing = [{"status": "COMPLETED", "conclusion": "SUCCESS"}] * 100
+        viewed = {"number": 7, "headRefOid": HEAD, "headRefName": "feat/x", "baseRefName": "main", "isDraft": False,
+                  "url": "https://github.com/o/r/pull/7", "state": "OPEN", "body": "## Summary\n",
+                  "statusCheckRollup": passing + [{"status": "COMPLETED", "conclusion": "FAILURE"}]}
+        self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes()
+                 + [(has("gh", "pr", "view"), json.dumps(viewed))] + self._gh_routes(checks=passing))
+        _, out, _ = self.run_main("status")
+        self.assertIn("checks: fail", out)
+
     def test_status_measures_change_from_the_last_pass_not_the_branch(self):
         # scope reads the whole branch by default; status still says what came after the last pass.
         self.descriptor(forge="none")
