@@ -111,7 +111,7 @@ restate the PR body.
 | Deliver a change: workers, gates, the first review pass, the PR | `/sdd-deliver` |
 | Implement one bounded task | `sdd-implementer` agent (dispatched by the driver) |
 | Review pass into the findings file | `/sdd-review` |
-| Work the open findings; after the maintainer's review, one re-review; now and then, the backlog harvest | `/sdd-triage` (`--backlog`) |
+| Work the open findings; after the maintainer's review, one whole-branch re-review; now and then, the backlog harvest | `/sdd-triage` (`--backlog`) |
 | What is open, mergeable, next | `sdd-pr status` |
 | A REQ's context bundle; drift in session | `/sdd-trace` |
 | Regenerate the derived indexes and status lines | `sdd-check generate` |

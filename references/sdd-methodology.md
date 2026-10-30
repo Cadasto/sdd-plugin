@@ -357,7 +357,7 @@ and suggestion comments — nowhere else. Format, severities, scope, evidence, t
 [review.md](review.md).
 
 **Scope is the change.** A pass reads the branch's commits since its base, so every reviewer gives an
-opinion on the whole change; the pass over fixes reads only the commits since the last pass. A defect in
+opinion on the whole change. A defect in
 what the change did not touch keeps its severity but blocks nothing ([review.md](review.md) § Scope).
 
 **Verify before fixing.** A finding is a claim, and so is a reviewer's proposed correction. Both are

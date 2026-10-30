@@ -63,7 +63,7 @@ Two reviewers' grades for one defect: the higher one with evidence.
 
 ## Scope
 
-A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`, unless the maintainer asks for `--since-last`: only the commits since the last `Reviewed` line (`--agent`: one
+A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`, unless the maintainer asks for `--since-last`, which reads the commits since the last `Reviewed` line (`scope --agent`: one
 agent's own, when it has one) and leaves out what a merge of the base brought in. Plans, the vendored gate unless patched here, and the paths `agents.skip` names go to no reviewer. A stacked branch names its parent once
 with `--base`. **A defect in a file the branch changed is in scope, whatever severity it was filed at:**
 fixed in the branch or declined with a reason; the pass budget limits reviewing, never fixing. A critical or

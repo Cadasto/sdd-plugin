@@ -21,7 +21,7 @@ allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
    - `sdd-doc-reviewer` → only when the plan lists it (formal: a normative line, a requirement or an ADR changed), form or consistency, as the plan says;
    - the drift gate's new lines → no dispatch: a new warning is a suggestion, a new error critical.
    A dispatch that died, or returned `MISMATCH`, is re-run once after `sdd-pr start` again; a second failure shows in the `Reviewed` line's `(<n> of <m>)`.
-4. **Write the file with `sdd-pr`, never by hand.** Settle each wrong-code claim by a run or named input, without opening the review reference: file it by its harm, `outside` when the branch did not change it, or drop it; one is never filed as a suggestion. Merge two lines about one defect, naming both in `by:`; pipe a defect the file holds in that line's words, so `add` folds it; drop a suggestion that is no lead or past the cap of five per reviewer, listed in the hand-back. Save the document reviewer's fix list, when it returned one, to `doc-fixes.md` beside the brief and name its path and count in the hand-back; `/sdd-triage` applies it, never this pass. Then pipe each reviewer's fence to `sdd-pr add -`, and `sdd-pr record --agent <agent> --reviewers <names> --reported <n>/<m>`. With nothing dispatched or reported, the same `record` with `--reported 0/<m>` refuses a line (exit 2) but ends the pass: say so, and leave the range to the maintainer's own review.
+4. **Write the file with `sdd-pr`, never by hand.** Settle each claim of wrong code behaviour ([review.md § Severity](../../references/review.md#severity)): file it by its harm, `outside` when the branch did not change it, or drop it; one is never filed as a suggestion. Merge two lines about one defect, naming both in `by:`; pipe a defect the file holds in that line's words, so `add` folds it; drop a suggestion that is no lead or past the cap of five per reviewer, listed in the hand-back. Save the document reviewer's fix list, when it returned one, to `doc-fixes.md` beside the brief and name its path and count in the hand-back; `/sdd-triage` applies it, never this pass. Then pipe each reviewer's fence to `sdd-pr add -`, and `sdd-pr record --agent <agent> --reviewers <names> --reported <n>/<m>`. With nothing dispatched or reported, the same `record` with `--reported 0/<m>` refuses a line (exit 2) but ends the pass: say so, and leave the range to the maintainer's own review.
 5. **Mirror.** With a pull request, push the branch from its checkout unless it is another's, then `sdd-pr post`: the pass's one comment (who reviewed, the counts, its new lines that do not block), and a review only for the lines that sit on the diff. Then `sdd-pr status`.
 
 ## Guardrails
@@ -32,5 +32,5 @@ allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 
 ## Reference
 
-- [references/review.md](../../references/review.md) — the findings file, severity, scope, evidence, the mirror, the tool.
-- [references/sdd-methodology.md](../../references/sdd-methodology.md) — §1a the profiles, §12 the lanes, §13 the merge gate and the pass budget.
+- [review.md](../../references/review.md) — the findings file, severity, scope, evidence, the mirror, the tool.
+- [sdd-methodology.md](../../references/sdd-methodology.md) — §1a the profiles, §12 the lanes, §13 the merge gate and the pass budget.

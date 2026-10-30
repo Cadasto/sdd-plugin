@@ -1972,9 +1972,9 @@ def cmd_status(session: Session, args) -> int:
         reasons.append(", ".join(parts) + " open")
     unmirrored = [f for f in fs.blocking if not f.fields.get("forge") and "unanchored" not in f.flags]
     nxt = ("sdd-pr post --pr %d" % pr["number"] if live and unmirrored else "/sdd-triage") if reasons else ""
-    # The budget (review.md § Passes): the pass before the maintainer's review, which is a `maintainer`
-    # pass (pull writes one for their threads), and one more pass after it, over the whole branch: only the
-    # maintainer asks for --since-last.
+    # The budget (review.md § Passes): after the latest `maintainer` pass (pull writes one for their threads),
+    # one more pass once code or a MUST changed since the last pass; any pass after it spends the budget.
+    # The pass Next names reads the whole branch.
     reviewed = [i for i, p in enumerate(fs.passes) if p[2] == "maintainer"]
     if review_due and reviewed and fs.passes[reviewed[-1] + 1:]:
         print("passes: the budget is spent; only a new critical finding reopens review")
@@ -2122,8 +2122,8 @@ def pull_threads(session: Session, pr: dict) -> int:
     # The commit the maintainer read: the pull request's head, when this checkout holds it.
     seen = (pr["head"] if pr.get("head") and session.holds(pr["head"]) else session.head)[:7]
     if people and not [p for p in fs.passes if p[0] == seen and p[2] == "maintainer"]:
-        # A thread with no `By:` line, not a bot's, is a person's: the maintainer's review, which opens the
-        # pass over the fixes.
+        # A thread with no `By:` line, not a bot's, is a person's: the maintainer's review, which opens one
+        # more pass (review.md § Passes).
         fs.reviewed.append((seen, datetime.date.today().isoformat(), "maintainer",
                             "%s (%d of %d)" % (", ".join(people), len(people), len(people))))
     if added or not session.has_file():
