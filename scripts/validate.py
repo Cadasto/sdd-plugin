@@ -415,7 +415,7 @@ WORD_BUDGETS = {
     "agents/sdd-traceability-auditor.md": 745,
     "agents/sdd-implementer.md": 1400,
     "references/templates/ai-workflow.md": 1215,
-    "references/templates/brief.md": 535,
+    "references/templates/brief.md": 536,
     "references/templates/task-review.md": 215,
     "references/templates/development-process.md": 1235,
 }

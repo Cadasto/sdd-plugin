@@ -5,7 +5,7 @@
 # Brief — <branch> · <task>
 
 **Task.** <what to build or change, in enough detail to act on with nothing else to read; from a plan, its task quoted verbatim>
-**Cites.** <REQ-AREA-NNN> · <SPEC-NAME §N>  <!-- formal, full lane: the § implemented; maintenance lane: the § whose behaviour must not change, or "maintenance — no normative change"; informative: the constitution section touched, or none -->
+**Cites.** <REQ-AREA-NNN> · <SPEC-NAME §N>  <!-- full lane: the § implemented and any PROBE; maintenance lane: the § whose behaviour must not change, or "maintenance — no normative change"; informative: the constitution section touched, or none -->
 **Clauses.** <the binding sentences this task must satisfy or change, quoted, and only those — or "none">
 **Decided.** <the maintainer's instruction that outranks a quoted sentence, and the sentence it replaces — otherwise omit the line>
 **Reproduce.** <bug fix only: how to see the bug, and the test that must fail before the fix — otherwise omit the line>
