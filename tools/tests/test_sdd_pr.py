@@ -138,6 +138,22 @@ class RepoCase(unittest.TestCase):
             code = sdd_pr.main(["--root", str(self.root)] + list(args))
         return code, out.getvalue(), err.getvalue()
 
+    def run_here(self, *args):
+        """run_main from the repository's folder with no --root, the way a skill calls sdd-pr: git sees ".".
+        The clone's lock is taken without waiting, so a session that kept it fails the command that moves
+        to another worktree at once instead of hanging the suite."""
+        out, err, cwd = io.StringIO(), io.StringIO(), os.getcwd()
+        flock = sdd_pr.fcntl.flock if sdd_pr.fcntl else None
+        no_wait = (mock.patch.object(sdd_pr.fcntl, "flock", lambda f, op: flock(f, op | sdd_pr.fcntl.LOCK_NB))
+                   if flock else contextlib.nullcontext())
+        os.chdir(str(self.root))
+        try:
+            with no_wait, contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = sdd_pr.main(list(args))
+        finally:
+            os.chdir(cwd)
+        return code, out.getvalue(), err.getvalue()
+
 
 FILE_OPEN_IMPORTANT = """# Findings — feat/x
 Base: main
@@ -1039,21 +1055,23 @@ class TestPost(GitHubCase):
 
 
 class TestCheckout(GitHubCase):
-    """--pr and --branch name what is checked out, or the command stops before it reads or writes."""
+    """--branch names what is checked out, and --pr what this checkout or, for a review pass's commands, another
+    worktree of the clone holds, or the command stops before it reads or writes."""
 
-    def test_a_pull_request_on_another_branch_stops_every_command(self):
+    def test_a_pull_request_no_worktree_holds_stops_every_command(self):
         self.descriptor(forge="github")
         self.PR = {"headRefName": "feat/y", "headRefOid": "c" * 40}
-        worktrees = "worktree /repo\nHEAD %s\nbranch refs/heads/feat/x\n\nworktree /wt/pr-7\nHEAD %s\nbranch refs/heads/feat/y\n" % (HEAD, "c" * 40)
+        worktrees = "worktree /repo\nHEAD %s\nbranch refs/heads/feat/x\n\nworktree /wt/other\nHEAD %s\nbranch refs/heads/feat/z\n" % (HEAD, "d" * 40)
         not_here = (git("merge-base", "--is-ancestor"), sdd_pr.CliError("not an ancestor"))
         self.use([(git("worktree", "list"), worktrees), not_here] + self.routes())
         for command in ("scope", "pull", "status", "post", "resolve"):
-            code, out, err = self.run_main(command, "--pr", "7")
+            code, out, err = self.run_here(command, "--pr", "7")
             self.assertEqual(2, code, (command, out))
             self.assertIn("pull request 7 is feat/y", err)
             self.assertIn("this checkout is feat/x", err)
-            # --root goes before the command, so the hint is the command to run.
-            self.assertIn("sdd-pr --root /wt/pr-7 %s" % command, err)
+            self.assertNotIn("running there", err)
+            # No worktree holds it: the hint says to check it out, with --root before the command.
+            self.assertIn("check out feat/y, or run sdd-pr --root <its worktree> %s" % command, err)
         self.assertTrue(self.nothing_written())
 
     def test_a_checkout_that_holds_the_pull_requests_head_is_accepted_under_another_name(self):
@@ -2275,6 +2293,19 @@ class TestClean(GitHubCase):
         self.assertEqual(2, code)
         self.assertIn("clean: git branch -D feat/x failed, after the steps above: error: branch is in use", err)
         self.assertEqual([True, True], [path.exists() for path in files])
+
+    def test_clean_with_pr_from_the_default_branch_after_a_squash_merge_stays_where_it_runs(self):
+        # The default branch holds a squashed commit, not the head: clean reads the pull request itself and
+        # never runs in the worktree it is to remove.
+        tree = self.wt("feat-x")
+        routes = [(git("rev-parse", "--abbrev-ref", "HEAD"), "main\n"), (git("rev-parse", "HEAD"), "a" * 40 + "\n"),
+                  (lambda argv: git("merge-base", "--is-ancestor")(argv) and argv[2] == str(self.root),
+                   sdd_pr.CliError("not an ancestor"))]
+        fake = self.merged(self.listing((str(self.root), "a" * 40, "main"), (tree, HEAD, "feat/x")), extra=routes)
+        code, _, err = self.run_main("clean", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertNotIn("running there", err)
+        self.assertTrue(fake.called("git", "worktree", "remove", tree))
 
     def test_from_a_detached_checkout_after_a_squash_merge_with_pr(self):
         # The default branch holds a squashed commit, not the head: --pr still finds the branch.
@@ -3591,6 +3622,69 @@ class TestStart(GitHubCase):
         self.assertEqual(2, code)
         self.assertIn("is not in this checkout", err)
 
+    def test_start_from_another_checkout_runs_in_the_pull_requests_worktree(self):
+        self.descriptor(forge="github")
+        self.PR = {"headRefName": "feat/y", "headRefOid": "c" * 40}
+        tree = self.root / "wt" / "pr-7"
+        (tree / "docs").mkdir(parents=True)
+        (tree / "docs" / ".sdd.yaml").write_text((self.root / "docs" / ".sdd.yaml").read_text(encoding="utf-8"),
+                                                 encoding="utf-8")
+
+        def there(*words):
+            return lambda argv: git(*words)(argv) and argv[2] == str(tree)
+
+        def routes(branch, head="c" * 40):
+            listing = ("worktree %s\nHEAD %s\nbranch refs/heads/feat/x\n\nworktree %s\nHEAD %s\nbranch refs/heads/%s\n"
+                       % (self.root, HEAD, tree, head, branch))
+            return self.routes(diff="DIFF", extra=[
+                (there("rev-parse", "--git-common-dir"), str(self.root / ".git") + "\n"),
+                (there("rev-parse", "--abbrev-ref", "HEAD"), branch + "\n"),
+                (there("rev-parse", "HEAD"), head + "\n"),
+                (lambda argv: git("merge-base", "--is-ancestor")(argv) and argv[2] != str(tree),
+                 sdd_pr.CliError("not an ancestor")),
+                (git("worktree", "list"), listing),
+                (git("diff", "--name-only"), "a.go\n")])
+
+        fake = self.use(routes("feat/y"))
+        code, out, err = self.run_here("start", "--agent", "claude", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("pull request 7 (feat/y) is checked out in %s; running there" % tree, err)
+        self.assertIn("review: feat/y at ccccccc", out)
+        self.assertEqual(1, len(fake.called("gh", "pr", "view")))  # read once, not again in the worktree
+        brief = (tree / ".sdd" / "review" / "ccccccc" / "brief.md").read_text(encoding="utf-8")
+        self.assertIn("**Checkout** `%s`" % tree, brief)
+        self.assertIn("sdd-pr.py --root %s`" % tree, brief)
+        self.assertFalse((self.root / ".sdd").exists())
+        # A review worktree under another name at the pull request's head works on the pull request's file.
+        self.use(routes("pr-7-review"))
+        code, out, err = self.run_here("start", "--agent", "claude", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("the findings of feat/y (pull request 7), which this checkout (pr-7-review) holds", err)
+        # can-fail controls: a worktree on another branch and head is not the pull request's, and an
+        # explicit --root names the checkout, so nothing moves.
+        for run, branch, head in ((self.run_here, "feat/z", "d" * 40), (self.run_main, "feat/y", "c" * 40)):
+            self.use(routes(branch, head=head))
+            code, _, err = run("start", "--agent", "claude", "--pr", "7")
+            self.assertEqual(2, code, err)
+            self.assertNotIn("running there", err)
+            self.assertIn("pull request 7 is feat/y", err)
+        self.assertFalse((tree / ".sdd" / "review" / "ddddddd").exists())
+
+    def test_a_brief_path_with_a_space_is_quoted_on_the_sdd_pr_line(self):
+        self.descriptor(forge="none")
+        self.use(git_routes(names="a.go\n", diff="DIFF"))
+        spaced = self.root / "my repo"
+        spaced.mkdir()
+        (spaced / "docs").mkdir()
+        (spaced / "docs" / ".sdd.yaml").write_text((self.root / "docs" / ".sdd.yaml").read_text(encoding="utf-8"),
+                                                   encoding="utf-8")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = sdd_pr.main(["--root", str(spaced), "start", "--agent", "claude", "--lane", "full"])
+        self.assertEqual(0, code, err.getvalue())
+        brief = (spaced / ".sdd" / "review" / HEAD[:7] / "brief.md").read_text(encoding="utf-8")
+        self.assertIn("--root '%s'`" % spaced, brief)
+
 
 class TestPullRequestKeying(GitHubCase):
     def test_a_review_checkout_under_another_name_works_on_the_pull_requests_file(self):
@@ -3606,6 +3700,119 @@ class TestPullRequestKeying(GitHubCase):
         self.assertEqual(0, code, err)
         self.assertIn("a.go:9 · rename n", self.read_findings())
         self.assertFalse(self.store("pr-7-review").exists())
+
+
+class TestMoved(GitHubCase):
+    """A review pass's commands, run with --pr and no --root from a checkout without the pull request, run in
+    the worktree that holds it; every other command, and one with --root or --branch, stops where it was run."""
+
+    PR = {"headRefName": "feat/y", "headRefOid": "c" * 40}
+    PR_HEAD = "c" * 40
+
+    def tree(self, name):
+        path = self.root / "wt" / name
+        (path / "docs").mkdir(parents=True, exist_ok=True)
+        (path / "docs" / ".sdd.yaml").write_text((self.root / "docs" / ".sdd.yaml").read_text(encoding="utf-8"),
+                                                 encoding="utf-8")
+        return path
+
+    def moved(self, trees, ahead=(), extra=()):
+        """``trees``: (path, branch or None when detached, head, prunable), each answering git for itself; the
+        checkout the command starts in lacks the pull request's head, which ``ahead`` heads contain."""
+        blocks = ["worktree %s\nHEAD %s\nbranch refs/heads/feat/x\n" % (self.root, HEAD)]
+        routes = list(extra)
+        for path, branch, head, prunable in trees:
+            blocks.append("worktree %s\nHEAD %s\n%s%s" % (
+                path, head, "branch refs/heads/%s\n" % branch if branch else "detached\n",
+                "prunable gitdir file points to non-existent location\n" if prunable else ""))
+
+            def at(*words, p=path):
+                return lambda argv: git(*words)(argv) and argv[2] == str(p)
+            routes += [(at("rev-parse", "--git-common-dir"), str(self.root / ".git") + "\n"),
+                       (at("rev-parse", "--abbrev-ref", "HEAD"), (branch or "HEAD") + "\n"),
+                       (at("rev-parse", "HEAD"), head + "\n")]
+
+        def ancestry(argv, _):
+            if argv[-1] in ahead:
+                return ""
+            raise sdd_pr.CliError("not an ancestor")
+        routes += [(lambda argv: git("merge-base", "--is-ancestor")(argv) and argv[2] in (".", str(self.root)),
+                    ancestry),
+                   (git("worktree", "list"), "\n".join(blocks)),
+                   (git("diff", "--name-only"), "a.go\n")]
+        return self.use(self.routes(diff="DIFF", extra=routes))
+
+    def test_the_review_commands_run_in_the_pull_requests_worktree_and_write_its_file(self):
+        self.descriptor(forge="github")
+        tree = self.tree("pr-7")
+        self.moved([(tree, "feat/y", self.PR_HEAD, False)])
+        code, _, err = self.run_here("add", "--pr", "7", "important", "a.go:3", "the guard is gone",
+                                     "--evidence", "read it", "--by", "r")
+        self.assertEqual(0, code, err)
+        self.assertIn("pull request 7 (feat/y) is checked out in %s; running there" % tree, err)
+        self.assertTrue(self.store("feat/y").exists())
+        self.assertFalse(self.store("feat/x").exists())
+        code, _, err = self.run_here("scope", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("running there", err)
+
+    def test_every_other_command_stops_and_names_the_worktree(self):
+        # A skill that edits and commits starts with one of these: the stop sends it to the right checkout.
+        self.descriptor(forge="github")
+        tree = self.tree("pr-7")
+        self.moved([(tree, "feat/y", self.PR_HEAD, False)])
+        for command in ("status", "pull", "resolve", "brief"):
+            code, _, err = self.run_here(command, "--pr", "7")
+            self.assertEqual(2, code, (command, err))
+            self.assertNotIn("running there", err)
+            self.assertIn("run it there: sdd-pr --root %s %s" % (tree, command), err)
+
+    def test_an_explicit_root_or_branch_names_the_checkout_and_nothing_moves(self):
+        self.descriptor(forge="github")
+        tree = self.tree("pr-7")
+        self.moved([(tree, "feat/y", self.PR_HEAD, False)])
+        for run, args in ((self.run_main, ()), (self.run_here, ("--branch", "feat/x"))):
+            code, _, err = run(*(args + ("scope", "--pr", "7")))
+            self.assertEqual(2, code, err)
+            self.assertNotIn("running there", err)
+            self.assertIn("run it there: sdd-pr --root %s scope" % tree, err)
+
+    def test_a_detached_worktree_or_one_whose_folder_is_gone_is_not_where_a_command_runs(self):
+        self.descriptor(forge="github")
+        self.moved([(self.root / "wt" / "gone", "feat/y", self.PR_HEAD, True),
+                    (self.tree("detached"), None, self.PR_HEAD, False)])
+        code, _, err = self.run_here("scope", "--pr", "7")
+        self.assertEqual(2, code, err)
+        self.assertNotIn("running there", err)
+        self.assertIn("check out feat/y, or run sdd-pr --root <its worktree> scope", err)
+
+    def test_the_branchs_worktree_holding_the_head_wins_and_one_behind_it_never_counts(self):
+        self.descriptor(forge="github")
+        review, own = self.tree("pr-7-review"), self.tree("pr-7")
+        # Ahead of the head, with fixes not pushed yet: the pull request's own checkout wins.
+        self.moved([(review, "pr-7-review", self.PR_HEAD, False), (own, "feat/y", "e" * 40, False)], ahead=("e" * 40,))
+        code, _, err = self.run_here("scope", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("is checked out in %s; running there" % own, err)
+        # Behind it: the review worktree at the head is where the command runs.
+        self.moved([(review, "pr-7-review", self.PR_HEAD, False), (own, "feat/y", "e" * 40, False)])
+        code, _, err = self.run_here("scope", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertIn("is checked out in %s; running there" % review, err)
+        # Behind it and alone: nothing moves; a branch stacked on the pull request does not count either.
+        self.moved([(own, "feat/y", "e" * 40, False), (self.tree("stacked"), "feat/z", "f" * 40, False)],
+                   ahead=("f" * 40,))
+        code, _, err = self.run_here("scope", "--pr", "7")
+        self.assertEqual(2, code, err)
+        self.assertNotIn("running there", err)
+
+    def test_a_worktree_listing_that_fails_leaves_the_refusal(self):
+        self.descriptor(forge="github")
+        self.moved([(self.tree("pr-7"), "feat/y", self.PR_HEAD, False)],
+                   extra=[(git("worktree", "list"), sdd_pr.CliError("fatal: not a git repository"))])
+        code, _, err = self.run_here("scope", "--pr", "7")
+        self.assertEqual(2, code, err)
+        self.assertIn("check out feat/y, or run sdd-pr --root <its worktree> scope", err)
 
 
 class TestSelfDescribing(RepoCase):

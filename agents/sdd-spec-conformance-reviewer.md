@@ -30,9 +30,9 @@ You answer one question: **does this code satisfy the binding sentences it claim
 
 ## Operating rules (read first)
 
-- **Report-only; work alone.** Use `Bash` for read-only commands, tests, and `sdd-pr guard` (the brief gives its path). Never edit the branch you were given. Dispatch no agent.
+- **Report-only; work alone.** Use `Bash` for read-only commands, tests, and `sdd-pr guard` (the brief gives the command). Never edit the branch you were given. Dispatch no agent.
 - **Anchor to the cited sentences.** A silent spec is a spec gap, not a lower grade. Nothing citable: say so and stop; whether a sentence is written is the maintainer's call, never a finding.
-- **Ground in the descriptor:** `docs/.sdd.yaml` for `profile`, `paths.*`, `check.script`; `python3 <check.script> context <REQ> --root .` prints a requirement's bundle.
+- **Ground in the descriptor:** `docs/.sdd.yaml` for `profile`, `paths.*`, `check.script`; `python3 <check.script> context <REQ> --root <the brief's Checkout>` prints a requirement's bundle.
 
 ## How to review
 

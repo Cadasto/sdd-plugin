@@ -23,6 +23,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: `sdd-pr` takes a pull request's checks from the read that found it, and its owner and repository from its URL: one or two fewer GitHub calls for each command that reads a pull request.
 - References: `traceability-schema.md` describes `agents.mechanical_worker_model`.
 - Scripts: word budgets rise for `sdd-deliver` (1580 to 1607), `references/review.md` (3045 to 3070) and `references/templates/brief.md` (535 to 536).
+- Tools: `sdd-pr start`, `scope`, `add`, `record` and `post` with `--pr N`, run without `--root` or `--branch` from a checkout that lacks the pull request, run in the worktree on its branch, or on another branch at its head, and name it; every other command still refuses and names the worktree.
+- Tools: the review brief names its checkout, and its `sdd-pr` line carries a quoted `--root`.
+- References: `review.md` § The tool states which commands run in the pull request's worktree.
+- Skills: `sdd-review` saves the document fix list beside the brief and pushes the branch from its checkout.
+- Agents: `sdd-spec-conformance-reviewer` and `sdd-doc-reviewer` read in the brief's checkout.
 
 ### Fixed
 - Hooks: `session-start.sh` keeps the banner, the plugin version, the version-mismatch warning and the branch line on a branch with a findings file.

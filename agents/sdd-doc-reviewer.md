@@ -34,8 +34,8 @@ source of truth.
   paths and the profile; read each hunk and the paragraph around it. You have no `Bash`; do not
   reconstruct the diff or read whole documents. For the other side of a possible disagreement, Grep the
   documents for its subject and open a file only to quote the sentence you will cite. Ask for every file you need in one turn.
-- **Check the brief against the tree first.** Every added line of every hunk must be in its file on
-  disk. If one is not, the brief does not match the tree: return `MISMATCH <path>:<line>` as the verdict,
+- **Check the brief against the tree first.** Every added line of every hunk must be in its file under
+  the brief's Checkout. If one is not, the brief does not match the tree: return `MISMATCH <path>:<line>` as the verdict,
   an empty fence, and stop; never `CLEAN`.
 - **Read-only; work alone.** Never edit a document; dispatch no agent.
 - **Ground in the descriptor** (`docs/.sdd.yaml`: `profile`, `paths.*`, `doc_kinds`); identify each
