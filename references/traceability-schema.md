@@ -157,8 +157,8 @@ requirements, specifications, ADR paths and the traceability map are optional, a
 
 > **`worker_model` is applied per dispatch, never written into an agent file.** Plugin agent definitions
 > live in the host's read-only install cache, so no skill can rewrite their frontmatter. `sdd-implementer`
-> ships `model: inherit` and the driver overrides it on each dispatch when `worker_model`, or for a mechanical
-> task `mechanical_worker_model`, names a model.
+> ships `model: inherit` and the driver overrides it on each dispatch when `worker_model` names a model; a
+> mechanical task takes `mechanical_worker_model` instead when that names one.
 
 > **The descriptor learns no lane field.** The lane is a property of a change, declared in the PR body
 > ([sdd-methodology.md §12](sdd-methodology.md)) — not a property of a repository.
