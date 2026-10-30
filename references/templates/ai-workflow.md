@@ -4,14 +4,11 @@ kind: guide
 
 # AI workflow — the agent loop
 
-What an AI agent does when working a change in this repo. Read [AGENTS.md](../AGENTS.md) and
+What an AI agent does when working a change in this repo. Read
 [development-process.md](development-process.md) first.
 
-This repo uses **Spec-Driven Development**: the specification records the contract, the maintainer's
-instruction outranks a sentence, and the delivery
-pipeline — workers, review, triage, close-out — is run by the `/sdd-*` skills. `docs/.sdd.yaml` names the
-profile: `formal` (requirements, RFC-2119 specifications, the traceability map) or `informative` (a
-knowledge base in which only the constitution binds).
+The delivery pipeline — workers, review, triage, close-out — is run by the `/sdd-*` skills;
+`docs/.sdd.yaml` names the profile, `formal` or `informative` (development-process.md says what each binds).
 
 ## The loop
 
@@ -58,9 +55,9 @@ writes it) and,
 on a pull request, in its inline threads, one summary per pass and the suggestion comments, which
 `sdd-pr` keeps in step. Three severities, by harm: critical and important about the change are resolved before
 merge and get inline threads; one about code or a document the change did not touch keeps its severity, marked
-`outside`, blocks nothing, is fixed here when the fix is small and carried after merge otherwise; suggestions never block, at most five per reviewer per pass, and after merge `/sdd-triage --backlog` carries them to
+`outside`, blocks nothing, is fixed here when the fix is small and otherwise carried to the backlog by the close-out; suggestions never block, at most five per reviewer per pass, and after merge `/sdd-triage --backlog` carries them to
 `docs/backlog.md`, kept at about 40 lines. A suggestion names an input and a weaker result and outlives the change; taste (naming,
-wording, style) never does, and wrong behaviour is never a suggestion. A slip in a document the branch wrote is fixed in the pass, not filed. Every critical or important
+wording, style) never does, and wrong behaviour is never a suggestion. A slip in a document the branch wrote is a fix, not a finding. Every critical or important
 finding carries evidence. A claim of wrong code behaviour is settled by running it, or by a named input,
 then graded by its harm; a missing specification sentence never lowers it. Nothing else about findings is
 posted, the pull request's body included.
@@ -87,20 +84,9 @@ restate the PR body.
 
 ## When stuck
 
-- **Open decision?** Record an ADR (`/sdd-specify`) or ask — don't bake it into code.
-- **Ambiguous spec?** Look it up in the named ground-truth source.
-- **Missing rule?** Add it (`/sdd-specify`) *before* coding — never a rule that lives only in code.
 - **Upstream disagrees with our docs?** For a dependency this repo consumes, the upstream's semantics are
   ground truth and our documents are corrected. Raise a genuine conflict as evidence, in a sentence or two.
-
-## Modes and lanes
-
-- **New behaviour** → *spec-first*: `/sdd-specify` → `/sdd-deliver`.
-- **Hardening shipped code** → *implementation-aligned*: change the code, then update the spec § and guide
-  in the **same** change.
-- **Lane** (formal profile) is answered in one PR-body line: does this change alter any normative
-  statement? If not, it is the maintenance lane and owes no normative bookkeeping. The informative profile
-  has one lane. See [development-process.md](development-process.md).
+- **Modes and lanes:** development-process.md § Two source-of-truth modes and § The two lanes.
 
 ## Tooling
 
@@ -112,7 +98,7 @@ restate the PR body.
 | Implement one bounded task | `sdd-implementer` agent (dispatched by the driver) |
 | Review pass into the findings file | `/sdd-review` |
 | Work the open findings; after the maintainer's review, one whole-branch re-review; now and then, the backlog harvest | `/sdd-triage` (`--backlog`) |
-| What is open, mergeable, next | `sdd-pr status` |
+| What is open, mergeable, next | `sdd-pr status` (`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`; the session banner names the root) |
 | A REQ's context bundle; drift in session | `/sdd-trace` |
 | Regenerate the derived indexes and status lines | `sdd-check generate` |
 | Drift, links, prose lints | `<build_entrypoint> <spec_check_target>` (`sdd-check`) |

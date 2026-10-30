@@ -47,10 +47,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Skills: `rules/sdd-context.mdc` points to the review skills for the findings rules.
 - Scripts: the skills' word budgets fall to their new counts (7531 to 7174 words in all).
 - Docs: `AGENTS.md` and `authoring.md` state the link convention.
+- Templates: `AGENTS.md` keeps the source-of-truth paragraph, a two-row reading table and six rules, and drops the workflow, orchestration and tooling sections the process documents own.
+- Templates: `ai-workflow.md` points to `development-process.md` for the profiles, the modes and the lanes, and spells out `sdd-pr`; `development-process.md` spells out `sdd-check` and takes the prose rules `AGENTS.md` dropped.
+- Templates: `ci.md` and `requirements-README.md` drop the review skills and the status values the process documents own.
+- Scripts: word budgets fall for `ai-workflow.md` (1215 to 1100) and `development-process.md` (1235 to 1226); `AGENTS.md` gets one (307).
+- Docs: `upgrading.md` says how to bring an existing repository's `AGENTS.md` and process documents in line.
 
 ### Fixed
 - Templates: a fresh informative scaffold passes the gate's `links` family: `AGENTS.md` no longer links the requirements index and `specifications-README.md` no longer links the map.
-- Templates: `development-process.md` is titled "Development process", not the constitution.
+- Templates: `development-process.md` is titled "Development process", not the constitution; `ai-workflow.md` § Review says the close-out carries an unfixed `outside` defect and a document slip is a fix.
 - References: `review.md` says the close-out carries an unfixed `outside` defect, a document slip is applied by triage, `clean` refuses a branch with commits the pull request lacks, and `flip --suggestions --deferred` reaches the `outside` lines.
 - References: `scaffold-upgrade.md` fills the gate placeholders before comparing a process document's section.
 - Skills: `sdd-triage` and `rules/sdd-context.mdc` leave an unfixed `outside` defect for the close-out, `sdd-close` drops the unnamed suggestions with `flip --suggestions --dropped`, and `sdd-deliver` drops the `--close-out` pointer.

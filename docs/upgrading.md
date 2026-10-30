@@ -2,6 +2,22 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.17.x to the next release
+
+The scaffold's entry point and process documents are shorter, and two template slips are fixed.
+
+1. **`AGENTS.md`.** The template drops what `docs/development-process.md` and `docs/ai-workflow.md`
+   already say (the workflow, orchestration and tooling sections) and keeps the source-of-truth
+   paragraph, a two-row reading table and six rules: it is read on every turn. `--upgrade` never merges
+   `AGENTS.md`; retrim yours from the template by hand, keeping your own Project and Do-not-touch sections.
+2. **Informative profile.** The scaffold linked `docs/requirements/README.md` from `AGENTS.md` and
+   `traceability.yaml` from `docs/specifications/README.md`, neither of which exists there, so the gate's
+   `links` family failed. Delete both links if `check` reports them.
+3. **Process documents.** `/sdd-scaffold --upgrade` proposes the new opening paragraph and § Review of
+   `docs/ai-workflow.md`: the close-out carries an unfixed `outside` defect, and a slip in the branch's
+   own document is a fix. Where your PR template, `docs/ci.md` or `docs/development-process.md` still shows
+   `<build_entrypoint>`, `<ci_target>` or `<spec_check_target>`, fill them in by hand.
+
 ## From 0.16.x to 0.17.0
 
 Retiring a requirement. A retired requirement keeps its section in place and the gate stops warning on

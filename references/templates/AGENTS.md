@@ -11,62 +11,29 @@ Instructions for AI coding assistants and the humans reviewing their work in thi
 ## Source of truth
 
 The **specification records the contract the code is measured against; the maintainer's instruction
-outranks it.** When a request contradicts a sentence, name the sentence once, do the work and amend it in
-the same change. Without the maintainer, a disagreement between code and spec is a finding, and the spec
-wins — except a section marked *implementation-aligned*, where code leads and the spec is reconciled in
-the same PR. A `draft` section binds once it merges. This repo sits on the **spec-anchored** rung: specs
-are living, versioned, governing contracts.
+outranks it**: name the sentence once, do the work, amend it in the same change. Without the maintainer
+the spec wins, except an *implementation-aligned* section, where code leads and the spec is reconciled in
+the same PR. On the formal profile a new capability is *spec-first* (`/sdd-specify`, then
+`/sdd-deliver`); everything else on shipped code is code first, the sentence reconciled in the same PR.
 
-## Reading order
+## Read
 
-| # | Document | For |
-|---|----------|-----|
-| 1 | [docs/development-process.md](docs/development-process.md) | document kinds, identifiers, the flow, the gates |
-| 2 | [docs/ai-workflow.md](docs/ai-workflow.md) | the agent loop, ground-truth lookups, tooling |
-| 3 | [docs/specifications/README.md](docs/specifications/README.md) | normative behaviour (`SPEC-*`) + conventions |
-| 4 | [docs/ci.md](docs/ci.md) | how CI enforces the methodology |
+| Document | For |
+|---|---|
+| [docs/development-process.md](docs/development-process.md) | document kinds, identifiers, the flow, the lanes, the PR body |
+| [docs/ai-workflow.md](docs/ai-workflow.md) | the agent loop, orchestration, review, the `/sdd-*` tooling |
 
-The linked docs are **canonical** — defer to them rather than duplicating their content here.
+Conventions (REQ style, paths, build tool, ground-truth source, `agents:`) are declared in
+[`docs/.sdd.yaml`](docs/.sdd.yaml).
 
-## Workflow (short form)
+## Rules
 
-`REQ` (what + acceptance) → `SPEC §` (RFC-2119) → `ADR` (if an irreversible fork) → `CODE + TESTS` (tests
-cite ids) → update traceability → update `REQ` status and write the PR body (`/sdd-close`) —
-all in the same PR that implements it. Review findings live in the branch's findings file, which `sdd-pr` keeps in the clone's git directory;
-`sdd-pr status` says what is open. A `SPEC §` is promoted only when the maintainer
-confirms. A new capability is *spec-first*; everything else on shipped code is *implementation-aligned* (code
-first, the sentence reconciled in the same PR).
-
-## Orchestration
-
-- **The maintainer merges and orchestrates.** Agents open PRs, a draft only when asked; a person merges.
-- **One orchestrator, bounded workers.** The main session holds the judgement and dispatches
-  `sdd-implementer` workers for bounded tasks. It does not write product code, except for a task that
-  cannot be made self-contained — and it says so in the PR body.
-- **A brief is self-contained**, and a worker never spawns another worker.
-- **One branch, one checkout:** two sessions on one branch take turns; the delivery notes and
-  `sdd-pr status` say where it stands.
-- Worker model, parallelism and the task-review gate live in
-  [`docs/.sdd.yaml`](docs/.sdd.yaml) under `agents:`. Full text: [docs/ai-workflow.md](docs/ai-workflow.md)
-  § Orchestration.
-
-## Load-bearing rules
-
-- One canonical home per requirement — the index links, the spec owns the prose. Never duplicate normative text.
-- One home per fact in process prose too — cite identifiers rather than restating the same story across the commit body, PR body, changelog, and review comments. See [docs/development-process.md](docs/development-process.md) (*Artefact prose*).
-- Write short: lead with the result; a finding is one sentence of about 30 words, a PR body about 450 words; quote only the output that proves a claim.
-- Identifiers are immutable once published. Never renumber or reuse.
-- Every document under docs/ declares its kind; derived indexes are generated — run `sdd-check generate`, never hand-edit a generated block.
-- Don't mix document kinds (no tasks in a spec, no file paths in a requirement, one decision per ADR).
+- Look domain facts up in the ground-truth source `docs/.sdd.yaml` names — never guess.
+- Identifiers are immutable once published; normative prose has one canonical home. Never renumber, reuse or duplicate.
+- Every document under `docs/` declares its `kind:`; a generated block is regenerated with `sdd-check generate`, never hand-edited.
 - Don't settle an open question silently in code — raise a STRAND, draft an ADR, or ask.
-- Look domain facts up in the named ground-truth source (see [`docs/.sdd.yaml`](docs/.sdd.yaml)) — never guess.
-- Verify with the full gate before claiming done: `<build_entrypoint> <ci_target>` (includes `spec-check`).
-
-## Tooling
-
-This repo's conventions (REQ style, paths, build tool, ground-truth source) are declared in
-[`docs/.sdd.yaml`](docs/.sdd.yaml). The full build gate is `<build_entrypoint> <ci_target>`; the drift gate is
-`<build_entrypoint> <spec_check_target>`.
+- Write short, one home per fact: [docs/development-process.md](docs/development-process.md) § Artefact prose.
+- Before claiming done, run `<build_entrypoint> <ci_target>` (the full gate, `<spec_check_target>` included) and read its output.
 
 ## Do not touch (yet)
 

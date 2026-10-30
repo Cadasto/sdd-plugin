@@ -12,12 +12,9 @@ out-of-scope — **no file paths, no implementation detail.**
 
 ## Status axes
 
-- **Spec stability** — `Draft` (binds once merged; wording may still change) → `Stable` (frozen) → `Deprecated`.
-- **Implementation** — `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` ·
-  `deferred` · `retired`. The full list, and the vocabulary each other kind uses, is in development-process.md under
-  *Document kinds*.
-
-These are tracked **separately**: a `Draft` requirement is authoritative even while its code is `proposed`.
+Two axes, tracked **separately**: `status` (how settled the wording is; `draft` binds once merged) and
+`implementation` (how much is built). A `draft` requirement is authoritative even while its code is
+`proposed`. The values are in development-process.md under *Document kinds*.
 
 ## Index
 

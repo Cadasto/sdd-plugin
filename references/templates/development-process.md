@@ -36,7 +36,7 @@ informative document is corrected; it never holds the only copy of a product-con
 
 | Kind | Key | Values |
 |---|---|---|
-| **Specification** | `status` | `draft` · `stable` · `deprecated` |
+| **Specification** | `status` | `draft` (binds once merged) · `stable` · `deprecated` |
 | **Requirement** | `status` | `draft` · `stable` · `deprecated` |
 | **Requirement** | `implementation` | `proposed` · `planned` · `in_progress` · `partial` · `landed` · `shipped` · `deferred` · `retired` |
 | **ADR** | `status` | `proposed` · `accepted` · `superseded` · `deprecated` |
@@ -67,7 +67,7 @@ The close-out lands in the **same PR** as the slice. No follow-up PR.
 
 ## The gate
 
-The drift gate is one tool, `sdd-check`, vendored at the descriptor's `check.script` and run by
+The drift gate is one tool, `sdd-check` (`python3 <check.script>`, the descriptor's `check.script`), run by
 `<build_entrypoint> <spec_check_target>`. It checks the map against the tree both ways, the index, the
 document kinds, links, the RFC-2119 and one-home rules, changelog bullets and generated blocks; each
 family's severity is set under `check.families`. The derived indexes are written by `sdd-check generate`,
@@ -135,7 +135,8 @@ Update it when a later commit changes what the branch does.
 
 The commit body, PR body, changelog, and review threads each carry only what lives nowhere else — cite
 identifiers (`REQ`/`SPEC §`/SHA) instead of restating: the spec owns behaviour, the commit the *why*, the
-PR body the summary and verification, the changelog the user-facing line.
+PR body the summary and verification, the changelog the user-facing line. Lead with the result, quote only
+the output that proves a claim, and keep a finding to one sentence of about 30 words.
 
 ## Open questions
 
