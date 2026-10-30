@@ -2549,6 +2549,8 @@ def check_links(ctx: Context, report: "Report") -> None:
         report.skip("links", "every document is excluded by check.links.exclude")
         return
     examined = 0
+    # A target's fragment names, keyed on its text: a document many links point at is parsed once.
+    names_by_text: Dict[str, set] = {}
     for path in kept:
         if _waived(ctx, report, "links", path):
             continue
@@ -2605,7 +2607,10 @@ def check_links(ctx: Context, report: "Report") -> None:
                 if not fragment:
                     continue
                 text = ctx.read(path)
-            if fragment not in _fragment_targets(text):
+            names = names_by_text.get(text)
+            if names is None:
+                names = names_by_text[text] = _fragment_targets(text)
+            if fragment not in names:
                 report.add(
                     "links",
                     level,

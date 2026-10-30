@@ -87,6 +87,7 @@ sdd:
   # Every value here is an EXAMPLE — no model and no reviewer is required by the plugin.
   agents:
     worker_model: inherit           # per-dispatch model override; inherit = no override, or a host model id
+    mechanical_worker_model: inherit  # a mechanical task's model (a version bump, a wording fix, a test pin); inherit = worker_model's
     max_parallel_workers: 3
     worktree_per_worker: false      # true: each parallel worker on its own branch and worktree, merged; false: one shared branch
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]
@@ -146,6 +147,7 @@ requirements, specifications, ADR paths and the traceability map are optional, a
 | Field | Meaning |
 |---|---|
 | `worker_model` | The model `/sdd-deliver` passes as the **per-dispatch override** when it dispatches a worker; `inherit` passes none. A model id is host-specific, so the default is `inherit`. |
+| `mechanical_worker_model` | The model `/sdd-deliver` passes instead for a **mechanical task**, one with nothing to decide: a version bump, a wording fix, a test pin. A cheaper model fits these; `inherit` (the default) uses `worker_model`'s choice. |
 | `max_parallel_workers` | Ceiling on workers running at once, never a target: `/sdd-deliver` runs tasks in sequence unless a wave's tasks are independent and each outlasts a worker's overhead. |
 | `worktree_per_worker` | `false` (default): a parallel wave shares the orchestrator's worktree and branch, its tasks split by disjoint `Files`, each worker committing only its own. `true`: each parallel worker gets a branch `<branch>--<task>` and worktree, merged after its wave; required where commit hooks stash the working tree. |
 | `worker_skills` | Skills a worker should apply. **Named in the brief**, not preloaded in frontmatter. |
@@ -155,7 +157,8 @@ requirements, specifications, ADR paths and the traceability map are optional, a
 
 > **`worker_model` is applied per dispatch, never written into an agent file.** Plugin agent definitions
 > live in the host's read-only install cache, so no skill can rewrite their frontmatter. `sdd-implementer`
-> ships `model: inherit` and the driver overrides it on each dispatch when `worker_model` names a model.
+> ships `model: inherit` and the driver overrides it on each dispatch when `worker_model` names a model; a
+> mechanical task takes `mechanical_worker_model` instead when that names one.
 
 > **The descriptor learns no lane field.** The lane is a property of a change, declared in the PR body
 > ([sdd-methodology.md §12](sdd-methodology.md)) — not a property of a repository.

@@ -207,6 +207,8 @@ request. A plugin older than the repository's `check.version` refuses every writ
   lost or a worktree holds uncommitted work, and refuses the base, the default branch and, unnamed, a
   branch with no findings file or notes. A worktree it runs in is left, with the commands; the pull request
   and the remote branch are never touched.
+- `brief [--task <words>]` — prints `references/templates/brief.md` with the branch, worktree, worker skills
+  and code index filled, and the dispatch model on standard error; writes nothing.
 - `pull`, `post [--dry-run]`, `resolve` — § The forge mirror.
 
 Exit `0` when the command ran, whether or not the branch is mergeable; `2`, with the reason on standard error, when it refused or failed.

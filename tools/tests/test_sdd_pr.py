@@ -506,6 +506,46 @@ class TestStatus(RepoCase):
         _, out, _ = self.run_main("status")
         self.assertIn("Mergeable: no — checks failing", out)
 
+    def test_status_reads_the_pull_request_once_and_its_repository_from_the_url(self):
+        # Each forge call is a round trip, and a forge throttles a client that sends many: the checks
+        # come with the one read of the pull request, and the owner and name with its URL.
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT)
+        failing = [{"status": "COMPLETED", "conclusion": "FAILURE"}]
+        fake = self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes()
+                        + self._gh_routes(checks=failing))
+        _, out, _ = self.run_main("status")
+        self.assertIn("checks: fail", out)
+        reads = fake.called("gh", "pr")
+        self.assertEqual(1, len(reads), reads)
+        self.assertIn("statusCheckRollup", reads[0][reads[0].index("--json") + 1])
+        self.assertEqual([], fake.called("gh", "repo", "view"))
+        self.assertIn("owner=o", fake.called("gh", "api", "graphql")[0])
+        self.assertIn("name=r", fake.called("gh", "api", "graphql")[0])
+
+    def test_status_of_a_named_pull_request_reads_it_once_too(self):
+        # `--pr N` reads through `gh pr view`, which carries the checks and the URL just the same.
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT)
+        fake = self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes() + self._gh_routes())
+        code, _, err = self.run_main("status", "--pr", "7")
+        self.assertEqual(0, code, err)
+        self.assertEqual(1, len(fake.called("gh", "pr")), fake.called("gh", "pr"))
+        self.assertEqual([], fake.called("gh", "repo", "view"))
+
+    def test_status_reads_every_check_when_the_list_stops_at_a_hundred(self):
+        # `gh pr list` returns at most 100 of a pull request's checks; `gh pr view` reads them all.
+        self.descriptor(forge="github")
+        self.findings(FILE_OPEN_IMPORTANT)
+        passing = [{"status": "COMPLETED", "conclusion": "SUCCESS"}] * 100
+        viewed = {"number": 7, "headRefOid": HEAD, "headRefName": "feat/x", "baseRefName": "main", "isDraft": False,
+                  "url": "https://github.com/o/r/pull/7", "state": "OPEN", "body": "## Summary\n",
+                  "statusCheckRollup": passing + [{"status": "COMPLETED", "conclusion": "FAILURE"}]}
+        self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes()
+                 + [(has("gh", "pr", "view"), json.dumps(viewed))] + self._gh_routes(checks=passing))
+        _, out, _ = self.run_main("status")
+        self.assertIn("checks: fail", out)
+
     def test_status_measures_change_from_the_last_pass_not_the_branch(self):
         # scope reads the whole branch by default; status still says what came after the last pass.
         self.descriptor(forge="none")
@@ -1537,6 +1577,77 @@ class TestDelivery(RepoCase):
         _, out, _ = self.run_main("status")
         self.assertIn("notes: %s" % notes, out)
 
+
+class TestBrief(RepoCase):
+    """`brief`: the worker brief, with what the repository already decides filled in."""
+
+    WORKFLOW = ("# AI workflow\n\n## Review\n\n- **Code index:** `not this section's`.\n\n"
+                "## Orchestration (standing)\n\n"
+                "- **A brief is self-contained.**\n"
+                "- **Code index:** `gopls`. When one is named, workers query it\n"
+                "  first and fall back to `grep` for literals and prose; the brief repeats the name.\n"
+                "- **Workers do not spawn workers.**\n")
+
+    def test_the_brief_fills_the_branch_worktree_skills_and_code_index(self):
+        self.descriptor(forge="none", extra="  agents:\n    worker_model: opus\n    mechanical_worker_model: sonnet\n"
+                                             "    worker_skills: [lang:router, lang:testing]\n")
+        (self.root / "docs" / "ai-workflow.md").write_text(self.WORKFLOW, encoding="utf-8")
+        self.use(git_routes())
+        code, out, err = self.run_main("brief", "--task", "pin the parser")
+        self.assertEqual(0, code, err)
+        self.assertTrue(out.startswith("# Brief — feat/x · pin the parser\n"), out)
+        self.assertIn("\n**Skills.** lang:router, lang:testing\n", out)
+        self.assertIn("\n**Code index.** `gopls`\n", out)
+        self.assertIn("\n**Worktree.** %s: every command runs there" % os.path.abspath(str(self.root)), out)
+        self.assertIn("\n**Branch.** feat/x\n", out)
+        # What only the orchestrator knows stays a placeholder, and the template's note to it is dropped.
+        self.assertIn("\n**Clauses.** <", out)
+        self.assertNotIn("Template:", out)
+        self.assertIn("worker model opus · a mechanical task: sonnet", err)
+        self.assertTrue(self.nothing_written())
+
+    def test_an_unset_value_reads_as_none_or_stays_to_fill(self):
+        self.descriptor(forge="none")
+        self.use(git_routes())
+        code, out, err = self.run_main("brief")
+        self.assertEqual(0, code, err)
+        self.assertTrue(out.startswith("# Brief — feat/x · <task>\n"), out)
+        self.assertIn("\n**Skills.** none\n", out)
+        self.assertIn("\n**Code index.** <", out)
+        self.assertIn("worker model inherit · a mechanical task: inherit", err)
+        self.assertNotIn("--root", err)
+
+    def test_the_code_index_is_read_from_the_scaffolded_line(self):
+        # The line /sdd-scaffold writes: its name once filled, nothing while it is still the placeholder,
+        # and nothing from a file that is not UTF-8.
+        shipped = (TOOLS_DIR.parent / "references" / "templates" / "ai-workflow.md").read_text(encoding="utf-8")
+        placeholder = "`<none | the tool that indexes this repository>`"
+        self.assertIn(placeholder, shipped)
+        workflow = self.root / "docs" / "ai-workflow.md"
+        workflow.parent.mkdir(exist_ok=True)
+        workflow.write_text(shipped, encoding="utf-8")
+        self.assertEqual("", sdd_pr.code_index(str(self.root)))
+        workflow.write_text(shipped.replace(placeholder, "`gopls`"), encoding="utf-8")
+        self.assertEqual("`gopls`", sdd_pr.code_index(str(self.root)))
+        workflow.write_bytes(b"## Orchestration\n\n- **Code index:** `caf\xe9`\n")
+        self.assertEqual("", sdd_pr.code_index(str(self.root)))
+
+    def test_a_mechanical_task_inherits_the_worker_model_and_one_skill_reads_as_a_list(self):
+        self.descriptor(forge="none", extra="  agents:\n    worker_model: opus\n    worker_skills: lang:router\n")
+        self.use(git_routes())
+        code, out, err = self.run_main("brief")
+        self.assertEqual(0, code, err)
+        self.assertIn("\n**Skills.** lang:router\n", out)
+        self.assertIn("worker model opus · a mechanical task: opus", err)
+
+    def test_with_a_worktree_per_worker_it_says_how_to_brief_one(self):
+        # The worktree and branch filled are --root's; a parallel worker's are its own.
+        self.descriptor(forge="none", extra="  agents:\n    worktree_per_worker: true\n")
+        self.use(git_routes())
+        code, out, err = self.run_main("brief")
+        self.assertEqual(0, code, err)
+        self.assertIn("\n**Branch.** feat/x\n", out)
+        self.assertIn("sdd-pr --root <its worktree> brief", err)
 
 
 class TestStore(RepoCase):

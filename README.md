@@ -112,7 +112,7 @@ Full contract: [references/sdd-check.md](references/sdd-check.md).
 
 ### The review tool
 
-`sdd-pr` (`python3 <plugin root>/tools/sdd-pr.py`, not vendored) keeps a branch's findings file and its pull request in step: `status` prints the file's path, the open counts, `Mergeable: yes|no` and the next command; `start` prepares a review pass in one call (the pull request's threads, the lane, each reviewer's hunks, one brief, the dispatch plan); `scope` prints the range a review pass reads; `add`, `flip`, `record` and `rename` write the file, as `pull`, `post` and `resolve` do, so nobody edits it by hand, and `flip --carry` appends leftovers to `docs/backlog.md`; `pull`, `post` and `resolve` mirror findings to and from the inline threads on GitHub or Azure DevOps, one comment per pass holding its counts and the lines that do not block; `harvest` carries the open suggestions and `outside` defects of pull requests merged since `harvested_through:` in `docs/backlog.md`; `guard` removes one guard in a scratch worktree, runs its test there and says whether the test noticed; `clean`, after the merge, removes the branch, its worktree and its findings file, and refuses while anything would be lost. With `forge: none`, `status`, `scope` and `harvest`'s re-check work from the file and git alone. Contract: [references/review.md](references/review.md).
+`sdd-pr` (`python3 <plugin root>/tools/sdd-pr.py`, not vendored) keeps a branch's findings file and its pull request in step: `status` prints the file's path, the open counts, `Mergeable: yes|no` and the next command; `start` prepares a review pass in one call (the pull request's threads, the lane, each reviewer's hunks, one brief, the dispatch plan); `scope` prints the range a review pass reads; `add`, `flip`, `record` and `rename` write the file, as `pull`, `post` and `resolve` do, so nobody edits it by hand, and `flip --carry` appends leftovers to `docs/backlog.md`; `pull`, `post` and `resolve` mirror findings to and from the inline threads on GitHub or Azure DevOps, one comment per pass holding its counts and the lines that do not block; `harvest` carries the open suggestions and `outside` defects of pull requests merged since `harvested_through:` in `docs/backlog.md`; `guard` removes one guard in a scratch worktree, runs its test there and says whether the test noticed; `clean`, after the merge, removes the branch, its worktree and its findings file, and refuses while anything would be lost; `brief` prints a worker brief with the branch, worktree, worker skills and code index filled. With `forge: none`, `status`, `scope` and `harvest`'s re-check work from the file and git alone. Contract: [references/review.md](references/review.md).
 
 ### Hooks
 
@@ -175,6 +175,7 @@ sdd:
   # Every value here is an EXAMPLE — no model and no reviewer is required by the plugin.
   agents:
     worker_model: inherit           # per-dispatch model override; inherit = no override, or a host model id
+    mechanical_worker_model: inherit  # a mechanical task's model (a version bump, a wording fix, a test pin); inherit = worker_model's
     max_parallel_workers: 3
     worktree_per_worker: false      # true: each parallel worker on its own branch and worktree, merged; false: one shared branch
     worker_skills: []               # skills named in the worker's brief, e.g. [go-coding:go-testing]

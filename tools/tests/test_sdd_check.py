@@ -1656,6 +1656,14 @@ class TestLinksFamily(BaselineCase):
         self.guide_link("#zone")
         self.assert_finding(self.run_only("links"), "fragment")
 
+    def test_each_document_answers_for_its_own_bare_fragments(self):
+        # A document's fragments resolve against its own headings, whichever document was parsed before it.
+        self.write("docs/a.md", "# Alpha only\n\nSee [x](#alpha-only).\n")
+        self.write("docs/b.md", "# Beta only\n\nSee [y](#beta-only).\n\nSee [z](#alpha-only).\n")
+        report = self.run_only("links")
+        loud = [f.anchor for f in report.findings if f.level in ("ERROR", "WARN")]
+        self.assertEqual(["docs/b.md:%d" % self.line_of("docs/b.md", "[z]")], loud, report.render(self.tmp))
+
     def test_an_explicit_anchor_counts_as_a_fragment(self):
         self.edit(GUIDE_REL, "# Development process", '<a id="legacy-zone"></a>\n\n# Development process')
         self.guide_link("#legacy-zone")
