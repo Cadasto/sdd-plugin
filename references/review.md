@@ -162,10 +162,10 @@ caller relies on and a cheap test can pin it ([sdd-methodology.md](sdd-methodolo
 ## The tool
 
 `sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `pull`, `post`, `resolve`, and `harvest` on a forge, need `gh` (GitHub) or `az` with the `azure-devops` extension (Azure DevOps), signed in; the rest need only git. `--pr`, by default the branch's open pull request,
-runs the command in the worktree that holds its branch, or head, naming it when that is another; with
-none, it stops. `--branch` must name the checkout. A checkout under another name that holds
-the pull request's head works on that pull request's file. `add --help` prints the line grammar;
-`--version` names the plugin root, and a newer `sdd-pr` installed beside this one is named on every run. `Base:` follows a retargeted pull
+must be held here, else the command stops and names its worktree; without `--root` or `--branch`,
+`start`, `scope`, `add`, `record` and `post` run there instead. `--branch` must name the checkout. A
+checkout under another name holding the pull request's head works on its file. `add --help` prints the line grammar;
+`--version` names the plugin root, and a newer `sdd-pr` beside this one is named on every run. `Base:` follows a retargeted pull
 request. A plugin older than the repository's `check.version` refuses every write, and `status` says so.
 
 - `status [--pr N]` — the file's path, the open counts, and each open line and suggestion
@@ -177,7 +177,7 @@ request. A plugin older than the repository's `check.version` refuses every writ
   request at HEAD prints `Mergeable: merged`, what is left to carry, the lines that wait for
   `/sdd-triage --backlog` while its watermark is older than the merge, and `/sdd-close`.
 - `start --agent <name> [--pr N] [--since-last] [--lane full|maintenance] [--base <ref>]` — a review pass's
-  preparation in one call: the pull request's threads pulled (its head must be in this checkout), the
+  preparation in one call: the pull request's threads pulled (its head in the checkout it runs in), the
   pass noted, the lane (the flag, the PR body's `Lane:` line, else `decide` with the normative-line
   count), and under `.sdd/review/<head>/` each reviewer's hunks, the drift gate's new lines, the settled
   lines and one shared brief, listing the MUSTs the range added as new obligations (a reworded sentence,

@@ -83,8 +83,15 @@ class CheckoutError(CliError):
     """The pull request or --branch named is not what this checkout has."""
 
 
+#: A review pass's commands, which change no tracked file: with --pr, and neither --root nor --branch, they run
+#: in the worktree that holds the pull request. Every other command refuses there, so a skill that edits and
+#: commits starts in the pull request's checkout (references/review.md § The tool).
+MOVES = ("start", "scope", "add", "record", "post")
+
+
 class Moved(CheckoutError):
-    """The pull request named is checked out in another worktree of the clone, where the command runs."""
+    """Another worktree of the clone holds the pull request named (pr_worktree): main() runs the command again
+    there, with the forge and the pull request already read. Uncaught, it is the refusal it extends."""
 
     def __init__(self, message: str, path: str, pr: dict, forge: "Forge") -> None:
         super().__init__(message)
@@ -718,23 +725,31 @@ def worktree_of(root: str, branch: str) -> str:
     return ""
 
 
-def pr_worktree(root: str, pr: dict) -> str:
-    """Another worktree of the clone that holds pull request ``pr`` on a branch: the one with its branch
-    checked out, else one at its head under another name; "" when none does."""
+def live_worktrees(root: str) -> List[Dict[str, str]]:
+    """The worktrees of the clone with a branch checked out and their folder still there; none when git
+    cannot list them."""
     try:
-        trees = [t for t in worktrees(root) if t["branch"] and not t["prunable"] and _real(t["path"]) != _real(root)]
+        return [t for t in worktrees(root) if t["branch"] and not t["prunable"] and os.path.isdir(t["path"])]
     except CliError:
-        return ""
-    for tree in sorted(trees, key=lambda t: t["branch"] != pr.get("branch")):
-        if tree["branch"] == pr.get("branch") or tree["head"] == pr.get("head"):
-            return tree["path"]
-    return ""
+        return []
+
+
+def pr_worktree(root: str, pr: dict) -> str:
+    """Another worktree of the clone that holds pull request ``pr``: the one on its branch, at its head or
+    ahead of it, else one on another branch exactly at its head; "" when none does. A detached worktree never
+    counts (guard's scratch copy sits at the reviewed head), nor a branch stacked on the pull request, nor a
+    checkout of its branch behind its head."""
+    head, trees = pr.get("head", ""), live_worktrees(root)
+    own = [t for t in trees if t["branch"] == pr.get("branch")
+           and (t["head"] == head or is_ancestor(root, head, t["head"]))]
+    named = [t for t in trees if head and t["head"] == head]
+    return (own + named)[0]["path"] if own + named else ""
 
 
 def elsewhere(root: str, branch: str, command: str = "") -> str:
     """How to reach ``branch``: the command again from its worktree (--root goes before the command), or a
     checkout of it."""
-    path = worktree_of(root, branch)
+    path = next((t["path"] for t in live_worktrees(root) if t["branch"] == branch), "")
     return ("run it there: sdd-pr --root %s %s …" % (path, command or "<command>") if path
             else "check out %s, or run sdd-pr --root <its worktree> %s …" % (branch, command or "<command>"))
 
@@ -1433,7 +1448,7 @@ class Session:
     """What every command resolves first: root, branch, head, base, the file and the forge."""
 
     def __init__(self, args, moved: Optional[Moved] = None):
-        self.root = args.root
+        self.root = args.root or "."
         self.head = git(self.root, "rev-parse", "HEAD").strip()
         checked = checked_out(self.root)
         if args.branch and args.branch != checked:
@@ -1448,6 +1463,7 @@ class Session:
             self.branch = DETACHED  # clean names its branch, or reads it from --pr
         if not self.branch:
             raise CliError("detached HEAD; pass --branch")
+        # Moved: the forge of the checkout the command started in, which read the pull request; its reads are kept.
         self.forge = moved.forge if moved else detect_forge(self.root)
         self.descriptor = read_descriptor(self.root)
         self.data = descriptor_data(self.descriptor)
@@ -1462,7 +1478,9 @@ class Session:
                       "older format" % (__version__, pinned)) if pinned and version_lt(__version__, pinned) else ""
         self._pr_number = args.pr
         self._pr: Optional[dict] = None
-        self._known = moved.pr if moved else None  # read in the checkout this session moved from
+        self._known = moved.pr if moved else None  # read once, in the checkout the command started in
+        # An explicit --root or --branch names the checkout, so only the folder the command runs in moves.
+        self._may_move = args.root is None and not args.branch and self.command in MOVES
         self.dry_run = getattr(args, "dry_run", False)
         store = store_dir(self.root)
         self.path = os.path.join(store, slug(self.branch) + ".md")
@@ -1482,7 +1500,9 @@ class Session:
             try:
                 self.pr()  # a checkout under another name that holds the pull request's head works on its file
             except BaseException:
-                self.close()  # a refusal here must not keep the clone's lock for the next command
+                # A refusal, or a Moved that main() runs again elsewhere in this process, must not keep the
+                # clone's lock: the next command, or the second session, would wait on it for good.
+                self.close()
                 raise
 
     def _rekey(self, branch: str, quiet: bool = False) -> None:
@@ -1500,13 +1520,14 @@ class Session:
     def pr(self, required: bool = True) -> Optional[dict]:
         if self._pr is None:
             if self._pr_number is not None:
-                pr, self._known = self._known or self.forge.pr(self._pr_number), None
+                pr = self._known or self.forge.pr(self._pr_number)
+                self._known = None
                 if pr.get("branch") and pr["branch"] != self.branch:
                     if not self.holds(pr["head"]):
                         message = ("pull request %d is %s at %s; this checkout is %s at %s; %s"
                                    % (pr["number"], pr["branch"], pr["head"][:7], self.branch,
                                       self.head[:7], elsewhere(self.root, pr["branch"], self.command)))
-                        tree = pr_worktree(self.root, pr)
+                        tree = pr_worktree(self.root, pr) if self._may_move else ""
                         raise Moved(message, tree, pr, self.forge) if tree else CheckoutError(message)
                     self._rekey(pr["branch"])
                 self._pr = pr
@@ -1747,7 +1768,7 @@ BRIEF = """# Review brief: {branch} at `{head}`
 - **Already settled on this branch:** {resolved}. Do not raise one again unless the change makes its
   reason untrue.
 - **MUST sentences this range added, new obligations** (a reworded one pairs with the line it replaced and owes no guard run): {binding}.
-- **sdd-pr** is `python3 {sdd_pr} --root {root}`; a reviewer runs only
+- **sdd-pr** is `python3 {sdd_pr} --root {root_arg}`; a reviewer runs only
   `guard <path:line> --expect <text> --replace <text> -- <test command>`, which breaks one guard in a
   scratch copy and prints `pinned` (a test failed) or `untested`.
 - **Severity and scope** are `{review_md}` § Severity and § Scope: by harm wherever the line is; wrong
@@ -1772,7 +1793,8 @@ def cmd_start(session: Session, args) -> int:
     § The tool): the pull request's threads, the range, the lane, every reviewer's hunks, the drift gate's
     new lines, one shared brief, and the dispatch plan."""
     if not session.descriptor.strip():
-        raise CliError("start: no %s here; set the repository up with /sdd-scaffold first" % DESCRIPTOR)
+        raise CliError("start: no %s in %s; set the repository up with /sdd-scaffold first"
+                       % (DESCRIPTOR, os.path.abspath(session.root)))
     pr = None
     if session.forge.name != "none":
         pr = session.pr(required=False)
@@ -1873,7 +1895,7 @@ def cmd_start(session: Session, args) -> int:
                                   start=start[:12], profile=profile,
                                   lane=lane.split(" (")[0], gate=gate_line, drift=drift_line, resolved=resolved,
                                   binding=", ".join("`%s`" % b for b in binding) or "none",
-                                  sdd_pr=os.path.join(here, "sdd-pr.py"),
+                                  sdd_pr=shlex.quote(os.path.join(here, "sdd-pr.py")), root_arg=shlex.quote(root),
                                   review_md=os.path.join(os.path.dirname(here), "references", "review.md")))
 
     print("review: %s at %s · range %s..HEAD · %s profile · lane %s"
@@ -3126,7 +3148,7 @@ a document the branch did not change ends · outside, and add drops it from a li
 agents.worktree_per_worker: sdd-pr --root <its worktree> brief) filled, and names the dispatch model on
 stderr; redirect it to a file under .sdd/, then fill every field still in <…>. Writes nothing.""",
     "start": """prints the dispatch plan: one line per reviewer with its patch; dispatch each with
-"Read <brief>; your hunks: <patch>". Files go under .sdd/review/<head>/. Another agent's pass on the
+"Read <brief>; your hunks: <patch>". Files go under .sdd/review/<head>/ of the checkout it runs in. Another agent's pass on the
 branch is reported, never a stop. The gate is never run here.""",
     "clean": """after the merge, run from any checkout of the clone, a detached one included: removes the
 branch's worktree (one this command runs in is left to you, with the commands; the main checkout steps onto
@@ -3163,13 +3185,15 @@ class _Parser(argparse.ArgumentParser):
 def build_parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="sdd-pr", description="The branch's findings file and its pull-request mirror.")
     parser.add_argument("--version", action="version", version="sdd-pr %s at %s" % (__version__, PLUGIN_ROOT))
-    parser.add_argument("--root", default=".", help="the repository root (default: .)")
+    parser.add_argument("--root", default=None, help="the repository root (default: .)")
     parser.add_argument("--branch", default=None, help="the branch (default: the checked-out one)")
     sub = parser.add_subparsers(dest="command", parser_class=_Parser)
     for name in COMMANDS:
         cmd = sub.add_parser(name, epilog=EPILOGS.get(name), formatter_class=argparse.RawDescriptionHelpFormatter)
         cmd.add_argument("--pr", type=int, default=None, help="the merged pull request (default: the branch's latest)"
-                         if name == "clean" else "the pull request (default: the branch's open one)")
+                         if name == "clean" else "the pull request (default: the branch's open one)%s"
+                         % ("; from a checkout without it, and no --root, runs in the worktree that holds it"
+                            if name in MOVES else ""))
         if name == "start":
             cmd.add_argument("--agent", required=True, help="who runs the pass: host and model, e.g. claude-opus-5-5")
             cmd.add_argument("--since-last", action="store_true",
