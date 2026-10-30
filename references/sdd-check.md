@@ -216,9 +216,9 @@ number is going down.
 `status:` and `implementation:` frontmatter lines of every requirement detail file. Each block sits
 between a pair of markers whose format is owned by [traceability-schema.md](traceability-schema.md) §4. A
 block's links resolve relative to the file holding the block, not to the block's canonical home — the same
-index wrapped into two different files links each row from where it actually sits. An opening marker with
-no closing one, a closer with no opener, a near-miss marker, or a block name outside the three known names
-is skipped rather than written; `generate` exits 1 and names each one by file, line and reason. A marker
+index wrapped into two different files links each row from where it actually sits. A malformed block (the
+cases § generated lists) is skipped rather than written; `generate` exits 1 and names each one by file,
+line and reason. A marker
 pair quoted inside a fenced code block, or indented four or more spaces, is not a live block; it is
 neither flagged nor rewritten.
 
@@ -266,8 +266,7 @@ severity, but the row is not dropped while the warning stands.
 `generate --verify` compares and writes nothing. It prints a unified diff for each stale block and the
 same `refused — …` lines a writing run would, and exits 1 when any block would change or any refusal
 exists. When no generated block is found
-anywhere it prints `sdd-check: no generated blocks found` and exits 0. The `generated` family makes the
-same comparison during `check`, so a hand edit between the markers fails the gate.
+anywhere it prints `sdd-check: no generated blocks found` and exits 0.
 
 ## Vendoring and the version pin
 

@@ -111,7 +111,8 @@ algorithms, visit and precedence orders, internal structure, dependency choices,
 no keyword, and the code may change it without an amendment. Every `MUST` costs a test that fails without
 its guard, a conformance check and an amendment whenever the behaviour moves, so a section dense with
 `MUST`s about internals is a smell, named in the hand-back; a `MUST` a test cannot pin is a sentence to
-demote.
+demote. Behaviour of the shell, a library or the operating system is prose too: the code does not
+guarantee it.
 
 ## 5. Identifier scheme
 

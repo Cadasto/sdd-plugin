@@ -34,8 +34,9 @@ separated by ` · ` (space, middle dot, space): the severity, `path:line`, one p
 suggestion), `fixed <sha>`, `declined: <reason>`,
 `deferred: <where>`, the marker `outside` (§ Scope), and `unanchored` and `mirrored`, which `sdd-pr` writes. A suggestion line
 has no checkbox; a carried or deferred one is `- [~] suggestion · …`. Each pass adds one `Reviewed` line with
-`sdd-pr record`: the commit it read, the agent, the reviewers dispatched and how many reported.  A pass on which no reviewer reported adds none, so its range stays open
-until one reads it, or the maintainer's own review is recorded: `pull` records it with their threads, `record --agent maintainer` otherwise.
+`sdd-pr record`: the commit it read, the agent, the reviewers dispatched and how many reported; a pass
+on which no reviewer reported adds none. The maintainer's review is a `maintainer` line: `pull` writes it
+with their threads, `record --agent maintainer` otherwise.
 
 ## Severity
 
@@ -63,8 +64,7 @@ Two reviewers' grades for one defect: the higher one with evidence.
 
 ## Scope
 
-A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`, unless the maintainer asks for `--since-last`, which reads the commits since the last `Reviewed` line (`scope --agent`: one
-agent's own, when it has one) and leaves out what a merge of the base brought in. Plans, the vendored gate unless patched here, and the paths `agents.skip` names go to no reviewer. A stacked branch names its parent once
+A pass reads the whole branch, `merge-base(base, HEAD)..HEAD`, unless the maintainer asks for `--since-last`, which reads the commits since the last `Reviewed` line and leaves out what a merge of the base brought in. Plans, the vendored gate unless patched here, and the paths `agents.skip` names go to no reviewer. A stacked branch names its parent once
 with `--base`. **A defect in a file the branch changed is in scope, whatever severity it was filed at:**
 fixed in the branch or declined with a reason; the pass budget limits reviewing, never fixing. A critical or
 important finding about code, or a document, the branch did not change keeps its
@@ -132,10 +132,9 @@ moves that watermark to the last merge read; the first harvest takes `--since`. 
 lines when the maintainer carries them in the pull request; its comment then shows them
 carried, and `harvest` leaves them out. Both add each line once, under `## Unsorted`, defects first.
 
-The backlog is short, or it is noise. A defect reaches it only when it was not fixed in the branch that
-found it (§ Scope): the close-out carries the open `outside` defects without asking. A lead reaches it
-through the close-out's carry when the maintainer names it, else through `harvest` after the merge; the
-consolidation below is what keeps it short.
+The backlog is short, or it is noise: the close-out carries the open `outside` defects without asking
+and the leads the maintainer names, `harvest` the rest after the merge, and the consolidation below
+keeps it short.
 
 `/sdd-triage --backlog` then consolidates. It re-checks the lines `harvest` names because their path
 changed since the last harvest, deleting one that is fixed or stale. It moves each Unsorted line into its
@@ -155,13 +154,12 @@ list. A second opinion the maintainer asks for is outside this budget.
 
 ## Keywords added during review
 
-A review adds no keyword. Behaviour of the shell, a library or the operating system stays informative; a
-binding sentence is added only through `/sdd-specify`, when the code itself guarantees a behaviour a
-caller relies on and a cheap test can pin it ([sdd-methodology.md](sdd-methodology.md) §4).
+A review adds no keyword; a binding sentence is added only through `/sdd-specify`, on
+[sdd-methodology.md](sdd-methodology.md) §4's terms.
 
 ## The tool
 
-`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `pull`, `post`, `resolve`, and `harvest` on a forge, need `gh` (GitHub) or `az` with the `azure-devops` extension (Azure DevOps), signed in; the rest need only git. `--pr`, by default the branch's open pull request,
+`sdd-pr` is `python3 <plugin root>/tools/sdd-pr.py`, not vendored. `pull`, `post`, `resolve`, and `harvest` on a forge need its CLI, signed in ([install.md](../docs/install.md#host-repository-requirements)); the rest need only git. `--pr`, by default the branch's open pull request,
 must be held here, else the command stops and names its worktree; without `--root` or `--branch`,
 `start`, `scope`, `add`, `record` and `post` run there instead. `--branch` must name the checkout. A
 checkout under another name holding the pull request's head works on its file. `add --help` prints the line grammar;

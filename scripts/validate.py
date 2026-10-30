@@ -444,7 +444,7 @@ WORD_BUDGETS = {
     "skills/sdd-specify/SKILL.md": 925,
     "skills/sdd-trace/SKILL.md": 430,
     "skills/spec-driven-development/SKILL.md": 680,
-    "references/review.md": 3070,
+    "references/review.md": 2990,
     "references/artefact-prose.md": 800,
     "agents/sdd-doc-reviewer.md": 905,
     "agents/sdd-spec-conformance-reviewer.md": 846,
@@ -473,7 +473,7 @@ def validate_word_budgets():
 # docs that say which CLI a backend needs. The pattern is built from parts, like RETIRED_TERMS, so
 # this file does not trip its own check.
 FORGE_CLI_RE = re.compile("g" + r"h (pr|api|repo)\b|a" + r"z (repos|devops)\b")
-FORGE_CLI_EXEMPT = ("tools/", "docs/install.md", "references/review.md", "CHANGELOG.md")
+FORGE_CLI_EXEMPT = ("tools/", "docs/install.md", "CHANGELOG.md")
 
 
 def validate_forge_neutrality():

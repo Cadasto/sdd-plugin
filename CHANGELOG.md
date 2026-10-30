@@ -39,6 +39,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Agents: `sdd-traceability-auditor` reads `references/sdd-check.md` under the plugin root its prompt names; `sdd-trace --audit` passes the root.
 - Scripts: word budgets fall for `sdd-doc-reviewer` (1045 to 905), `sdd-spec-conformance-reviewer` (1015 to 846) and `sdd-implementer` (1400 to 1088).
 - Docs: `authoring.md` says the pass reviewers' rules live in the review brief and the worker's report format in `brief.md`.
+- References: methodology §4 holds the rule that environment behaviour is prose; `review.md` § Keywords added during review points to it.
+- References: `review.md` drops restatements in § The findings file, § Scope and § The backlog, and points to `docs/install.md` for the forge CLI; `sdd-check.md` drops two in § Generated blocks.
+- Scripts: the word budget for `references/review.md` falls from 3070 to 2990, and `review.md` loses its forge-CLI exemption.
 
 ### Fixed
 - Templates: a fresh informative scaffold passes the gate's `links` family: `AGENTS.md` no longer links the requirements index and `specifications-README.md` no longer links the map.
