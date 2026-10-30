@@ -469,18 +469,20 @@ class TestStatus(RepoCase):
         self.assertIn("2 unresolved threads not open in the file", out)
         self.assertIn("Next: sdd-pr pull --pr 7", out)
         # Nothing open, HEAD moved since the last pass with a code file changed, before the maintainer's
-        # review: the pass over the fixes waits for that review (review.md § Passes).
+        # review: the next pass waits for that review (review.md § Passes).
         moved = [(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="a.go\n")
         self.use(moved + self._gh_routes())
         _, out, _ = self.run_main("status")
         self.assertIn("code changed since", out)
         self.assertIn("Mergeable: yes", out)
         self.assertNotIn("Next: /sdd-review", out)
-        # After the maintainer's review, a code change → the one pass over the fixes.
+        # After the maintainer's review, a code change → one more pass, over the whole branch.
         maintainer = "claude: go-reviewer (1 of 1)\nReviewed ddddddd · 2026-10-01 · maintainer: ana (1 of 1)\n"
         self.findings(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)\n", maintainer))
         self.use(moved + self._gh_routes())
-        self.assertIn("Next: /sdd-review --since-last", self.run_main("status")[1])
+        _, out, _ = self.run_main("status")
+        self.assertIn("Mergeable: yes", out)
+        self.assertIn("Next: /sdd-review\n", out)
         # A fix to documents alone gets that pass only when it wrote a MUST.
         docs = [(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="docs/specifications/s.md\n")
         self.use(docs + self._gh_routes())
@@ -488,7 +490,9 @@ class TestStatus(RepoCase):
         wrote = (git("diff", "--no-ext-diff", "-U0"), "diff --git a/docs/specifications/s.md b/docs/specifications/s.md\n"
                  "+++ b/docs/specifications/s.md\n@@ -4 +4 @@\n+A token MUST expire.\n")
         self.use([wrote] + docs + self._gh_routes())
-        self.assertIn("Next: /sdd-review --since-last", self.run_main("status")[1])
+        _, out, _ = self.run_main("status")
+        self.assertIn("Mergeable: yes", out)
+        self.assertIn("Next: /sdd-review\n", out)
         # Once that pass is in, the budget is spent: a fix after it does not steer to review.
         self.findings(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)\n",
                                          maintainer + "Reviewed eeeeeee · 2026-10-02 · claude: go-reviewer (1 of 1)\n"))
@@ -496,6 +500,14 @@ class TestStatus(RepoCase):
         _, out, _ = self.run_main("status")
         self.assertIn("passes: the budget is spent", out)
         self.assertNotIn("Next: /sdd-review", out)
+        # A second review by the maintainer opens one more pass.
+        self.findings(FILE_CLEAN.replace("claude: go-reviewer (1 of 1)\n",
+                                         maintainer + "Reviewed eeeeeee · 2026-10-02 · claude: go-reviewer (1 of 1)\n"
+                                         "Reviewed fffffff · 2026-10-03 · maintainer: ana (1 of 1)\n"))
+        self.use(moved + self._gh_routes())
+        _, out, _ = self.run_main("status")
+        self.assertNotIn("budget is spent", out)
+        self.assertIn("Next: /sdd-review\n", out)
         self.findings(FILE_CLEAN)
         # Nothing open, a draft → mark ready.
         self.use([reviewed_at_head] + git_routes() + self._gh_routes(draft=True))
@@ -3181,7 +3193,7 @@ class TestPassesAndScope(RepoCase):
         self.assertIn("(no change since)", out)
         self.assertNotIn("Next: /sdd-review", out)
 
-    def test_two_agents_on_one_commit_and_the_maintainer_leave_the_pass_over_the_fixes(self):
+    def test_two_agents_on_one_commit_and_the_maintainer_leave_one_more_pass(self):
         self.descriptor(forge="none")
         self.findings(FILE_CLEAN.replace(
             "Reviewed %s · 2026-09-30 · claude: go-reviewer (1 of 1)\n" % HEAD[:7],
@@ -3191,7 +3203,26 @@ class TestPassesAndScope(RepoCase):
         self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="a.go\n"))
         _, out, _ = self.run_main("status")
         self.assertNotIn("budget is spent", out)
-        self.assertIn("Next: /sdd-review --since-last", out)
+        self.assertIn("Mergeable: yes", out)
+        self.assertIn("Next: /sdd-review\n", out)
+
+    def test_a_branch_with_no_pass_yet_is_steered_to_its_first(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_CLEAN.replace("Reviewed %s · 2026-09-30 · claude: go-reviewer (1 of 1)\n" % HEAD[:7], ""))
+        self.use(git_routes(names="a.go\n"))
+        _, out, _ = self.run_main("status")
+        self.assertIn("Mergeable: no — not reviewed yet", out)
+        self.assertIn("Next: /sdd-review\n", out)
+
+    def test_an_open_finding_comes_before_the_pass_after_the_maintainers_review(self):
+        self.descriptor(forge="none")
+        self.findings(FILE_OPEN_IMPORTANT.replace(
+            "claude: go-reviewer (1 of 1)\n",
+            "claude: go-reviewer (1 of 1)\nReviewed ddddddd · 2026-10-01 · maintainer: ana (1 of 1)\n"))
+        self.use([(git("rev-parse", "--verify", "--quiet"), "c" * 40 + "\n")] + git_routes(names="a.go\n"))
+        _, out, _ = self.run_main("status")
+        self.assertIn("Mergeable: no — 1 important open", out)
+        self.assertIn("Next: /sdd-triage\n", out)
 
     def test_a_pass_note_older_than_an_hour_or_unreadable_does_not_block(self):
         self.descriptor(forge="none")
@@ -3450,10 +3481,13 @@ class TestStart(GitHubCase):
         self.descriptor(forge="github")
         self.findings(FILE_CLEAN.replace(HEAD[:7], "9c1e2ab", 1))
         self.PR = {"isDraft": False, "body": "## Spec and traceability\n\nLane: maintenance\n"}
-        self.use(self.routes(threads=[gh_thread(101, "a.go", 3, "why?")], diff="DIFF",
-                             extra=[(git("diff", "--name-only"), "a.go\n")]))
+        fake = self.use(self.routes(threads=[gh_thread(101, "a.go", 3, "why?")], diff="DIFF",
+                                    extra=[(git("diff", "--name-only"), "a.go\n")]))
         code, out, err = self.run_main("start", "--agent", "cursor-grok", "--pr", "7")
         self.assertEqual(0, code, err)
+        # The whole branch, though a pass is on record: only --since-last starts at it.
+        self.assertTrue(fake.called("diff", MB, "HEAD"))
+        self.assertFalse(fake.called("diff", "9c1e2ab"))
         self.assertIn("lane maintenance (the pull request body)", out)
         self.assertIn("pull request 7 (open): 1 new finding pulled", out)
         self.assertIn("gate log: none at %s" % HEAD[:7], out)
