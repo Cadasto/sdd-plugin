@@ -3549,7 +3549,13 @@ class TestStart(GitHubCase):
         self.use([(git("rev-parse", "--verify", "--quiet"), HEAD + "\n")] + git_routes())
         code, out, _ = self.run_main("start", "--agent", "claude", "--since-last")
         self.assertEqual(0, code)
-        self.assertIn("range: empty", out)
+        self.assertIn("range: empty; nothing to review since the last pass", out)
+        # A branch with nothing past its base is empty on the whole-branch read too, with no "last pass".
+        self.use([(git("merge-base", "main"), HEAD + "\n"), (git("merge-base", "origin/main"), HEAD + "\n")]
+                 + git_routes())
+        code, out, _ = self.run_main("start", "--agent", "claude")
+        self.assertEqual(0, code)
+        self.assertIn("range: empty; nothing to review (sdd-pr status)", out)
 
     def test_the_brief_lists_only_the_musts_the_range_wrote(self):
         # A conformance reviewer proves a guard for each MUST the branch added to a specification as a new

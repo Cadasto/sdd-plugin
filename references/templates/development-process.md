@@ -2,7 +2,7 @@
 kind: guide
 ---
 
-# Development process — the SDD constitution
+# Development process
 
 How work flows in this repository. The **specification records the contract the code is measured
 against, and the maintainer's instruction outranks it**: a request that contradicts a sentence names it

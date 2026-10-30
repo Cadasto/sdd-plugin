@@ -27,6 +27,7 @@ Dependency-free (stdlib only) so the ``scripts/validate.sh`` soft-skip is the *o
 reason it wouldn't run. Usage: python3 scripts/validate.py   (from the repo root)
 """
 import json
+import posixpath
 import re
 import subprocess
 import sys
@@ -195,8 +196,8 @@ SCAN_EXCLUDE_DIR_NAMES = {".git", ".superpowers", "node_modules", "__pycache__"}
 # references/templates/ holds documents `sdd-scaffold` copies into a consuming repo's docs/ tree;
 # their relative links resolve from THAT destination, not from where this repository stores the
 # template — e.g. `ai-workflow.md` links `../AGENTS.md`, correct once scaffolded to
-# `docs/ai-workflow.md`, dead here. The templates' own links are covered by the gate's own
-# `links` family once scaffolded, so this validator skips the directory instead of mis-flagging it.
+# `docs/ai-workflow.md`, dead here. validate_template_links() checks them against the scaffolded
+# trees instead, so validate_links() skips the directory rather than mis-flagging it.
 TEMPLATES_DIR = ROOT / "references" / "templates"
 
 FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
@@ -323,6 +324,41 @@ def validate_links():
                 if slugs is not None and frag not in slugs:
                     err(f"{rel}: link '{target}' — fragment '#{frag}' matches no heading or "
                         f"anchor in {dest_label}")
+
+
+# Where `/sdd-scaffold` writes each linking template, per profile (its step 3). The gate's `links`
+# family reads AGENTS.md and the docs tree, so a link dead in either tree fails the first check.
+_SCAFFOLD_BOTH = {
+    "AGENTS.md": "AGENTS.md",
+    "docs/.sdd.yaml": "sdd.yaml",
+    "docs/development-process.md": "development-process.md",
+    "docs/ai-workflow.md": "ai-workflow.md",
+    "docs/ci.md": "ci.md",
+    "docs/specifications/README.md": "specifications-README.md",
+    "docs/adr/README.md": "adr-README.md",
+}
+SCAFFOLD_TREES = {
+    "formal": {**_SCAFFOLD_BOTH, "docs/requirements/README.md": "requirements-README.md",
+               "docs/specifications/traceability.yaml": "traceability.yaml"},
+    "informative": {**_SCAFFOLD_BOTH, "docs/architecture.md": "constitution.md"},
+}
+
+
+def validate_template_links():
+    """Each template's relative links resolve inside the tree `/sdd-scaffold` writes, on each profile."""
+    for profile, tree in SCAFFOLD_TREES.items():
+        for dest, name in tree.items():
+            if not name.endswith(".md"):
+                continue
+            text = INLINE_CODE_RE.sub("", _strip_fences((TEMPLATES_DIR / name).read_text()))
+            for m in LINK_RE.finditer(text):
+                target = m.group(1).strip().partition("#")[0]
+                if not target or target.startswith(("http://", "https://", "mailto:", "tel:")):
+                    continue
+                resolved = posixpath.normpath(posixpath.join(posixpath.dirname(dest), target))
+                if resolved not in tree:
+                    err(f"references/templates/{name}: link '{target}' is dead in a scaffolded "
+                        f"{profile} repository ({dest})")
 
 
 def _retired(*parts: str) -> str:
@@ -574,6 +610,7 @@ def main():
     validate_rules()
 
     validate_links()
+    validate_template_links()
     validate_retired_vocabulary()
     validate_word_budgets()
     validate_forge_neutrality()
