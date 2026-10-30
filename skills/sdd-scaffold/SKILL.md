@@ -7,7 +7,7 @@ allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 
 # Scaffold an SDD repository
 
-> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it; `references/…` and `tools/…` resolve from it.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it; `tools/…` resolves from it.
 
 Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process docs and the gate. **Idempotent:** fill gaps; never overwrite a file that has content.
 
@@ -18,7 +18,7 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
    - **`--upgrade` given, or a descriptor with no `check:` block** (it predates the gate) → **`--upgrade`** below instead of steps 2–6; without the flag, open the report with `no check: block in docs/.sdd.yaml — ran --upgrade`.
    - **A descriptor with a `check:` block** → a top-up of steps 2–6: create only what is missing and report what was skipped.
 2. **Establish conventions** in `docs/.sdd.yaml`:
-   - `profile` — ask unless given (`AskUserQuestion` where available), with one sentence on each from `references/sdd-methodology.md` §1a. On informative, ask only `build_entrypoint`, `ci_target`, `spec_check_target` and `ground_truth` below.
+   - `profile` — ask unless given (`AskUserQuestion` where available), with one sentence on each from [methodology §1a](../../references/sdd-methodology.md#1a-two-profiles). On informative, ask only `build_entrypoint`, `ci_target`, `spec_check_target` and `ground_truth` below.
    - `forge` — leave `auto` (from the remote URL) unless the maintainer names `github`, `azure-devops` or `none`.
    - `req_style` — `area-prefixed` (`REQ-AUTH-001`, a capability map; recommend for products) or `flat-numeric` (`REQ-050`; recommend for libraries). Ask if unspecified.
    - Ask for `req_areas` and `excluded_areas` (area-prefixed only), `build_entrypoint`, `ci_target`, `spec_check_target`, `use_probes`, `use_strands`, `upstream`, and `ground_truth` (the source for domain facts).
@@ -35,11 +35,11 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
      specifications/ (README.md, traceability.yaml)
      adr/            (README.md)
    ```
-   From `references/templates/`: `sdd.yaml` → `docs/.sdd.yaml`; `requirement.md`, `specification.md` and `adr.md` → a `_template.md` in each kind's folder; the starter `traceability.yaml`; the three index READMEs (`requirements-README.md`, `specifications-README.md`, `adr-README.md`); `development-process.md`, `ai-workflow.md`, `ci.md`. Write the block of `development-process.md` § The PR body to `.github/PULL_REQUEST_TEMPLATE.md` when no pull-request template exists in any case under `.github/`, `docs/`, the root, `.azuredevops/` or `.vsts/`.
+   From [templates/](../../references/templates/): `sdd.yaml` → `docs/.sdd.yaml`; `requirement.md`, `specification.md` and `adr.md` → a `_template.md` in each kind's folder; the starter `traceability.yaml`; the three index READMEs (`requirements-README.md`, `specifications-README.md`, `adr-README.md`); `development-process.md`, `ai-workflow.md`, `ci.md`. Fill their `<build_entrypoint>`, `<ci_target>` and `<spec_check_target>` from the descriptor. Write the block of `development-process.md` § The PR body to `.github/PULL_REQUEST_TEMPLATE.md` when no pull-request template exists in any case under `.github/`, `docs/`, the root, `.azuredevops/` or `.vsts/`.
 
    **Informative:** write `docs/architecture.md` from `constitution.md` when absent; no `requirements/` directory and no traceability map; the descriptor carries `profile: informative`, `paths.constitution` and `forge: auto`. On both profiles emit no plan template, no `docs/plans/`, no `docs/.sdd/`.
 
-   **3b. Vendor the gate.** Copy the plugin's `tools/sdd-check.py` to `check.script` (default `scripts/sdd-check.py`), creating parents, and `chmod +x` it. Write its version — `python3 <check.script> --version`, or the `__version__ = "…"` line without Python — into `check.version` (`references/sdd-check.md` § Vendoring and the version pin).
+   **3b. Vendor the gate.** Copy the plugin's `tools/sdd-check.py` to `check.script` (default `scripts/sdd-check.py`), creating parents, and `chmod +x` it. Write its version — `python3 <check.script> --version`, or the `__version__ = "…"` line without Python — into `check.version` ([sdd-check.md § Vendoring](../../references/sdd-check.md#vendoring-and-the-version-pin)).
 
    **3c. Starter changelog.** If `check.changelog.path` (default `CHANGELOG.md`) does not exist, write exactly a `# Changelog` heading and an empty `## [Unreleased]` section.
 
@@ -47,12 +47,12 @@ Lay down the `docs/` tree, the descriptor, the governed `AGENTS.md`, the process
 4. **Write the governed entry point.** With no `AGENTS.md`, copy the template, drop its leading `<!-- Template: … -->` comment, and fill the identity and tooling placeholders from the descriptor; with one, report the SDD sections to merge and offer to add them. Fill the descriptor's `agents:` block. Suggest `reviewers` and `worker_skills` from the build manifests: `go.mod` suggests the block map `"**/*.go"`, `"**/go.mod"` → `go-coding:go-reviewer` and `[go-coding:go-coding]`, written once the maintainer confirms that plugin is installed; for other manifests, ask for the repository's own reviewer, or leave the list empty (the per-task gate then reports itself unconfigured). Nothing dispatches an agent the descriptor does not name. Fill the code-index line in `docs/ai-workflow.md` § Orchestration (`none` when there is no index tool).
 5. **Wire the build gate.** Unless `<spec_check_target>` already runs `<check.script>` and `<ci_target>` runs it, wire them: `<spec_check_target>` running `python3 <check.script> selftest && python3 <check.script> check`, wired into `<ci_target>` — **make**: a `spec-check` rule among `ci`'s prerequisites; **task**: a task whose `cmds:` run both, in `ci`'s `deps:`; **just**: a recipe the `ci` recipe depends on; **npm**: a `"spec-check"` script the `"ci"` script runs with `npm run spec-check`. Propose the diff; never silently rewrite an existing build file.
 
-   **5b. Generate, then check.** Run `python3 <check.script> generate --root .` and then `check --root .`, and read the output. Informative: both pass with the map families skipped. Formal: the starter map has no records, so both exit 1 on `map-schema` by design, and `generate` still writes the specifications and ADR indexes (`references/sdd-check.md` § What a writing run refuses). Without `python3`, skip both and say so.
+   **5b. Generate, then check.** Run `python3 <check.script> generate --root .` and then `check --root .`, and read the output. Informative: both pass with the map families skipped. Formal: the starter map has no records, so both exit 1 on `map-schema` by design, and `generate` still writes the specifications and ADR indexes ([sdd-check.md](../../references/sdd-check.md#what-a-writing-run-refuses)). Without `python3`, skip both and say so.
 6. **Report** created and skipped paths, the vendored version, and step 5b's output. When `check` failed only on the empty starter map, say that is the expected first state and name `/sdd-specify` next. On a top-up, when the plugin's tool is newer than `check.version` or the descriptor lacks a template key, name `/sdd-scaffold --upgrade` next.
 
 ## `--upgrade` — top up an existing repository
 
-Follow `references/scaffold-upgrade.md` in order. Touch no existing key or document body except what it proposes and the maintainer confirms; report what changed.
+Follow [scaffold-upgrade.md](../../references/scaffold-upgrade.md) in order. Touch no existing key or document body except what it proposes and the maintainer confirms; report what changed.
 
 ## Guardrails
 
@@ -61,5 +61,5 @@ Follow `references/scaffold-upgrade.md` in order. Touch no existing key or docum
 
 ## Reference
 
-- `references/templates/` — every file this skill emits.
-- `references/traceability-schema.md` — the `.sdd.yaml` and `traceability.yaml` schemas, the `check:` block included.
+- [templates/](../../references/templates/) — every file this skill emits.
+- [traceability-schema.md](../../references/traceability-schema.md) — the `.sdd.yaml` and `traceability.yaml` schemas, the `check:` block included.

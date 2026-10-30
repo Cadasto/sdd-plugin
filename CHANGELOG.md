@@ -42,6 +42,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - References: methodology §4 holds the rule that environment behaviour is prose; `review.md` § Keywords added during review points to it.
 - References: `review.md` drops restatements in § The findings file, § Scope and § The backlog, and points to `docs/install.md` for the forge CLI; `sdd-check.md` drops two in § Generated blocks.
 - Scripts: the word budget for `references/review.md` falls from 3070 to 2990, and `review.md` loses its forge-CLI exemption.
+- Skills: every skill links the references by a path relative to its own folder; the router and `sdd-specify` drop the plugin-root note, and the others keep it only for the tools.
+- Skills: `sdd-deliver`, `sdd-triage`, `sdd-specify`, `sdd-review`, `sdd-close` and the router point to `review.md` and the methodology for the lane test, the sentence-and-code rule, the deferral, the backlog consolidation, the mirror and the keyword rule instead of restating them.
+- Skills: `rules/sdd-context.mdc` points to the review skills for the findings rules.
+- Scripts: the skills' word budgets fall to their new counts (7531 to 7174 words in all).
+- Docs: `AGENTS.md` and `authoring.md` state the link convention.
 
 ### Fixed
 - Templates: a fresh informative scaffold passes the gate's `links` family: `AGENTS.md` no longer links the requirements index and `specifications-README.md` no longer links the map.
@@ -51,6 +56,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Skills: `sdd-triage` and `rules/sdd-context.mdc` leave an unfixed `outside` defect for the close-out, `sdd-close` drops the unnamed suggestions with `flip --suggestions --dropped`, and `sdd-deliver` drops the `--close-out` pointer.
 - Tools: `sdd-pr start` says "since the last pass" on an empty range only with `--since-last`; `guard --help` shows the test command, `add --outside` covers a document, and `clean --help` no longer says it keeps the branch.
 - Scripts: `validate.py` checks each template's links in the tree the scaffold writes, on both profiles.
+- Skills: `sdd-scaffold` fills `<build_entrypoint>`, `<ci_target>` and `<spec_check_target>` in the process documents and the PR template, not only in `AGENTS.md`.
 - Agents: `sdd-traceability-auditor` drops what it is unsure of and caps suggestions at five, as `review.md` says; `sdd-doc-reviewer` files two homes for one rule as important, not critical; `sdd-spec-conformance-reviewer` names a sentence the range wrote that disagrees with the code as a document fix, not a finding; `sdd-implementer` no longer searches the disk for the references.
 - Hooks: `session-start.sh` keeps the banner, the plugin version, the version-mismatch warning and the branch line on a branch with a findings file.
 
