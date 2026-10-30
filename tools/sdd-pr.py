@@ -1809,7 +1809,7 @@ def cmd_start(session: Session, args) -> int:
         session.save()
     rng = review_range(session.root, session.fs, session.base(), session.head, since_last=args.since_last)
     if not rng:
-        print("range: empty; nothing to review since the last pass (sdd-pr status)")
+        print("range: empty; nothing to review%s (sdd-pr status)" % (" since the last pass" if args.since_last else ""))
         return 0
     start, widened = diff_start(session.root, session.base(), rng)
     files = changed_files(session.root, rng, session.globs, session.vendored, start, session.skip)
@@ -3153,8 +3153,7 @@ stderr; redirect it to a file under .sdd/, then fill every field still in <…>.
 branch is reported, never a stop. The gate is never run here.""",
     "clean": """after the merge, run from any checkout of the clone, a detached one included: removes the
 branch's worktree (one this command runs in is left to you, with the commands; the main checkout steps onto
-the base), deletes the local branch only when it holds no commit the pull request lacks, then its findings
-file and delivery notes. Refuses, changing nothing, while the pull request is open, the branch has commits
+the base), deletes the local branch, then its findings file and delivery notes. Refuses, changing nothing, while the pull request is open, the branch has commits
 the pull request lacks, a worktree holds uncommitted work or is locked, or a line in the findings file would
 be lost; refuses the base and the default branch, and, unnamed, a branch with no findings file or notes.
 Never touches the pull request or the remote branch.""",
@@ -3210,6 +3209,7 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--diff", metavar="KIND|REVIEWER", help="print the range's hunks for one kind or reviewer")
             cmd.add_argument("--start", metavar="AGENT", help="note that AGENT starts a pass; record clears the note")
         if name == "guard":
+            cmd.usage = "%(prog)s <path:line> --expect TEXT (--delete | --replace TEXT) [--timeout SECONDS] -- <test command>"
             cmd.add_argument("selector", nargs="?", help="the guard's <path:line>")
             cmd.add_argument("--expect", metavar="TEXT", help="text the line holds now")
             cmd.add_argument("--delete", action="store_true", help="delete the line")
@@ -3231,7 +3231,7 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--evidence")
             cmd.add_argument("--fix")
             cmd.add_argument("--by")
-            cmd.add_argument("--outside", action="store_true", help="a critical or important line about code the change did not touch")
+            cmd.add_argument("--outside", action="store_true", help="a critical or important line about code or a document the change did not touch")
         if name == "flip":
             cmd.add_argument("selector", nargs="?", help="the #key status prints, or <path:line>")
             cmd.add_argument("--fixed", metavar="SHA")

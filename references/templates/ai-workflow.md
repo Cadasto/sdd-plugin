@@ -58,9 +58,9 @@ writes it) and,
 on a pull request, in its inline threads, one summary per pass and the suggestion comments, which
 `sdd-pr` keeps in step. Three severities, by harm: critical and important about the change are resolved before
 merge and get inline threads; one about code or a document the change did not touch keeps its severity, marked
-`outside`, blocks nothing, is fixed here when the fix is small and carried after merge otherwise; suggestions never block, at most five per reviewer per pass, and after merge `/sdd-triage --backlog` carries them to
+`outside`, blocks nothing, is fixed here when the fix is small, else carried by the close-out; suggestions never block, at most five per reviewer per pass, and after merge `/sdd-triage --backlog` carries them to
 `docs/backlog.md`, kept at about 40 lines. A suggestion names an input and a weaker result and outlives the change; taste (naming,
-wording, style) never does, and wrong behaviour is never a suggestion. A slip in a document the branch wrote is fixed in the pass, not filed. Every critical or important
+wording, style) never does, and wrong behaviour is never a suggestion. A slip in a document the branch wrote is a fix, not a finding. Every critical or important
 finding carries evidence. A claim of wrong code behaviour is settled by running it, or by a named input,
 then graded by its harm; a missing specification sentence never lowers it. Nothing else about findings is
 posted, the pull request's body included.
