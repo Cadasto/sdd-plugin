@@ -14,8 +14,8 @@ Checks:
     ``disallowedTools:`` (denylist) — and never the ``allowed-tools`` key, which Claude Code
     silently ignores so the agent inherits *all* tools (both flagged as errors);
   * every relative link in a ``*.md`` file resolves, and a ``#fragment`` on a ``.md`` target
-    resolves to a heading slug or an explicit anchor (``references/templates/`` excluded —
-    its links resolve once ``sdd-scaffold`` copies it into a consuming repo, not from here);
+    resolves to a heading slug or an explicit anchor; a template's links are checked where
+    ``sdd-scaffold`` writes it, on each profile, not where it is stored here;
   * retired vocabulary does not reappear in any git-tracked file outside ``CHANGELOG.md`` and
     ``docs/upgrading.md``;
   * the vendored gate's version, the template's pinned ``check.version``, and both manifests'
@@ -280,6 +280,11 @@ def _anchors_in(path: Path):
     return slugs
 
 
+def _link_target(raw: str) -> str:
+    """A link's target without an optional `"title"` after the URL, and unwrapped from `<...>`."""
+    return re.split(r'\s+["\']', raw.strip(), maxsplit=1)[0].strip().strip("<>")
+
+
 def validate_links():
     """Every relative link target in a `*.md` file must exist; a `#fragment` on a `.md` target
     must resolve to a heading slug or an explicit anchor in that file. Fenced code is skipped for
@@ -298,9 +303,7 @@ def validate_links():
         rel = md.relative_to(ROOT)
         text = INLINE_CODE_RE.sub("", _strip_fences(md.read_text()))
         for m in LINK_RE.finditer(text):
-            target = m.group(1).strip()
-            # Drop an optional `"title"` after the URL, and unwrap `<...>`.
-            target = re.split(r'\s+["\']', target, maxsplit=1)[0].strip().strip("<>")
+            target = _link_target(m.group(1))
             if not target or target.startswith(("http://", "https://", "mailto:", "tel:")):
                 continue
             path_part, _, frag = target.partition("#")
@@ -326,39 +329,64 @@ def validate_links():
                         f"anchor in {dest_label}")
 
 
-# Where `/sdd-scaffold` writes each linking template, per profile (its step 3). The gate's `links`
-# family reads AGENTS.md and the docs tree, so a link dead in either tree fails the first check.
+# Where `/sdd-scaffold` writes each template, per profile (its steps 3 and 3c); None is a file it
+# writes from no template file. The gate's `links` family reads AGENTS.md and the docs tree, so a
+# link dead in either tree fails the consuming repository's first check.
 _SCAFFOLD_BOTH = {
     "AGENTS.md": "AGENTS.md",
+    "CHANGELOG.md": None,
+    ".github/PULL_REQUEST_TEMPLATE.md": None,
     "docs/.sdd.yaml": "sdd.yaml",
     "docs/development-process.md": "development-process.md",
     "docs/ai-workflow.md": "ai-workflow.md",
     "docs/ci.md": "ci.md",
     "docs/specifications/README.md": "specifications-README.md",
+    "docs/specifications/_template.md": "specification.md",
     "docs/adr/README.md": "adr-README.md",
+    "docs/adr/_template.md": "adr.md",
 }
 SCAFFOLD_TREES = {
     "formal": {**_SCAFFOLD_BOTH, "docs/requirements/README.md": "requirements-README.md",
+               "docs/requirements/_template.md": "requirement.md",
                "docs/specifications/traceability.yaml": "traceability.yaml"},
     "informative": {**_SCAFFOLD_BOTH, "docs/architecture.md": "constitution.md"},
 }
+# Templates the skills read from the plugin at dispatch or authoring time; the scaffold writes none.
+NOT_SCAFFOLDED = {"brief.md", "task-review.md", "gap-draft.md"}
 
 
 def validate_template_links():
-    """Each template's relative links resolve inside the tree `/sdd-scaffold` writes, on each profile."""
+    """Each template's relative links, fragments included, resolve inside the tree `/sdd-scaffold`
+    writes, on each profile; every Markdown template is in a tree or in NOT_SCAFFOLDED."""
+    placed = {name for tree in SCAFFOLD_TREES.values() for name in tree.values() if name}
+    for path in sorted(TEMPLATES_DIR.glob("*.md")):
+        if path.name not in placed | NOT_SCAFFOLDED:
+            err(f"references/templates/{path.name}: in no SCAFFOLD_TREES entry and not in NOT_SCAFFOLDED")
     for profile, tree in SCAFFOLD_TREES.items():
         for dest, name in tree.items():
-            if not name.endswith(".md"):
+            if not name or not name.endswith(".md"):
                 continue
-            text = INLINE_CODE_RE.sub("", _strip_fences((TEMPLATES_DIR / name).read_text()))
+            source = TEMPLATES_DIR / name
+            if not source.is_file():
+                err(f"references/templates/{name}: missing, though the scaffold writes it to {dest}")
+                continue
+            text = INLINE_CODE_RE.sub("", _strip_fences(source.read_text()))
             for m in LINK_RE.finditer(text):
-                target = m.group(1).strip().partition("#")[0]
+                target = _link_target(m.group(1))
                 if not target or target.startswith(("http://", "https://", "mailto:", "tel:")):
                     continue
-                resolved = posixpath.normpath(posixpath.join(posixpath.dirname(dest), target))
+                path_part, _, frag = target.partition("#")
+                resolved = posixpath.normpath(posixpath.join(posixpath.dirname(dest), path_part)) if path_part else dest
                 if resolved not in tree:
                     err(f"references/templates/{name}: link '{target}' is dead in a scaffolded "
                         f"{profile} repository ({dest})")
+                    continue
+                linked = tree[resolved]
+                if frag and linked and linked.endswith(".md"):
+                    slugs = _anchors_in(TEMPLATES_DIR / linked)
+                    if slugs is not None and frag not in slugs:
+                        err(f"references/templates/{name}: link '{target}' — fragment '#{frag}' matches "
+                            f"no heading or anchor in {linked}")
 
 
 def _retired(*parts: str) -> str:
