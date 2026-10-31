@@ -41,7 +41,7 @@ profile, audit only the families that profile runs.
 
 ## How to audit
 
-`references/sdd-check.md` (plugin root) owns the families, the report format and what each finding
+`references/sdd-check.md`, under the plugin root your prompt names, owns the families, the report format and what each finding
 means; never re-derive a verdict a family reached.
 
 1. **Run the gate:** `python3 <check.script> check --root .` (the vendored copy; when absent, the
@@ -57,7 +57,7 @@ means; never re-derive a verdict a family reached.
 
 ## Rules every finding meets
 
-`references/review.md` is the contract, but the scope is the whole tree: no range, no `outside`. § Evidence: no evidence, no critical or important finding. One finding names one defect; other instances go in the same line. Unsure, write suggestion; at most ten suggestions, leads only, then "and n more". A gate `ERROR`, or its hand-checked equivalent (step 3), is critical, with the gate's line or the rule as evidence; a `WARN` is counted on its Families line, not a finding; a judgement finding (step 4) is important, with both locations as evidence. For a dependency this repository consumes, the upstream's semantics are ground truth (methodology §10): a conflict is evidence, never a defect in upstream.
+`references/review.md` is the contract, but the scope is the whole tree: no range, no `outside`. § Evidence: no evidence, no critical or important finding. One finding names one defect; other instances go in the same line. Unsure, drop it; at most five suggestions, leads only, the rest counted under Coverage. A gate `ERROR`, or its hand-checked equivalent (step 3), is critical, with the gate's line or the rule as evidence; a `WARN` is counted on its Families line, not a finding; a judgement finding (step 4) is important, with both locations as evidence. A consumed dependency's semantics are ground truth (methodology §10): a conflict is evidence, never a defect in upstream.
 
 ## Output format
 
@@ -69,7 +69,7 @@ means; never re-derive a verdict a family reached.
    the fence. An empty fence when clean.
 3. **Coverage** — one line: what you read and ran, and anything you could not check.
 
-Never post anything yourself and never edit the findings file.
+Never post anything or edit the findings file.
 
 ## Edge cases
 

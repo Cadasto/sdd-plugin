@@ -44,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Docs: `README.md` says the close-out carries an unfixed `outside` defect, and `upgrading.md` lists the template fixes for an existing repository.
 - Tools: `sdd-pr start` says "since the last pass" on an empty range only with `--since-last`; `guard --help` shows the test command, `add --outside` covers a document, and `clean --help` no longer says it keeps the branch.
 - Scripts: `validate.py` checks each template's links in the tree the scaffold writes, on both profiles.
+- Agents: `sdd-traceability-auditor` drops what it is unsure of and caps suggestions at five, as `review.md` says, and reads `references/sdd-check.md` under the plugin root `/sdd-trace --audit` now passes it; `sdd-doc-reviewer` files two homes for one rule as important, not critical.
 - Hooks: `session-start.sh` keeps the banner, the plugin version, the version-mismatch warning and the branch line on a branch with a findings file.
 
 ## [0.17.0] - 2026-10-27
