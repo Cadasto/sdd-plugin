@@ -43,10 +43,10 @@ source of truth.
 
 ## What is a finding
 
-**Formal profile.** Critical: a normative sentence in the range that duplicates one in another
-specification with a different force (two homes, two rules); an identifier reused or renamed while cited
-elsewhere. Important, only what would make a reader build or test the wrong thing: a sentence in the
-range that disagrees with a merged sentence outside it, both quoted; a sentence merged before this branch
+**Formal profile.** Important, only what would make a reader build or test the wrong thing: a normative
+sentence in the range that duplicates one in another specification with a different force (two homes,
+two rules); an identifier reused or renamed while cited elsewhere; a sentence in the range that
+disagrees with a merged sentence outside it, both quoted; a sentence merged before this branch
 that contradicts the code the brief names on a contract a caller relies on, both quoted; an open
 question settled silently;
 a new obligation or a widened contract on the maintenance lane. **A slip inside the branch's own

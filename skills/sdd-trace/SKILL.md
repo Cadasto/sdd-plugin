@@ -7,29 +7,29 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, Task
 
 # Trace — the SDD traceability gate
 
-> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it; `references/…` resolves from it.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it.
 
 Read `docs/.sdd.yaml` first; without one, route to `/sdd-scaffold` and stop. Mode A needs a map: without one (the informative profile may have none), say so and stop.
 
-Run the gate as `references/sdd-check.md` defines `sdd-check <cmd>`, following its report-only exception when the gate is not vendored. Without `python3`, say so and use the mode's fallback.
+Run the gate as [sdd-check.md](../../references/sdd-check.md) defines `sdd-check <cmd>`, following its report-only exception when the gate is not vendored. Without `python3`, say so and use the mode's fallback.
 
 ## Mode A — context bundle for a REQ
 
 Run `context <REQ>` and present its output unchanged.
 
-**Fallback.** Assemble by hand what `context` prints (`references/sdd-check.md` § Commands); strands only if `use_strands`.
+**Fallback.** Assemble by hand what `context` prints ([sdd-check.md § Commands](../../references/sdd-check.md#commands)); strands only if `use_strands`.
 
 Either way, name the next action (e.g. "no implementation yet → `/sdd-deliver`").
 
 ## Mode B — drift scan (the spec-check analogue)
 
-With no REQ, run `check` and report its findings by family, with the offending id or path; `references/sdd-check.md` owns what each finding means. Add judgement only where the tool cannot decide: whether a duplicated-prose finding's second copy is really the same statement.
+With no REQ, run `check` and report its findings by family, with the offending id or path; [sdd-check.md](../../references/sdd-check.md) owns what each finding means. Add judgement only where the tool cannot decide: whether a duplicated-prose finding's second copy is really the same statement.
 
 **Fallback.** Say the scan is incomplete; compare the requirements index and the map by hand.
 
 ## Mode C — `--audit`
 
-Dispatch the **`sdd-traceability-auditor`** agent and relay its report: before a release, or when a `spec-check` failure is unexplained.
+Dispatch the **`sdd-traceability-auditor`** agent with the prompt `Plugin root: <plugin root>` and relay its report.
 
 ## Guardrails
 
@@ -38,6 +38,6 @@ Dispatch the **`sdd-traceability-auditor`** agent and relay its report: before a
 
 ## Reference
 
-- `references/sdd-check.md` — the gate's invocation, commands, families, report format and exit codes.
-- `references/traceability-schema.md` — the record format and what counts as drift.
-- `references/sdd-methodology.md` — §8 the traceability chain and drift CI, §10 the one-shot bundle.
+- [sdd-check.md](../../references/sdd-check.md) — the gate's invocation, commands, families, report format and exit codes.
+- [traceability-schema.md](../../references/traceability-schema.md) — the record format and what counts as drift.
+- [sdd-methodology.md](../../references/sdd-methodology.md) — §8 the traceability chain and drift CI, §10 the one-shot bundle.

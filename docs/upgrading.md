@@ -2,6 +2,25 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.17.x to the next release
+
+`sdd-check` changed, so re-vendor it; the rest are template fixes.
+
+1. **Re-vendor the gate.** Run `/sdd-scaffold --upgrade`: it copies the new gate over `check.script` and
+   sets `check.version`. The new gate accepts up to two sub-areas in an area-prefixed id
+   (`REQ-NFR-SCAL-001`).
+2. **Informative profile.** The scaffold linked `docs/requirements/README.md` from `AGENTS.md` and
+   `traceability.yaml` from `docs/specifications/README.md`; neither exists on that profile, so the
+   gate's `links` family failed. Where `check` reports them, write each name as code instead of a link,
+   as the templates now do.
+3. **Process documents.** `/sdd-scaffold --upgrade` proposes `docs/ai-workflow.md` § Review, which now
+   says the close-out carries an unfixed `outside` defect and a slip in the branch's own document is a
+   fix, and the PR template with its gate command filled. By hand: retitle `docs/development-process.md`
+   "Development process" (it is not the constitution), and fill `<build_entrypoint>`, `<ci_target>` and
+   `<spec_check_target>` where `docs/ci.md`, `docs/development-process.md` § The gate or
+   `docs/ai-workflow.md` § Tooling still shows them.
+4. **`/sdd-deliver --close-out`** no longer points to `/sdd-close`; run `/sdd-close` itself.
+
 ## From 0.16.x to 0.17.0
 
 Retiring a requirement. A retired requirement keeps its section in place and the gate stops warning on

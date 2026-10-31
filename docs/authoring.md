@@ -31,6 +31,7 @@ For skills the `description` is always-on metadata. Keep it lean and in the thir
 
 ## Body
 
+- **Link a reference relative to the skill's folder**, `[review.md § Severity](../../references/review.md#severity)`, never by a bare `references/…` path, which Claude Code reads against the skill's base directory; `scripts/validate.py` checks every link and anchor.
 - **Cite the methodology; don't re-derive it.** The single source of truth for the rules is `references/sdd-methodology.md` (and `references/traceability-schema.md` for the machine-readable formats). A skill body states *its* procedure and points at the canonical reference for the *why*, which keeps skills lean and the rules in one place.
 - **Operate on Markdown, not source code.** The `sdd-*` skills operate on documents; the one component that touches source is the `sdd-implementer` agent, and only inside the files its brief names. The skills read and write docs, the requirements index, the traceability map, and `AGENTS.md`. They are language-agnostic by construction and **read `docs/.sdd.yaml` first** rather than hard-coding paths or identifier styles.
 - **Enforce boundaries; don't invent rules.** A skill keeps document kinds separate, identifiers stable, and the chain intact. It never adds a normative rule that isn't already in a spec.

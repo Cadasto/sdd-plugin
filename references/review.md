@@ -58,7 +58,7 @@ line through with a named input, then graded by its harm; disproven, it is dropp
 run nor a missing specification sentence lowers it, and one a caller can trigger (a write outside its
 folder, a crash on bad input) is at least important. A sentence and the code that disagree is a defect
 in whichever side is wrong: the maintainer's instruction decides, else the branch's own sentence is
-corrected ([sdd-methodology.md](sdd-methodology.md) §6, §7). A document finding is important only when a reader would build or test the wrong thing from it (two merged documents that disagree; a sentence that contradicts the code on a contract; an open question settled silently) or a binding change skipped its lane or ADR; a slip in a document this branch wrote is a fix, applied in the pass, not a finding (§ Document fixes).
+corrected ([sdd-methodology.md](sdd-methodology.md) §6, §7). A document finding is important only when a reader would build or test the wrong thing from it (two merged documents that disagree; a sentence that contradicts the code on a contract; an open question settled silently) or a binding change skipped its lane or ADR; a slip in a document this branch wrote is a fix, not a finding (§ Document fixes).
 Two reviewers' grades for one defect: the higher one with evidence.
 
 ## Scope
@@ -68,7 +68,7 @@ agent's own, when it has one) and leaves out what a merge of the base brought in
 with `--base`. **A defect in a file the branch changed is in scope, whatever severity it was filed at:**
 fixed in the branch or declined with a reason; the pass budget limits reviewing, never fixing. A critical or
 important finding about code, or a document, the branch did not change keeps its
-severity and carries `outside`: it blocks nothing; with a small fix it is fixed here, otherwise it is carried after merge. Read the changed hunks and what surrounds them, not whole files.
+severity and carries `outside`: it blocks nothing; with a small fix it is fixed here, otherwise the close-out carries it (§ The backlog). Read the changed hunks and what surrounds them, not whole files.
 
 ## Evidence
 
@@ -194,7 +194,7 @@ request. A plugin older than the repository's `check.version` refuses every writ
   finding without evidence, drops `outside` from a line the branch changed, and folds a line with the same anchor and sentence into the first (the higher severity, `outside` only when both say so), and another reviewer's suggestion into a blocking line on its anchor, kept as `- [~]`.
 - `flip <#key | path:line> --fixed <sha> | --declined <reason> | --deferred <where> | --carry | --dropped`
   — resolves one line; `--fixed` needs the fix on `origin/<branch>` when that exists;  `--suggestions` in
-  place of the line applies to every one left and, with `--carry`, to the open `outside` lines.
+  place of the line applies to every one left and, with `--carry` or `--deferred`, to the open `outside` lines.
 - `harvest [--since <date | #PR>] [--dry-run]` — § The backlog.
 - `record --agent <name> --reviewers <a, b> --reported <n>/<m>` — the `Reviewed` line at HEAD; refuses
   (exit 2) a pass on which no reviewer reported, which still ends it; clears `scope --start`'s note and removes the scratch worktree.
@@ -203,7 +203,7 @@ request. A plugin older than the repository's `check.version` refuses every writ
 - `rename --from <branch>` — moves a file to the checked-out branch without its `Reviewed` lines, thread
   and comment ids, which belonged to the old branch.
 - `clean [<branch>] [--pr N] [--dry-run]` — after the merge, from any checkout: removes the branch's
-  worktree, the branch (only when it holds no commit the merged pull request lacks), its findings file and delivery notes; refuses, changing nothing, while a line would be
+  worktree, the branch, its findings file and delivery notes; refuses, changing nothing, while the branch holds a commit the merged pull request lacks, a line would be
   lost or a worktree holds uncommitted work, and refuses the base, the default branch and, unnamed, a
   branch with no findings file or notes. A worktree it runs in is left, with the commands; the pull request
   and the remote branch are never touched.

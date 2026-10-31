@@ -167,7 +167,7 @@ The format and its rules live in [review.md](../references/review.md).
 
 Run it when `sdd-pr status` shows nothing blocking. It sets the requirement to `shipped`, ticks the acceptance criteria the change delivered, adds the changelog line, writes the pull request body and marks a draft ready. It fixes an `outside` defect with a small fix in the branch and carries the remaining defects to `docs/backlog.md` in this pull request; it asks once which suggestions to carry, by name, and the rest wait on the pull request for `/sdd-triage --backlog`. It ends by telling you to start the next change in a new session.
 
-You merge on the forge. Then run `/sdd-close <N>` again, from any checkout: `sdd-pr clean` removes the branch's worktree, the local branch and its findings file. It keeps the branch when it holds a commit the pull request does not, and refuses while a line in the findings file would be lost. Run from inside the worktree it would remove, it prints the commands for you instead. The pull request and the remote branch are yours.
+You merge on the forge. Then run `/sdd-close <N>` again, from any checkout: `sdd-pr clean` removes the branch's worktree, the local branch and its findings file. It refuses, changing nothing, while the branch holds a commit the pull request does not or a line in the findings file would be lost. Run from inside the worktree it would remove, it prints the commands for you instead. The pull request and the remote branch are yours.
 
 ## Carry merged pull requests' leftovers to the backlog
 

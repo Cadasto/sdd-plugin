@@ -34,8 +34,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Templates: `ai-workflow.md` calls triage's re-review a whole-branch one.
 - Tools: `sdd-pr status` points at `/sdd-review`, not `/sdd-review --since-last`, once the maintainer has reviewed.
 - Docs: `README.md` and `docs/quick-start.md` say triage's re-review reads the whole branch.
+- Docs: `authoring.md` says how a skill links a reference, and `testing.md` names the template link check.
+
+### Removed
+- Skills: `sdd-deliver` no longer redirects `--close-out` to `/sdd-close`.
 
 ### Fixed
+- Templates: a fresh informative scaffold passes the gate's `links` family: `AGENTS.md` no longer links the requirements index and `specifications-README.md` no longer links the map.
+- Templates: `development-process.md` is titled "Development process", not the constitution; `ai-workflow.md` § Review says the close-out carries an unfixed `outside` defect and a document slip is a fix.
+- References: `review.md` says the close-out carries an unfixed `outside` defect, a document slip is applied by triage, `clean` refuses a branch with commits the pull request lacks, and `flip --suggestions --deferred` reaches the `outside` lines.
+- References: `scaffold-upgrade.md` fills the gate placeholders before comparing a process document's section.
+- Skills: `sdd-triage` leaves an unfixed `outside` defect for the close-out, and `sdd-close` drops the unnamed suggestions with `flip --suggestions --dropped`.
+- Cursor rule: `rules/sdd-context.mdc` says the close-out carries an unfixed `outside` defect.
+- Docs: `README.md` says the close-out carries an unfixed `outside` defect, `examples.md` says `clean` refuses a branch with commits the pull request lacks, and `upgrading.md` lists what an existing repository changes.
+- Tools: `sdd-pr start` says "since the last pass" on an empty range only with `--since-last`; `guard --help` shows the test command, `add --outside` covers a document, and `clean --help` no longer says it keeps the branch.
+- Scripts: `validate.py` checks each template's links and anchors in the tree the scaffold writes, on both profiles.
+- Agents: `sdd-traceability-auditor` drops what it is unsure of and caps suggestions at five, as `review.md` says, and reads its references under the plugin root that `/sdd-trace --audit` now passes.
+- Agents: `sdd-doc-reviewer` files two homes for one rule, and an identifier reused or renamed while cited, as important, not critical.
+- Skills: the six skills that named a reference by a bare `references/…` path link it relative to their own folder and no longer say a bare path resolves, as `sdd-review` and `sdd-triage` do; `sdd-specify` cites § Keywords added during review by its anchor.
+- Skills: `sdd-scaffold` fills `<build_entrypoint>`, `<ci_target>` and `<spec_check_target>` in the process documents and the PR template, not only in `AGENTS.md`.
 - Hooks: `session-start.sh` keeps the banner, the plugin version, the version-mismatch warning and the branch line on a branch with a findings file.
 
 ## [0.17.0] - 2026-10-27
