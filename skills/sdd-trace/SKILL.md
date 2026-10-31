@@ -7,7 +7,7 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, Task
 
 # Trace — the SDD traceability gate
 
-> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it; `references/…` resolves from it.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it.
 
 Read `docs/.sdd.yaml` first; without one, route to `/sdd-scaffold` and stop. Mode A needs a map: without one (the informative profile may have none), say so and stop.
 

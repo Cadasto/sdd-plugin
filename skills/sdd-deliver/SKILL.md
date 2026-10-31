@@ -7,7 +7,7 @@ allowed-tools: Agent, Task, Bash, Read, Write, Edit, Grep, Glob
 
 # Deliver — one change, from the dispatch gate to a ready pull request
 
-> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it; `references/…` and `tools/…` resolve from it. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
 
 The procedure and its parameters come from the descriptor and this file, never from session memory. Run as the orchestrator on the strongest model available; **one change per session**: when this session already carries another pull request's work, say so first and recommend a fresh session, since the findings file and the delivery notes hold the state. `--lane` overrides step 1.
 

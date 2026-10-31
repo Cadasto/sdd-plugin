@@ -23,8 +23,9 @@ are living, versioned, governing contracts.
 |---|----------|-----|
 | 1 | [docs/development-process.md](docs/development-process.md) | document kinds, identifiers, the flow, the gates |
 | 2 | [docs/ai-workflow.md](docs/ai-workflow.md) | the agent loop, ground-truth lookups, tooling |
-| 3 | [docs/specifications/README.md](docs/specifications/README.md) | normative behaviour (`SPEC-*`) + conventions |
-| 4 | [docs/ci.md](docs/ci.md) | how CI enforces the methodology |
+| 3 | `docs/requirements/README.md` (formal profile) | the capability index (`REQ-*`) |
+| 4 | [docs/specifications/README.md](docs/specifications/README.md) | normative behaviour (`SPEC-*`) + conventions |
+| 5 | [docs/ci.md](docs/ci.md) | how CI enforces the methodology |
 
 The linked docs are **canonical** — defer to them rather than duplicating their content here.
 

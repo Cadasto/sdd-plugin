@@ -3862,6 +3862,12 @@ class TestSelfDescribing(RepoCase):
         self.assertIn("- [ ] critical · <path>:<line> · <one sentence> · evidence:", out)
         self.assertIn("ends · outside", out)
 
+    def test_guard_help_shows_the_test_command_and_the_cleanup(self):
+        code, out, _ = self.run_main("guard", "--help")
+        self.assertEqual(0, code)
+        self.assertIn("-- <test command>", out)
+        self.assertIn("guard --cleanup", out)
+
     def test_a_newer_install_beside_this_one_is_named(self):
         cache = self.root / "cache"
         for version in ("0.12.0", "0.12.1", "9.9.9"):

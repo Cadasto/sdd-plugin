@@ -7,7 +7,7 @@ allowed-tools: Bash, Read, Write, Edit, Grep, Glob
 
 # Close — the close-out in the pull request, the clean-up after the merge
 
-> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it; `references/…` and `tools/…` resolve from it. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it. `sdd-pr` below is `python3 <plugin root>/tools/sdd-pr.py`.
 
 Read `docs/.sdd.yaml` first: `profile`, `paths.*`, `forge`, the build targets. No descriptor: route to `/sdd-scaffold` and stop. Given a number, pass `--pr N` to every `sdd-pr` call; a `REQ` id names the requirement step 2 closes.
 

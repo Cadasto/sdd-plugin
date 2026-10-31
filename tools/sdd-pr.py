@@ -235,8 +235,8 @@ class Findings:
 
     @property
     def outside(self) -> List[Finding]:
-        """The open critical and important lines about code the change did not touch: they keep their
-        severity, block nothing, and are carried after merge unless fixed here (review.md § Scope)."""
+        """The open critical and important lines about code or a document the change did not touch: they
+        keep their severity, block nothing, and the close-out carries them unless fixed here (review.md § Scope)."""
         return [f for f in self.open if "outside" in f.flags]
 
     @property
@@ -3209,7 +3209,8 @@ def build_parser() -> argparse.ArgumentParser:
             cmd.add_argument("--diff", metavar="KIND|REVIEWER", help="print the range's hunks for one kind or reviewer")
             cmd.add_argument("--start", metavar="AGENT", help="note that AGENT starts a pass; record clears the note")
         if name == "guard":
-            cmd.usage = "%(prog)s <path:line> --expect TEXT (--delete | --replace TEXT) [--timeout SECONDS] -- <test command>"
+            cmd.usage = ("%(prog)s <path:line> --expect TEXT (--delete | --replace TEXT) [--timeout SECONDS] -- <test command>"
+                         "\n       %(prog)s --cleanup")
             cmd.add_argument("selector", nargs="?", help="the guard's <path:line>")
             cmd.add_argument("--expect", metavar="TEXT", help="text the line holds now")
             cmd.add_argument("--delete", action="store_true", help="delete the line")

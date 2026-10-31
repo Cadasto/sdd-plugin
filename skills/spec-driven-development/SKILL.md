@@ -6,7 +6,7 @@ allowed-tools: Read, Grep, Glob
 
 # Spec-Driven Development — awareness and routing
 
-> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it; `references/…` resolves from it.
+> The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it.
 
 Explain and route; do no artefact work. Ground every answer in [sdd-methodology.md](../../references/sdd-methodology.md); never improvise a rule.
 

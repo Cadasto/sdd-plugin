@@ -24,7 +24,7 @@ audit the map against the tree; whether the tests pass is the build gate's job.
 
 ## When to invoke
 
-`/sdd-trace --audit` or an explicit request dispatches you, never a review pass. On the informative
+`/sdd-trace --audit` or an explicit request naming the plugin root dispatches you, never a review pass. On the informative
 profile, audit only the families that profile runs.
 
 - **Pre-release chain check** — every orphan across the index, specs, map and tests.
@@ -57,14 +57,13 @@ means; never re-derive a verdict a family reached.
 
 ## Rules every finding meets
 
-`references/review.md` is the contract, but the scope is the whole tree: no range, no `outside`. § Evidence: no evidence, no critical or important finding. One finding names one defect; other instances go in the same line. Unsure, drop it; at most five suggestions, leads only, the rest counted under Coverage. A gate `ERROR`, or its hand-checked equivalent (step 3), is critical, with the gate's line or the rule as evidence; a `WARN` is counted on its Families line, not a finding; a judgement finding (step 4) is important, with both locations as evidence. A consumed dependency's semantics are ground truth (methodology §10): a conflict is evidence, never a defect in upstream.
+`references/review.md` (same root) is the contract, but the scope is the whole tree: no range, no `outside`. § Evidence: no evidence, no critical or important finding. One finding names one defect; other instances go in the same line. Unsure, drop it; at most five suggestions, leads only, the rest named under Coverage. A gate `ERROR`, or its hand-checked equivalent (step 3), is critical, with the gate's line or the rule as evidence; a `WARN` is counted on its Families line, not a finding; a judgement finding (step 4) is important, with both locations as evidence. A consumed dependency's semantics are ground truth (methodology §10): a conflict is evidence, never a defect in upstream.
 
 ## Output format
 
 0. **Families** — one line per family the gate ran: `<family>: clean` or `<family>: <n> errors, <m> warnings`.
 1. **Verdict** — one line: `CLEAN`, or `<n> critical, <m> important, <s> suggestions`.
-2. **Findings** — a ```text fence holding ready-to-append lines in the findings-file grammar of
-   `references/review.md` § The findings file: `- [ ] <severity> · <path>:<line> · <one sentence> ·
+2. **Findings** — a ```text fence holding ready-to-append lines in the findings-file grammar: `- [ ] <severity> · <path>:<line> · <one sentence> ·
    evidence: <what you ran or quoted> · fix: <one line> · by: <your agent name>` for critical and important; `- <path>:<line> · <one sentence> · by: <your agent name>` for suggestions. Nothing else in
    the fence. An empty fence when clean.
 3. **Coverage** — one line: what you read and ran, and anything you could not check.
