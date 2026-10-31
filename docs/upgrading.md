@@ -2,9 +2,9 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
-## From 0.17.x to the next release
+## From 0.17.x to 0.18.0
 
-`sdd-check` changed, so re-vendor it; the rest are template fixes.
+`sdd-check` changed, so re-vendor it. Reviews read the whole branch by default, and the rest are template fixes.
 
 1. **Re-vendor the gate.** Run `/sdd-scaffold --upgrade`: it copies the new gate over `check.script` and
    sets `check.version`. The new gate accepts up to two sub-areas in an area-prefixed id
@@ -20,6 +20,12 @@ This page is for maintainers of a repository scaffolded by an earlier version of
    `<spec_check_target>` where `docs/ci.md`, `docs/development-process.md` § The gate or
    `docs/ai-workflow.md` § Tooling still shows them.
 4. **`/sdd-deliver --close-out`** no longer points to `/sdd-close`; run `/sdd-close` itself.
+5. **Reviews read the whole branch.** `/sdd-review`, triage's re-review included, reads the whole
+   branch on every pass; ask for `--since-last` to read only the commits since the last pass.
+6. **A cheaper model for mechanical tasks (optional).** `agents.mechanical_worker_model` names the model
+   `/sdd-deliver` passes for a task with nothing to decide. `--upgrade` does not add keys inside an
+   existing `agents:` block, and without the key such a task uses `agents.worker_model`; add it by hand
+   to use a cheaper model.
 
 ## From 0.16.x to 0.17.0
 

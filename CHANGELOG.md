@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-31
+
+Faster workers and whole-branch reviews. `sdd-pr brief` fills the worker brief, with a code map, and a mechanical task may run on a cheaper model. `/sdd-review` reads the whole branch unless the maintainer asks for `--since-last`, and runs its commands in the pull request's worktree. The gate's link check takes about half the time. An area-prefixed id may carry up to two sub-areas. Fixes align the references, the tools and the scaffold templates with each other; among them, a fresh informative scaffold no longer fails its own link check. `sdd-check` changed, so re-vendor it. Moving a repository from 0.17.x is described in `docs/upgrading.md`.
+
 ### Added
 - Tools: `sdd-pr brief` prints the worker brief with the branch, worktree, worker skills and code index filled, and names the dispatch model.
 - Templates: `sdd.yaml` gains `agents.mechanical_worker_model`, the model `/sdd-deliver` passes for a mechanical task; default `inherit`.
