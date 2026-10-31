@@ -8,7 +8,7 @@ allowed-tools: Read, Grep, Glob
 
 > The plugin root is the folder that holds this skill's `skills/` folder (`${CLAUDE_PLUGIN_ROOT}` on Claude Code): take it from this file's own path, `\` turned into `/`, and never search the disk for it; `references/…` resolves from it.
 
-Explain and route; do no artefact work. Ground every answer in `references/sdd-methodology.md`; never improvise a rule.
+Explain and route; do no artefact work. Ground every answer in [sdd-methodology.md](../../references/sdd-methodology.md); never improvise a rule.
 
 ## Core idea (state this when explaining SDD)
 
@@ -42,12 +42,12 @@ A general engineering plugin such as superpowers is **optional**: its brainstorm
 - **Read `docs/.sdd.yaml` first** for `profile`; none: the repo isn't scaffolded, route to `sdd-scaffold`.
 - **Spec-first for a new capability (formal profile).** When asked to add a capability that no `REQ` and no spec covers, do not jump to code: explore if the idea is new, record it with `sdd-specify`, deliver with `sdd-deliver`. Everything else on shipped code — a fix, hardening, a maintainer's instruction that a behaviour is wrong — is *implementation-aligned*: route it to `sdd-deliver`, code first, the sentence reconciled in the **same** change (methodology §7); never route it to `sdd-specify` first, and never argue from the sentence. On the informative profile, route everything to `sdd-deliver`.
 - **One source of truth.** The specs under `paths.specifications`, never a plan or a second design tree. A keyword only for what a caller relies on (methodology §4).
-- **One home per fact, in process prose too:** commit and PR bodies, the changelog and review threads cite identifiers instead of restating (`references/artefact-prose.md`).
+- **One home per fact, in process prose too:** commit and PR bodies, the changelog and review threads cite identifiers instead of restating ([artefact-prose.md](../../references/artefact-prose.md)).
 - **Never settle an open question silently** — an ADR (`sdd-specify`), a `STRAND`, or back to brainstorming.
-- **Never hand-edit a generated block**; `sdd-check generate` writes it (`references/sdd-check.md`).
+- **Never hand-edit a generated block**; `sdd-check generate` writes it ([sdd-check.md](../../references/sdd-check.md)).
 
 ## Reference
 
-- `references/sdd-methodology.md` — the rules.
-- `references/review.md` — the findings file, severities, evidence and the forge mirror.
-- `references/sdd-check.md` · `references/traceability-schema.md` · `references/artefact-prose.md`.
+- [sdd-methodology.md](../../references/sdd-methodology.md) — the rules.
+- [review.md](../../references/review.md) — the findings file, severities, evidence and the forge mirror.
+- [sdd-check.md](../../references/sdd-check.md) · [traceability-schema.md](../../references/traceability-schema.md) · [artefact-prose.md](../../references/artefact-prose.md).

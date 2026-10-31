@@ -45,6 +45,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Tools: `sdd-pr start` says "since the last pass" on an empty range only with `--since-last`; `guard --help` shows the test command, `add --outside` covers a document, and `clean --help` no longer says it keeps the branch.
 - Scripts: `validate.py` checks each template's links in the tree the scaffold writes, on both profiles.
 - Agents: `sdd-traceability-auditor` drops what it is unsure of and caps suggestions at five, as `review.md` says, and reads `references/sdd-check.md` under the plugin root `/sdd-trace --audit` now passes it; `sdd-doc-reviewer` files two homes for one rule as important, not critical.
+- Skills: the six skills that named a reference by a bare `references/…` path link it relative to their own folder, as `sdd-review` and `sdd-triage` do; `sdd-specify` cites § Keywords added during review by its anchor.
+- Skills: `sdd-scaffold` fills `<build_entrypoint>`, `<ci_target>` and `<spec_check_target>` in the process documents and the PR template, not only in `AGENTS.md`.
 - Hooks: `session-start.sh` keeps the banner, the plugin version, the version-mismatch warning and the branch line on a branch with a findings file.
 
 ## [0.17.0] - 2026-10-27
