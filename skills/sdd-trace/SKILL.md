@@ -11,7 +11,7 @@ allowed-tools: Read, Glob, Grep, Bash, Agent, Task
 
 Read `docs/.sdd.yaml` first; without one, route to `/sdd-scaffold` and stop. Mode A needs a map: without one (the informative profile may have none), say so and stop.
 
-Run the gate as [sdd-check.md](../../references/sdd-check.md) defines `sdd-check <cmd>`, following its report-only exception when the gate is not vendored. Without `python3`, say so and use the mode's fallback.
+Run the gate as [sdd-check.md](../../references/sdd-check.md) defines `sdd-check <cmd>`, following its report-only exception when the gate is not vendored. Without Python 3.11+, say so and use the mode's fallback.
 
 ## Mode A — context bundle for a REQ
 
