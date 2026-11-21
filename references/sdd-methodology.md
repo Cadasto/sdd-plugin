@@ -2,7 +2,7 @@
 
 The single source of truth for the rules this plugin's skills enforce. Skills cite this file rather than restating it, so it can evolve in one place. It is **language-agnostic**: a documentation-and-process architecture, not a code pattern.
 
-> **Guiding principle.** The **specification records the contract code is measured against.** Code is derived from it and continuously checked against it. **The maintainer's instruction outranks it:** when a request contradicts a sentence, name the sentence in one line, do the work, and amend the sentence in the same change. Without the maintainer, a disagreement between code and spec is a finding, not a stop, and the spec wins *unless* a section is marked implementation-aligned (§7) or the repository runs the informative profile, where code leads and only the constitution binds (§1a).
+> **Guiding principle.** The **specification records the contract code is measured against.** Code is derived from it and continuously checked against it. **The maintainer's instruction outranks it:** when a request contradicts a sentence, name the sentence in one line, do the work, and amend the sentence in place in the same change (§3). Without the maintainer, a disagreement between code and spec is a finding, not a stop, and the spec wins *unless* a section is marked implementation-aligned (§7) or the repository runs the informative profile, where code leads and only the constitution binds (§1a).
 
 ## 1. The rigour ladder — and where this plugin sits
 
@@ -81,9 +81,10 @@ Three rules hold the zones apart:
 
 ### Boundary rules (enforced by review, partly by CI)
 
+- **Amend in place.** A change edits the sentence that already holds its topic, in the requirement, the specification or the ADR. It adds no second paragraph, note or document beside that sentence. Git and the pull request keep the history and the reasons.
 - **Requirements** carry no file paths and no migration steps — only capability + acceptance + out-of-scope. Acceptance criteria cover the **negative space** too — what the capability must refuse or fail closed on, with the intended failure behaviour — not only the happy paths.
 - **Specifications** carry RFC-2119 prose only — no checkbox task lists, no implementation file paths, no PR-style summaries, no duplicated requirement bodies.
-- **ADRs** cover one decision each; long flows and schema DDL stay in the specs.
+- **ADRs** cover one decision each; long flows and schema DDL stay in the specs. A new ADR records only a decision that no existing ADR or specification section covers. When part of an accepted ADR goes stale, it is rewritten to the current state, with one `**Amended:** <date>: <what changed>` line under the ADR's status and date.
 - **Guides** are informative; when a guide disagrees with a spec, **the spec wins and the guide is updated.**
 - **Every document declares its kind** in frontmatter (`kind:`); the vocabulary is the descriptor's `doc_kinds`.
 
@@ -150,7 +151,7 @@ of them.
 
 ### The STRAND concept (naming the unknowns)
 
-A `STRAND-NN` is an open architectural question that is scoped, named, and tracked but **not yet decided** — explicitly *not* a draft requirement. It resolves by: produce evidence (spike / benchmark / fit-gap) → write an ADR → amend the affected `REQ`s → close the strand with a backlink to the ADR. This is the formal home for "we don't know yet," which keeps unknowns out of the code.
+A `STRAND-NN` is an open architectural question that is scoped, named, and tracked but **not yet decided** — explicitly *not* a draft requirement. It resolves by: produce evidence (spike / benchmark / fit-gap) → write an ADR, or amend the one that covers it (§3) → amend the affected `REQ`s → close the strand with a backlink to the ADR. This is the formal home for "we don't know yet," which keeps unknowns out of the code.
 
 ## 6. Status — per document kind
 
@@ -178,6 +179,11 @@ Each kind carries its own vocabulary:
 
 The upstream kind deliberately spells its key `state`, not `status`: the lifecycle it tracks belongs to
 another repository, not to this one (§10).
+
+An ADR changes by amendment in place (§3). It is `superseded` only when its whole decision is folded
+into another ADR, which then holds it and is named in its Status line (`superseded by ADR-NNNN`); a change
+to part of a decision amends the ADR instead. It is `deprecated` when its decision is withdrawn and
+nothing replaces it. Either way it keeps its file and number, so links resolve, and binds nothing.
 
 **"Enforced" implementation values** are `in_progress`, `partial`, `landed` and `shipped`. A record with
 one of these carries evidence — at least one `packages`, `tests`, or `operations` entry — and the gate
@@ -300,9 +306,10 @@ the specification's *Known gaps*, or, when it is about code, a line in `docs/bac
 - **Happy-path-only acceptance.** Acceptance criteria that never name what the capability must refuse or fail closed on — the negative space is part of the contract (§3, §9).
 - **Mixing kinds.** Tasks in a spec, file paths in a requirement, multiple decisions in one ADR — each erodes the boundaries that make the system legible.
 - **A status line that lies.** A `REQ` left `in_progress` after it shipped. The traceability record is the only state, and it has to be true.
-- **Memoir prose.** A specification section or a probe entry states the **current contract only**. History
-  — what it used to say, and why it changed — lives in git and in the ADR. A spec that narrates its own
-  past is two documents in one file.
+- **Memoir prose.** A requirement, specification section, ADR or probe entry states **only the current
+  contract or decision**. History — what it used to say, and why it changed — lives in git and the pull request.
+  A document that narrates its own past, or keeps a note beside the sentence the note changes, is two
+  documents in one file; a new ADR beside the one it changes is two homes for one decision (§3).
 - **Settling open questions silently in a PR.** Surface them — a STRAND, an ADR, or a question to the user. Undocumented decisions compound.
 - **Renumbering identifiers.** Breaks every external citation.
 - **CI logic that diverges from local.** If the local gate ≠ what CI runs, agents can't self-verify. One build entry point; every check is a target.
@@ -364,11 +371,13 @@ what the change did not touch keeps its severity but blocks nothing ([review.md]
 checked against the code and the documents before either is applied, and so is what surrounds them: the
 cause, what shares it, and what the correction would change. A finding can understate its defect.
 
-**Collapse before you add.** A requirement amended during review may not accrete per-incident
-corollaries; each residual folds into the existing invariant or replaces it.
+**Collapse before you add.** A requirement, specification or ADR amended during review accretes no
+per-incident corollaries; each residual folds into the sentence that holds its topic, or replaces it, in
+place (§3).
 
-**Decisions that bind go where decisions live.** A decline that should hold for future changes becomes a
-specification sentence or an ADR (formal), or a constitution sentence (informative) — never a side file.
+**Decisions that bind go where decisions live.** A decline that should hold for future changes is written
+into the sentence that holds its topic, in place (§3): a specification sentence or an ADR (formal), a
+constitution sentence (informative), a new one only where none holds it — never a side file.
 
 **The enforcement register.** A rule without a failing check is a wish. Every hard rule in this
 methodology names its enforcement — a `sdd-check` family, a build target, a hook, or `review-enforced`.
@@ -393,7 +402,7 @@ The review-enforced list is meant to shrink.
 | Critical and important findings carry evidence; one about what the change did not touch carries `outside` | review-enforced — `/sdd-review` |
 | No open critical or important finding about the change at merge | `sdd-pr status` |
 | The pass budget | review-enforced — `/sdd-triage` |
-| Collapse before you add | review-enforced |
+| Collapse before you add; amend in place | review-enforced |
 | Mutation-detectability | the build gate's tests |
 
 **The review layer meets the bar it imposes.** Every pass writes a `Reviewed` line naming the reviewers
