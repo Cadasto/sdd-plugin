@@ -2,12 +2,21 @@
 """sdd-pr — the branch's findings file, mirrored to the pull request's inline threads and suggestion comments.
 
 Commands: status, start, scope, pull, post, resolve, harvest, guard, clean, brief, and add, flip, record, rename,
-which own every write to the file. One file, Python 3.9+, standard library only.
+which own every write to the file. One file, Python 3.11 or newer, standard library only.
 Every external call (git, gh, az) goes through run_cli(), and a test command through run_test(); the tests
 replace both.
 Contract: references/review.md.
 """
 from __future__ import annotations
+
+import sys
+
+# The floor comes first, so an older Python prints one line instead of a traceback. The whole
+# file must still parse on Python 3.9 to reach it: no syntax newer than 3.9 anywhere.
+if sys.version_info < (3, 11):
+    sys.stderr.write("sdd-pr needs Python 3.11 or newer; this is Python %d.%d.%d (%s).\n"
+                     % (sys.version_info[0], sys.version_info[1], sys.version_info[2], sys.executable or "python3"))
+    sys.exit(2)
 
 import argparse
 import contextlib
@@ -22,7 +31,6 @@ import re
 import shlex
 import shutil
 import subprocess
-import sys
 import tempfile
 from typing import Dict, List, Optional, Sequence, Tuple
 from urllib.parse import unquote
@@ -2469,24 +2477,16 @@ def set_watermark(lines: List[str], value: str) -> None:
     lines.insert(end, "%s: %s" % (WATERMARK, value))
 
 
-INSTANT_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?)?\s*(Z|[+-]\d{2}:?\d{2})?$")
-
-
 def instant(text: str) -> Optional[datetime.datetime]:
-    """A date or an ISO 8601 date-time as a UTC instant, to the second; a date alone is its midnight UTC.
-    Python 3.9 reads neither `Z` nor the seven fraction digits Azure DevOps writes, so this reads both."""
-    match = INSTANT_RE.match((text or "").strip())
-    if not match:
+    """A date or an ISO 8601 date-time as a UTC instant, to the second; a date alone, or a time with no
+    offset, is UTC. Reads `Z` and the seven fraction digits Azure DevOps writes; None when unreadable."""
+    try:
+        value = datetime.datetime.fromisoformat((text or "").strip())
+    except ValueError:
         return None
-    y, mo, d, h, mi, sec, zone = match.groups()
-    offset = datetime.timedelta(0)
-    if zone and zone != "Z":
-        sign = -1 if zone[0] == "-" else 1
-        digits = zone[1:].replace(":", "")
-        offset = sign * datetime.timedelta(hours=int(digits[:2]), minutes=int(digits[2:]))
-    value = datetime.datetime(int(y), int(mo), int(d), int(h or 0), int(mi or 0), int(sec or 0),
-                              tzinfo=datetime.timezone.utc)
-    return value - offset
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=datetime.timezone.utc)
+    return value.astimezone(datetime.timezone.utc).replace(microsecond=0)
 
 
 def iso(value: datetime.datetime) -> str:
