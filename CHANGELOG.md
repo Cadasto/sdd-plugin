@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-21
+
+Python 3.11, draft pull requests and amending in place. `sdd-check` and `sdd-pr` need Python 3.11 or newer; on an older one, such as macOS's stock `python3`, each prints one line naming it and exits 2. `/sdd-deliver` opens every pull request as a draft and `/sdd-close` marks it ready when it pushes the close-out, so a CI that skips drafts runs once per pull request, on the commit about to merge. A change amends the sentence that holds its topic in place, and a new ADR records only a decision no ADR or specification section covers. `sdd-check` changed, so re-vendor it. Moving a repository from 0.18.x is described in `docs/upgrading.md`.
+
 ### Changed
 - Tools: `sdd-check` and `sdd-pr` need Python 3.11 or newer; on an older Python each prints one line naming it and exits 2.
 - Hooks: `session-start.sh` names a `python3` older than 3.11 and how to fix it, and skips the gate.

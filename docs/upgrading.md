@@ -2,7 +2,7 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
-## From 0.18.x to the next release
+## From 0.18.x to 0.19.0
 
 `sdd-check` and `sdd-pr` need Python 3.11 or newer: give CI and each machine one, then re-vendor
 the gate. `/sdd-deliver` opens every pull request as a draft again, and `/sdd-close` marks it ready
