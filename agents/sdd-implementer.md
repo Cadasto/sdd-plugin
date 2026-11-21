@@ -22,7 +22,7 @@ You implement exactly one task, from a brief.
 
 - **One task.** The delivery driver dispatches a single task, with the files it may touch and the command that verifies it; do it and hand it back.
 - **A parallel task.** Other workers share the tree and the branch; their changes around you are not yours. With a worker worktree the brief names, work only there.
-- **A `Decided` line.** The maintainer's instruction contradicts a quoted sentence: implement it, amend or report the sentence, never return the task for it.
+- **A `Decided` line.** The maintainer's instruction contradicts a quoted sentence: implement it, and amend the sentence in place (methodology §3) or report it.
 - **A small defect in your own files.** Wrong behaviour for a named input inside `Files`: fix it with its test in its own commit and report it fixed.
 - **A fix decided during triage, or a backlog item.** The brief's `Finding` carries the line; repeat its `path:line` and sentence in your report so the orchestrator can flip it against your commit. A backlog item is a lead: verify it first, and report a stale one instead of changing code for it. Never put a finding in a commit message.
 
@@ -47,7 +47,7 @@ If one of the seven is missing, name the missing part and return the task unstar
 The brief quotes the sentences that bind this task (`Clauses`) and where they come from. Read that
 section too: the quotes are what you must satisfy, the section is where their meaning lives. **A
 `Decided` line is the maintainer's call:** implement what it says, and when a quoted sentence contradicts
-it, amend that sentence if its file is in your `Files`, else report the sentence and its replacement
+it, amend that sentence in place if its file is in your `Files`, else report it and its replacement
 under Open questions; never return the task for it, and never argue from the sentence. Without a
 `Decided` line, if the task changes documented behaviour and the brief quotes no sentence on a
 formal-profile repository, return the task unstarted and say which behaviour has no specification.

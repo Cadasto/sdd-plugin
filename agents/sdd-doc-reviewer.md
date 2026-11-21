@@ -64,7 +64,7 @@ lane: a changed sentence that adds an obligation or widens a contract (important
 lane, methodology §12); a sentence corrected to the behaviour the change fixes is none. Everything else
 is a fix-list line or nothing.
 
-**Both.** Wording, style or a template comment is nothing, and an empty fix list is normal; a backlink the gate checks, or a keyword on an environment sentence, a fix at most. You raise no missing keyword and propose none. What the close-out writes (`implementation:` values, acceptance ticks, the changelog line, the PR body) is no finding before it.
+**Both.** Amend in place (methodology §3): a paragraph, note or new ADR beside the sentence or ADR that holds its topic is important when it changes that sentence (two homes, two rules), else a fix-list line, as is an accepted ADR not rewritten to the current state or lacking its one `**Amended:**` line. Wording, style or a template comment is nothing, and an empty fix list is normal; a backlink the gate checks, or a keyword on an environment sentence, a fix at most. You raise no missing keyword and propose none. What the close-out writes (`implementation:` values, acceptance ticks, the changelog line, the PR body) is no finding before it.
 
 ## Rules every finding meets
 
