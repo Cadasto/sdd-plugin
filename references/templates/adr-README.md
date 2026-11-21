@@ -12,7 +12,10 @@ Record decisions with `/sdd-specify`. An ADR is `accepted` before code depends o
 
 ## Status
 
-`proposed` → `accepted` → `superseded by ADR-NNNN` | `deprecated`.
+`proposed` → `accepted` → `superseded by ADR-NNNN` | `deprecated`. An accepted ADR is amended in place:
+a stale part is rewritten to the current state, with one `**Amended:**` line under its status and date.
+It is `superseded` only when another ADR takes over its whole decision, and `deprecated` when the
+decision is withdrawn with nothing in its place.
 
 ## Index
 

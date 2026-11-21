@@ -46,6 +46,10 @@ informative document is corrected; it never holds the only copy of a product-con
 Requirements hold capability, acceptance and out-of-scope, no implementation detail; specifications hold
 RFC-2119 prose only; an ADR holds one decision.
 
+**Amend in place.** A change edits the sentence that holds its topic, with nothing beside it, and a new ADR
+records only a decision no ADR or spec § covers; git and the pull request keep the history. A stale part
+of an accepted ADR is rewritten to the current state, with one `**Amended:** <date>: <what changed>` line.
+
 ## Identifiers
 
 Stable and citable, in commits and test names; **never renumbered or reused once published**. Normative
