@@ -17,7 +17,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Skills: `sdd-deliver` opens the pull request as a draft, ready for review only when the maintainer asks for one; `sdd-close` marks the draft ready when it pushes the close-out.
 - Templates: `AGENTS.md` and `ai-workflow.md` § Orchestration say agents open every PR as a draft, `/sdd-close` marks it ready, and a CI that skips drafts then runs once, on the commit about to merge.
 - Docs: `README.md`, `AGENTS.md`, `docs/quick-start.md`, `docs/examples.md` and `docs/testing.md` describe the draft pull request; `docs/upgrading.md` says what changes for a repository.
-- Scripts: the word limit for `references/templates/ai-workflow.md` rises from 1215 to 1235.
+- References: methodology §3 rules that a change amends the sentence holding its topic in place, with nothing beside it, and a new ADR records only an uncovered decision; §6 says what `superseded` and `deprecated` mean.
+- Skills: `sdd-specify` searches the requirements, specifications and ADRs for the topic first and amends a widened contract into its section and ADR, not a new ADR; `sdd-deliver`, `sdd-triage` and the router amend in place.
+- Agents: `sdd-doc-reviewer` reports a paragraph, note or new ADR beside the sentence that holds its topic, and an accepted ADR edited without its `**Amended:**` line; `sdd-implementer` amends in place.
+- Templates: `adr.md` gains an optional `**Amended:**` line; `adr-README.md`, `development-process.md`, `ai-workflow.md` and `AGENTS.md` state the amend-in-place rule.
+- Hooks: the session banner and the edit reminders for a requirement, a specification and an ADR say to amend in place.
+- Docs: `README.md` says an agent amends a sentence in place; `docs/upgrading.md` says what changes for a repository.
+- Scripts: the word limit for `references/templates/ai-workflow.md` rises from 1215 to 1248, for `development-process.md` from 1235 to 1259, for `sdd-specify` from 925 to 991, and for `sdd-doc-reviewer` from 1045 to 1094.
 
 ## [0.18.0] - 2026-10-31
 

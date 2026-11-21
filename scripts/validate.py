@@ -469,19 +469,19 @@ WORD_BUDGETS = {
     "skills/sdd-deliver/SKILL.md": 1607,
     "skills/sdd-close/SKILL.md": 920,
     "skills/sdd-scaffold/SKILL.md": 999,
-    "skills/sdd-specify/SKILL.md": 925,
+    "skills/sdd-specify/SKILL.md": 991,
     "skills/sdd-trace/SKILL.md": 430,
     "skills/spec-driven-development/SKILL.md": 680,
     "references/review.md": 3070,
     "references/artefact-prose.md": 800,
-    "agents/sdd-doc-reviewer.md": 1045,
+    "agents/sdd-doc-reviewer.md": 1094,
     "agents/sdd-spec-conformance-reviewer.md": 1015,
     "agents/sdd-traceability-auditor.md": 745,
     "agents/sdd-implementer.md": 1400,
-    "references/templates/ai-workflow.md": 1235,
+    "references/templates/ai-workflow.md": 1248,
     "references/templates/brief.md": 536,
     "references/templates/task-review.md": 215,
-    "references/templates/development-process.md": 1235,
+    "references/templates/development-process.md": 1259,
 }
 
 

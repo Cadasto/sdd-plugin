@@ -18,7 +18,8 @@ knowledge base in which only the constitution binds).
 ```
 0. Explore, if the idea is new: any design/brainstorming workflow you like → a design note.
 1. Specify: /sdd-specify — record the capability as a REQ, the normative behaviour as a SPEC § (RFC-2119),
-   and any irreversible decision as an ADR (formal); amend the constitution (informative).
+   and a new irreversible decision as an ADR (formal); amend the constitution (informative). Amend in
+   place: the sentence that holds the topic, nothing beside it.
 2. Look up ground truth before editing — the source named in .sdd.yaml (ground_truth); never guess.
    For a requirement already in the map, `sdd-check context <REQ>` prints its bundle.
 3. Deliver: /sdd-deliver — preconditions (formal) or a clear task (informative), workers per task,

@@ -14,6 +14,8 @@ date: <YYYY-MM-DD>
 
 <proposed | accepted | superseded by ADR-NNNN>  <!-- An ADR is `accepted` before code depends on it. -->
 
+**Amended:** <YYYY-MM-DD>: <what changed>  <!-- Optional, and only one: an accepted ADR whose part went stale is rewritten to the current state, and a later amendment updates this line. -->
+
 ## Context
 
 <The problem and the forces at play, and why this fork is irreversible. Do not name the chosen option; that is the Decision.>

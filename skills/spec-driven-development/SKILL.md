@@ -12,7 +12,7 @@ Explain and route; do no artefact work. Ground every answer in [sdd-methodology.
 
 ## Core idea (state this when explaining SDD)
 
-The **specification records the contract code is measured against; the maintainer's instruction outranks it.** When a request contradicts a sentence, name the sentence once, do the work, amend the sentence in the same change. Without the maintainer, a disagreement between code and spec is a finding, and the spec wins unless a section is *implementation-aligned* (methodology §7). The plugin targets the **spec-anchored** rung: stable identifiers, a machine-checked traceability map, CI that fails on drift.
+The **specification records the contract code is measured against; the maintainer's instruction outranks it.** When a request contradicts a sentence, name the sentence once, do the work, amend the sentence in place in the same change (methodology §3). Without the maintainer, a disagreement between code and spec is a finding, and the spec wins unless a section is *implementation-aligned* (methodology §7). The plugin targets the **spec-anchored** rung: stable identifiers, a machine-checked traceability map, CI that fails on drift.
 
 **Two profiles** (methodology §1a): `formal`, the above; `informative`, a knowledge base where code leads and only the constitution binds.
 

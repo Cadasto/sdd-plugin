@@ -61,6 +61,7 @@ first, the sentence reconciled in the same PR).
 - Identifiers are immutable once published. Never renumber or reuse.
 - Every document under docs/ declares its kind; derived indexes are generated — run `sdd-check generate`, never hand-edit a generated block.
 - Don't mix document kinds (no tasks in a spec, no file paths in a requirement, one decision per ADR).
+- Amend in place: a change edits the sentence that already holds its topic, adds no paragraph, note or document beside it, and opens a new ADR only for a decision no ADR or spec § covers. See [docs/development-process.md](docs/development-process.md) (*Document kinds*).
 - Don't settle an open question silently in code — raise a STRAND, draft an ADR, or ask.
 - Look domain facts up in the named ground-truth source (see [`docs/.sdd.yaml`](docs/.sdd.yaml)) — never guess.
 - Verify with the full gate before claiming done: `<build_entrypoint> <ci_target>` (includes `spec-check`).

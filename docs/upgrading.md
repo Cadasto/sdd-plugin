@@ -6,7 +6,7 @@ This page is for maintainers of a repository scaffolded by an earlier version of
 
 `sdd-check` and `sdd-pr` need Python 3.11 or newer: give CI and each machine one, then re-vendor
 the gate. `/sdd-deliver` opens every pull request as a draft again, and `/sdd-close` marks it ready
-when it pushes the close-out.
+when it pushes the close-out. Agents amend a requirement, a specification or an ADR in place.
 
 1. **Python 3.11 or newer.** On an older Python, the new gate and `sdd-pr` print one line naming it and
    exit 2. Once the plugin is updated, the session banner reads
@@ -28,6 +28,19 @@ when it pushes the close-out.
    `/sdd-close` marks it ready when it pushes the close-out. A CI that skips drafts then runs once, on
    the commit about to merge; a person merges." Where you already changed either line, keep your
    wording or take the template's.
+5. **Amend in place.** Agents now change a document by editing the sentence that holds its topic, with
+   no paragraph, note or new ADR beside it, and open a new ADR only for a decision no ADR or
+   specification section covers. A stale part of an accepted ADR is rewritten to the current state, with
+   one `**Amended:** <date>: <what changed>` line
+   ([methodology §3](../references/sdd-methodology.md#3-the-document-kinds-and-their-zones)). The
+   document reviewer grades a note or new ADR that changes the sentence it sits beside as important,
+   and returns one that only restates it, or an accepted ADR without its `**Amended:**` line, as a fix.
+   `/sdd-scaffold --upgrade` proposes the changed lines in
+   `docs/development-process.md` § Document kinds and `docs/ai-workflow.md` § The loop. By hand: add the
+   template's "Amend in place" line to `AGENTS.md` § Load-bearing rules, the lifecycle sentences to
+   `docs/adr/README.md` § Status, and the `**Amended:**` line to `docs/adr/_template.md`. Where your
+   process documents say an accepted ADR is never rewritten, or that a later ADR amends it with a note,
+   change that sentence too.
 
 ## From 0.17.x to 0.18.0
 
