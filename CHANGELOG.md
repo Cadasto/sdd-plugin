@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Skills: `sdd-scaffold` and `sdd-trace` say the gate needs Python 3.11 or newer.
 - References: `scaffold-upgrade.md` reports the new Python floor when it replaces an older gate; `sdd-check.md` lists an older Python as a cause of exit 2.
 - Docs: `install.md` § Python 3.11 or newer covers macOS's stock `python3`; `upgrading.md` says what changes for a repository.
+- Skills: `sdd-deliver` opens the pull request as a draft, ready for review only when the maintainer asks for one; `sdd-close` marks the draft ready when it pushes the close-out.
+- Templates: `AGENTS.md` and `ai-workflow.md` § Orchestration say agents open every PR as a draft, `/sdd-close` marks it ready, and a CI that skips drafts then runs once, on the commit about to merge.
+- Docs: `README.md`, `AGENTS.md`, `docs/quick-start.md`, `docs/examples.md` and `docs/testing.md` describe the draft pull request; `docs/upgrading.md` says what changes for a repository.
+- Scripts: the word limit for `references/templates/ai-workflow.md` rises from 1215 to 1235.
 
 ## [0.18.0] - 2026-10-31
 
