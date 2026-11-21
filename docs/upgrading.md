@@ -2,6 +2,19 @@
 
 This page is for maintainers of a repository scaffolded by an earlier version of the plugin. It lists, per release, what changed for an existing repository and the steps to bring it up to date, by `/sdd-scaffold --upgrade` or by hand. A repository that has never been scaffolded starts from the [quick start](quick-start.md) instead.
 
+## From 0.18.x to the next release
+
+`sdd-check` and `sdd-pr` need Python 3.11 or newer. Give CI and each machine one, then re-vendor the gate.
+
+1. **Python 3.11 or newer.** On an older Python, the new gate and `sdd-pr` print one line naming it and
+   exit 2. Once the plugin is updated, the session banner reads
+   `› drift gate: no verdict (python3 at <path> is Python <version>, …)` until the host app finds a
+   newer one, whichever gate is vendored. Run the `spec-check` target in CI on Python 3.11 or newer,
+   and put one first on the `PATH` of each machine's host app;
+   [install.md](install.md#python-311-or-newer) covers macOS.
+2. **Re-vendor the gate.** Run `/sdd-scaffold --upgrade`: it copies the new gate over `check.script`,
+   sets `check.version`, and names the Python floor in its report.
+
 ## From 0.17.x to 0.18.0
 
 `sdd-check` changed, so re-vendor it. Reviews read the whole branch by default, and the rest are template fixes.

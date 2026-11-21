@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- Tools: `sdd-check` and `sdd-pr` need Python 3.11 or newer; on an older Python each prints one line naming it and exits 2.
+- Hooks: `session-start.sh` names a `python3` older than 3.11 and how to fix it, and skips the gate.
+- Scripts: `validate.sh` needs Python 3.11 or newer and names an older one in its warning.
+- CI: `validate.yml` tests Python 3.11 and current 3.x on `actions/checkout@v7` and `actions/setup-python@v7`, and one failing leg no longer cancels the other.
+- Skills: `sdd-scaffold` and `sdd-trace` say the gate needs Python 3.11 or newer.
+- References: `scaffold-upgrade.md` reports the new Python floor when it replaces an older gate; `sdd-check.md` lists an older Python as a cause of exit 2.
+- Docs: `install.md` § Python 3.11 or newer covers macOS's stock `python3`; `upgrading.md` says what changes for a repository.
+
 ## [0.18.0] - 2026-10-31
 
 Faster workers and whole-branch reviews. `sdd-pr brief` fills the worker brief, with a code map, and a mechanical task may run on a cheaper model. `/sdd-review` reads the whole branch unless the maintainer asks for `--since-last`, and runs its commands in the pull request's worktree. The gate's link check takes about half the time. An area-prefixed id may carry up to two sub-areas. Fixes align the references, the tools and the scaffold templates with each other; among them, a fresh informative scaffold no longer fails its own link check. `sdd-check` changed, so re-vendor it. Moving a repository from 0.17.x is described in `docs/upgrading.md`.

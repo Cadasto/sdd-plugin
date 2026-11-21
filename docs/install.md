@@ -73,9 +73,13 @@ The session-start line names the plugin version Cursor loaded, read from the man
 
 Installing the plugin needs nothing. To get full value, the **repository you apply SDD to** should expose a single build entry point (`make`, `task`, `just`, or `npm`) with a `spec-check` target and a full `ci` target; `/sdd-trace` and the delivery gates invoke these. `/sdd-scaffold` adds whichever target is missing, wires it to the vendored gate rather than a stub, and records the target names in `docs/.sdd.yaml`.
 
-The `spec-check` target runs the vendored gate: `/sdd-scaffold` copies `tools/sdd-check.py` into the repository and wires `spec-check` to run `python3 <check.script> selftest && python3 <check.script> check`, so CI needs no plugin. The gate's contract, the families it checks and what each means, is in [references/sdd-check.md](../references/sdd-check.md); a repository may keep its own additional checks beside it.
+The `spec-check` target runs the vendored gate: `/sdd-scaffold` copies `tools/sdd-check.py` into the repository and wires `spec-check` to run `python3 <check.script> selftest && python3 <check.script> check`, so CI needs [Python 3.11 or newer](#python-311-or-newer) and no plugin. The gate's contract, the families it checks and what each means, is in [references/sdd-check.md](../references/sdd-check.md); a repository may keep its own additional checks beside it.
 
 The review tool, `tools/sdd-pr.py`, runs from the plugin root and is never vendored. `status` and `scope` need only git. Mirroring findings to a pull request needs the forge's CLI, signed in: `gh` for GitHub, or `az` with the `azure-devops` extension (`az extension add --name azure-devops`) for Azure DevOps. The backend is read from `forge:` in `docs/.sdd.yaml`, else from the remote URL; with `forge: none` nothing is needed and the findings file is the whole record.
+
+### Python 3.11 or newer
+
+The vendored gate and `sdd-pr` need Python 3.11 or newer, on every machine that runs them and in CI. On an older Python, each prints one line naming that Python and exits 2. On macOS, Apple's Command Line Tools put Python 3.9.6 at `/usr/bin/python3`, and it cannot be updated. Install a newer Python, for example from Homebrew or python.org. Then make sure the host app's `PATH` finds it first: an app started outside a terminal may find `/usr/bin/python3` before Homebrew's. The session-start hook names the `python3` it found when that one is too old.
 
 ## Hooks
 
