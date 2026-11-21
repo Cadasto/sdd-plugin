@@ -47,7 +47,8 @@ knowledge base in which only the constitution binds).
 - **Completion is accounted for.** A worker that dies is re-dispatched, or the gap is named. A task is not
   done because a dispatch ended.
 - **Findings state is read from the file, never remembered.**
-- **The maintainer merges;** agents open PRs, a draft only when asked.
+- **The maintainer merges;** agents open every PR as a draft, and `/sdd-close` marks it ready when it
+  pushes the close-out; a CI that skips drafts then runs once, on the commit about to merge.
 - Worker model, parallelism, worktrees and the task-review gate are declared in
   [`.sdd.yaml`](.sdd.yaml) under `agents:`. The model is passed **per dispatch**.
 
