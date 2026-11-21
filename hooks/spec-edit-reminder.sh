@@ -141,15 +141,15 @@ case "$f" in
   *"$trace_file"|*docs/.sdd.yaml)
     echo "› Edited the SDD descriptor / traceability map — run /sdd-trace to confirm the map still matches the tree (the spec-check gate); for the indexes and status lines to follow the map, $regen." ;;
   *"$req_dir"/*|*"$req_dir")
-    echo "› Edited a requirement — keep it to capability + acceptance + out-of-scope (no file paths or how-to); link to its single canonical spec section; update traceability.yaml; for the index and the status lines to follow the map, $regen." ;;
+    echo "› Edited a requirement — keep it to capability + acceptance + out-of-scope (no file paths or how-to), amended in place (methodology §3); link to its single canonical spec section; update traceability.yaml; for the index and the status lines to follow the map, $regen." ;;
   *"$spec_dir"/*|*"$spec_dir")
-    echo "› Edited a spec — one canonical home (no duplicated normative prose), stable § anchors; update traceability.yaml. Then /sdd-trace."
+    echo "› Edited a spec — one canonical home (no duplicated normative prose), amended in place with no note beside a sentence (methodology §3), stable § anchors; update traceability.yaml. Then /sdd-trace."
     added="$(kw_added)"
     if [ -n "$added" ]; then
       echo "› $added RFC-2119 keyword(s) added — a keyword only for what a caller can observe and a test can pin; a default is SHOULD with its reason; how the code does it is prose (methodology §4). Each MUST costs a test, a guard proof and an amendment when the code moves."
     fi ;;
   *"$adr_dir"/*|*"$adr_dir")
-    echo "› Edited an ADR — one decision per record; cite the STRAND it resolves and the REQs it amends; it must be Accepted before code depends on it." ;;
+    echo "› Edited an ADR — one decision per record, a new one only when no ADR or spec § covers it; a stale accepted one is rewritten to the current state with one **Amended:** line (methodology §3); cite the STRAND it resolves and the REQs it amends; it must be Accepted before code depends on it." ;;
   *) : ;;
 esac
 
