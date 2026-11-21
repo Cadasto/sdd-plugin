@@ -2,7 +2,7 @@
 
 `sdd-check` is the shared drift gate. It is one Python file, vendored into a repository by `/sdd-scaffold` and run by the `spec-check` build target, so CI needs no plugin. It checks the traceability chain in both directions, lints the prose rules that can be checked mechanically, regenerates the derived indexes, prints a requirement's context bundle, and tests itself.
 
-Nothing installs an `sdd-check` executable. Throughout this document `sdd-check <cmd>` is shorthand for `python3 <check.script> <cmd> --root .`, where `<check.script>` is the vendored copy the descriptor names (`docs/.sdd.yaml` → `check.script`). A repository that has not vendored the gate runs `/sdd-scaffold --upgrade` before `check` — `check` run from the plugin's own copy fails the version pin, because that copy is not the one the descriptor pins. `generate` and `context` do not check the pin, so they may run from the plugin's copy. A report-only caller (`/sdd-trace`, the `sdd-traceability-auditor` agent) does not stop there: it reports `gate not vendored — run /sdd-scaffold --upgrade` as its first finding, runs the plugin's copy, and discounts only the `descriptor` version-pin finding. When `python3` is unavailable, a skill says so and leaves every generated block for the next run; it never hand-edits one.
+Nothing installs an `sdd-check` executable. Throughout this document `sdd-check <cmd>` is shorthand for `python3 <check.script> <cmd> --root .`, where `<check.script>` is the vendored copy the descriptor names (`docs/.sdd.yaml` → `check.script`). A repository that has not vendored the gate runs `/sdd-scaffold --upgrade` before `check` — `check` run from the plugin's own copy fails the version pin, because that copy is not the one the descriptor pins. `generate` and `context` do not check the pin, so they may run from the plugin's copy. A report-only caller (`/sdd-trace`, the `sdd-traceability-auditor` agent) does not stop there: it reports `gate not vendored — run /sdd-scaffold --upgrade` as its first finding, runs the plugin's copy, and discounts only the `descriptor` version-pin finding. Without Python 3.11 or newer, a skill says so and leaves every generated block for the next run; it never hand-edits one.
 
 ## Commands
 
@@ -32,7 +32,7 @@ command that does not take it exits 2 with a message naming the flag and the com
 | `1` | Ran; at least one error. |
 | `2` | Could not configure itself, so nothing ran. |
 
-Exit 2 has exactly four causes, and nothing else produces it:
+Exit 2 has exactly five causes, and nothing else produces it:
 
 1. **The descriptor** is missing, cannot be parsed, has the wrong shape, or names a path that is absolute
    or escapes the repository.
@@ -41,6 +41,8 @@ Exit 2 has exactly four causes, and nothing else produces it:
 3. **`context` was given an identifier with no record.**
 4. **A `check` run in which no family ran** — every family `off`, for instance, or `--only` naming an
    off family. The tool verified nothing, which is a configuration failure rather than a clean pass.
+5. **Python is older than 3.11.** The tool reads nothing and prints one line naming the interpreter:
+   `sdd-check needs Python 3.11 or newer; this is Python <version> (<path>).`
 
 A command-line error prints one line naming the problem. For a descriptor failure the report is the first
 line followed by `sdd-check: FAILED — <message>`, where the message names the file and the line, with no
@@ -275,7 +277,7 @@ same comparison during `check`, so a hand edit between the markers fails the gat
 and writes the tool's version into `check.version`. The `descriptor` family fails when the two disagree,
 so a stale vendored copy cannot keep passing while the plugin has moved on.
 
-The tool is one file, needs nothing beyond the Python standard library, and runs on Python 3.9 or newer.
+The tool is one file, needs nothing beyond the Python standard library, and runs on Python 3.11 or newer.
 CI runs the vendored copy through the `spec-check` build target, which is why a checkout with no plugin
 installed gets exactly the gate a developer gets. Re-vendoring is a maintenance-lane change: copy the
 file, set `check.version`, run the gate.

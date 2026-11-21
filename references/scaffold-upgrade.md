@@ -8,11 +8,13 @@ Compare `docs/.sdd.yaml` against the template's key set (`references/templates/s
 
 ## 2. Re-vendor and pin
 
-Compare the plugin's tool version (`python3 <plugin-root>/tools/sdd-check.py --version`, or the `__version__` line when `python3` is unavailable) against `check.version`.
+Compare the plugin's tool version (`python3 <plugin-root>/tools/sdd-check.py --version`, or the `__version__` line without Python 3.11 or newer) against `check.version`.
 
 - Plugin's copy newer, or `check.script` missing: copy the plugin's copy over `check.script` (creating it and its parents if this repository never vendored one), `chmod +x`, and write the new version into `check.version`.
 - The two agree: do nothing.
 - Vendored copy newer than the plugin's: stop and say so rather than downgrading it.
+
+When the copy replaces a gate at 0.18.0 or older, say in the report that the gate now needs Python 3.11 or newer, in CI and on every machine that runs it; the older gate ran on Python 3.9.
 
 The pin itself is owned by `references/sdd-check.md` § Vendoring and the version pin.
 
@@ -49,7 +51,7 @@ If the `spec_check_target` does not already run the vendored gate, propose the f
 
 ## 7. Regenerate
 
-Run `sdd-check generate --verify` (when `python3` is unavailable, skip this step and say the regeneration could not run here). `--verify` writes nothing and exits 1 on any staleness, which is expected right after step 5 wrapped a table, so read the output, not the exit code (`references/sdd-check.md` § `--verify`).
+Run `sdd-check generate --verify` (without Python 3.11 or newer, skip this step and say the regeneration could not run here). `--verify` writes nothing and exits 1 on any staleness, which is expected right after step 5 wrapped a table, so read the output, not the exit code (`references/sdd-check.md` § `--verify`).
 
 - A `map-schema` error is not a refusal: the real run leaves the requirements index and the detail-file status lines as they are, still regenerates the specifications and ADR indexes, and exits 1 (`references/sdd-check.md` § What a writing run refuses). Report each map finding for the maintainer to fix, for instance a withdrawn requirement takes `implementation: retired` with `status: deprecated` (`references/traceability-schema.md` § Record fields), and rerun this step once it is fixed.
 - Act on each `refused — …` line as `references/sdd-check.md` § What a writing run refuses directs, then rerun this step.

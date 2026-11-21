@@ -30,7 +30,7 @@ Skills, agents, references, tools and hook scripts are shared by both hosts; man
 - **References** `references/`: the methodology and schemas; `review.md` (the findings file, severities, evidence, the forge mirror, `sdd-pr`'s contract); `artefact-prose.md`; `sdd-check.md` (the gate's contract); `cross-repo-gap.md`; `scaffold-upgrade.md`; and `templates/`, what `/sdd-scaffold` emits (its `AGENTS.md` is a user-repository template, not this file; the link check reads each template where the scaffold writes it).
 - **Tools** `tools/`: `sdd-check.py`, the drift gate `/sdd-scaffold` vendors at `check.script`, pins in `check.version` and wires to the `spec-check` target; `sdd-pr.py`, the findings file and its forge mirror, run from the plugin root and never vendored; `tests/` (`unittest`, no pytest).
 - **Hooks** `hooks/`: `hooks.json` (Claude Code, `${CLAUDE_PLUGIN_ROOT}` paths), `cursor-hooks.json` (workspace-relative paths; what is unverified there: [docs/install.md](docs/install.md#cursor)), and the shared scripts `session-start.sh`, `spec-edit-reminder.sh`, `session-stop.sh`, which exit 0 except the Stop hook's deliberate exit 2 on Claude Code.
-- **Validation** `scripts/`: `validate.sh` runs `validate.py`, then `hooks-test.sh` even without Python; what each check covers: [docs/testing.md](docs/testing.md#validation). CI: [`.github/workflows/validate.yml`](.github/workflows/validate.yml), on push to `main` and every PR, Python 3.9 (the tools' floor) and current 3.x.
+- **Validation** `scripts/`: `validate.sh` runs `validate.py`, then `hooks-test.sh` even without Python; what each check covers: [docs/testing.md](docs/testing.md#validation). CI: [`.github/workflows/validate.yml`](.github/workflows/validate.yml), on push to `main` and every PR, Python 3.11 (the tools' floor) and current 3.x.
 - **Claude settings**: `.claude/settings.json` enables the maintainer plugins (skill-creator, superpowers, plugin-dev, claude-md-management) and pre-approves the validate and gate commands; `.claude/settings.local.json` is gitignored.
 - **Contributor docs** `docs/`, one owner per topic: [quick-start](docs/quick-start.md), [examples](docs/examples.md), [install](docs/install.md) (hosts, local loading, hooks, permission prompts), [upgrading](docs/upgrading.md), [testing](docs/testing.md), [versioning](docs/versioning.md) (release steps, marketplace repin), [authoring](docs/authoring.md) (component conventions). Keep a one-line rule here and point to the owner. `docs/plans/` and `docs/research/` are gitignored working notes.
 
@@ -76,7 +76,7 @@ The **spec, document and traceability layer** and the **delivery pipeline on it*
 No build step. Validate and dogfood locally:
 
 ```bash
-./scripts/validate.sh                          # validate.py (warns & skips if Python is absent), then hooks-test.sh
+./scripts/validate.sh                          # validate.py (warns & skips without Python 3.11+), then hooks-test.sh
 python3 -m unittest discover -s tools/tests -v # both tools' unit tests
 python3 tools/sdd-check.py selftest            # the gate against its own fixtures
 claude plugin validate .                       # manifest + component structure (no Python needed)
