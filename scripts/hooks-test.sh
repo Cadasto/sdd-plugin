@@ -213,13 +213,34 @@ r="$(setup_repo)"; state="$(newdir state)"
 mkdir -p "$r/scripts"
 printf 'import sys\nsys.exit(3)\n' > "$r/scripts/sdd-check.py"
 gate_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" | grep 'drift gate')"
-if command -v python3 >/dev/null 2>&1; then
+if ! command -v python3 >/dev/null 2>&1; then
+  expect="› drift gate: no verdict (python3 not found)"
+elif python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
   expect="› drift gate: no verdict (exit 3)"
 else
-  expect="› drift gate: no verdict (python3 not found)"
+  expect=""
+  skip "session-start reports a vendored gate that gave no verdict (python3 here is older than 3.11)"
 fi
-[ "$gate_line" = "$expect" ] && ok "session-start reports a vendored gate that gave no verdict" \
-  || bad "drift-gate line was '$gate_line', expected '$expect'"
+if [ -n "$expect" ]; then
+  [ "$gate_line" = "$expect" ] && ok "session-start reports a vendored gate that gave no verdict" \
+    || bad "drift-gate line was '$gate_line', expected '$expect'"
+fi
+
+# --- session-start: a python3 older than 3.11 is named, and the gate is not run --------
+# A fake python3 answers every call with a version: the hook asks for it first, and a gate run through
+# the fake would print no verdict, so "exit 0" in the line means the hook ran the gate.
+fakebin="$(newdir bin)"
+printf '#!/bin/sh\necho 3.9.6\n' > "$fakebin/python3"; chmod +x "$fakebin/python3"
+gate_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" PATH="$fakebin:$PATH" | grep 'drift gate')"
+expect="› drift gate: no verdict (python3 at $fakebin/python3 is Python 3.9.6, older than the 3.11 the gate needs; put a Python 3.11+ first on the PATH the host app uses)"
+[ "$gate_line" = "$expect" ] && ok "session-start names a python3 older than 3.11 and skips the gate" \
+  || bad "old-python drift-gate line was '$gate_line', expected '$expect'"
+( cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" PATH="$fakebin:$PATH" >/dev/null 2>&1 ); rc=$?
+[ "$rc" -eq 0 ] && ok "session-start exits 0 with a python3 older than 3.11" || bad "old-python session-start exit was $rc"
+printf '#!/bin/sh\necho 3.11.0\n' > "$fakebin/python3"
+gate_line="$(cd "$r" && printf '%s' "$claude_start" | hook session-start "$state" PATH="$fakebin:$PATH" | grep 'drift gate')"
+[ "$gate_line" = "› drift gate: no verdict (exit 0)" ] && ok "session-start runs the gate on Python 3.11" \
+  || bad "3.11 drift-gate line was '$gate_line', expected the gate to run"
 
 # --- session-stop: Claude one-shot nudge ----------------------------------------------
 r="$(setup_repo)"; state="$(newdir state)"

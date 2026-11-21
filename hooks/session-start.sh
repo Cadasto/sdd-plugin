@@ -269,8 +269,13 @@ if is_sdd_repo; then
   [ -n "$check_script" ] || check_script="scripts/sdd-check.py"
   if [ -f "$check_script" ]; then
     # A vendored gate that yields no verdict line is reported, never silenced: a crash, a timeout or
-    # a missing interpreter would otherwise look exactly like a repository with no gate at all.
-    if have python3; then
+    # a missing or too old interpreter would otherwise look exactly like a repository with no gate at all.
+    # The gate needs Python 3.11 or newer; an empty answer to the version question still runs it.
+    pyver=""
+    have python3 && pyver="$(tmo 5 python3 -c 'import sys; print("%d.%d.%d" % tuple(sys.version_info[:3]))' 2>/dev/null)"
+    if [ -n "$pyver" ] && version_lt "$pyver" 3.11; then
+      add "› drift gate: no verdict (python3 at $(command -v python3) is Python $pyver, older than the 3.11 the gate needs; put a Python 3.11+ first on the PATH the host app uses)"
+    elif have python3; then
       gate_out="$(tmo 15 python3 "$check_script" check 2>/dev/null)"
       gate_rc=$?
       verdict="$(printf '%s\n' "$gate_out" | grep '^sdd-check:' | tail -n1)"
