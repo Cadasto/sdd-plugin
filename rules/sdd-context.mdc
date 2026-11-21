@@ -8,7 +8,7 @@ alwaysApply: false
 
 Apply when working in this repo's `docs/` tree or `AGENTS.md`. Read `docs/.sdd.yaml` first.
 
-**The specification records the contract code is measured against; the maintainer's instruction outranks it** — name the sentence once, do the work, amend it in the same change. A keyword only for what a caller relies on. The plugin owns the spec/document layer and the delivery pipeline that runs on it — workers, review, triage, close-out. A general engineering plugin is optional, and only at the exploration end.
+**The specification records the contract code is measured against; the maintainer's instruction outranks it** — name the sentence once, do the work, amend it in place in the same change (methodology §3). A keyword only for what a caller relies on. The plugin owns the spec/document layer and the delivery pipeline that runs on it — workers, review, triage, close-out. A general engineering plugin is optional, and only at the exploration end.
 
 **SDD commands:** `/sdd-scaffold` · `/sdd-specify` · `/sdd-deliver` · `/sdd-review` · `/sdd-triage` (`--backlog`) · `/sdd-close` · `/sdd-trace` (`--audit`). For the full flow, use the `spec-driven-development` skill or — in a scaffolded repo — [docs/ai-workflow.md](docs/ai-workflow.md).
 
