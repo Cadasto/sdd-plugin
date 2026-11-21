@@ -152,8 +152,8 @@ findings: <clone>/.git/sdd/findings/feat--auth-refresh.md
 open: 0 critical, 1 important · outside the change: 0 · suggestions: 1
 #0e53b - [ ] important · internal/auth/refresh_test.go:40 · no test for the revoked path · by: ana · forge: 5893201111
 #72ee1 - internal/auth/refresh.go:120 · rename `tok` to `token` · by: go-coding:go-reviewer
-forge: github · PR 7 (ready) · 0 unresolved threads not open in the file · checks: pass
-Mergeable: no — 1 important open
+forge: github · PR 7 (draft) · 0 unresolved threads not open in the file · checks: pass
+Mergeable: no — 1 important open; the pull request is a draft
 Next: /sdd-triage
 ```
 
@@ -165,7 +165,7 @@ The format and its rules live in [review.md](../references/review.md).
 /sdd-close <N>
 ```
 
-Run it when `sdd-pr status` shows nothing blocking. It sets the requirement to `shipped`, ticks the acceptance criteria the change delivered, adds the changelog line, writes the pull request body and marks a draft ready. It fixes an `outside` defect with a small fix in the branch and carries the remaining defects to `docs/backlog.md` in this pull request; it asks once which suggestions to carry, by name, and the rest wait on the pull request for `/sdd-triage --backlog`. It ends by telling you to start the next change in a new session.
+Run it when `sdd-pr status` shows nothing blocking. It sets the requirement to `shipped`, ticks the acceptance criteria the change delivered, adds the changelog line, writes the pull request body and marks the draft ready. It fixes an `outside` defect with a small fix in the branch and carries the remaining defects to `docs/backlog.md` in this pull request; it asks once which suggestions to carry, by name, and the rest wait on the pull request for `/sdd-triage --backlog`. It ends by telling you to start the next change in a new session.
 
 You merge on the forge. Then run `/sdd-close <N>` again, from any checkout: `sdd-pr clean` removes the branch's worktree, the local branch and its findings file. It refuses, changing nothing, while the branch holds a commit the pull request does not or a line in the findings file would be lost. Run from inside the worktree it would remove, it prints the commands for you instead. The pull request and the remote branch are yours.
 

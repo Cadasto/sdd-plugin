@@ -4,7 +4,9 @@ This page is for maintainers of a repository scaffolded by an earlier version of
 
 ## From 0.18.x to the next release
 
-`sdd-check` and `sdd-pr` need Python 3.11 or newer. Give CI and each machine one, then re-vendor the gate.
+`sdd-check` and `sdd-pr` need Python 3.11 or newer: give CI and each machine one, then re-vendor
+the gate. `/sdd-deliver` opens every pull request as a draft again, and `/sdd-close` marks it ready
+when it pushes the close-out.
 
 1. **Python 3.11 or newer.** On an older Python, the new gate and `sdd-pr` print one line naming it and
    exit 2. Once the plugin is updated, the session banner reads
@@ -14,6 +16,18 @@ This page is for maintainers of a repository scaffolded by an earlier version of
    [install.md](install.md#python-311-or-newer) covers macOS.
 2. **Re-vendor the gate.** Run `/sdd-scaffold --upgrade`: it copies the new gate over `check.script`,
    sets `check.version`, and names the Python floor in its report.
+3. **Draft pull requests.** `/sdd-deliver` opens the pull request as a draft; ask if you want it ready
+   for review at once. `/sdd-close` marks it ready when it pushes the close-out. A CI workflow that
+   skips drafts then runs its gate once per pull request, on the commit about to merge, and once for
+   each push after it. Pushes during review and triage rely on the local gate,
+   `<build_entrypoint> <ci_target>`. On a draft with nothing else open, `sdd-pr status` reads
+   `Next: /sdd-close, which marks it ready`.
+4. **Process documents.** `/sdd-scaffold --upgrade` proposes the changed line in `docs/ai-workflow.md`
+   § Orchestration. It does not merge `AGENTS.md`: change its "Agents open PRs, a draft only when
+   asked" line by hand to the template's new wording, "Agents open every PR as a draft, and
+   `/sdd-close` marks it ready when it pushes the close-out. A CI that skips drafts then runs once, on
+   the commit about to merge; a person merges." Where you already changed either line, keep your
+   wording or take the template's.
 
 ## From 0.17.x to 0.18.0
 
@@ -201,7 +215,8 @@ vendored gate is older than the plugin.
 2. **Ready pull requests.** `/sdd-deliver` opens a pull request ready for review; ask for a draft if you
    want one. With nothing open, `sdd-pr status` then reads `Next: merge`; on a draft it points at
    `/sdd-deliver --close-out`, which marks it ready. The close-out may also run after the merge: it then
-   commits on the default branch, or a branch from it, and updates the pull request body.
+   commits on the default branch, or a branch from it, and updates the pull request body. A later
+   release opens drafts again; its section is above.
 3. **`outside` findings.** A critical or important defect in code the branch did not change used to be a
    suggestion at most. It now keeps its severity, is marked `outside`, blocks nothing, goes in the
    non-blocking comment above the suggestions, and is carried to the backlog with its severity.
@@ -221,9 +236,10 @@ vendored gate is older than the plugin.
    `## Unsorted` so the first consolidation regroups them. The close-out no longer deletes the backlog
    lines a branch settled; the next `--backlog` run does, with `forge: none` too.
 8. **Process documents.** `--upgrade` proposes the changed `docs/ai-workflow.md` § Review (the `outside`
-   rule, code first, the review request) and § Orchestration. It does not merge `AGENTS.md`: change its
-   "Agents open draft PRs and mark them ready" line by hand to "Agents open PRs, a draft only when
-   asked". Re-paste the review request to reviewers outside the repository.
+   rule, code first, the review request) and § Orchestration. It does not merge `AGENTS.md`: 0.12
+   changed its "Agents open draft PRs and mark them ready" line to "Agents open PRs, a draft only when
+   asked", and a later release changed it again, so change it by hand once, to the wording in that
+   release's section above. Re-paste the review request to reviewers outside the repository.
 
 ## From 0.11.0 to 0.11.1
 
